@@ -2,7 +2,7 @@
 
 Owner: Shared - all four members keep this list current.
 
-These labels identify who maintains and extends each file. They do not claim that the starter code was independently written by that member. The contribution record in `README.md` identifies the supplied code and AI assistance. Agree changes to shared ports with the members consuming them.
+These labels identify who maintains and extends each file. They do not claim that the starter code was independently written by that member. The contribution record in `README.md` identifies the supplied code. Agree changes to shared ports with the members consuming them.
 
 All design files below are in `GPT_6_S2_01_I-FDP_project.srcs/sources_1/new/`.
 

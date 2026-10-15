@@ -14,7 +14,7 @@ Reuse the user's `button_debouncer` three-state logic for button press pulses. I
 
 Do not explicitly instantiate FPGA clock-buffer primitives or add vendor placement attributes in the custom modules. Use the supplied divider and ordinary Verilog registers; preserve the synchroniser stages and review timing/clock routing during implementation.
 
-The user has approved committing the reviewed starter files together, including ownership labels. For future changes, follow the user's current approval instructions. Branch names should not use a `codex/` prefix.
+The user has approved committing the reviewed starter files together, including ownership labels. For future changes, follow the user's current approval instructions. Use descriptive branch names such as `starter-module-wiring` or `role1-builder`.
 
 Keep all game design files together in the existing `GPT_6_S2_01_I-FDP_project.srcs/sources_1/new/` folder. Each person owns particular module files; separate role folders are unnecessary.
 

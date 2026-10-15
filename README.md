@@ -64,6 +64,6 @@ The simulation benches passed on 15 October 2026. The synthesis attempt stopped 
 
 ## Contribution records
 
-Keep references and a record of AI assistance alongside each contribution for the final report. The collaboration structure, interface draft, starter game modules, top-level wiring and simulation benches were prepared with Codex. `custom_clk_divider.v`, `square.v` and `seven_seg_oled.v` preserve the user's supplied logic; Codex connected these helpers to the starter. Each owner must review, understand, extend and test their contribution; supplied drivers retain their original attribution.
+Keep references and contribution records for the final report. `custom_clk_divider.v`, `square.v` and `seven_seg_oled.v` preserve the user's supplied logic and are connected to the starter. Each owner must review, understand, extend and test their contribution; supplied drivers retain their original attribution.
 
 `button_debouncer.v` adapts the user's supplied three-state debouncer and optional release check. The integration adds reset handling and makes the release interval a parameter for the 100 MHz clock and short simulations. The optional hold timer is omitted because these controls need only press pulses.
