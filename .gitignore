@@ -5,12 +5,15 @@
 *.sim/
 *.hw/
 *.ip_user_files/
+*.gen/
+*.os/
 
 # Vivado logs and journals
 *.log
 *.jou
 *.str
 vivado*.zip
+dfx_runtime.txt
 
 # Generated simulation files
 xsim.dir/
@@ -33,3 +36,6 @@ xsim.dir/
 .DS_Store
 Thumbs.db
 Desktop.ini
+
+# Local document inspection and other scratch files
+tmp/
