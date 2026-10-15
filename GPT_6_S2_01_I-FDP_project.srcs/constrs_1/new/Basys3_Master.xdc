@@ -158,6 +158,3 @@ set_property CFGBVS VCCO [current_design]
 set_property BITSTREAM.GENERAL.COMPRESS TRUE [current_design]
 set_property BITSTREAM.CONFIG.CONFIGRATE 33 [current_design]
 set_property CONFIG_MODE SPIx4 [current_design]
-
-## Derived 6.25 MHz clock from the user's divider output register
-create_generated_clock -name oled_clk -source [get_ports clk] -divide_by 16 [get_pins {u_clocking/u_oled_divider/CUSTOM_CLOCK_reg/Q}]
