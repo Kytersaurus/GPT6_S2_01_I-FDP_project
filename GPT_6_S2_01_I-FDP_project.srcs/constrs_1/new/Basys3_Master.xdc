@@ -1,4 +1,3 @@
-# Owner: Shared integration - all roles; Role 4 (Marcus) coordinates pin/clock changes.
 ## This file is a general .xdc for the Basys3 rev B board
 ## To use it in a project:
 ## - uncomment the lines corresponding to used pins
