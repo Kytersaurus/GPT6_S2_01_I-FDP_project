@@ -1,3 +1,4 @@
+// Owner: Role 1 - Kaushal. Button and switch inputs.
 `timescale 1ns / 1ps
 // Role 1 starter: button actions; a future mouse adapter can share these actions.
 module input_controller #(

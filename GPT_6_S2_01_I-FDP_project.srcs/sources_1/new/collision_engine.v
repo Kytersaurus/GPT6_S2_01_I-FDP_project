@@ -1,3 +1,4 @@
+// Owner: Role 3 - Yap Ting. Terrain collision response.
 `timescale 1ns / 1ps
 `include "game_defs.vh"
 // Role 3 starter: downward platform crossing. Walls/ceilings/TNT are future work.
@@ -22,6 +23,7 @@ module collision_engine (
         candidate_y = $signed(proposed_y); candidate_vy = $signed(proposed_vy);
         candidate_grounded = 0; rx = 0; ry = 0; rw = 0; rh = 0;
         for (index = 0; index < 4; index = index + 1) begin
+            // [start +: 8] selects eight bits beginning at start.
             rx = terrain_rects[index*32 +: 8]; ry = terrain_rects[index*32+8 +: 8];
             rw = terrain_rects[index*32+16 +: 8]; rh = terrain_rects[index*32+24 +: 8];
             if (index < terrain_count && rw > 0 && rh > 0 && $signed(proposed_vy) >= 0 &&

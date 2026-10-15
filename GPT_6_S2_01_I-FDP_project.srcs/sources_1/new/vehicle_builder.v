@@ -1,3 +1,4 @@
+// Owner: Role 1 - Kaushal. Build storage, damage state and part properties.
 `timescale 1ns / 1ps
 `include "game_defs.vh"
 // Role 1 starter: fixed build, derived properties, damage and retry.

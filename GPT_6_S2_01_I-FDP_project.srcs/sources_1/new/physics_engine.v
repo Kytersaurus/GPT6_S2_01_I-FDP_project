@@ -1,3 +1,4 @@
+// Owner: Role 2 - Kyle. Vehicle movement and velocity.
 `timescale 1ns / 1ps
 `include "game_defs.vh"
 // Role 2 starter: upright body, provisional acceleration/lift/drag lookup.

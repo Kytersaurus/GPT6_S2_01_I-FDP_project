@@ -1,3 +1,4 @@
+// Owner: Shared clock/reset support - Role 1 (Kaushal) maintains this starter.
 `timescale 1ns / 1ps
 module clock_control #(parameter integer PHYSICS_CYCLES = 1666667) (
     input wire clk, reset_button,

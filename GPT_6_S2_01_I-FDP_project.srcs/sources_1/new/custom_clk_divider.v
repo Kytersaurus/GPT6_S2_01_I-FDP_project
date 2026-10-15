@@ -1,3 +1,4 @@
+// Owner: Role 1 - Kaushal. User-supplied shared clock helper.
 `timescale 1ns / 1ps
 // User-supplied divider. Output frequency = CLOCK / (2 * (freq_count + 1)).
 // Keep freq_count constant for the OLED clock; the divider runs through reset.

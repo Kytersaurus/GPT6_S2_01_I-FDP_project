@@ -1,0 +1,29 @@
+// Owner: Role 3 - Yap Ting. INTERFACE REFERENCE ONLY; do not compile this file.
+// Extend the existing collision_engine.v beside My_Top_Module.v.
+`include "game_defs.vh"
+
+module collision_engine (
+    input wire clk,
+    input wire reset,
+    input wire move_valid,
+    output wire move_ready,
+    input wire signed [`LP_COORD_BITS-1:0] previous_x,
+    input wire signed [`LP_COORD_BITS-1:0] previous_y,
+    input wire signed [`LP_COORD_BITS-1:0] proposed_x,
+    input wire signed [`LP_COORD_BITS-1:0] proposed_y,
+    input wire signed [`LP_COORD_BITS-1:0] proposed_vx,
+    input wire signed [`LP_COORD_BITS-1:0] proposed_vy,
+    input wire [2:0] terrain_count,
+    input wire [`LP_MAX_TERRAIN*`LP_RECT_BITS-1:0] terrain_rects,
+
+    output wire response_valid,
+    input wire response_ready,
+    output wire signed [`LP_COORD_BITS-1:0] corrected_x,
+    output wire signed [`LP_COORD_BITS-1:0] corrected_y,
+    output wire signed [`LP_COORD_BITS-1:0] corrected_vx,
+    output wire signed [`LP_COORD_BITS-1:0] corrected_vy,
+    output wire grounded
+);
+    // Role 3: terrain correction only. Separate TNT/outcome logic checks
+    // the committed movement and completes the world update afterwards.
+endmodule

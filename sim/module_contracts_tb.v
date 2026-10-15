@@ -1,0 +1,99 @@
+// Owner: Shared - Roles 1, 3 and 4 maintain their checks.
+`timescale 1ns / 1ps
+`include "game_defs.vh"
+module module_contracts_tb;
+    reg clk=0, reset=1;
+    always #5 clk=~clk;
+    reg [2:0] builder_state=`LP_BUILD;
+    reg builder_init=0, damage_valid=0;
+    reg [8:0] damage_mask=0;
+    wire builder_ready, damage_ready, valid, pig_alive;
+    wire [26:0] grid;
+    wire [8:0] intact;
+    wire [3:0] error, wheels, engines, balloons;
+    wire [7:0] mass;
+    vehicle_builder builder (
+        .clk(clk),.reset(reset),.game_state(builder_state),.run_init(builder_init),.init_ready(builder_ready),
+        .edit_valid(1'b0),.edit_op(2'd0),.edit_cell(4'd0),.edit_part(3'd0),
+        .damage_valid(damage_valid),.damage_ready(damage_ready),.damage_mask(damage_mask),
+        .build_grid(grid),.intact_mask(intact),.build_valid(valid),.build_error(error),.pig_alive(pig_alive),
+        .wheel_count(wheels),.engine_count(engines),.balloon_count(balloons),.mass_units(mass)
+    );
+    reg move_valid=0, response_ready=0;
+    wire move_ready, response_valid, grounded;
+    reg signed [15:0] px=1024, py=7936, nx=1024, ny=8704, nvx=0, nvy=512;
+    wire signed [15:0] cx,cy,cvx,cvy;
+    collision_engine collision (
+        .clk(clk),.reset(reset),.move_valid(move_valid),.move_ready(move_ready),
+        .previous_x(px),.previous_y(py),.proposed_x(nx),.proposed_y(ny),.proposed_vx(nvx),.proposed_vy(nvy),
+        .terrain_count(3'd1),.terrain_rects({96'd0,8'd8,8'd96,8'd56,8'd0}),
+        .response_valid(response_valid),.response_ready(response_ready),.corrected_x(cx),.corrected_y(cy),
+        .corrected_vx(cvx),.corrected_vy(cvy),.grounded(grounded)
+    );
+    reg launch=0, retry=0, build_valid=0, live=1, tick=0, world_valid=0, goal=0;
+    reg [2:0] ready=0;
+    wire [2:0] state;
+    wire run_init, world_ready, step, release_step, launch_event, success_event, failure_event;
+    game_controller control (
+        .clk(clk),.reset(reset),.launch_req(launch),.retry_req(retry),.edit_req(1'b0),
+        .guide_open_req(1'b0),.guide_close_req(1'b0),.build_valid(build_valid),.pig_alive(live),.init_ready(ready),
+        .physics_tick(tick),.world_valid(world_valid),.world_ready(world_ready),.goal_hit(goal),
+        .hazard_hit(1'b0),.out_of_bounds(1'b0),.game_state(state),.run_init(run_init),
+        .step_start(step),.update_release(release_step),.launch_event(launch_event),
+        .success_event(success_event),.failure_event(failure_event)
+    );
+    reg [12:0] pixel=0;
+    wire [15:0] left_colour, right_colour;
+    left_renderer left_view (
+        .pixel_index(pixel),.game_state(builder_state),.build_grid(grid),.intact_mask(intact),
+        .build_valid(valid),.build_error(error),.engine_enabled(1'b1),.pixel_data(left_colour)
+    );
+    right_renderer right_view (
+        .pixel_index(pixel),.game_state(builder_state),.build_grid(grid),.intact_mask(intact),
+        .vehicle_x(16'sd1024),.vehicle_y(16'sd8192),.terrain_count(3'd1),
+        .terrain_rects({96'd0,8'd8,8'd96,8'd56,8'd0}),.goal_rect({8'd24,8'd16,8'd32,8'd80}),.pixel_data(right_colour)
+    );
+    task clocks;
+        input integer count;
+        begin repeat(count) @(negedge clk); end
+    endtask
+    initial begin
+        clocks(3); reset=0; clocks(2);
+        if (!valid || !pig_alive || wheels!=2 || engines!=1 || mass!=11) $fatal(1,"Initial properties incorrect");
+        pixel=21*96+21; #1; if (left_colour != 16'h07e0) $fatal(1,"Left 16-pixel pig cell incorrect");
+        pixel=37*96+70; #1; if (left_colour != 16'hffff) $fatal(1,"Surviving-part count not drawn");
+        pixel=41*96+13; #1; if (right_colour != 16'h07e0) $fatal(1,"Right pig pixel incorrect");
+        pixel=60*96+40; #1; if (right_colour != 16'h8320) $fatal(1,"Terrain pixel incorrect");
+        pixel=40*96+85; #1; if (right_colour != 16'h0320) $fatal(1,"Goal rectangle helper not connected");
+        builder_state=`LP_RUN; damage_mask=9'b000100000; damage_valid=1; clocks(1); damage_valid=0; clocks(1);
+        if (engines!=0 || mass!=8 || grid[17:15]!=`LP_PART_ENGINE) $fatal(1,"Damage corrupted original build/properties");
+        damage_mask=9'b000010000; damage_valid=1; clocks(3); damage_valid=0;
+        if (pig_alive) $fatal(1,"Pig destruction not applied");
+        builder_state=`LP_INIT_RUN; builder_init=1; clocks(2);
+        if (!builder_ready || !pig_alive || engines!=1 || intact!=9'b111111000) $fatal(1,"Retry did not restore build");
+        builder_init=0;
+
+        move_valid=1; clocks(1); move_valid=0; clocks(1);
+        if (!response_valid || !grounded || cy!=8192 || cvy!=0) $fatal(1,"Platform crossing failed");
+        ny=12000; clocks(5);
+        if (!response_valid || move_ready || cy!=8192) $fatal(1,"Collision response changed under backpressure");
+        response_ready=1; clocks(1); response_ready=0;
+        nx=24576; move_valid=1; clocks(1); move_valid=0; clocks(1);
+        if (grounded || cy!=12000) $fatal(1,"Non-overlapping vehicle landed on ground");
+        response_ready=1; clocks(1);
+
+        launch=1; clocks(1); launch=0; clocks(2);
+        if (state!=`LP_BUILD) $fatal(1,"Invalid build launched");
+        build_valid=1; launch=1; clocks(1); launch=0; ready=3'b001; clocks(3);
+        if (state!=`LP_INIT_RUN) $fatal(1,"Controller ignored delayed readiness");
+        ready=3'b111; clocks(2);
+        if (state!=`LP_RUN) $fatal(1,"Ready modules did not start RUN");
+        tick=1; clocks(1); tick=0; clocks(1);
+        goal=1; live=0; world_valid=1; clocks(1); world_valid=0;
+        if (state!=`LP_FAIL || !failure_event || success_event) $fatal(1,"Goal incorrectly outranked pig death");
+        clocks(1); if (failure_event) $fatal(1,"Result audio event repeated");
+        $display("PASS module_contracts_tb: damage/retry, pixels, landing, backpressure, invalid launch, readiness, failure priority");
+        $finish;
+    end
+    initial begin #10000; $fatal(1,"Module contracts test timed out"); end
+endmodule

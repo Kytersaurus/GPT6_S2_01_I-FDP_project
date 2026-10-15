@@ -1,0 +1,43 @@
+// Owner: Role 2 - Kyle. INTERFACE REFERENCE ONLY; do not compile this file.
+// Extend the existing physics_engine.v beside My_Top_Module.v.
+`include "game_defs.vh"
+
+module physics_engine (
+    input wire clk,
+    input wire reset,
+    input wire [2:0] game_state,
+    input wire run_init,
+    output wire init_ready,
+    input wire signed [`LP_COORD_BITS-1:0] spawn_x,
+    input wire signed [`LP_COORD_BITS-1:0] spawn_y,
+    input wire step_start,
+    input wire update_release,
+    input wire [3:0] wheel_count,
+    input wire [3:0] engine_count,
+    input wire [3:0] balloon_count,
+    input wire [7:0] mass_units,
+    input wire engine_enabled,
+
+    output wire move_valid,
+    input wire move_ready,
+    output wire signed [`LP_COORD_BITS-1:0] previous_x,
+    output wire signed [`LP_COORD_BITS-1:0] previous_y,
+    output wire signed [`LP_COORD_BITS-1:0] proposed_x,
+    output wire signed [`LP_COORD_BITS-1:0] proposed_y,
+    output wire signed [`LP_COORD_BITS-1:0] proposed_vx,
+    output wire signed [`LP_COORD_BITS-1:0] proposed_vy,
+
+    input wire response_valid,
+    output wire response_ready,
+    input wire signed [`LP_COORD_BITS-1:0] corrected_x,
+    input wire signed [`LP_COORD_BITS-1:0] corrected_y,
+    input wire signed [`LP_COORD_BITS-1:0] corrected_vx,
+    input wire signed [`LP_COORD_BITS-1:0] corrected_vy,
+    input wire grounded,
+    output wire movement_committed,
+    output wire signed [`LP_COORD_BITS-1:0] vehicle_x,
+    output wire signed [`LP_COORD_BITS-1:0] vehicle_y
+);
+    // Role 2 owns committed position and velocity. Wait for update_release
+    // after committing movement so damage finishes before the next step.
+endmodule

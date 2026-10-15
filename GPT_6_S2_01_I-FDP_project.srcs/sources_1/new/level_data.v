@@ -1,3 +1,4 @@
+// Owner: Role 4 - Marcus. Shared map, spawn and goal data.
 `timescale 1ns / 1ps
 // Role 4 starter: one flat test map, not the two final playable levels.
 module level_data (

@@ -1,3 +1,4 @@
+// Owner: Role 1 - Kaushal. Adapted from the user's supplied debouncer.
 `timescale 1ns / 1ps
 
 // Based on the user's debouncer, including the optional stable-release check.

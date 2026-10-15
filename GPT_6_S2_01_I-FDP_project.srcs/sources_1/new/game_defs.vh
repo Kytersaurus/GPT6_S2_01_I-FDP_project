@@ -1,3 +1,4 @@
+// Owner: Shared - all roles agree changes to these constants.
 `ifndef LAGGY_PIGGIES_GAME_DEFS_VH
 `define LAGGY_PIGGIES_GAME_DEFS_VH
 
