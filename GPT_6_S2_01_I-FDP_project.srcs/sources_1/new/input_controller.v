@@ -1,6 +1,6 @@
 // Owner: Role 1 - Kaushal. Button and switch inputs.
 `timescale 1ns / 1ps
-// Role 1 starter: button actions; a future mouse adapter can share these actions.
+// Button actions and engine switch; mouse_adapter handles construction clicks.
 module input_controller #(
     parameter integer DEBOUNCE_CYCLES = 20000000,
     parameter integer RELEASE_CYCLES = 2000000

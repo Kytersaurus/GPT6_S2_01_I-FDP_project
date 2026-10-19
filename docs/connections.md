@@ -15,10 +15,14 @@ All game modules live beside `My_Top_Module.v` in the existing design source fol
 | `input_controller` | `game_controller` | `start_press` connects to both `launch_req` and `retry_req`; the current state chooses the action. `edit_press` connects to `edit_req` |
 | `input_controller` | `physics_engine` | `engine_enabled` is the synchronised SW0 state, sampled when a movement step starts |
 | `vehicle_builder` | `physics_engine` | Four-bit `wheel_count`, `engine_count`, `balloon_count` and eight-bit `mass_units` describe surviving parts |
-| `vehicle_builder` | `game_controller` | `build_valid` gates launch; `pig_alive` participates in the final outcome |
+| `vehicle_builder` | `game_controller` | `build_valid` gates launch; the top masks it while `edit_valid` is high so concurrent edits cannot launch using old validity. `pig_alive` participates in the final outcome |
+| `MouseCtl` | `mouse_adapter` | Completed `new_event` packets supply 12-bit x/y positions and held button levels |
+| `mouse_adapter` | `MouseCtl` | `value`, `setx/y` and `setmax_x/y` configure 96 by 64 coordinates and the initial cursor |
+| `mouse_adapter` | `vehicle_builder` | One-cycle `edit_valid` plus operation, cell and part; place on left release, remove on right press |
+| `vehicle_builder`, `mouse_adapter` | Left renderer through snapshot | Five stock counts, selected part and cursor position |
 | `level_data` | `physics_engine` | Signed 16-bit `spawn_x` and `spawn_y` load the initial position |
 | `game_controller` | Builder, physics, world outcomes | `run_init` stays high in INIT_RUN; each module returns one bit of the three-bit `init_ready` bus |
-| `game_controller` | `physics_engine` | `step_start` begins one update; `update_release` allows the following update after world checks finish |
+| `game_controller` | `physics_engine` | `step_start` samples properties, followed by separate force/velocity/position calculation clocks; `update_release` allows the following update after world checks finish |
 | `physics_engine` | `collision_engine` | `move_valid`/`move_ready` transfer `previous_x/y`, `proposed_x/y` and `proposed_vx/vy` |
 | `collision_engine` | `physics_engine` | `response_valid`/`response_ready` transfer `corrected_x/y`, `corrected_vx/vy` and `grounded` |
 | `physics_engine` | `world_outcomes` | `movement_committed` pulses after `vehicle_x/y` have been updated; the world module samples those committed coordinates |
@@ -31,11 +35,15 @@ Every movement coordinate and velocity is signed with eight fractional bits: 256
 
 ## Connected drawing path
 
-The top packs game state, build grid, intact mask, validation, vehicle position and engine status into a 77-bit bus for `display_snapshot`. The snapshot module transfers a held payload from the game clock to the OLED clock, then publishes it at a frame boundary. Both renderers consume the same published snapshot.
+The top packs game state, content grid, content/frame intact masks, validation, vehicle position, engine status, five inventory counts, cursor coordinates and selected part into a 123-bit bus for `display_snapshot`. The snapshot module transfers a held payload from the game clock to the OLED clock, then publishes it at a frame boundary. Both renderers consume the same published snapshot. The saved `build_frames` need not cross this boundary because frame drawing uses `frame_intact_mask`.
 
 Each `Oled_Display` instance produces its own `pixel_index`; its renderer returns `pixel_data`. The left driver connects to JA and the right driver to JB. Both drivers share the 6.25 MHz clock and display reset, so their frame counters start together. `level_data` feeds the right renderer's terrain and goal directly because this starter map is constant.
 
-`left_renderer` uses the user's `square` helper to draw its grid and status areas and `seven_seg_oled` to show the surviving-part count. Editor cells are 16 by 16 pixels; gameplay cells remain eight by eight. `right_renderer` also uses `square` for the goal region. Screen geometry passed to these seven-bit helpers stays within the fixed 96 by 64 world.
+A single physical OLED can be used on JA for construction/input tests while JB is empty. The SPI displays do not return acknowledgements, so the missing screen does not stall either driver or the game. Move the display only with board power off; programming must be repeated after a power cycle when using a volatile bitstream load.
+
+`left_renderer` uses the user's `square` helper to draw its grid/status areas and two `seven_seg_oled` instances for the surviving-part count, including frames and contents (up to 18). Editor cells are 16 by 16 pixels; gameplay cells remain eight by eight. Both renderers draw frame borders with contents in the centre. `right_renderer` also uses `square` for the goal region. Screen geometry passed to these seven-bit helpers stays within the fixed 96 by 64 world.
+
+During BUILD the left renderer shows five inventory rows at x=56..91 and y=4..53 instead of the runtime count/status area. A third number helper displays the row's remaining stock. The adapter and renderer share the documented 16-pixel grid/10-pixel inventory-row layout. Source mouse pins `PS2Clk`/`PS2Data` connect through the existing C17/B17 XDC assignments, now uncommented with their original pull-ups. Supplied VHDL driver contents are unchanged; simulation and synthesis scripts now include them.
 
 `custom_clk_divider` preserves the user's supplied logic. It toggles after `freq_count+1` input cycles, so its output frequency is `input_frequency / (2*(freq_count+1))`. Hold the count at seven for the OLEDs. `clock_control` retains the physics-enable counter and reset handling; physics continues to use 100 MHz with an enable pulse rather than a separate slow clock. Custom modules use ordinary registers without explicit FPGA clock-buffer instances or placement attributes. The two-register synchronisers remain. At the user's request, the constraints contain no separate generated-clock declaration for the OLED divider. Timing analysis of the divided clock remains incomplete; clock routing and board operation still need verification.
 
@@ -43,19 +51,29 @@ Each `Oled_Display` instance produces its own `pixel_index`; its renderer return
 
 | Boundary | Current starter behaviour | Next owner task |
 | --- | --- | --- |
-| Builder edit inputs | Tied to zero; fixed original grid | Role 1 adds editor, inventory and validation rules |
-| Builder damage input | Tied inactive in the top; exercised in the unit bench | Role 3 produces a TNT damage mask; Role 1 applies it through `damage_valid`/`damage_ready` |
+| Builder edit inputs | Connected to mouse selection/place/remove actions with inventory checks | Role 1 adds gameplay mouse actions and any later input refinements |
+| Builder damage inputs | Both masks tied inactive in the top; exercised in the unit bench | Role 3 produces content/frame masks; Role 1 applies both through `damage_valid`/`damage_ready` |
 | Game guide requests | Tied inactive | Roles 1 and 4 agree navigation inputs and instruction screens |
 | Audio events | `launch_event`, `success_event`, `failure_event` generated but not connected to audio | Role 1 adds sound routing/output; Role 3 later supplies explosion events |
-| Mouse | Supplied controller retained but not instantiated | Role 1 adds an adapter feeding the same actions as buttons |
+| Mouse | Supplied controller instantiated unchanged; construction adapter connected | Verify real mouse operation on the Basys3; guide/gameplay controls remain future work |
 | Balloon popping | No control connected; the fixed build has no balloons | Role 1 updates intact state, then publishes the surviving count for Role 2 |
 | Collision | Downward landing on rectangular platforms | Role 3 adds wall/ceiling/corner handling and TNT |
 | Levels and sprites | One flat map and solid-colour parts | Role 4 supplies final maps, artwork, inventory/status details and instructions |
 
-The grid is stored row-major in 27 bits, with cell zero in bits 2:0. Intact/damage masks have nine bits. Review the remaining draft rules in `interfaces.md` before adding features.
+Cell contents are row-major in 27 bits, with cell zero in bits 2:0. Frames are stored separately in nine-bit `build_frames`. Each layer has its own nine-bit intact and damage mask. `world_outcomes` still finds the pig through the content grid/mask; physics still receives counts and total mass without a port change. Review the placement rules in `interfaces.md` before adding features.
 
 ## Validation status
 
 On 15 October 2026, the benches passed using Vivado Simulator 2025.2: `game_baseline_tb`, `module_contracts_tb`, `display_snapshot_tb`, `physics_engine_tb`, `clock_control_tb` and `button_debouncer_tb`. The game-loop bench was rerun after integrating the user's debouncer. The button bench checks press/release bounce, holding, rearming and reset using shorter timing counts. The clock bench checks counts zero, one and seven, physics-enable spacing and reset behaviour. The simulation runner checks each bench's PASS marker.
 
-The synthesis attempt stopped during project initialisation because the local Vivado installation could not load `::tclapp::support::appinit 1.2` from its Tcl Store. It did not reach design synthesis. FPGA resource use, routed timing, display hardware and board behaviour remain unverified.
+On 16 October, `vehicle_builder_tb` passed placement, replacement, removal, invalid-edit rejection, pig validation and restoration of an edited build after damage. `game_baseline_tb` and `module_contracts_tb` also passed again after the builder changes.
+
+On 19 October, the two-layer builder, module-contract, game-loop and display-transfer checks passed. Coverage includes pig/engine inside frames, external attachments, removal order, unsupported-build rejection, independent frame/content damage, frame-border pixels, two-digit counts and restoring an edited build.
+
+After connecting inventory and mouse editing, all eight benches passed. `construction_controls_tb` drives completed packet inputs through the adapter, builder and left renderer, checking stock limits, refunds, same-kind and cross-kind replacements, held clicks, geometry bounds, no refund on damage/retry and concurrent edit/launch protection. The top-level game test binds the real mouse VHDL drivers but does not emulate a physical mouse exchange. Hardware mouse/OLED operation remains unverified.
+
+All eight benches passed again after adding drag-and-drop placement on left release. The mouse bench checks crossing cells without painting or charging stock, using the final release position exactly once, cancelling outside the grid/on right-click/reset/leaving BUILD, preserving the selected part while held, rejecting invalid or unavailable drops, and concurrent drop/launch protection.
+
+The initial synthesis attempt stopped during project initialisation because the local Vivado installation could not load `::tclapp::support::appinit 1.2` from its Tcl Store. Session-only package paths and an explicit source list later allowed the 19 October hardware build to run without changing the installation.
+
+The completed build exposed long movement, inventory-row decoding and reset paths. Movement now samples properties and calculates forces, velocity and position on separate clocks; inventory selection uses fixed Y-coordinate boundaries; reset is registered before distribution. All eight benches passed after these changes. Synthesis, placement, routing, design-rule checks and bitstream generation completed. The routed design uses 3,057 LUTs (14.70%) and 1,260 flip-flops (3.03%), with no block RAM or DSP use. Constrained 100 MHz setup/hold timing passes with 0.508 ns worst setup slack and 0.100 ns worst hold slack. The divided OLED clock and external I/O remain incompletely constrained under the current XDC, and physical OLED/mouse operation remains unverified. Local outputs are in `tmp/oled_board_test/` and are not tracked in Git.

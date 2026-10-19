@@ -15,6 +15,8 @@
 *.str
 vivado*.zip
 dfx_runtime.txt
+clockInfo.txt
+tight_setup_hold_pins.txt
 
 # Generated simulation files
 xsim.dir/

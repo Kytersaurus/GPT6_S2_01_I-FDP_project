@@ -19,11 +19,11 @@
 `define LP_RECT_BITS     32
 
 `define LP_PART_EMPTY    3'd0
-`define LP_PART_FRAME    3'd1
+`define LP_PART_FRAME    3'd1  // Edit command: frames are stored in build_frames.
 `define LP_PART_PIG      3'd2
 `define LP_PART_WHEEL    3'd3
 `define LP_PART_ENGINE   3'd4
-`define LP_PART_BOOSTER  3'd5  // Reserved; does not commit the team to a booster.
+`define LP_PART_BOOSTER  3'd5  // Reserved ID; boost is planned as an engine ability.
 `define LP_PART_BALLOON  3'd6
 
 `define LP_BUILD         3'd0
@@ -35,5 +35,10 @@
 
 `define LP_EDIT_PLACE    2'd0  // Includes replacement of an occupied cell.
 `define LP_EDIT_REMOVE   2'd1
+
+`define LP_BUILD_OK             4'd0
+`define LP_BUILD_ERR_PIG        4'd1
+`define LP_BUILD_ERR_ATTACHMENT 4'd2
+`define LP_BUILD_ERR_INVENTORY  4'd3
 
 `endif

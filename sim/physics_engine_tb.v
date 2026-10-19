@@ -27,6 +27,10 @@ module physics_engine_tb;
         clocks(3); reset=0; game_state=`LP_INIT_RUN; run_init=1; clocks(2);
         if (!init_ready) $fatal(1,"Movement did not initialise");
         run_init=0; game_state=`LP_RUN; step_start=1; clocks(1); step_start=0;
+        // Properties are sampled before the force, velocity and position clocks.
+        balloons=0;
+        if (move_valid) $fatal(1,"Movement published before calculation finished");
+        clocks(3);
         if (!move_valid || nvy!=-64 || ny!=8128) $fatal(1,"Initial balloon lift incorrect");
         balloons=0; clocks(4);
         if (!move_valid || nvy!=-64 || y!=8192) $fatal(1,"Movement request changed while stalled");
@@ -38,6 +42,7 @@ module physics_engine_tb;
         if (move_valid || committed) $fatal(1,"Movement ran before world completion");
         update_release=1; clocks(1); update_release=0;
         balloons=2; step_start=1; clocks(1); step_start=0;
+        clocks(3);
         if (nvy!=-128 || ny!=8000) $fatal(1,"Negative vertical velocity lost its sign");
         $display("PASS physics_engine_tb: lift, signed arithmetic, stable requests, delayed response, world-release gating");
         $finish;

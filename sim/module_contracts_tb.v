@@ -9,15 +9,19 @@ module module_contracts_tb;
     reg [8:0] damage_mask=0;
     wire builder_ready, damage_ready, valid, pig_alive;
     wire [26:0] grid;
-    wire [8:0] intact;
+    wire [8:0] frames, intact, frame_intact;
     wire [3:0] error, wheels, engines, balloons;
+    wire [3:0] frames_left, pigs_left, wheels_left, engines_left, balloons_left;
     wire [7:0] mass;
     vehicle_builder builder (
         .clk(clk),.reset(reset),.game_state(builder_state),.run_init(builder_init),.init_ready(builder_ready),
         .edit_valid(1'b0),.edit_op(2'd0),.edit_cell(4'd0),.edit_part(3'd0),
-        .damage_valid(damage_valid),.damage_ready(damage_ready),.damage_mask(damage_mask),
-        .build_grid(grid),.intact_mask(intact),.build_valid(valid),.build_error(error),.pig_alive(pig_alive),
-        .wheel_count(wheels),.engine_count(engines),.balloon_count(balloons),.mass_units(mass)
+        .damage_valid(damage_valid),.damage_ready(damage_ready),.damage_mask(damage_mask),.damage_frame_mask(9'd0),
+        .build_grid(grid),.build_frames(frames),.intact_mask(intact),.frame_intact_mask(frame_intact),
+        .build_valid(valid),.build_error(error),.pig_alive(pig_alive),
+        .wheel_count(wheels),.engine_count(engines),.balloon_count(balloons),.mass_units(mass),
+        .frames_left(frames_left),.pigs_left(pigs_left),.wheels_left(wheels_left),
+        .engines_left(engines_left),.balloons_left(balloons_left)
     );
     reg move_valid=0, response_ready=0;
     wire move_ready, response_valid, grounded;
@@ -45,11 +49,14 @@ module module_contracts_tb;
     reg [12:0] pixel=0;
     wire [15:0] left_colour, right_colour;
     left_renderer left_view (
-        .pixel_index(pixel),.game_state(builder_state),.build_grid(grid),.intact_mask(intact),
-        .build_valid(valid),.build_error(error),.engine_enabled(1'b1),.pixel_data(left_colour)
+        .pixel_index(pixel),.game_state(builder_state),.build_grid(grid),.intact_mask(intact),.frame_intact_mask(frame_intact),
+        .build_valid(valid),.build_error(error),.engine_enabled(1'b1),
+        .frames_left(frames_left),.pigs_left(pigs_left),.wheels_left(wheels_left),
+        .engines_left(engines_left),.balloons_left(balloons_left),.selected_part(`LP_PART_FRAME),
+        .cursor_x(7'd0),.cursor_y(7'd0),.cursor_visible(1'b0),.pixel_data(left_colour)
     );
     right_renderer right_view (
-        .pixel_index(pixel),.game_state(builder_state),.build_grid(grid),.intact_mask(intact),
+        .pixel_index(pixel),.game_state(builder_state),.build_grid(grid),.intact_mask(intact),.frame_intact_mask(frame_intact),
         .vehicle_x(16'sd1024),.vehicle_y(16'sd8192),.terrain_count(3'd1),
         .terrain_rects({96'd0,8'd8,8'd96,8'd56,8'd0}),.goal_rect({8'd24,8'd16,8'd32,8'd80}),.pixel_data(right_colour)
     );
@@ -59,18 +66,22 @@ module module_contracts_tb;
     endtask
     initial begin
         clocks(3); reset=0; clocks(2);
-        if (!valid || !pig_alive || wheels!=2 || engines!=1 || mass!=11) $fatal(1,"Initial properties incorrect");
-        pixel=21*96+21; #1; if (left_colour != 16'h07e0) $fatal(1,"Left 16-pixel pig cell incorrect");
-        pixel=37*96+70; #1; if (left_colour != 16'hffff) $fatal(1,"Surviving-part count not drawn");
-        pixel=41*96+13; #1; if (right_colour != 16'h07e0) $fatal(1,"Right pig pixel incorrect");
+        if (!valid || !pig_alive || wheels!=2 || engines!=1 || mass!=13) $fatal(1,"Initial properties incorrect");
+        pixel=24*96+24; #1; if (left_colour != 16'h07e0) $fatal(1,"Left pig inside frame incorrect");
+        pixel=24*96+21; #1; if (left_colour != 16'ha285) $fatal(1,"Left frame border missing");
+        pixel=5*96+84; #1; if (left_colour != 16'hffff) $fatal(1,"Remaining frame count not drawn");
+        pixel=44*96+16; #1; if (right_colour != 16'h07e0) $fatal(1,"Right pig inside frame incorrect");
+        pixel=44*96+13; #1; if (right_colour != 16'ha285) $fatal(1,"Right frame border missing");
         pixel=60*96+40; #1; if (right_colour != 16'h8320) $fatal(1,"Terrain pixel incorrect");
         pixel=40*96+85; #1; if (right_colour != 16'h0320) $fatal(1,"Goal rectangle helper not connected");
+        clocks(1); // Return to a falling edge after the pixel checks before driving requests.
         builder_state=`LP_RUN; damage_mask=9'b000100000; damage_valid=1; clocks(1); damage_valid=0; clocks(1);
-        if (engines!=0 || mass!=8 || grid[17:15]!=`LP_PART_ENGINE) $fatal(1,"Damage corrupted original build/properties");
+        if (engines!=0 || mass!=10 || grid[17:15]!=`LP_PART_ENGINE) $fatal(1,"Damage corrupted original build/properties");
         damage_mask=9'b000010000; damage_valid=1; clocks(3); damage_valid=0;
         if (pig_alive) $fatal(1,"Pig destruction not applied");
         builder_state=`LP_INIT_RUN; builder_init=1; clocks(2);
-        if (!builder_ready || !pig_alive || engines!=1 || intact!=9'b111111000) $fatal(1,"Retry did not restore build");
+        if (!builder_ready || !pig_alive || engines!=1 || intact!=9'b101110000 ||
+            frame_intact!=9'b000111000) $fatal(1,"Retry did not restore build");
         builder_init=0;
 
         move_valid=1; clocks(1); move_valid=0; clocks(1);

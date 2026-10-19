@@ -1,7 +1,7 @@
 // Owner: Role 4 - Marcus. Consistent state for both OLEDs.
 `timescale 1ns / 1ps
 // Hold the source bus during transfer; publish staged data only at frame start.
-module display_snapshot #(parameter integer WIDTH = 77) (
+module display_snapshot #(parameter integer WIDTH = 123) (
     input wire game_clk, game_reset, display_clk, display_reset, frame_begin,
     input wire [WIDTH-1:0] game_data,
     output reg [WIDTH-1:0] display_data

@@ -6,6 +6,7 @@ module right_renderer (
     input wire [2:0] game_state,
     input wire [26:0] build_grid,
     input wire [8:0] intact_mask,
+    input wire [8:0] frame_intact_mask,
     input wire signed [15:0] vehicle_x, vehicle_y,
     input wire [2:0] terrain_count,
     input wire [127:0] terrain_rects,
@@ -13,7 +14,7 @@ module right_renderer (
     output reg [15:0] pixel_data
 );
     wire goal_pixel;
-    integer x, y, vx, vy, index, rx, ry, rw, rh, cell_index;
+    integer x, y, vx, vy, index, rx, ry, rw, rh, cell_index, cell_x, cell_y;
     reg [2:0] part;
     reg [31:0] rectangle;
 
@@ -26,7 +27,8 @@ module right_renderer (
         x = pixel_index % 96;
         y = pixel_index / 96;
         vx = $signed(vehicle_x) >>> 8; vy = $signed(vehicle_y) >>> 8;
-        rx = 0; ry = 0; rw = 0; rh = 0; cell_index = 0; part = 0; rectangle = 0;
+        rx = 0; ry = 0; rw = 0; rh = 0; cell_index = 0; cell_x = 0; cell_y = 0;
+        part = 0; rectangle = 0;
         pixel_data = 16'h0010;
         for (index = 0; index < 4; index = index + 1) begin
             rectangle = terrain_rects >> (index*32);
@@ -37,9 +39,12 @@ module right_renderer (
         if (goal_pixel) pixel_data = 16'h0320;
         if (x >= vx && x < vx+24 && y >= vy && y < vy+24) begin
             cell_index = ((y-vy)/8)*3 + (x-vx)/8;
+            cell_x = (x-vx)%8; cell_y = (y-vy)%8;
             part = build_grid >> (cell_index*3);
-            if (intact_mask[cell_index] && (x-vx)%8 != 0 && (y-vy)%8 != 0) case (part)
-                `LP_PART_FRAME: pixel_data = 16'ha285;
+            if (frame_intact_mask[cell_index] && cell_x != 0 && cell_y != 0 &&
+                (cell_x == 1 || cell_x == 7 || cell_y == 1 || cell_y == 7)) pixel_data = 16'ha285;
+            if (intact_mask[cell_index] && cell_x >= 2 && cell_x < 7 &&
+                cell_y >= 2 && cell_y < 7) case (part)
                 `LP_PART_PIG: pixel_data = 16'h07e0;
                 `LP_PART_WHEEL: pixel_data = 16'hffff;
                 `LP_PART_ENGINE: pixel_data = 16'hf800;

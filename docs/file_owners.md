@@ -8,7 +8,8 @@ All design files below are in `GPT_6_S2_01_I-FDP_project.srcs/sources_1/new/`.
 
 | Design file | Owner | Purpose |
 | --- | --- | --- |
-| `vehicle_builder.v` | Role 1 - Kaushal | Original build, runtime intact mask, counts and mass; editing/inventory remain to be added |
+| `vehicle_builder.v` | Role 1 - Kaushal | Frame/content editing, attachment/stock validation, remaining inventory, two runtime intact masks, counts and mass |
+| `mouse_adapter.v` | Role 1 - Kaushal | Driver coordinate setup, cursor, inventory selection, click/drag-and-drop placement and right-click removal |
 | `input_controller.v` | Role 1 - Kaushal | Button actions and engine switch; mouse input remains to be added |
 | `button_debouncer.v` | Role 1 - Kaushal | User's debouncer adapted with reset and stable release |
 | `custom_clk_divider.v` | Role 1 - Kaushal; shared helper | User's divider for the OLED clock |
@@ -20,16 +21,16 @@ All design files below are in `GPT_6_S2_01_I-FDP_project.srcs/sources_1/new/`.
 | `world_outcomes.v` | Role 3 - Yap Ting | Goal and bounds checks; hazards/TNT remain to be added |
 | `game_controller.v` | Role 4 - Marcus | Build/run/result/retry states and update sequencing |
 | `level_data.v` | Role 4 - Marcus | One flat test map; final two levels remain to be added |
-| `left_renderer.v` | Role 4 - Marcus | Left OLED build/status drawing; 16-pixel editor cells |
+| `left_renderer.v` | Role 4 - Marcus | Left OLED grid, inventory icons/counts, selection, cursor and runtime status; 16-pixel editor cells |
 | `right_renderer.v` | Role 4 - Marcus | Right OLED world/vehicle drawing; 8-pixel gameplay cells |
 | `display_snapshot.v` | Role 4 - Marcus | Transfers consistent game state to the OLED clock and publishes at frame start |
 | `game_defs.vh` | Shared - all roles | Agreed part IDs, state IDs and dimensions |
 | `My_Top_Module.v` | Shared; Role 4 - Marcus coordinates | Connections between everyone's modules |
 | `Oled_Display.v` | Supplied driver; Role 4 integrates | Preserve the original driver and attribution |
-| `Mouse_Control.vhd` | Supplied driver; Role 1 integrates | Preserve the original driver and attribution; currently unused |
-| `Ps2Interface.vhd` | Supplied driver; Role 1 integrates | Mouse-driver dependency; currently unused |
+| `Mouse_Control.vhd` | Supplied driver; Role 1 integrates | Original driver and attribution preserved; instantiated for mouse input |
+| `Ps2Interface.vhd` | Supplied driver; Role 1 integrates | Unchanged mouse-driver dependency |
 
-Future audio, inventory, build-validation and mouse-adapter modules belong to Role 1. Future movement tuning belongs to Role 2, TNT/collision additions to Role 3, and instructions, levels and detailed display content to Role 4. These future modules are not included in this starter.
+Future audio and gameplay input additions belong to Role 1. Future movement tuning belongs to Role 2, TNT/collision additions to Role 3, and instructions, levels and detailed display content to Role 4. These future features are not included in this starter.
 
 | Project/support file | Owner | Purpose |
 | --- | --- | --- |
@@ -45,6 +46,8 @@ Future audio, inventory, build-validation and mouse-adapter modules belong to Ro
 | `scripts/check_baseline.tcl` | Shared - all roles | Synthesis and constraint checks |
 | `scripts/run_simulations.ps1` | Shared - all roles | Runs the simulation benches |
 | `sim/button_debouncer_tb.v` | Role 1 - Kaushal | Button bounce, holding, release and reset checks |
+| `sim/vehicle_builder_tb.v` | Role 1 - Kaushal | Frame/content edits, attachments, independent damage, two-digit display count and edited-build restoration |
+| `sim/construction_controls_tb.v` | Role 1 - Kaushal | Mouse configuration/clicks/drag-and-drop, stock/refund rules, inventory/cursor pixels, damage/retry and edit/launch arbitration |
 | `sim/clock_control_tb.v` | Shared; Role 1 maintains | Divider, physics-enable and reset checks |
 | `sim/physics_engine_tb.v` | Role 2 - Kyle | Movement arithmetic and handshake checks |
 | `sim/display_snapshot_tb.v` | Role 4 - Marcus | Snapshot transfer and frame-boundary checks |

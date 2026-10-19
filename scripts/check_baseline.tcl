@@ -7,6 +7,7 @@ set lp_report_dir [file join $lp_repo_root tmp baseline_synthesis]
 file mkdir $lp_report_dir
 create_project -in_memory -part xc7a35tcpg236-1
 add_files -norecurse [glob -directory $lp_source_dir *.v]
+add_files -norecurse [glob -directory $lp_source_dir *.vhd]
 set_property include_dirs [list $lp_source_dir] [get_filesets sources_1]
 set_property top My_Top_Module [get_filesets sources_1]
 update_compile_order -fileset sources_1

@@ -6,13 +6,15 @@ module game_baseline_tb;
     reg [0:0] sw=1;
     wire [15:0] led;
     wire [7:0] JA, JB;
+    tri1 PS2Clk, PS2Data;
     integer cycles, launches=0, active_update=0;
     reg signed [15:0] stopped_x;
     always #5 clk=~clk;
     My_Top_Module #(
         .PHYSICS_CYCLES(24), .BUTTON_DEBOUNCE_CYCLES(2), .BUTTON_RELEASE_CYCLES(2)
     ) dut (
-        .clk(clk), .btnC(btnC), .btnU(btnU), .btnD(btnD), .sw(sw), .led(led), .JA(JA), .JB(JB)
+        .clk(clk), .btnC(btnC), .btnU(btnU), .btnD(btnD), .sw(sw),
+        .PS2Clk(PS2Clk), .PS2Data(PS2Data), .led(led), .JA(JA), .JB(JB)
     );
     task clocks;
         input integer count;
@@ -40,7 +42,7 @@ module game_baseline_tb;
     end
     initial begin
         clocks(20); btnD=0; clocks(280);
-        if (dut.game_state !== `LP_BUILD || !dut.build_valid || dut.mass_units != 11) $fatal(1,"Invalid startup build");
+        if (dut.game_state !== `LP_BUILD || !dut.build_valid || dut.mass_units != 13) $fatal(1,"Invalid startup build");
         btnC=1;
         wait_success();
         stopped_x=dut.vehicle_x;

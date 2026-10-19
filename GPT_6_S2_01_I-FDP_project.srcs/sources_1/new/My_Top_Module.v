@@ -15,10 +15,16 @@
 module My_Top_Module #(
     parameter integer PHYSICS_CYCLES = 1666667,
     parameter integer BUTTON_DEBOUNCE_CYCLES = 20000000,
-    parameter integer BUTTON_RELEASE_CYCLES = 2000000
+    parameter integer BUTTON_RELEASE_CYCLES = 2000000,
+    parameter integer FRAME_LIMIT = 5,
+    parameter integer PIG_LIMIT = 1,
+    parameter integer WHEEL_LIMIT = 2,
+    parameter integer ENGINE_LIMIT = 1,
+    parameter integer BALLOON_LIMIT = 2
 ) (
     input wire clk, btnC, btnU, btnD,
     input wire [0:0] sw,
+    inout wire PS2Clk, PS2Data,
     output wire [15:0] led,
     output wire [7:0] JA, JB
 );
@@ -26,9 +32,17 @@ module My_Top_Module #(
     wire [2:0] game_state, init_ready;
     wire run_init, step_start, update_release;
     wire [26:0] build_grid;
-    wire [8:0] intact_mask;
+    wire [8:0] build_frames, intact_mask, frame_intact_mask;
     wire build_valid, pig_alive, damage_ready;
     wire [3:0] build_error, wheel_count, engine_count, balloon_count;
+    wire [3:0] frames_left, pigs_left, wheels_left, engines_left, balloons_left;
+    wire [11:0] mouse_x, mouse_y, mouse_value;
+    wire mouse_left, mouse_right, mouse_event, setx, sety, setmax_x, setmax_y;
+    wire [6:0] cursor_x, cursor_y;
+    wire [2:0] selected_part, edit_part;
+    wire edit_valid;
+    wire [1:0] edit_op;
+    wire [3:0] edit_cell;
     wire [7:0] mass_units;
     wire signed [15:0] spawn_x, spawn_y, vehicle_x, vehicle_y;
     wire [2:0] terrain_count;
@@ -50,13 +64,32 @@ module My_Top_Module #(
         .clk(clk), .reset(reset), .btnC(btnC), .btnU(btnU), .engine_switch(sw[0]),
         .start_press(start_press), .edit_press(edit_press), .engine_enabled(engine_enabled)
     );
-    vehicle_builder u_builder (
+    MouseCtl u_mouse (
+        .clk(clk), .rst(reset), .xpos(mouse_x), .ypos(mouse_y), .zpos(),
+        .left(mouse_left), .middle(), .right(mouse_right), .new_event(mouse_event),
+        .value(mouse_value), .setx(setx), .sety(sety), .setmax_x(setmax_x), .setmax_y(setmax_y),
+        .ps2_clk(PS2Clk), .ps2_data(PS2Data)
+    );
+    mouse_adapter u_mouse_adapter (
+        .clk(clk), .reset(reset), .game_state(game_state), .mouse_x(mouse_x), .mouse_y(mouse_y),
+        .mouse_left(mouse_left), .mouse_right(mouse_right), .mouse_event(mouse_event),
+        .mouse_value(mouse_value), .setx(setx), .sety(sety), .setmax_x(setmax_x), .setmax_y(setmax_y),
+        .cursor_x(cursor_x), .cursor_y(cursor_y), .selected_part(selected_part),
+        .edit_valid(edit_valid), .edit_op(edit_op), .edit_cell(edit_cell), .edit_part(edit_part)
+    );
+    vehicle_builder #(
+        .FRAME_LIMIT(FRAME_LIMIT), .PIG_LIMIT(PIG_LIMIT), .WHEEL_LIMIT(WHEEL_LIMIT),
+        .ENGINE_LIMIT(ENGINE_LIMIT), .BALLOON_LIMIT(BALLOON_LIMIT)
+    ) u_builder (
         .clk(clk), .reset(reset), .game_state(game_state), .run_init(run_init), .init_ready(init_ready[0]),
-        .edit_valid(1'b0), .edit_op(`LP_EDIT_PLACE), .edit_cell(4'd0), .edit_part(`LP_PART_EMPTY),
-        .damage_valid(1'b0), .damage_ready(damage_ready), .damage_mask(9'd0),
-        .build_grid(build_grid), .intact_mask(intact_mask), .build_valid(build_valid),
+        .edit_valid(edit_valid), .edit_op(edit_op), .edit_cell(edit_cell), .edit_part(edit_part),
+        .damage_valid(1'b0), .damage_ready(damage_ready), .damage_mask(9'd0), .damage_frame_mask(9'd0),
+        .build_grid(build_grid), .build_frames(build_frames),
+        .intact_mask(intact_mask), .frame_intact_mask(frame_intact_mask), .build_valid(build_valid),
         .build_error(build_error), .pig_alive(pig_alive), .wheel_count(wheel_count),
-        .engine_count(engine_count), .balloon_count(balloon_count), .mass_units(mass_units)
+        .engine_count(engine_count), .balloon_count(balloon_count), .mass_units(mass_units),
+        .frames_left(frames_left), .pigs_left(pigs_left), .wheels_left(wheels_left),
+        .engines_left(engines_left), .balloons_left(balloons_left)
     );
     level_data u_level (
         .spawn_x(spawn_x), .spawn_y(spawn_y), .terrain_count(terrain_count),
@@ -64,7 +97,7 @@ module My_Top_Module #(
     );
     game_controller u_game (
         .clk(clk), .reset(reset), .launch_req(start_press), .retry_req(start_press), .edit_req(edit_press),
-        .guide_open_req(1'b0), .guide_close_req(1'b0), .build_valid(build_valid), .pig_alive(pig_alive),
+        .guide_open_req(1'b0), .guide_close_req(1'b0), .build_valid(build_valid && !edit_valid), .pig_alive(pig_alive),
         .init_ready(init_ready), .physics_tick(physics_tick), .world_valid(world_valid), .world_ready(world_ready),
         .goal_hit(goal_hit), .hazard_hit(hazard_hit), .out_of_bounds(out_of_bounds), .game_state(game_state),
         .run_init(run_init), .step_start(step_start), .update_release(update_release),
@@ -95,29 +128,40 @@ module My_Top_Module #(
         .world_ready(world_ready), .goal_hit(goal_hit), .hazard_hit(hazard_hit), .out_of_bounds(out_of_bounds)
     );
 
-    wire [76:0] snapshot_in = {game_state, build_grid, intact_mask, build_valid, build_error,
-                              vehicle_x, vehicle_y, engine_enabled};
-    wire [76:0] snapshot_out;
+    wire [122:0] snapshot_in = {game_state, build_grid, intact_mask, frame_intact_mask, build_valid, build_error,
+                              vehicle_x, vehicle_y, engine_enabled, frames_left, pigs_left, wheels_left,
+                              engines_left, balloons_left, cursor_x, cursor_y, selected_part};
+    wire [122:0] snapshot_out;
     wire [2:0] draw_state;
     wire [26:0] draw_grid;
-    wire [8:0] draw_intact;
+    wire [8:0] draw_intact, draw_frames;
     wire draw_valid, draw_engine;
     wire [3:0] draw_error;
+    wire [3:0] draw_frames_left, draw_pigs_left, draw_wheels_left, draw_engines_left, draw_balloons_left;
+    wire [6:0] draw_cursor_x, draw_cursor_y;
+    wire [2:0] draw_selected_part;
     wire signed [15:0] draw_x, draw_y;
     wire left_frame, right_frame;
     wire [12:0] left_pixel_index, right_pixel_index;
     wire [15:0] left_pixel_data, right_pixel_data;
-    assign {draw_state, draw_grid, draw_intact, draw_valid, draw_error, draw_x, draw_y, draw_engine} = snapshot_out;
-    display_snapshot u_snapshot (
+    assign {draw_state, draw_grid, draw_intact, draw_frames, draw_valid, draw_error, draw_x, draw_y, draw_engine,
+            draw_frames_left, draw_pigs_left, draw_wheels_left, draw_engines_left, draw_balloons_left,
+            draw_cursor_x, draw_cursor_y, draw_selected_part} = snapshot_out;
+    display_snapshot #(.WIDTH(123)) u_snapshot (
         .game_clk(clk), .game_reset(reset), .display_clk(oled_clk), .display_reset(oled_reset),
         .frame_begin(left_frame), .game_data(snapshot_in), .display_data(snapshot_out)
     );
     left_renderer u_left_renderer (
-        .pixel_index(left_pixel_index), .game_state(draw_state), .build_grid(draw_grid), .intact_mask(draw_intact),
-        .build_valid(draw_valid), .build_error(draw_error), .engine_enabled(draw_engine), .pixel_data(left_pixel_data)
+        .pixel_index(left_pixel_index), .game_state(draw_state), .build_grid(draw_grid),
+        .intact_mask(draw_intact), .frame_intact_mask(draw_frames),
+        .build_valid(draw_valid), .build_error(draw_error), .engine_enabled(draw_engine),
+        .frames_left(draw_frames_left), .pigs_left(draw_pigs_left), .wheels_left(draw_wheels_left),
+        .engines_left(draw_engines_left), .balloons_left(draw_balloons_left), .selected_part(draw_selected_part),
+        .cursor_x(draw_cursor_x), .cursor_y(draw_cursor_y), .cursor_visible(1'b1), .pixel_data(left_pixel_data)
     );
     right_renderer u_right_renderer (
-        .pixel_index(right_pixel_index), .game_state(draw_state), .build_grid(draw_grid), .intact_mask(draw_intact),
+        .pixel_index(right_pixel_index), .game_state(draw_state), .build_grid(draw_grid),
+        .intact_mask(draw_intact), .frame_intact_mask(draw_frames),
         .vehicle_x(draw_x), .vehicle_y(draw_y), .terrain_count(terrain_count), .terrain_rects(terrain_rects),
         .goal_rect(goal_rect), .pixel_data(right_pixel_data)
     );
