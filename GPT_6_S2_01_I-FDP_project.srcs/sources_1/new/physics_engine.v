@@ -24,18 +24,28 @@ module physics_engine (
     output reg signed [15:0] vehicle_x, vehicle_y
 );
     localparam IDLE=0, SEND=1, WAIT_RESPONSE=2, WAIT_WORLD=3;
+    localparam wheel_drag = 2;
+    localparam balloon_drag = 1;
+    localparam engine_force = 4;
+    localparam lift_per_balloon = 2;
     reg [1:0] phase;
     reg signed [15:0] velocity_x, velocity_y;
     reg was_grounded;
-    integer next_vx, next_vy, next_x, next_y, acceleration, lift_per_balloon, drag;
+    reg [3:0] total_force = 0, total_engine_force = 0, total_rocket_force = 0;
+    integer next_vx, next_vy, next_x, next_y, acceleration, lift, drag;
     assign move_valid = (phase == SEND) && (game_state == `LP_RUN);
     assign response_ready = (phase == WAIT_RESPONSE) && (game_state == `LP_RUN);
     always @* begin
-        acceleration = (mass_units <= 4) ? 24 : ((mass_units <= 8) ? 16 : 8);
-        lift_per_balloon = (mass_units <= 4) ? 48 : ((mass_units <= 8) ? 32 : 16);
-        drag = (wheel_count != 0) ? 4 : 16;
+        if (engine_enabled && engine_count != 0 && wheel_count != 0 && was_grounded)
+            total_engine_force = total_force + engine_force * engine_count;
+        else
+            total_engine_force = 0;
+        total_force = total_engine_force + total_rocket_force - drag;
+        acceleration = total_force / mass_units;
+        lift = balloon_count * lift_per_balloon;
+        drag = wheel_count * wheel_drag + balloon_count * balloon_drag;
         next_vx = $signed(velocity_x);
-        if (engine_enabled && engine_count != 0) next_vx = next_vx + acceleration * engine_count;
+        if (engine_enabled && engine_count != 0) next_vx = next_vx + acceleration;
         else if (was_grounded) begin
             if (next_vx > drag) next_vx = next_vx - drag;
             else if (next_vx < -drag) next_vx = next_vx + drag;
