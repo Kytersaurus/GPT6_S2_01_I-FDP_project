@@ -43,6 +43,9 @@ module My_Top_Module #(
     wire edit_valid;
     wire [1:0] edit_op;
     wire [3:0] edit_cell;
+    wire pop_req, pop_pending, pop_valid, gameplay_ready;
+    wire [3:0] pop_cell;
+    wire [8:0] pop_mask;
     wire [7:0] mass_units;
     wire signed [15:0] spawn_x, spawn_y, vehicle_x, vehicle_y;
     wire [2:0] terrain_count;
@@ -75,7 +78,13 @@ module My_Top_Module #(
         .mouse_left(mouse_left), .mouse_right(mouse_right), .mouse_event(mouse_event),
         .mouse_value(mouse_value), .setx(setx), .sety(sety), .setmax_x(setmax_x), .setmax_y(setmax_y),
         .cursor_x(cursor_x), .cursor_y(cursor_y), .selected_part(selected_part),
-        .edit_valid(edit_valid), .edit_op(edit_op), .edit_cell(edit_cell), .edit_part(edit_part)
+        .edit_valid(edit_valid), .edit_op(edit_op), .edit_cell(edit_cell), .edit_part(edit_part),
+        .pop_req(pop_req), .pop_cell(pop_cell)
+    );
+    balloon_control u_balloons (
+        .clk(clk), .reset(reset), .game_state(game_state), .pop_req(pop_req), .pop_cell(pop_cell),
+        .build_grid(build_grid), .intact_mask(intact_mask), .gameplay_ready(gameplay_ready),
+        .pop_pending(pop_pending), .pop_valid(pop_valid), .pop_mask(pop_mask)
     );
     vehicle_builder #(
         .FRAME_LIMIT(FRAME_LIMIT), .PIG_LIMIT(PIG_LIMIT), .WHEEL_LIMIT(WHEEL_LIMIT),
@@ -83,7 +92,7 @@ module My_Top_Module #(
     ) u_builder (
         .clk(clk), .reset(reset), .game_state(game_state), .run_init(run_init), .init_ready(init_ready[0]),
         .edit_valid(edit_valid), .edit_op(edit_op), .edit_cell(edit_cell), .edit_part(edit_part),
-        .damage_valid(1'b0), .damage_ready(damage_ready), .damage_mask(9'd0), .damage_frame_mask(9'd0),
+        .damage_valid(pop_valid), .damage_ready(damage_ready), .damage_mask(pop_mask), .damage_frame_mask(9'd0),
         .build_grid(build_grid), .build_frames(build_frames),
         .intact_mask(intact_mask), .frame_intact_mask(frame_intact_mask), .build_valid(build_valid),
         .build_error(build_error), .pig_alive(pig_alive), .wheel_count(wheel_count),
@@ -99,6 +108,7 @@ module My_Top_Module #(
         .clk(clk), .reset(reset), .launch_req(start_press), .retry_req(start_press), .edit_req(edit_press),
         .guide_open_req(1'b0), .guide_close_req(1'b0), .build_valid(build_valid && !edit_valid), .pig_alive(pig_alive),
         .init_ready(init_ready), .physics_tick(physics_tick), .world_valid(world_valid), .world_ready(world_ready),
+        .gameplay_pending(pop_pending), .gameplay_ready(gameplay_ready),
         .goal_hit(goal_hit), .hazard_hit(hazard_hit), .out_of_bounds(out_of_bounds), .game_state(game_state),
         .run_init(run_init), .step_start(step_start), .update_release(update_release),
         .launch_event(launch_event), .success_event(success_event), .failure_event(failure_event)

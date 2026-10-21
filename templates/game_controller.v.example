@@ -16,6 +16,8 @@ module game_controller (
     input wire physics_tick,
     input wire world_valid,
     output wire world_ready,
+    input wire gameplay_pending,
+    output wire gameplay_ready, // RUN with no movement/world update outstanding
     input wire goal_hit,
     input wire hazard_hit,
     input wire out_of_bounds,
@@ -31,4 +33,5 @@ module game_controller (
     // Role 4: launch only from a valid build; wait for initialisation;
     // issue one step at a time; evaluate outcomes only after world_valid.
     // Pig death/hazard/out-of-bounds take priority over goal success.
+    // Pending gameplay actions take the idle clock before another step_start.
 endmodule

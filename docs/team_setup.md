@@ -24,7 +24,7 @@ Keep all game design files together in the existing `GPT_6_S2_01_I-FDP_project.s
 
 | Role | Suggested modules | Owns the state |
 | --- | --- | --- |
-| 1 | `input_controller`, `mouse_adapter`, `vehicle_builder`, `vehicle_status`, `sound_event_router`, `sound_generator`, `audio_output` | Original build, inventory, intact mask, engine control state, audio playback |
+| 1 | `input_controller`, `mouse_adapter`, `balloon_control`, `vehicle_builder`, `vehicle_status`, `sound_event_router`, `sound_generator`, `audio_output` | Original build, inventory, intact mask, queued balloon clicks, engine control state, audio playback |
 | 2 | `physics_engine`, `movement_parameters` | Committed position, velocity and any agreed boost budget |
 | 3 | `collision_engine`, `tnt_controller`, `world_outcomes` | TNT triggered flags and pending interaction results |
 | 4 | `game_controller`, `level_data`, `left_renderer`, `right_renderer`, `display_snapshot`, `sprite_rom` | Game stage, active level and coherent drawing snapshots |

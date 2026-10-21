@@ -140,7 +140,7 @@ module left_renderer #(parameter EDITOR_CELL_PIXELS = 16) (
         if (y >= 57 && y < 63 && x >= 4 && x < 16) pixel_data = build_valid ? 16'h07e0 : 16'hf800;
         if (y >= 57 && y < 63 && x >= 20 && x < 32) pixel_data = engine_enabled ? 16'hffe0 : 16'h4208;
         if (y >= 58 && y < 62 && x >= 36 && x < 36+game_state*6) pixel_data = 16'h07ff;
-        if (cursor_visible && game_state == `LP_BUILD &&
+        if (cursor_visible && (game_state == `LP_BUILD || game_state == `LP_RUN) &&
             ((x == cursor_x && y+2 >= cursor_y && y <= cursor_y+2) ||
              (y == cursor_y && x+2 >= cursor_x && x <= cursor_x+2))) pixel_data = 16'hffff;
     end

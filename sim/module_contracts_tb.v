@@ -42,6 +42,7 @@ module module_contracts_tb;
         .clk(clk),.reset(reset),.launch_req(launch),.retry_req(retry),.edit_req(1'b0),
         .guide_open_req(1'b0),.guide_close_req(1'b0),.build_valid(build_valid),.pig_alive(live),.init_ready(ready),
         .physics_tick(tick),.world_valid(world_valid),.world_ready(world_ready),.goal_hit(goal),
+        .gameplay_pending(1'b0),.gameplay_ready(),
         .hazard_hit(1'b0),.out_of_bounds(1'b0),.game_state(state),.run_init(run_init),
         .step_start(step),.update_release(release_step),.launch_event(launch_event),
         .success_event(success_event),.failure_event(failure_event)

@@ -9,8 +9,9 @@ All design files below are in `GPT_6_S2_01_I-FDP_project.srcs/sources_1/new/`.
 | Design file | Owner | Purpose |
 | --- | --- | --- |
 | `vehicle_builder.v` | Role 1 - Kaushal | Frame/content editing, attachment/stock validation, remaining inventory, two runtime intact masks, counts and mass |
-| `mouse_adapter.v` | Role 1 - Kaushal | Driver coordinate setup, cursor, inventory selection, click/drag-and-drop placement and right-click removal |
-| `input_controller.v` | Role 1 - Kaushal | Button actions and engine switch; mouse input remains to be added |
+| `mouse_adapter.v` | Role 1 - Kaushal | Driver coordinate setup, cursor, inventory selection, click/drag-and-drop placement, right-click removal and RUN pop requests |
+| `balloon_control.v` | Role 1 - Kaushal | Queue valid balloon clicks and apply content damage between movement/world updates |
+| `input_controller.v` | Role 1 - Kaushal | Button actions and engine switch; mouse actions use the separate adapter |
 | `button_debouncer.v` | Role 1 - Kaushal | User's debouncer adapted with reset and stable release |
 | `custom_clk_divider.v` | Role 1 - Kaushal; shared helper | User's divider for the OLED clock |
 | `clock_control.v` | Shared; Role 1 - Kaushal maintains starter | Clock connections, physics enable and reset |
@@ -48,6 +49,7 @@ Future audio and gameplay input additions belong to Role 1. Future movement tuni
 | `sim/button_debouncer_tb.v` | Role 1 - Kaushal | Button bounce, holding, release and reset checks |
 | `sim/vehicle_builder_tb.v` | Role 1 - Kaushal | Frame/content edits, attachments, independent damage, two-digit display count and edited-build restoration |
 | `sim/construction_controls_tb.v` | Role 1 - Kaushal | Mouse configuration/clicks/drag-and-drop, stock/refund rules, inventory/cursor pixels, damage/retry and edit/launch arbitration |
+| `sim/balloon_controls_tb.v` | Role 1 - Kaushal | Connected top-level balloon clicks, queue timing, mass/counts, no inventory refund, RUN pixels, retry/results/reset |
 | `sim/clock_control_tb.v` | Shared; Role 1 maintains | Divider, physics-enable and reset checks |
 | `sim/physics_engine_tb.v` | Role 2 - Kyle | Movement arithmetic and handshake checks |
 | `sim/display_snapshot_tb.v` | Role 4 - Marcus | Snapshot transfer and frame-boundary checks |

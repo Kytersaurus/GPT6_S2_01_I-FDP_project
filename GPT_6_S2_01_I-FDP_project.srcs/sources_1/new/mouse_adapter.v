@@ -1,4 +1,4 @@
-// Owner: Role 1 - Kaushal. Mouse configuration, selection and construction actions.
+// Owner: Role 1 - Kaushal. Mouse configuration, construction and gameplay clicks.
 `timescale 1ns / 1ps
 `include "game_defs.vh"
 module mouse_adapter (
@@ -13,7 +13,9 @@ module mouse_adapter (
     output reg edit_valid,
     output reg [1:0] edit_op,
     output reg [3:0] edit_cell,
-    output reg [2:0] edit_part
+    output reg [2:0] edit_part,
+    output reg pop_req,
+    output reg [3:0] pop_cell
 );
     reg [1:0] setup_step;
     reg left_was_down, right_was_down;
@@ -38,8 +40,9 @@ module mouse_adapter (
             place_pending <= 0;
             cursor_x <= 24; cursor_y <= 24; selected_part <= `LP_PART_FRAME;
             edit_valid <= 0; edit_op <= `LP_EDIT_PLACE; edit_cell <= 0; edit_part <= `LP_PART_FRAME;
+            pop_req <= 0; pop_cell <= 0;
         end else begin
-            edit_valid <= 0;
+            edit_valid <= 0; pop_req <= 0;
             // Leaving construction cancels a drag, even if no mouse packet arrives.
             if (game_state != `LP_BUILD) place_pending <= 0;
             if (setup_step != 3) setup_step <= setup_step + 1'b1;
@@ -78,6 +81,11 @@ module mouse_adapter (
                             edit_part <= selected_part;
                         end
                     end
+                end else if (game_state == `LP_RUN && mouse_left && !left_was_down &&
+                             !mouse_right && in_grid) begin
+                    // Gameplay uses one fresh press, rather than construction's drop.
+                    pop_req <= 1;
+                    pop_cell <= ((mouse_y-4)/16)*3 + (mouse_x-4)/16;
                 end
             end
         end

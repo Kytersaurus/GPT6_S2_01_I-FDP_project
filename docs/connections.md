@@ -19,6 +19,10 @@ All game modules live beside `My_Top_Module.v` in the existing design source fol
 | `MouseCtl` | `mouse_adapter` | Completed `new_event` packets supply 12-bit x/y positions and held button levels |
 | `mouse_adapter` | `MouseCtl` | `value`, `setx/y` and `setmax_x/y` configure 96 by 64 coordinates and the initial cursor |
 | `mouse_adapter` | `vehicle_builder` | One-cycle `edit_valid` plus operation, cell and part; place on left release, remove on right press |
+| `mouse_adapter` | `balloon_control` | One-cycle `pop_req` and four-bit `pop_cell` on a fresh left press in the RUN grid |
+| `balloon_control` | `game_controller` | `pop_pending` connects to `gameplay_pending` and blocks a new movement step |
+| `game_controller` | `balloon_control` | `gameplay_ready` is high in RUN when no movement/world update is outstanding |
+| `balloon_control` | `vehicle_builder` | `pop_valid` and nine-bit `pop_mask` use the content damage channel during the reserved idle clock; frame damage stays zero |
 | `vehicle_builder`, `mouse_adapter` | Left renderer through snapshot | Five stock counts, selected part and cursor position |
 | `level_data` | `physics_engine` | Signed 16-bit `spawn_x` and `spawn_y` load the initial position |
 | `game_controller` | Builder, physics, world outcomes | `run_init` stays high in INIT_RUN; each module returns one bit of the three-bit `init_ready` bus |
@@ -51,18 +55,20 @@ During BUILD the left renderer shows five inventory rows at x=56..91 and y=4..53
 
 | Boundary | Current starter behaviour | Next owner task |
 | --- | --- | --- |
-| Builder edit inputs | Connected to mouse selection/place/remove actions with inventory checks | Role 1 adds gameplay mouse actions and any later input refinements |
-| Builder damage inputs | Both masks tied inactive in the top; exercised in the unit bench | Role 3 produces content/frame masks; Role 1 applies both through `damage_valid`/`damage_ready` |
+| Builder edit inputs | Connected to mouse selection/place/remove actions with inventory checks | Role 1 adds later input refinements |
+| Builder damage inputs | Content mask receives balloon pops; frame mask is zero | Role 3 produces TNT masks; Roles 1 and 3 combine/arbitrate both sources without losing requests |
 | Game guide requests | Tied inactive | Roles 1 and 4 agree navigation inputs and instruction screens |
 | Audio events | `launch_event`, `success_event`, `failure_event` generated but not connected to audio | Role 1 adds sound routing/output; Role 3 later supplies explosion events |
-| Mouse | Supplied controller instantiated unchanged; construction adapter connected | Verify real mouse operation on the Basys3; guide/gameplay controls remain future work |
-| Balloon popping | No control connected; the fixed build has no balloons | Role 1 updates intact state, then publishes the surviving count for Role 2 |
+| Mouse | Supplied controller unchanged; construction and balloon clicks connected | Role 1 adds guide controls and verifies new gameplay input on the Basys3 |
+| Balloon popping | Fresh RUN clicks queue surviving balloons and clear their intact bits between updates | Hardware check with balloons added to the build; sound effects remain future work |
 | Collision | Downward landing on rectangular platforms | Role 3 adds wall/ceiling/corner handling and TNT |
 | Levels and sprites | One flat map and solid-colour parts | Role 4 supplies final maps, artwork, inventory/status details and instructions |
 
 Cell contents are row-major in 27 bits, with cell zero in bits 2:0. Frames are stored separately in nine-bit `build_frames`. Each layer has its own nine-bit intact and damage mask. `world_outcomes` still finds the pig through the content grid/mask; physics still receives counts and total mass without a port change. Review the placement rules in `interfaces.md` before adding features.
 
 ## Validation status
+
+On 21 October 2026, all nine simulation benches passed after connecting `balloon_control`, RUN mouse clicks and cursor drawing. The new top-level bench delays world completion to verify queued pops and movement-boundary timing, then checks counts/mass, inventory, saved construction, retry/results/reset and pixels. The previous construction/mouse/OLED hardware checklist was reported passing by Kaushal. A requested build of the balloon version then completed with zero reported design-rule violations and passing constrained 100 MHz setup/hold timing. Its bitstream and reports are in `tmp/balloon_board_test/`; routed usage is 3,064 LUTs (14.73%) and 1,270 flip-flops (3.05%). Divided-OLED-clock and external-I/O timing remain incompletely constrained. Physical balloon-control testing remains pending. The older `tmp/oled_board_test/` outputs describe the version without popping.
 
 On 15 October 2026, the benches passed using Vivado Simulator 2025.2: `game_baseline_tb`, `module_contracts_tb`, `display_snapshot_tb`, `physics_engine_tb`, `clock_control_tb` and `button_debouncer_tb`. The game-loop bench was rerun after integrating the user's debouncer. The button bench checks press/release bounce, holding, rearming and reset using shorter timing counts. The clock bench checks counts zero, one and seven, physics-enable spacing and reset behaviour. The simulation runner checks each bench's PASS marker.
 
