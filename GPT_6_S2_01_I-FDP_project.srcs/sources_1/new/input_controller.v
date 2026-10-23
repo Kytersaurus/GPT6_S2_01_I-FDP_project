@@ -5,8 +5,8 @@ module input_controller #(
     parameter integer DEBOUNCE_CYCLES = 20000000,
     parameter integer RELEASE_CYCLES = 2000000
 ) (
-    input wire clk, reset, btnC, btnU, engine_switch,
-    output wire start_press, edit_press, engine_enabled
+    input wire clk, reset, btnC, btnU, btnR, engine_switch, reverse_switch,
+    output wire start_press, edit_press, engine_enabled, engine_reverse, jump_press
 );
     reg engine_meta, engine_sync;
     button_debouncer #(.RELEASE_CYCLES(RELEASE_CYCLES)) u_center (
@@ -17,9 +17,27 @@ module input_controller #(
         .CLOCK(clk), .reset(reset), .btn(btnU),
         .freq_count(DEBOUNCE_CYCLES-1), .btn_pressed(edit_press)
     );
+    button_debouncer #(.RELEASE_CYCLES(RELEASE_CYCLES)) u_right (
+        .CLOCK(clk), .reset(reset), .btn(btnR), .freq_count(DEBOUNCE_CYCLES-1), .btn_pressed(jump_press)
+    );
     always @(posedge clk) begin
         if (reset) begin engine_meta <= 0; engine_sync <= 0; end
         else begin engine_meta <= engine_switch; engine_sync <= engine_meta; end
     end
     assign engine_enabled = engine_sync;
+    
+    reg reverse_meta, reverse_sync;
+    
+    always @(posedge clk) begin
+        if (reset) begin
+            reverse_meta <= 0;
+            reverse_sync <= 0;
+        end else begin
+            reverse_meta <= reverse_switch;
+            reverse_sync <= reverse_meta;
+        end
+    end
+    
+    assign engine_reverse = reverse_sync;
+        
 endmodule

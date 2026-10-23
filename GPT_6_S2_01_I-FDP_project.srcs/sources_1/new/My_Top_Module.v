@@ -17,12 +17,12 @@ module My_Top_Module #(
     parameter integer BUTTON_DEBOUNCE_CYCLES = 20000000,
     parameter integer BUTTON_RELEASE_CYCLES = 2000000
 ) (
-    input wire clk, btnC, btnU, btnD,
-    input wire [0:0] sw,
+    input wire clk, btnC, btnU, btnD, btnR,
+    input wire [1:0] sw,
     output wire [15:0] led,
     output wire [7:0] JA, JB
 );
-    wire reset, oled_clk, oled_reset, physics_tick, start_press, edit_press, engine_enabled;
+    wire reset, oled_clk, oled_reset, physics_tick, start_press, edit_press, engine_enabled, engine_reverse, jump_press;
     wire [2:0] game_state, init_ready;
     wire run_init, step_start, update_release;
     wire [26:0] build_grid;
@@ -47,8 +47,8 @@ module My_Top_Module #(
     input_controller #(
         .DEBOUNCE_CYCLES(BUTTON_DEBOUNCE_CYCLES), .RELEASE_CYCLES(BUTTON_RELEASE_CYCLES)
     ) u_input (
-        .clk(clk), .reset(reset), .btnC(btnC), .btnU(btnU), .engine_switch(sw[0]),
-        .start_press(start_press), .edit_press(edit_press), .engine_enabled(engine_enabled)
+        .clk(clk), .reset(reset), .btnC(btnC), .btnU(btnU), .btnR(btnR), .engine_switch(sw[0]), .reverse_switch(sw[1]),
+        .start_press(start_press), .edit_press(edit_press), .engine_enabled(engine_enabled), .engine_reverse(engine_reverse), .jump_press(jump_press)
     );
     vehicle_builder u_builder (
         .clk(clk), .reset(reset), .game_state(game_state), .run_init(run_init), .init_ready(init_ready[0]),
@@ -74,7 +74,7 @@ module My_Top_Module #(
         .clk(clk), .reset(reset), .game_state(game_state), .run_init(run_init), .init_ready(init_ready[1]),
         .spawn_x(spawn_x), .spawn_y(spawn_y), .step_start(step_start), .update_release(update_release),
         .wheel_count(wheel_count), .engine_count(engine_count), .balloon_count(balloon_count),
-        .mass_units(mass_units), .engine_enabled(engine_enabled), .move_valid(move_valid), .move_ready(move_ready),
+        .mass_units(mass_units), .engine_enabled(engine_enabled), .engine_reverse(engine_reverse), .jump_press(jump_press), .move_valid(move_valid), .move_ready(move_ready),
         .previous_x(previous_x), .previous_y(previous_y), .proposed_x(proposed_x), .proposed_y(proposed_y),
         .proposed_vx(proposed_vx), .proposed_vy(proposed_vy), .response_valid(response_valid),
         .response_ready(response_ready), .corrected_x(corrected_x), .corrected_y(corrected_y),

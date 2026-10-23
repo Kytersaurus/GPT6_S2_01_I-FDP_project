@@ -31,7 +31,8 @@ foreach lp_file [get_files -quiet -of_objects $lp_sources] {
 }
 foreach lp_path [lp_find_hdl $lp_source_dir] {
     if {[lsearch -exact $lp_known_files [file normalize $lp_path]] < 0} {
-        add_files -fileset sources_1 -norecurse $lp_path
+        # add_files expects a Tcl list; keep a path containing spaces as one item.
+        add_files -fileset sources_1 -norecurse [list $lp_path]
     }
 }
 
