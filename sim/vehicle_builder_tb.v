@@ -38,8 +38,10 @@ module vehicle_builder_tb;
         .pixel_index(pixel), .game_state(game_state), .build_grid(build_grid),
         .intact_mask(intact_mask), .frame_intact_mask(frame_intact_mask),
         .build_valid(build_valid), .build_error(build_error), .engine_enabled(1'b1),
+        .feedback_code(`LP_FEEDBACK_NONE), .feedback_cell(4'd0),
         .frames_left(frames_left), .pigs_left(pigs_left), .wheels_left(wheels_left),
         .engines_left(engines_left), .balloons_left(balloons_left), .selected_part(`LP_PART_FRAME),
+        .drag_active(1'b0),
         .cursor_x(7'd0), .cursor_y(7'd0), .cursor_visible(1'b0), .pixel_data(colour)
     );
     task clocks;

@@ -11,22 +11,26 @@
 
 `include "game_defs.vh"
 
-// SW0 engine, BTNC launch/retry, BTNU return to BUILD after a result, BTND reset.
+// SW0 engine, SW1 mute; BTNC launch/retry, BTNU edit, BTNR test beep, BTND reset.
 module My_Top_Module #(
     parameter integer PHYSICS_CYCLES = 1666667,
     parameter integer BUTTON_DEBOUNCE_CYCLES = 20000000,
     parameter integer BUTTON_RELEASE_CYCLES = 2000000,
+    parameter integer AUDIO_TONE_HALF_CYCLES = 50000,
+    parameter integer AUDIO_BEEP_CYCLES = 20000000,
     parameter integer FRAME_LIMIT = 5,
     parameter integer PIG_LIMIT = 1,
     parameter integer WHEEL_LIMIT = 2,
     parameter integer ENGINE_LIMIT = 1,
-    parameter integer BALLOON_LIMIT = 2
+    parameter integer BALLOON_LIMIT = 2,
+    parameter integer FEEDBACK_CYCLES = 100000000
 ) (
-    input wire clk, btnC, btnU, btnD,
-    input wire [0:0] sw,
+    input wire clk, btnC, btnU, btnR, btnD,
+    input wire [1:0] sw,
     inout wire PS2Clk, PS2Data,
     output wire [15:0] led,
-    output wire [7:0] JA, JB
+    output wire [7:0] JA, JB,
+    output wire [3:0] JC
 );
     wire reset, oled_clk, oled_reset, physics_tick, start_press, edit_press, engine_enabled;
     wire [2:0] game_state, init_ready;
@@ -35,12 +39,14 @@ module My_Top_Module #(
     wire [8:0] build_frames, intact_mask, frame_intact_mask;
     wire build_valid, pig_alive, damage_ready;
     wire [3:0] build_error, wheel_count, engine_count, balloon_count;
+    wire [2:0] feedback_code;
+    wire [3:0] feedback_cell;
     wire [3:0] frames_left, pigs_left, wheels_left, engines_left, balloons_left;
     wire [11:0] mouse_x, mouse_y, mouse_value;
     wire mouse_left, mouse_right, mouse_event, setx, sety, setmax_x, setmax_y;
     wire [6:0] cursor_x, cursor_y;
     wire [2:0] selected_part, edit_part;
-    wire edit_valid;
+    wire edit_valid, drag_active;
     wire [1:0] edit_op;
     wire [3:0] edit_cell;
     wire pop_req, pop_pending, pop_valid, gameplay_ready;
@@ -55,7 +61,8 @@ module My_Top_Module #(
     wire signed [15:0] previous_x, previous_y, proposed_x, proposed_y, proposed_vx, proposed_vy;
     wire signed [15:0] corrected_x, corrected_y, corrected_vx, corrected_vy;
     wire movement_committed, world_valid, world_ready, goal_hit, hazard_hit, out_of_bounds;
-    wire launch_event, success_event, failure_event;
+    wire launch_event;
+    wire beep_press, audio_muted, audio_busy, audio_pwm;
 
     clock_control #(.PHYSICS_CYCLES(PHYSICS_CYCLES)) u_clocking (
         .clk(clk), .reset_button(btnD), .reset(reset), .oled_clk(oled_clk),
@@ -64,8 +71,15 @@ module My_Top_Module #(
     input_controller #(
         .DEBOUNCE_CYCLES(BUTTON_DEBOUNCE_CYCLES), .RELEASE_CYCLES(BUTTON_RELEASE_CYCLES)
     ) u_input (
-        .clk(clk), .reset(reset), .btnC(btnC), .btnU(btnU), .engine_switch(sw[0]),
-        .start_press(start_press), .edit_press(edit_press), .engine_enabled(engine_enabled)
+        .clk(clk), .reset(reset), .btnC(btnC), .btnU(btnU), .btnR(btnR),
+        .engine_switch(sw[0]), .mute_switch(sw[1]), .start_press(start_press), .edit_press(edit_press),
+        .beep_press(beep_press), .engine_enabled(engine_enabled), .audio_muted(audio_muted)
+    );
+    audio_beep #(
+        .TONE_HALF_CYCLES(AUDIO_TONE_HALF_CYCLES), .BEEP_CYCLES(AUDIO_BEEP_CYCLES)
+    ) u_audio (
+        .clk(clk), .reset(reset), .start(beep_press), .mute(audio_muted),
+        .busy(audio_busy), .audio_pwm(audio_pwm)
     );
     MouseCtl u_mouse (
         .clk(clk), .rst(reset), .xpos(mouse_x), .ypos(mouse_y), .zpos(),
@@ -78,6 +92,7 @@ module My_Top_Module #(
         .mouse_left(mouse_left), .mouse_right(mouse_right), .mouse_event(mouse_event),
         .mouse_value(mouse_value), .setx(setx), .sety(sety), .setmax_x(setmax_x), .setmax_y(setmax_y),
         .cursor_x(cursor_x), .cursor_y(cursor_y), .selected_part(selected_part),
+        .drag_active(drag_active),
         .edit_valid(edit_valid), .edit_op(edit_op), .edit_cell(edit_cell), .edit_part(edit_part),
         .pop_req(pop_req), .pop_cell(pop_cell)
     );
@@ -88,7 +103,7 @@ module My_Top_Module #(
     );
     vehicle_builder #(
         .FRAME_LIMIT(FRAME_LIMIT), .PIG_LIMIT(PIG_LIMIT), .WHEEL_LIMIT(WHEEL_LIMIT),
-        .ENGINE_LIMIT(ENGINE_LIMIT), .BALLOON_LIMIT(BALLOON_LIMIT)
+        .ENGINE_LIMIT(ENGINE_LIMIT), .BALLOON_LIMIT(BALLOON_LIMIT), .FEEDBACK_CYCLES(FEEDBACK_CYCLES)
     ) u_builder (
         .clk(clk), .reset(reset), .game_state(game_state), .run_init(run_init), .init_ready(init_ready[0]),
         .edit_valid(edit_valid), .edit_op(edit_op), .edit_cell(edit_cell), .edit_part(edit_part),
@@ -96,6 +111,7 @@ module My_Top_Module #(
         .build_grid(build_grid), .build_frames(build_frames),
         .intact_mask(intact_mask), .frame_intact_mask(frame_intact_mask), .build_valid(build_valid),
         .build_error(build_error), .pig_alive(pig_alive), .wheel_count(wheel_count),
+        .feedback_code(feedback_code), .feedback_cell(feedback_cell),
         .engine_count(engine_count), .balloon_count(balloon_count), .mass_units(mass_units),
         .frames_left(frames_left), .pigs_left(pigs_left), .wheels_left(wheels_left),
         .engines_left(engines_left), .balloons_left(balloons_left)
@@ -111,7 +127,7 @@ module My_Top_Module #(
         .gameplay_pending(pop_pending), .gameplay_ready(gameplay_ready),
         .goal_hit(goal_hit), .hazard_hit(hazard_hit), .out_of_bounds(out_of_bounds), .game_state(game_state),
         .run_init(run_init), .step_start(step_start), .update_release(update_release),
-        .launch_event(launch_event), .success_event(success_event), .failure_event(failure_event)
+        .launch_event(launch_event), .success_event(), .failure_event()
     );
     physics_engine u_physics (
         .clk(clk), .reset(reset), .game_state(game_state), .run_init(run_init), .init_ready(init_ready[1]),
@@ -138,26 +154,30 @@ module My_Top_Module #(
         .world_ready(world_ready), .goal_hit(goal_hit), .hazard_hit(hazard_hit), .out_of_bounds(out_of_bounds)
     );
 
-    wire [122:0] snapshot_in = {game_state, build_grid, intact_mask, frame_intact_mask, build_valid, build_error,
+    wire [130:0] snapshot_in = {game_state, build_grid, intact_mask, frame_intact_mask, build_valid, build_error,
                               vehicle_x, vehicle_y, engine_enabled, frames_left, pigs_left, wheels_left,
-                              engines_left, balloons_left, cursor_x, cursor_y, selected_part};
-    wire [122:0] snapshot_out;
+                              engines_left, balloons_left, cursor_x, cursor_y, selected_part, drag_active,
+                              feedback_code, feedback_cell};
+    wire [130:0] snapshot_out;
     wire [2:0] draw_state;
     wire [26:0] draw_grid;
     wire [8:0] draw_intact, draw_frames;
-    wire draw_valid, draw_engine;
+    wire draw_valid, draw_engine, draw_drag_active;
     wire [3:0] draw_error;
+    wire [2:0] draw_feedback_code;
+    wire [3:0] draw_feedback_cell;
     wire [3:0] draw_frames_left, draw_pigs_left, draw_wheels_left, draw_engines_left, draw_balloons_left;
     wire [6:0] draw_cursor_x, draw_cursor_y;
     wire [2:0] draw_selected_part;
     wire signed [15:0] draw_x, draw_y;
-    wire left_frame, right_frame;
+    wire left_frame;
     wire [12:0] left_pixel_index, right_pixel_index;
     wire [15:0] left_pixel_data, right_pixel_data;
     assign {draw_state, draw_grid, draw_intact, draw_frames, draw_valid, draw_error, draw_x, draw_y, draw_engine,
             draw_frames_left, draw_pigs_left, draw_wheels_left, draw_engines_left, draw_balloons_left,
-            draw_cursor_x, draw_cursor_y, draw_selected_part} = snapshot_out;
-    display_snapshot #(.WIDTH(123)) u_snapshot (
+            draw_cursor_x, draw_cursor_y, draw_selected_part, draw_drag_active,
+            draw_feedback_code, draw_feedback_cell} = snapshot_out;
+    display_snapshot #(.WIDTH(131)) u_snapshot (
         .game_clk(clk), .game_reset(reset), .display_clk(oled_clk), .display_reset(oled_reset),
         .frame_begin(left_frame), .game_data(snapshot_in), .display_data(snapshot_out)
     );
@@ -165,8 +185,10 @@ module My_Top_Module #(
         .pixel_index(left_pixel_index), .game_state(draw_state), .build_grid(draw_grid),
         .intact_mask(draw_intact), .frame_intact_mask(draw_frames),
         .build_valid(draw_valid), .build_error(draw_error), .engine_enabled(draw_engine),
+        .feedback_code(draw_feedback_code), .feedback_cell(draw_feedback_cell),
         .frames_left(draw_frames_left), .pigs_left(draw_pigs_left), .wheels_left(draw_wheels_left),
         .engines_left(draw_engines_left), .balloons_left(draw_balloons_left), .selected_part(draw_selected_part),
+        .drag_active(draw_drag_active),
         .cursor_x(draw_cursor_x), .cursor_y(draw_cursor_y), .cursor_visible(1'b1), .pixel_data(left_pixel_data)
     );
     right_renderer u_right_renderer (
@@ -181,11 +203,16 @@ module My_Top_Module #(
         .d_cn(JA[4]), .resn(JA[5]), .vccen(JA[6]), .pmoden(JA[7])
     );
     Oled_Display u_right_oled (
-        .clk(oled_clk), .reset(oled_reset), .frame_begin(right_frame), .sending_pixels(), .sample_pixel(),
+        .clk(oled_clk), .reset(oled_reset), .frame_begin(), .sending_pixels(), .sample_pixel(),
         .pixel_index(right_pixel_index), .pixel_data(right_pixel_data), .cs(JB[0]), .sdin(JB[1]), .sclk(JB[3]),
         .d_cn(JB[4]), .resn(JB[5]), .vccen(JB[6]), .pmoden(JB[7])
     );
     assign JA[2] = 1'b0;
     assign JB[2] = 1'b0;
+    // Pmod AMP2 on JC pins 1-6: AIN, GAIN, NC, shutdown_n, GND, 3.3V.
+    assign JC[0] = audio_pwm;
+    assign JC[1] = 1'b1; // High selects the lower, 6 dB gain.
+    assign JC[2] = 1'b0; // AMP2 pin 3 is not connected.
+    assign JC[3] = !reset && !audio_muted;
     assign led = {intact_mask, engine_enabled, build_valid, pig_alive, world_valid, game_state};
 endmodule

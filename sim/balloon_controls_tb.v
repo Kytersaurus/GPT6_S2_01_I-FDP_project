@@ -17,7 +17,7 @@ module balloon_controls_tb;
     always #5 clk=~clk;
 
     My_Top_Module #(.BUTTON_DEBOUNCE_CYCLES(2), .BUTTON_RELEASE_CYCLES(2)) dut (
-        .clk(clk), .btnC(1'b0), .btnU(1'b0), .btnD(btnD), .sw(1'b0),
+        .clk(clk), .btnC(1'b0), .btnU(1'b0), .btnR(1'b0), .btnD(btnD), .sw(2'b00),
         .PS2Clk(PS2Clk), .PS2Data(PS2Data), .led(led), .JA(JA), .JB(JB)
     );
     // Check renderer pixels directly without waiting for an entire OLED frame.
@@ -25,9 +25,11 @@ module balloon_controls_tb;
         .pixel_index(pixel), .game_state(dut.game_state), .build_grid(dut.build_grid),
         .intact_mask(dut.intact_mask), .frame_intact_mask(dut.frame_intact_mask),
         .build_valid(dut.build_valid), .build_error(dut.build_error), .engine_enabled(1'b0),
+        .feedback_code(dut.feedback_code), .feedback_cell(dut.feedback_cell),
         .frames_left(dut.frames_left), .pigs_left(dut.pigs_left), .wheels_left(dut.wheels_left),
         .engines_left(dut.engines_left), .balloons_left(dut.balloons_left),
         .selected_part(dut.selected_part), .cursor_x(dut.cursor_x), .cursor_y(dut.cursor_y),
+        .drag_active(dut.drag_active),
         .cursor_visible(1'b1), .pixel_data(colour)
     );
     // Supply completed mouse packets, button pulses and delayed world results.
@@ -113,6 +115,29 @@ module balloon_controls_tb;
 
     initial begin
         clocks(20); btnD=0; clocks(280);
+        // Exercise the real top-level preview bus across the OLED clock boundary.
+        // Supply frame boundaries early, while the physical driver is still starting.
+        force dut.left_frame=1'b1;
+        force dut.left_pixel_index=pixel;
+        packet(74,8,1,0); packet(12,12,1,0); clocks(400);
+        if (!dut.draw_drag_active || dut.draw_cursor_x!=12 || dut.draw_cursor_y!=12 ||
+            dut.draw_selected_part!=`LP_PART_FRAME)
+            $fatal(1,"Preview state/cursor/selection did not cross the display snapshot");
+        pixel=15*96+15; #1;
+        if (dut.left_pixel_data!==16'ha285) $fatal(1,"Connected OLED renderer lost dragged frame");
+        packet(54,55,0,0); clocks(400);
+        pixel=15*96+15; #1;
+        if (dut.draw_drag_active || dut.left_pixel_data!==16'h0841 || dut.frames_left!=2)
+            $fatal(1,"Cancelled preview persisted through the display snapshot");
+        // A rejected drop must carry its reason and target through the same snapshot.
+        left_click(74,18); left_click(12,12); clocks(400);
+        if (dut.draw_feedback_code!=`LP_FEEDBACK_NEED_FRAME || dut.draw_feedback_cell!=0)
+            $fatal(1,"Rejected placement feedback was lost in the display snapshot");
+        pixel=4*96+4; #1;
+        if (dut.left_pixel_data!==16'hf800 || dut.build_grid[2:0]!=`LP_PART_EMPTY || dut.pigs_left!=0)
+            $fatal(1,"Connected feedback outline or rejected placement changed the build");
+        release dut.left_frame;
+        release dut.left_pixel_index;
         left_click(74,48); left_click(12,12); left_click(28,12);
         if (!dut.build_valid || dut.balloon_count!=2 || dut.balloons_left!=0 || dut.mass_units!=15)
             $fatal(1,"Could not construct two test balloons");

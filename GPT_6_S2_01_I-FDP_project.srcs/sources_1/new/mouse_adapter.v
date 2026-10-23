@@ -10,6 +10,7 @@ module mouse_adapter (
     output reg setx, sety, setmax_x, setmax_y,
     output reg [6:0] cursor_x, cursor_y,
     output reg [2:0] selected_part,
+    output wire drag_active,
     output reg edit_valid,
     output reg [1:0] edit_op,
     output reg [3:0] edit_cell,
@@ -20,8 +21,11 @@ module mouse_adapter (
     reg [1:0] setup_step;
     reg left_was_down, right_was_down;
     reg place_pending;
+    assign drag_active = place_pending && game_state == `LP_BUILD;
     wire in_grid = mouse_x >= 4 && mouse_x < 52 && mouse_y >= 4 && mouse_y < 52;
     wire in_inventory = mouse_x >= 56 && mouse_x < 92 && mouse_y >= 4 && mouse_y < 54;
+    // Used only when in_grid is true, for placement, removal and balloon clicks.
+    wire [3:0] hovered_cell = ((mouse_y-4)/16)*3 + (mouse_x-4)/16;
 
     // Configure the supplied driver for the left OLED, then place the cursor over the grid.
     always @* begin
@@ -57,7 +61,7 @@ module mouse_adapter (
                         place_pending <= 0;
                         if (!right_was_down && in_grid) begin
                             edit_valid <= 1; edit_op <= `LP_EDIT_REMOVE;
-                            edit_cell <= ((mouse_y-4)/16)*3 + (mouse_x-4)/16;
+                            edit_cell <= hovered_cell;
                             edit_part <= `LP_PART_EMPTY;
                         end
                     end else if (mouse_left && !left_was_down) begin
@@ -77,7 +81,7 @@ module mouse_adapter (
                         // One drop at the release position; outside the grid cancels it.
                         if (place_pending && in_grid) begin
                             edit_valid <= 1; edit_op <= `LP_EDIT_PLACE;
-                            edit_cell <= ((mouse_y-4)/16)*3 + (mouse_x-4)/16;
+                            edit_cell <= hovered_cell;
                             edit_part <= selected_part;
                         end
                     end
@@ -85,7 +89,7 @@ module mouse_adapter (
                              !mouse_right && in_grid) begin
                     // Gameplay uses one fresh press, rather than construction's drop.
                     pop_req <= 1;
-                    pop_cell <= ((mouse_y-4)/16)*3 + (mouse_x-4)/16;
+                    pop_cell <= hovered_cell;
                 end
             end
         end

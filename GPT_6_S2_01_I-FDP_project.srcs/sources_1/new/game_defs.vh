@@ -41,4 +41,14 @@
 `define LP_BUILD_ERR_ATTACHMENT 4'd2
 `define LP_BUILD_ERR_INVENTORY  4'd3
 
+// Temporary construction feedback; zero returns to the overall build status.
+`define LP_FEEDBACK_NONE          3'd0
+`define LP_FEEDBACK_PLACED        3'd1
+`define LP_FEEDBACK_REMOVED       3'd2
+`define LP_FEEDBACK_NO_STOCK      3'd3
+`define LP_FEEDBACK_NEED_FRAME    3'd4
+`define LP_FEEDBACK_FRAME_ABOVE   3'd5
+`define LP_FEEDBACK_FRAME_BELOW   3'd6
+`define LP_FEEDBACK_OCCUPIED      3'd7
+
 `endif

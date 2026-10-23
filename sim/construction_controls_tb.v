@@ -7,7 +7,7 @@ module construction_controls_tb;
     reg [11:0] mouse_x=0, mouse_y=0;
     reg mouse_left=0, mouse_right=0, mouse_event=0;
     wire [11:0] mouse_value;
-    wire setx, sety, setmax_x, setmax_y, edit_valid;
+    wire setx, sety, setmax_x, setmax_y, edit_valid, drag_active;
     wire [6:0] cursor_x, cursor_y;
     wire [2:0] selected, edit_part;
     wire [1:0] edit_op;
@@ -20,6 +20,8 @@ module construction_controls_tb;
     wire valid, pig_alive, init_ready;
     wire [3:0] error, wheels, engines, balloons, frames_left, pigs_left, wheels_left, engines_left, balloons_left;
     wire [7:0] mass;
+    wire [2:0] feedback_code;
+    wire [3:0] feedback_cell;
     reg [12:0] pixel=0;
     wire [15:0] colour;
     reg [26:0] saved_grid;
@@ -37,6 +39,7 @@ module construction_controls_tb;
         .mouse_left(mouse_left),.mouse_right(mouse_right),.mouse_event(mouse_event),
         .mouse_value(mouse_value),.setx(setx),.sety(sety),.setmax_x(setmax_x),.setmax_y(setmax_y),
         .cursor_x(cursor_x),.cursor_y(cursor_y),.selected_part(selected),
+        .drag_active(drag_active),
         .edit_valid(edit_valid),.edit_op(edit_op),.edit_cell(edit_cell),.edit_part(edit_part)
     );
     vehicle_builder builder (
@@ -45,6 +48,7 @@ module construction_controls_tb;
         .damage_valid(damage_valid),.damage_ready(),.damage_mask(damage_mask),.damage_frame_mask(9'd0),
         .build_grid(grid),.build_frames(frames),.intact_mask(intact),.frame_intact_mask(frame_intact),
         .build_valid(valid),.build_error(error),.pig_alive(pig_alive),.wheel_count(wheels),
+        .feedback_code(feedback_code),.feedback_cell(feedback_cell),
         .engine_count(engines),.balloon_count(balloons),.mass_units(mass),
         .frames_left(frames_left),.pigs_left(pigs_left),.wheels_left(wheels_left),
         .engines_left(engines_left),.balloons_left(balloons_left)
@@ -59,8 +63,10 @@ module construction_controls_tb;
     left_renderer view (
         .pixel_index(pixel),.game_state(game_state),.build_grid(grid),.intact_mask(intact),
         .frame_intact_mask(frame_intact),.build_valid(valid),.build_error(error),.engine_enabled(1'b1),
+        .feedback_code(feedback_code),.feedback_cell(feedback_cell),
         .frames_left(frames_left),.pigs_left(pigs_left),.wheels_left(wheels_left),
         .engines_left(engines_left),.balloons_left(balloons_left),.selected_part(selected),
+        .drag_active(drag_active),
         .cursor_x(cursor_x),.cursor_y(cursor_y),.cursor_visible(1'b1),.pixel_data(colour)
     );
     game_controller launch_guard (
@@ -108,6 +114,15 @@ module construction_controls_tb;
         input [11:0] x,y;
         begin packet(x,y,0,0); packet(x,y,0,1); packet(x,y,0,0); end
     endtask
+    task expect_pixel;
+        input integer x,y;
+        input [15:0] expected;
+        begin
+            pixel=y*96+x; #1;
+            if (colour!==expected)
+                $fatal(1,"Pixel (%0d,%0d): expected %h, got %h",x,y,expected,colour);
+        end
+    endtask
 
     initial begin
         clocks(4); reset=0; clocks(6);
@@ -122,6 +137,38 @@ module construction_controls_tb;
         pixel=4*96+56; #1; if (colour!=16'hffe0) $fatal(1,"Selected row not highlighted");
         pixel=24*96+24; #1; if (colour!=16'hffff) $fatal(1,"Mouse cursor missing");
         clocks(1);
+
+        // Each part follows the cursor as a preview, without consuming any stock.
+        saved_grid=grid; saved_frames=frames;
+        packet(74,8,1,0); packet(12,12,1,0);
+        if (!drag_active) $fatal(1,"Held construction drag has no preview");
+        expect_pixel(15,15,16'ha285); expect_pixel(18,18,16'h0841);
+        expect_pixel(12,12,16'hffff);
+        packet(28,12,1,0);
+        expect_pixel(31,15,16'ha285); expect_pixel(15,15,16'h0841);
+        packet(54,55,0,0);
+        if (drag_active) $fatal(1,"Outside release left the preview active");
+        expect_pixel(31,15,16'h0841);
+        packet(74,18,1,0); packet(12,12,1,0);
+        expect_pixel(15,15,16'h07e0); expect_pixel(17,17,16'h0000);
+        packet(54,55,0,0);
+        packet(74,28,1,0); packet(12,12,1,0);
+        expect_pixel(15,15,16'hffff); expect_pixel(18,18,16'h0841);
+        packet(54,55,0,0);
+        packet(74,38,1,0); packet(12,12,1,0);
+        expect_pixel(15,15,16'hf800); expect_pixel(17,18,16'hffe0);
+        packet(54,55,0,0);
+        packet(74,48,1,0); packet(12,12,1,0);
+        expect_pixel(16,15,16'hf81f); expect_pixel(18,21,16'hffff);
+        // Clamp the whole preview at the screen edge, without wrapping coordinates.
+        packet(4095,4095,1,0);
+        expect_pixel(89,56,16'hf81f); expect_pixel(91,62,16'hffff);
+        expect_pixel(95,63,16'hffff); expect_pixel(16,15,16'h0841);
+        packet(0,0,1,0); expect_pixel(4,3,16'hf81f);
+        packet(54,55,0,0);
+        if (drag_active || grid!==saved_grid || frames!==saved_frames || edit_count!=0 ||
+            frames_left!=2 || pigs_left!=0 || wheels_left!=0 || engines_left!=0 || balloons_left!=2)
+            $fatal(1,"Preview/cancel changed construction or inventory");
 
         left_click(74,28); left_click(28,44);
         if (selected!=`LP_PART_WHEEL || grid[23:21]!=`LP_PART_EMPTY || wheels_left!=0)
@@ -167,7 +214,7 @@ module construction_controls_tb;
         if (frames!==saved_frames || grid!==saved_grid || frames_left!=2 || edit_count!=saved_edit_count)
             $fatal(1,"Dragging placed parts or charged stock before release");
         packet(44,12,0,0);
-        if (frames!==(saved_frames | 9'b000000100) || frames_left!=1 || edit_count!=saved_edit_count+1)
+        if (drag_active || frames!==(saved_frames | 9'b000000100) || frames_left!=1 || edit_count!=saved_edit_count+1)
             $fatal(1,"Drop did not use the final release cell exactly once");
         packet(44,12,0,0); packet(12,12,0,0);
         if (frames_left!=1 || edit_count!=saved_edit_count+1) $fatal(1,"Released mouse repeated a drop");
@@ -183,12 +230,12 @@ module construction_controls_tb;
         saved_grid=grid;
         packet(74,48,1,0); packet(28,44,0,0);
         packet(74,28,1,0); packet(28,44,0,0);
-        if (grid!==saved_grid || balloons_left!=2 || wheels_left!=0)
+        if (drag_active || grid!==saved_grid || balloons_left!=2 || wheels_left!=0)
             $fatal(1,"Drop bypassed attachment or inventory checks");
 
         // Right-click cancels a pending drop; holding it cannot also remove the frame.
         packet(74,48,1,0); packet(12,12,1,0); packet(12,12,1,1); packet(12,12,0,0);
-        if (grid!==saved_grid || balloons_left!=2) $fatal(1,"Right-click did not cancel a drag");
+        if (drag_active || grid!==saved_grid || balloons_left!=2) $fatal(1,"Right-click did not cancel a drag");
         packet(44,28,1,1); packet(44,28,1,1); packet(44,28,0,0);
         if (grid[17:15]!=`LP_PART_EMPTY || !frames[5] || engines_left!=1)
             $fatal(1,"Simultaneous/held buttons repeated removal or placed contents");
@@ -196,7 +243,9 @@ module construction_controls_tb;
         // A drag cannot survive leaving BUILD, even without a packet in between.
         saved_grid=grid; saved_edit_count=edit_count;
         packet(74,48,1,0); packet(12,12,1,0);
-        game_state=`LP_RUN; clocks(2); game_state=`LP_BUILD; clocks(2);
+        game_state=`LP_RUN; clocks(2);
+        if (drag_active) $fatal(1,"Preview survived leaving construction");
+        game_state=`LP_BUILD; clocks(2);
         packet(12,12,0,0);
         game_state=`LP_RUN; packet(74,48,1,0); game_state=`LP_BUILD;
         packet(12,12,0,0);
@@ -217,7 +266,7 @@ module construction_controls_tb;
         // Reset cancels a drag as well as restoring the initial inventory.
         packet(74,8,1,0); packet(12,12,1,0);
         reset=1; clocks(3); reset=0; clocks(6); packet(12,12,0,0);
-        if (frames!=9'b000111000 || frames_left!=2 || edit_count!=0)
+        if (drag_active || frames!=9'b000111000 || frames_left!=2 || edit_count!=0)
             $fatal(1,"Reset left an active drag or changed initial stock");
         left_click(74,48); left_click(12,12); left_click(28,12);
         saved_grid=grid; left_click(44,12);
@@ -246,7 +295,7 @@ module construction_controls_tb;
         mouse_event=0; launch=1; clocks(1); launch=0; clocks(2);
         if (grid[14:12]!=`LP_PART_ENGINE || valid || guarded_state!=`LP_BUILD)
             $fatal(1,"Concurrent drop launched using old build validity");
-        $display("PASS construction_controls_tb: mouse clicks/drag-and-drop, cancellation, stock limits, refunds, replacement, pixels, damage, retry and launch protection");
+        $display("PASS construction_controls_tb: moving part previews, edge clamping, clicks/drag-and-drop, cancellation, stock limits, refunds, replacement, damage, retry and launch protection");
         $finish;
     end
     initial begin #30000; $fatal(1,"Construction controls test timed out"); end

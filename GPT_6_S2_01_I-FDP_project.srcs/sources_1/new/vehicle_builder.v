@@ -8,7 +8,8 @@ module vehicle_builder #(
     parameter integer PIG_LIMIT = 1,
     parameter integer WHEEL_LIMIT = 2,
     parameter integer ENGINE_LIMIT = 1,
-    parameter integer BALLOON_LIMIT = 2
+    parameter integer BALLOON_LIMIT = 2,
+    parameter integer FEEDBACK_CYCLES = 100000000
 ) (
     input wire clk, reset,
     input wire [2:0] game_state,
@@ -28,6 +29,8 @@ module vehicle_builder #(
     output reg [8:0] frame_intact_mask,
     output reg build_valid,
     output reg [3:0] build_error,
+    output reg [2:0] feedback_code,
+    output reg [3:0] feedback_cell,
     output reg pig_alive,
     output reg [3:0] wheel_count, engine_count, balloon_count,
     output reg [3:0] frames_left, pigs_left, wheels_left, engines_left, balloons_left,
@@ -44,7 +47,58 @@ module vehicle_builder #(
     reg placement_valid, stock_valid;
     integer index, saved_frames, saved_pigs, saved_wheels, saved_engines, saved_balloons;
     reg [2:0] part;
+    reg [2:0] edit_result;
+    reg [31:0] feedback_count;
     assign damage_ready = (game_state == `LP_RUN) && !run_init;
+
+    // Decide once: this result controls both editing and the on-screen feedback.
+    // Repeating the same placement or removing an empty cell is a quiet no-op.
+    always @* begin
+        edit_result = `LP_FEEDBACK_NONE;
+        if (game_state == `LP_BUILD && !run_init && edit_valid && edit_cell < 9) begin
+            case (edit_op)
+                `LP_EDIT_PLACE: case (edit_part)
+                    `LP_PART_FRAME: begin
+                        if (build_frames[edit_cell]) edit_result = `LP_FEEDBACK_NONE;
+                        else if (build_grid[edit_cell*3 +: 3] != `LP_PART_EMPTY)
+                            edit_result = `LP_FEEDBACK_OCCUPIED;
+                        else if (frames_left == 0) edit_result = `LP_FEEDBACK_NO_STOCK;
+                        else edit_result = `LP_FEEDBACK_PLACED;
+                    end
+                    `LP_PART_PIG, `LP_PART_ENGINE: begin
+                        if (build_grid[edit_cell*3 +: 3] == edit_part) edit_result = `LP_FEEDBACK_NONE;
+                        else if (!build_frames[edit_cell]) edit_result = `LP_FEEDBACK_NEED_FRAME;
+                        else if ((edit_part == `LP_PART_PIG && pigs_left == 0) ||
+                                 (edit_part == `LP_PART_ENGINE && engines_left == 0))
+                            edit_result = `LP_FEEDBACK_NO_STOCK;
+                        else edit_result = `LP_FEEDBACK_PLACED;
+                    end
+                    `LP_PART_WHEEL: begin
+                        if (build_grid[edit_cell*3 +: 3] == edit_part) edit_result = `LP_FEEDBACK_NONE;
+                        else if (build_frames[edit_cell]) edit_result = `LP_FEEDBACK_OCCUPIED;
+                        else if (edit_cell < 3) edit_result = `LP_FEEDBACK_FRAME_ABOVE;
+                        else if (!build_frames[edit_cell-3]) edit_result = `LP_FEEDBACK_FRAME_ABOVE;
+                        else if (wheels_left == 0) edit_result = `LP_FEEDBACK_NO_STOCK;
+                        else edit_result = `LP_FEEDBACK_PLACED;
+                    end
+                    `LP_PART_BALLOON: begin
+                        if (build_grid[edit_cell*3 +: 3] == edit_part) edit_result = `LP_FEEDBACK_NONE;
+                        else if (build_frames[edit_cell]) edit_result = `LP_FEEDBACK_OCCUPIED;
+                        else if (edit_cell >= 6) edit_result = `LP_FEEDBACK_FRAME_BELOW;
+                        else if (!build_frames[edit_cell+3]) edit_result = `LP_FEEDBACK_FRAME_BELOW;
+                        else if (balloons_left == 0) edit_result = `LP_FEEDBACK_NO_STOCK;
+                        else edit_result = `LP_FEEDBACK_PLACED;
+                    end
+                    default: begin end
+                endcase
+                `LP_EDIT_REMOVE:
+                    if (build_grid[edit_cell*3 +: 3] != `LP_PART_EMPTY || build_frames[edit_cell])
+                        edit_result = `LP_FEEDBACK_REMOVED;
+                default: begin end
+            endcase
+        end
+    end
+
     always @(posedge clk) begin
         if (reset) begin
             build_grid <= STARTER_GRID;
@@ -52,8 +106,18 @@ module vehicle_builder #(
             intact_mask <= STARTER_INTACT;
             frame_intact_mask <= STARTER_FRAMES;
             init_ready <= 0;
+            feedback_code <= `LP_FEEDBACK_NONE; feedback_cell <= 0; feedback_count <= 0;
         end
         else begin
+            if (game_state != `LP_BUILD || run_init) begin
+                feedback_code <= `LP_FEEDBACK_NONE; feedback_count <= 0;
+            end else if (edit_result != `LP_FEEDBACK_NONE) begin
+                feedback_code <= edit_result; feedback_cell <= edit_cell; feedback_count <= 0;
+            end else if (feedback_code != `LP_FEEDBACK_NONE) begin
+                if (feedback_count == FEEDBACK_CYCLES-1) begin
+                    feedback_code <= `LP_FEEDBACK_NONE; feedback_count <= 0;
+                end else feedback_count <= feedback_count + 1'b1;
+            end
             if (!run_init) init_ready <= 0;
             if (run_init && !init_ready) begin
                 // Retry restores both layers of the saved build.
@@ -65,62 +129,24 @@ module vehicle_builder #(
                 // Returning to construction also restores damaged parts.
                 intact_mask <= content_mask;
                 frame_intact_mask <= build_frames;
-                if (edit_valid && !run_init && edit_cell < 9) begin
-                    case (edit_op)
-                        `LP_EDIT_PLACE: begin
-                            // [start +: 3] selects one cell's three content bits.
-                            case (edit_part)
-                                `LP_PART_FRAME: begin
-                                    if (build_grid[edit_cell*3 +: 3] == `LP_PART_EMPTY &&
-                                        (frames_left != 0 || build_frames[edit_cell])) begin
-                                        build_frames[edit_cell] <= 1'b1;
-                                        frame_intact_mask[edit_cell] <= 1'b1;
-                                    end
-                                end
-                                `LP_PART_PIG, `LP_PART_ENGINE: begin
-                                    // Replacing an item with itself also works when stock is zero.
-                                    if (build_frames[edit_cell] &&
-                                        ((edit_part == `LP_PART_PIG && (pigs_left != 0 ||
-                                          build_grid[edit_cell*3 +: 3] == `LP_PART_PIG)) ||
-                                         (edit_part == `LP_PART_ENGINE && (engines_left != 0 ||
-                                          build_grid[edit_cell*3 +: 3] == `LP_PART_ENGINE)))) begin
-                                        build_grid[edit_cell*3 +: 3] <= edit_part;
-                                        intact_mask[edit_cell] <= 1'b1;
-                                    end
-                                end
-                                `LP_PART_WHEEL: begin
-                                    if (!build_frames[edit_cell] && edit_cell >= 3 &&
-                                        (wheels_left != 0 || build_grid[edit_cell*3 +: 3] == `LP_PART_WHEEL)) begin
-                                        if (build_frames[edit_cell-3]) begin
-                                            build_grid[edit_cell*3 +: 3] <= edit_part;
-                                            intact_mask[edit_cell] <= 1'b1;
-                                        end
-                                    end
-                                end
-                                `LP_PART_BALLOON: begin
-                                    if (!build_frames[edit_cell] && edit_cell < 6 &&
-                                        (balloons_left != 0 || build_grid[edit_cell*3 +: 3] == `LP_PART_BALLOON)) begin
-                                        if (build_frames[edit_cell+3]) begin
-                                            build_grid[edit_cell*3 +: 3] <= edit_part;
-                                            intact_mask[edit_cell] <= 1'b1;
-                                        end
-                                    end
-                                end
-                                default: begin end
-                            endcase
-                        end
-                        `LP_EDIT_REMOVE: begin
-                            // First remove the contents; a second click removes the empty frame.
-                            if (build_grid[edit_cell*3 +: 3] != `LP_PART_EMPTY) begin
-                                build_grid[edit_cell*3 +: 3] <= `LP_PART_EMPTY;
-                                intact_mask[edit_cell] <= 1'b0;
-                            end else begin
-                                build_frames[edit_cell] <= 1'b0;
-                                frame_intact_mask[edit_cell] <= 1'b0;
-                            end
-                        end
-                        default: begin end
-                    endcase
+                if (edit_result == `LP_FEEDBACK_PLACED) begin
+                    if (edit_part == `LP_PART_FRAME) begin
+                        build_frames[edit_cell] <= 1'b1;
+                        frame_intact_mask[edit_cell] <= 1'b1;
+                    end else begin
+                        // [start +: 3] selects one cell's three content bits.
+                        build_grid[edit_cell*3 +: 3] <= edit_part;
+                        intact_mask[edit_cell] <= 1'b1;
+                    end
+                end else if (edit_result == `LP_FEEDBACK_REMOVED) begin
+                    // First remove contents; a second click removes the empty frame.
+                    if (build_grid[edit_cell*3 +: 3] != `LP_PART_EMPTY) begin
+                        build_grid[edit_cell*3 +: 3] <= `LP_PART_EMPTY;
+                        intact_mask[edit_cell] <= 1'b0;
+                    end else begin
+                        build_frames[edit_cell] <= 1'b0;
+                        frame_intact_mask[edit_cell] <= 1'b0;
+                    end
                 end
             end
             else if (damage_valid && damage_ready) begin

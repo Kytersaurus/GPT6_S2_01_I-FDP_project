@@ -3,7 +3,7 @@
 `include "game_defs.vh"
 module game_baseline_tb;
     reg clk=0, btnC=0, btnU=0, btnD=1;
-    reg [0:0] sw=1;
+    reg [1:0] sw=1;
     wire [15:0] led;
     wire [7:0] JA, JB;
     tri1 PS2Clk, PS2Data;
@@ -13,7 +13,7 @@ module game_baseline_tb;
     My_Top_Module #(
         .PHYSICS_CYCLES(24), .BUTTON_DEBOUNCE_CYCLES(2), .BUTTON_RELEASE_CYCLES(2)
     ) dut (
-        .clk(clk), .btnC(btnC), .btnU(btnU), .btnD(btnD), .sw(sw),
+        .clk(clk), .btnC(btnC), .btnU(btnU), .btnR(1'b0), .btnD(btnD), .sw(sw),
         .PS2Clk(PS2Clk), .PS2Data(PS2Data), .led(led), .JA(JA), .JB(JB)
     );
     task clocks;

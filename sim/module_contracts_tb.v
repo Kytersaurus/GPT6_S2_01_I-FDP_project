@@ -52,8 +52,10 @@ module module_contracts_tb;
     left_renderer left_view (
         .pixel_index(pixel),.game_state(builder_state),.build_grid(grid),.intact_mask(intact),.frame_intact_mask(frame_intact),
         .build_valid(valid),.build_error(error),.engine_enabled(1'b1),
+        .feedback_code(`LP_FEEDBACK_NONE),.feedback_cell(4'd0),
         .frames_left(frames_left),.pigs_left(pigs_left),.wheels_left(wheels_left),
         .engines_left(engines_left),.balloons_left(balloons_left),.selected_part(`LP_PART_FRAME),
+        .drag_active(1'b0),
         .cursor_x(7'd0),.cursor_y(7'd0),.cursor_visible(1'b0),.pixel_data(left_colour)
     );
     right_renderer right_view (

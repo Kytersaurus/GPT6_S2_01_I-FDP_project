@@ -14,6 +14,8 @@ All game modules live beside `My_Top_Module.v` in the existing design source fol
 | `clock_control` | `game_controller` | `physics_tick` requests an update approximately 60 times per second |
 | `input_controller` | `game_controller` | `start_press` connects to both `launch_req` and `retry_req`; the current state chooses the action. `edit_press` connects to `edit_req` |
 | `input_controller` | `physics_engine` | `engine_enabled` is the synchronised SW0 state, sampled when a movement step starts |
+| `input_controller` | `audio_beep` | BTNR emits one `beep_press`; synchronised SW1 supplies `audio_muted` |
+| `audio_beep`, reset/mute wiring | Pmod AMP2 on JC | `JC[0]` PWM audio, `JC[1]` high for 6 dB gain, `JC[2]` zero/NC, `JC[3]` high only outside reset/mute |
 | `vehicle_builder` | `physics_engine` | Four-bit `wheel_count`, `engine_count`, `balloon_count` and eight-bit `mass_units` describe surviving parts |
 | `vehicle_builder` | `game_controller` | `build_valid` gates launch; the top masks it while `edit_valid` is high so concurrent edits cannot launch using old validity. `pig_alive` participates in the final outcome |
 | `MouseCtl` | `mouse_adapter` | Completed `new_event` packets supply 12-bit x/y positions and held button levels |
@@ -23,7 +25,8 @@ All game modules live beside `My_Top_Module.v` in the existing design source fol
 | `balloon_control` | `game_controller` | `pop_pending` connects to `gameplay_pending` and blocks a new movement step |
 | `game_controller` | `balloon_control` | `gameplay_ready` is high in RUN when no movement/world update is outstanding |
 | `balloon_control` | `vehicle_builder` | `pop_valid` and nine-bit `pop_mask` use the content damage channel during the reserved idle clock; frame damage stays zero |
-| `vehicle_builder`, `mouse_adapter` | Left renderer through snapshot | Five stock counts, selected part and cursor position |
+| `vehicle_builder`, `mouse_adapter` | Left renderer through snapshot | Five stock counts, selected part, cursor position and `drag_active` for the moving part preview |
+| `vehicle_builder` | Left renderer through snapshot | Three-bit `feedback_code` and four-bit `feedback_cell` describe the one-second edit result and target outline |
 | `level_data` | `physics_engine` | Signed 16-bit `spawn_x` and `spawn_y` load the initial position |
 | `game_controller` | Builder, physics, world outcomes | `run_init` stays high in INIT_RUN; each module returns one bit of the three-bit `init_ready` bus |
 | `game_controller` | `physics_engine` | `step_start` samples properties, followed by separate force/velocity/position calculation clocks; `update_release` allows the following update after world checks finish |
@@ -35,11 +38,13 @@ All game modules live beside `My_Top_Module.v` in the existing design source fol
 
 Every movement coordinate and velocity is signed with eight fractional bits: 256 units equals one pixel. Valid/ready payloads stay unchanged until a rising-edge transfer. Physics waits for world completion before sampling properties for another step.
 
-`input_controller` instantiates the user's `button_debouncer` for BTNC and BTNU. Each uses the shared 100 MHz clock, `freq_count=19,999,999` for 200 ms of lockout, and `RELEASE_CYCLES=2,000,000` for a stable 20 ms release before rearming. The module adds reset handling to the user's code and includes the optional release check without the hold timer. The top exposes cycle-count parameters so simulations can use short intervals.
+`input_controller` instantiates the user's `button_debouncer` for BTNC, BTNU and BTNR. Each uses the shared 100 MHz clock, `freq_count=19,999,999` for 200 ms of lockout, and `RELEASE_CYCLES=2,000,000` for a stable 20 ms release before rearming. The module adds reset handling to the user's code and includes the optional release check without the hold timer. The top exposes cycle-count parameters so simulations can use short intervals. SW1 uses two sampling registers, with mute asserted during reset. The hardware top now accepts `sw[1:0]`, BTNR and four JC outputs; test fixtures tie unused button/mute inputs low explicitly.
+
+The first audio stage is a manual test beep. All its counters use 100 MHz; a 1 kHz tone changes a 390.625 kHz PWM duty between 120/256 and 136/256 for 0.2 seconds. Idle uses 128/256. Requests while busy are ignored, and mute/reset cancel playback. The AMP2 pinout and setup are in [audio setup](audio_setup.md). XDC changes only uncomment existing SW1, BTNR and JC1-JC4 mappings. Game events are still reserved for the following stage.
 
 ## Connected drawing path
 
-The top packs game state, content grid, content/frame intact masks, validation, vehicle position, engine status, five inventory counts, cursor coordinates and selected part into a 123-bit bus for `display_snapshot`. The snapshot module transfers a held payload from the game clock to the OLED clock, then publishes it at a frame boundary. Both renderers consume the same published snapshot. The saved `build_frames` need not cross this boundary because frame drawing uses `frame_intact_mask`.
+The top packs game state, content grid, content/frame intact masks, validation, vehicle position, engine status, five inventory counts, cursor coordinates, selected part, `drag_active`, three-bit `feedback_code` and four-bit `feedback_cell` into a 131-bit bus for `display_snapshot`. The snapshot module transfers a held payload from the game clock to the OLED clock, then publishes it at a frame boundary. Both renderers consume the same published snapshot. The saved `build_frames` need not cross this boundary because frame drawing uses `frame_intact_mask`. The left renderer draws the selected part beside the cursor while dragging, with no change to construction until release. BUILD also shows the builder's one-second green/red cell outline and bottom message, then returns to the saved build's overall status.
 
 Each `Oled_Display` instance produces its own `pixel_index`; its renderer returns `pixel_data`. The left driver connects to JA and the right driver to JB. Both drivers share the 6.25 MHz clock and display reset, so their frame counters start together. `level_data` feeds the right renderer's terrain and goal directly because this starter map is constant.
 
@@ -58,7 +63,7 @@ During BUILD the left renderer shows five inventory rows at x=56..91 and y=4..53
 | Builder edit inputs | Connected to mouse selection/place/remove actions with inventory checks | Role 1 adds later input refinements |
 | Builder damage inputs | Content mask receives balloon pops; frame mask is zero | Role 3 produces TNT masks; Roles 1 and 3 combine/arbitrate both sources without losing requests |
 | Game guide requests | Tied inactive | Roles 1 and 4 agree navigation inputs and instruction screens |
-| Audio events | `launch_event`, `success_event`, `failure_event` generated but not connected to audio | Role 1 adds sound routing/output; Role 3 later supplies explosion events |
+| Audio events | Manual BTNR beep connected; `launch_event`, `success_event`, `failure_event` remain unconnected to audio | Role 1 adds game-event sound selection/priority; Role 3 later supplies explosion events |
 | Mouse | Supplied controller unchanged; construction and balloon clicks connected | Role 1 adds guide controls and verifies new gameplay input on the Basys3 |
 | Balloon popping | Fresh RUN clicks queue surviving balloons and clear their intact bits between updates | Hardware check with balloons added to the build; sound effects remain future work |
 | Collision | Downward landing on rectangular platforms | Role 3 adds wall/ceiling/corner handling and TNT |
@@ -67,6 +72,8 @@ During BUILD the left renderer shows five inventory rows at x=56..91 and y=4..53
 Cell contents are row-major in 27 bits, with cell zero in bits 2:0. Frames are stored separately in nine-bit `build_frames`. Each layer has its own nine-bit intact and damage mask. `world_outcomes` still finds the pig through the content grid/mask; physics still receives counts and total mass without a port change. Review the placement rules in `interfaces.md` before adding features.
 
 ## Validation status
+
+On 22 October 2026, all ten simulation benches passed after adding the manual AMP2 beep, BTNR and SW1 mute. `audio_beep_tb` covers PWM duty/timing, duration, busy suppression, mute/reset, held-button behaviour and JC control polarity through the connected top. A fresh routed build/bitstream and physical speaker test remain pending; the 21 October resource/timing figures below predate audio.
 
 On 21 October 2026, all nine simulation benches passed after connecting `balloon_control`, RUN mouse clicks and cursor drawing. The new top-level bench delays world completion to verify queued pops and movement-boundary timing, then checks counts/mass, inventory, saved construction, retry/results/reset and pixels. The previous construction/mouse/OLED hardware checklist was reported passing by Kaushal. A requested build of the balloon version then completed with zero reported design-rule violations and passing constrained 100 MHz setup/hold timing. Its bitstream and reports are in `tmp/balloon_board_test/`; routed usage is 3,064 LUTs (14.73%) and 1,270 flip-flops (3.05%). Divided-OLED-clock and external-I/O timing remain incompletely constrained. Physical balloon-control testing remains pending. The older `tmp/oled_board_test/` outputs describe the version without popping.
 
