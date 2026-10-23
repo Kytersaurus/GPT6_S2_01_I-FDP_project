@@ -3,6 +3,7 @@
 `include "game_defs.vh"
 // Build view: grid, inventory icons/counts, selection, cursor and dragged part.
 // Run view: grid, status bars and surviving-part count.
+// Bottom strip: build feedback and level button in BUILD, result reason in SUCCESS/FAIL.
 module left_renderer #(parameter EDITOR_CELL_PIXELS = 16) (
     input wire [12:0] pixel_index,
     input wire [2:0] game_state,
@@ -19,6 +20,8 @@ module left_renderer #(parameter EDITOR_CELL_PIXELS = 16) (
     input wire drag_active,
     input wire [6:0] cursor_x, cursor_y,
     input wire cursor_visible,
+    input wire level_index,
+    input wire [1:0] fail_reason,
     output reg [15:0] pixel_data
 );
     wire [6:0] x = pixel_index % 96;
@@ -42,6 +45,11 @@ module left_renderer #(parameter EDITOR_CELL_PIXELS = 16) (
     reg [7:0] letter;
     reg [34:0] letter_bits;
     integer text_column, text_row;
+    wire level_button_pixel = x >= `LP_LEVEL_BUTTON_X && x < `LP_LEVEL_BUTTON_X+`LP_LEVEL_BUTTON_W &&
+                              y >= `LP_LEVEL_BUTTON_Y && y < `LP_LEVEL_BUTTON_Y+`LP_LEVEL_BUTTON_H;
+    // "L1" or "L2" fills the 11 pixels inside the button border.
+    wire [6:0] level_text_x = x - (`LP_LEVEL_BUTTON_X+1);
+    wire [34:0] level_letter_bits = letter_pixels((level_text_x < 6) ? "L" : (level_index ? "2" : "1"));
 
     // One icon definition for both inventory and dragging.
     // Transparent pixels keep the colour already drawn underneath.
@@ -102,6 +110,9 @@ module left_renderer #(parameter EDITOR_CELL_PIXELS = 16) (
                 "V": letter_pixels = {5'b10001,5'b10001,5'b10001,5'b10001,5'b10001,5'b01010,5'b00100};
                 "W": letter_pixels = {5'b10001,5'b10001,5'b10001,5'b10101,5'b10101,5'b10101,5'b01010};
                 "Y": letter_pixels = {5'b10001,5'b10001,5'b01010,5'b00100,5'b00100,5'b00100,5'b00100};
+                "Z": letter_pixels = {5'b11111,5'b00001,5'b00010,5'b00100,5'b01000,5'b10000,5'b11111};
+                "1": letter_pixels = {5'b00100,5'b01100,5'b00100,5'b00100,5'b00100,5'b00100,5'b01110};
+                "2": letter_pixels = {5'b01110,5'b10001,5'b00001,5'b00010,5'b00100,5'b01000,5'b11111};
                 default: letter_pixels = 0;
             endcase
         end
@@ -118,7 +129,13 @@ module left_renderer #(parameter EDITOR_CELL_PIXELS = 16) (
             `LP_FEEDBACK_FRAME_BELOW: message = "FRAME BELOW     ";
             `LP_FEEDBACK_OCCUPIED: message = "CELL OCCUPIED   ";
             default: begin
-                if (build_valid) begin message = "READY           "; message_colour = 16'h07e0; end
+                if (game_state == `LP_SUCCESS) begin message = "LEVEL CLEAR     "; message_colour = 16'h07e0; end
+                else if (game_state == `LP_FAIL) case (fail_reason)
+                    `LP_FAIL_PIG: message = "PIG LOST        ";
+                    `LP_FAIL_HAZARD: message = "HAZARD HIT      ";
+                    default: message = "OUT OF BOUNDS   ";
+                endcase
+                else if (build_valid) begin message = "READY           "; message_colour = 16'h07e0; end
                 else case (build_error)
                     `LP_BUILD_ERR_PIG: message = "ADD PIG         ";
                     `LP_BUILD_ERR_INVENTORY: message = "CHECK STOCK     ";
@@ -220,10 +237,17 @@ module left_renderer #(parameter EDITOR_CELL_PIXELS = 16) (
             pixel_data = draw_part_icon(inventory_part, x-60, y-inventory_top-1, pixel_data);
             if (inventory_number_pixel) pixel_data = (inventory_number == 0) ? 16'hf800 : 16'hffff;
         end
-        if (game_state == `LP_BUILD) begin
+        if (game_state == `LP_BUILD || game_state == `LP_SUCCESS || game_state == `LP_FAIL) begin
             if (y >= 56 && y < 63) begin
                 pixel_data = 16'h0841;
                 if (text_column < 5 && letter_bits[34-(text_row*5+text_column)]) pixel_data = message_colour;
+            end
+            if (game_state == `LP_BUILD && level_button_pixel) begin
+                pixel_data = 16'h0010;
+                if (x == `LP_LEVEL_BUTTON_X || x == `LP_LEVEL_BUTTON_X+`LP_LEVEL_BUTTON_W-1 ||
+                    y == `LP_LEVEL_BUTTON_Y || y == `LP_LEVEL_BUTTON_Y+`LP_LEVEL_BUTTON_H-1) pixel_data = 16'h7bef;
+                else if (text_row >= 0 && text_row < 7 && level_text_x < 12 && level_text_x%6 < 5 &&
+                         level_letter_bits[34-(text_row*5+level_text_x%6)]) pixel_data = 16'hffff;
             end
         end else begin
             // Runtime indicators: build validity, engine switch, then game stage.

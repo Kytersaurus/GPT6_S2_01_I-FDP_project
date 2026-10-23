@@ -118,6 +118,13 @@
           <Attr Name="UsedIn" Val="simulation"/>
         </FileInfo>
       </File>
+      <File Path="$PSRCDIR/sources_1/new/level_button.v">
+        <FileInfo>
+          <Attr Name="UsedIn" Val="synthesis"/>
+          <Attr Name="UsedIn" Val="implementation"/>
+          <Attr Name="UsedIn" Val="simulation"/>
+        </FileInfo>
+      </File>
       <File Path="$PSRCDIR/sources_1/new/button_debouncer.v">
         <FileInfo>
           <Attr Name="UsedIn" Val="synthesis"/>
@@ -335,6 +342,13 @@
       <File Path="$PPRDIR/sim/construction_feedback_tb.v">
         <FileInfo>
           <Attr Name="FileType" Val="SystemVerilog"/>
+          <Attr Name="UsedIn" Val="simulation"/>
+        </FileInfo>
+      </File>
+      <File Path="$PPRDIR/sim/role4_game_display_tb.v">
+        <FileInfo>
+          <Attr Name="FileType" Val="SystemVerilog"/>
+          <Attr Name="AutoDisabled" Val="1"/>
           <Attr Name="UsedIn" Val="simulation"/>
         </FileInfo>
       </File>

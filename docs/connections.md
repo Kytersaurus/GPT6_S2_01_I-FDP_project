@@ -44,9 +44,9 @@ The first audio stage is a manual test beep. All its counters use 100 MHz; a 1 k
 
 ## Connected drawing path
 
-The top packs game state, content grid, content/frame intact masks, validation, vehicle position, engine status, five inventory counts, cursor coordinates, selected part, `drag_active`, three-bit `feedback_code` and four-bit `feedback_cell` into a 131-bit bus for `display_snapshot`. The snapshot module transfers a held payload from the game clock to the OLED clock, then publishes it at a frame boundary. Both renderers consume the same published snapshot. The saved `build_frames` need not cross this boundary because frame drawing uses `frame_intact_mask`. The left renderer draws the selected part beside the cursor while dragging, with no change to construction until release. BUILD also shows the builder's one-second green/red cell outline and bottom message, then returns to the saved build's overall status.
+The top packs game state, content grid, content/frame intact masks, validation, vehicle position, engine status, five inventory counts, cursor coordinates, selected part, `drag_active`, three-bit `feedback_code`, four-bit `feedback_cell`, `level_index`, `fail_reason` and `tnt_intact` into a 138-bit bus for `display_snapshot`. The snapshot module transfers a held payload from the game clock to the OLED clock, then publishes it at a frame boundary. Both renderers consume the same published snapshot. The saved `build_frames` need not cross this boundary because frame drawing uses `frame_intact_mask`. The left renderer draws the selected part beside the cursor while dragging, with no change to construction until release. BUILD also shows the builder's one-second green/red cell outline and bottom message, then returns to the saved build's overall status.
 
-Each `Oled_Display` instance produces its own `pixel_index`; its renderer returns `pixel_data`. The left driver connects to JA and the right driver to JB. Both drivers share the 6.25 MHz clock and display reset, so their frame counters start together. `level_data` feeds the right renderer's terrain and goal directly because this starter map is constant.
+Each `Oled_Display` instance produces its own `pixel_index`; its renderer returns `pixel_data`. The left driver connects to JA and the right driver to JB. Both drivers share the 6.25 MHz clock and display reset, so their frame counters start together. The right renderer reads a second `level_data` instance indexed by the snapshot copy of `level_index`, so the map changes with the published frame.
 
 A single physical OLED can be used on JA for construction/input tests while JB is empty. The SPI displays do not return acknowledgements, so the missing screen does not stall either driver or the game. Move the display only with board power off; programming must be repeated after a power cycle when using a volatile bitstream load.
 
@@ -67,7 +67,7 @@ During BUILD the left renderer shows five inventory rows at x=56..91 and y=4..53
 | Mouse | Supplied controller unchanged; construction and balloon clicks connected | Role 1 adds guide controls and verifies new gameplay input on the Basys3 |
 | Balloon popping | Fresh RUN clicks queue surviving balloons and clear their intact bits between updates | Hardware check with balloons added to the build; sound effects remain future work |
 | Collision | Downward landing on rectangular platforms | Role 3 adds wall/ceiling/corner handling and TNT |
-| Levels and sprites | One flat map and solid-colour parts | Role 4 supplies final maps, artwork, inventory/status details and instructions |
+| Levels and sprites | Two provisional maps with TNT and spikes; solid-colour parts | Role 4 supplies final maps, artwork, inventory/status details and instructions |
 
 Cell contents are row-major in 27 bits, with cell zero in bits 2:0. Frames are stored separately in nine-bit `build_frames`. Each layer has its own nine-bit intact and damage mask. `world_outcomes` still finds the pig through the content grid/mask; physics still receives counts and total mass without a port change. Review the placement rules in `interfaces.md` before adding features.
 

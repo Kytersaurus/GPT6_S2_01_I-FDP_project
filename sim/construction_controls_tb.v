@@ -71,7 +71,7 @@ module construction_controls_tb;
     );
     game_controller launch_guard (
         .clk(clk),.reset(reset),.launch_req(launch),.retry_req(1'b0),.edit_req(1'b0),
-        .guide_open_req(1'b0),.guide_close_req(1'b0),.build_valid(valid && !edit_valid),.pig_alive(pig_alive),
+        .guide_open_req(1'b0),.guide_close_req(1'b0),.level_next_req(1'b0),.build_valid(valid && !edit_valid),.pig_alive(pig_alive),
         .init_ready(3'd0),.physics_tick(1'b0),.world_valid(1'b0),.world_ready(),
         .gameplay_pending(1'b0),.gameplay_ready(),
         .goal_hit(1'b0),.hazard_hit(1'b0),.out_of_bounds(1'b0),.game_state(guarded_state),

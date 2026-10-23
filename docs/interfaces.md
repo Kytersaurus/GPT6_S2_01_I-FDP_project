@@ -48,6 +48,7 @@ The editor has `EDITOR_CELL_PIXELS=16` in `left_renderer`, giving a 48 by 48 pix
 | Role 1 input/control | Role 2 | Engine enabled state; balloon popping must update Role 1's intact state |
 | Role 4 | Role 1 | Game state and left-screen clickable layout |
 | Role 4 level data | Roles 2 and 3 | Spawn, terrain, TNT, goal and hazard geometry; same source feeds drawing |
+| Role 4 game control | Roles 1, 3 and drawing | One-bit `level_index`, changed only in BUILD; two-bit `fail_reason` after FAIL |
 | Role 2 | Role 3 collision | Previous/proposed movement with valid/ready handshake |
 | Role 3 collision | Role 2 | Corrected movement and grounded flag with valid/ready handshake |
 | Role 2 | Roles 3 and 4 | Committed position and `movement_committed` pulse |
@@ -73,7 +74,7 @@ The builder decides each edit once, then uses that result for both storage and t
 
 The left view gives the target cell a green outline for placed/removed and a red outline for rejection. BUILD uses y=56 through 62 for a 5 by 7 text message, with one blank column between characters. The messages are PLACED, REMOVED, NO STOCK, NEED FRAME, FRAME ABOVE, FRAME BELOW and CELL OCCUPIED. With no temporary feedback it shows READY or the saved-build reason ADD PIG, CHECK SUPPORT or CHECK STOCK. Runtime indicators are unchanged. The drag icon and cursor overlay this feedback as before.
 
-For Marcus's sprite integration, `left_renderer.draw_part_icon` supplies both inventory and drag-preview icons, while the construction-grid shapes and `right_renderer` vehicle graphics are drawn separately. Replace these temporary visuals with the final sprites; the existing feedback text/outlines can stay or be restyled. Preserve `drag_active`, three-bit `feedback_code`, four-bit `feedback_cell` and the 131-bit snapshot wiring. Keep feedback decisions and the timer in the builder. If grid/inventory positions or cell sizes change, update the matching hit regions in `mouse_adapter` together. Instructions and the two final levels remain Role 4's planned work.
+For Marcus's sprite integration, `left_renderer.draw_part_icon` supplies both inventory and drag-preview icons, while the construction-grid shapes and `right_renderer` vehicle graphics are drawn separately. Replace these temporary visuals with the final sprites; the existing feedback text/outlines can stay or be restyled. Preserve `drag_active`, three-bit `feedback_code`, four-bit `feedback_cell` and the snapshot wiring (now 138 bits, adding `level_index`, `fail_reason` and `tnt_intact`). Keep feedback decisions and the timer in the builder. If grid/inventory positions or cell sizes change, update the matching hit regions in `mouse_adapter` together. Instructions and the two final levels remain Role 4's planned work.
 
 `build_grid` and `build_frames` store the saved construction; their two intact masks describe runtime survivors. Damage changes only the masks. Retry and return to BUILD restore both layers of the edited construction; reset reloads the preset. Both layers contribute independently to mass: frame=2, pig=2, wheel=1, engine=3, balloon=1. The preset has three frames, one pig, one engine and two wheels, for mass 13.
 
@@ -88,6 +89,16 @@ Inventory totals are parameters: `FRAME_LIMIT=5`, `PIG_LIMIT=1`, `WHEEL_LIMIT=2`
 The inventory and drag preview share `draw_part_icon`, a small combinational function returning the pixel colour for a part and relative position. Transparent pixels return the supplied background colour. The inventory uses fixed row boundaries instead of dividing pixel coordinates by ten, and the mouse adapter calculates the hovered grid cell once for all mouse actions.
 
 Grid hit bounds are x=[4,52), y=[4,52), with row-major 16-pixel cells. Inventory hit bounds are x=[56,92), y=[4,54), with five 10-pixel rows: frame, pig, wheel, engine, balloon. Both select-then-click and inventory-to-grid drag-and-drop place one part on release. Selection stays fixed while dragging past other inventory rows. A press that began outside the inventory/grid cannot place a part when released inside. A right click in the grid requests content-first removal. Only BUILD accepts these edits. During RUN a fresh left press in the grid emits `pop_req` with four-bit `pop_cell`; right-click suppresses a simultaneous left press. Holding or dragging cannot pop another cell. Other states update button history without emitting actions, so a held construction click cannot pop a balloon on launch. The cursor is clamped and drawn on the left view in BUILD and RUN. The selected inventory row is yellow; zero stock digits are red. The BUILD bottom strip shows construction feedback/status; runtime indicators show build validity and engine state. Button-based launch/retry/edit/reset remain separate.
+
+## Levels
+
+`level_data` takes `level_index` (0 = level 1, 1 = level 2) and returns spawn, up to four terrain rectangles, the goal, up to `LP_MAX_TNT=4` TNT blocks and up to `LP_MAX_HAZARDS=2` hazard rectangles. TNT entries are 16-bit `{y[7:0], x[7:0]}` top-left corners of 8 by 8 blocks, packed entry 0 lowest in 64-bit `tnt_positions`, with `tnt_count` active. Hazards use the terrain rectangle packing in 64-bit `hazard_rects`, with `hazard_count` active. Unused entries are zero. Both layouts are provisional.
+
+Level 1 keeps the flat baseline path (ground y=56 across the screen) with one TNT on a ledge above the path. Level 2 has a 16-pixel spiked pit, narrower than the 24-pixel vehicle, a TNT on the path at x=60 and one on a ledge. Both spawn at x=4, y=32 and share the goal at x=80.
+
+`game_controller` owns `level_index`. A `level_next_req` pulse toggles it only in BUILD, and a launch on the same clock wins, so geometry cannot change during INIT_RUN, RUN or a result. `level_button` creates that pulse on a fresh left press inside the left OLED button at x=[82,95), y=[55,64), reading the same mouse coordinates as `mouse_adapter`; the button lies outside the grid and inventory hit regions. On FAIL, `fail_reason` records 1=pig lost, 2=hazard, 3=out of bounds, in the same priority as the failure check; INIT_RUN and edit clear it.
+
+The top passes `tnt_count`, `tnt_positions`, `hazard_count` and `hazard_rects` as wires for Role 3; `world_outcomes` does not read them yet and `hazard_hit` remains zero. `tnt_intact` (one bit per TNT, 1 = still present) is tied high until Role 3 drives it; the right renderer hides cleared blocks. The renderers use a second `level_data` instance indexed by the snapshot copy of `level_index`, so the drawn map always matches the drawn state.
 
 ## One movement update
 
