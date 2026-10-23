@@ -27,13 +27,15 @@ module role4_game_display_tb;
     wire [2:0] state;
     wire level_index;
     wire [1:0] fail_reason;
-    game_controller control (
+    wire [6:0] run_seconds;
+    game_controller #(.TICKS_PER_SECOND(4)) control (
         .clk(clk),.reset(reset),.launch_req(launch),.retry_req(retry),.edit_req(edit),
         .guide_open_req(1'b0),.guide_close_req(1'b0),.level_next_req(level_next),
         .build_valid(1'b1),.pig_alive(live),.init_ready(3'b111),.physics_tick(tick),
         .world_valid(world_valid),.world_ready(world_ready),.gameplay_pending(1'b0),.gameplay_ready(),
         .goal_hit(goal),.hazard_hit(hazard),.out_of_bounds(bounds),.game_state(state),
-        .level_index(level_index),.fail_reason(fail_reason),.run_init(run_init),.step_start(step),
+        .level_index(level_index),.fail_reason(fail_reason),.run_seconds(run_seconds),
+        .run_init(run_init),.step_start(step),
         .update_release(release_step),.launch_event(),.success_event(),.failure_event()
     );
 
@@ -49,30 +51,42 @@ module role4_game_display_tb;
     );
     always @(posedge clk) if (button_req) button_pulses = button_pulses + 1;
 
+    // Explosion animation, two physics ticks per phase.
+    reg fx_init=0, fx_tick=0;
+    reg [`LP_MAX_TNT-1:0] fx_intact={`LP_MAX_TNT{1'b1}};
+    wire [2*`LP_MAX_TNT-1:0] fx_phase;
+    explosion_fx #(.PHASE_TICKS(2)) blasts (
+        .clk(clk),.reset(reset),.run_init(fx_init),.physics_tick(fx_tick),
+        .tnt_intact(fx_intact),.blast_phase(fx_phase)
+    );
+
     // Renderers with the preset build: frames in cells 3-5, pig in cell 4.
     reg [12:0] pixel=0;
     reg [2:0] view_state=`LP_BUILD;
     reg [1:0] view_reason=`LP_FAIL_NONE;
     reg [`LP_MAX_TNT-1:0] tnt_intact={`LP_MAX_TNT{1'b1}};
     reg signed [15:0] vehicle_x=16'sd1024, vehicle_y=16'sd8192;
+    reg [8:0] view_intact=9'b101110000;
+    reg [6:0] view_seconds=0;
+    reg [2*`LP_MAX_TNT-1:0] view_blast=0;
     wire [26:0] grid = {`LP_PART_WHEEL,`LP_PART_EMPTY,`LP_PART_WHEEL,
                         `LP_PART_ENGINE,`LP_PART_PIG,`LP_PART_EMPTY,
                         `LP_PART_EMPTY,`LP_PART_EMPTY,`LP_PART_EMPTY};
     wire [15:0] left_colour, right_colour;
     left_renderer left_view (
-        .pixel_index(pixel),.game_state(view_state),.build_grid(grid),.intact_mask(9'b101110000),
-        .frame_intact_mask(9'b000111000),.build_valid(1'b1),.build_error(4'd0),.engine_enabled(1'b1),
+        .pixel_index(pixel),.game_state(view_state),.build_grid(grid),.build_frames(9'b000111000),
+        .intact_mask(view_intact),.frame_intact_mask(9'b000111000),.build_valid(1'b1),.build_error(4'd0),.engine_enabled(1'b1),
         .feedback_code(`LP_FEEDBACK_NONE),.feedback_cell(4'd0),
         .frames_left(4'd2),.pigs_left(4'd0),.wheels_left(4'd0),.engines_left(4'd0),.balloons_left(4'd2),
         .selected_part(`LP_PART_FRAME),.drag_active(1'b0),.cursor_x(7'd0),.cursor_y(7'd0),.cursor_visible(1'b0),
-        .level_index(level),.fail_reason(view_reason),.pixel_data(left_colour)
+        .level_index(level),.fail_reason(view_reason),.run_seconds(view_seconds),.pixel_data(left_colour)
     );
     right_renderer right_view (
         .pixel_index(pixel),.game_state(view_state),.build_grid(grid),.intact_mask(9'b101110000),
         .frame_intact_mask(9'b000111000),.vehicle_x(vehicle_x),.vehicle_y(vehicle_y),
         .spawn_x(spawn_x),.spawn_y(spawn_y),.terrain_count(terrain_count),.terrain_rects(terrain_rects),
         .goal_rect(goal_rect),.tnt_count(tnt_count),.tnt_positions(tnt_positions),.tnt_intact(tnt_intact),
-        .hazard_count(hazard_count),.hazard_rects(hazard_rects),.pixel_data(right_colour)
+        .hazard_count(hazard_count),.hazard_rects(hazard_rects),.blast_phase(view_blast),.pixel_data(right_colour)
     );
 
     task clocks;
@@ -122,6 +136,7 @@ module role4_game_display_tb;
             world_valid=0; goal=0; hazard=0; bounds=0; live=1; clocks(1);
         end
     endtask
+    integer index;
     initial begin
         // Level data: the spawn rests on ground; both levels keep within the packing limits.
         level=0; #1;
@@ -159,10 +174,32 @@ module role4_game_display_tb;
         if (state !== `LP_FAIL || fail_reason !== `LP_FAIL_HAZARD) $fatal(1,"Hazard not reported before bounds/goal");
         pulse(EDIT);
         if (state !== `LP_BUILD || fail_reason !== `LP_FAIL_NONE) $fatal(1,"Edit did not clear the result");
+        if (level_index !== 1) $fatal(1,"Edit after FAIL changed the level");
         run_one_step(1'b0, 1'b0, 1'b1, 1'b1);
         if (state !== `LP_FAIL || fail_reason !== `LP_FAIL_BOUNDS) $fatal(1,"Out of bounds not reported");
         pulse(EDIT); run_one_step(1'b1, 1'b0, 1'b0, 1'b1);
         if (state !== `LP_SUCCESS || fail_reason !== `LP_FAIL_NONE) $fatal(1,"Goal did not succeed cleanly");
+        pulse(EDIT);
+        if (state !== `LP_BUILD || level_index !== 0) $fatal(1,"Edit after SUCCESS did not move to the next level");
+        // Timer: four ticks per second here; counts during RUN, freezes on a result, clears on retry.
+        pulse(LAUNCH); clocks(2);
+        for (index = 0; index < 9; index = index + 1) pulse(TICK);
+        if (run_seconds !== 2) $fatal(1,"Run timer wrong: %0d",run_seconds);
+        live=0; world_valid=1; clocks(1); world_valid=0; live=1; clocks(1);
+        pulse(TICK); pulse(TICK); pulse(TICK); pulse(TICK);
+        if (state !== `LP_FAIL || run_seconds !== 2) $fatal(1,"Timer did not freeze on the result");
+        pulse(RETRY); clocks(2);
+        if (run_seconds !== 0) $fatal(1,"Retry did not clear the timer");
+
+        // Explosion phases: start on a falling intact bit, step every two ticks, then stop.
+        fx_intact=4'b1101; clocks(2);
+        if (fx_phase !== 8'b00000100) $fatal(1,"Explosion did not start for TNT 1");
+        fx_tick=1; clocks(2); fx_tick=0; clocks(1);
+        if (fx_phase[3:2] !== 2'd2) $fatal(1,"Explosion did not advance");
+        fx_tick=1; clocks(4); fx_tick=0; clocks(1);
+        if (fx_phase !== 0) $fatal(1,"Explosion did not finish");
+        fx_init=1; fx_intact=4'b1111; clocks(1); fx_init=0; clocks(2);
+        if (fx_phase !== 0) $fatal(1,"Restored TNT started an explosion");
 
         // Level button: one pulse per fresh press inside the button, in BUILD only.
         mouse_x=88; mouse_y=59; mouse_left=1; mouse_event=1; clocks(1); mouse_event=0; clocks(2);
@@ -189,8 +226,25 @@ module role4_game_display_tb;
         expect_left(83, 56, 16'h0841, "no button after run");
         view_state=`LP_SUCCESS; view_reason=`LP_FAIL_NONE;
         expect_left(0, 56, 16'h07e0, "LEVEL CLEAR text");
+        expect_left(55, 32, 16'hffff, "C RETRY guidance");
+        expect_left(54, 42, 16'hffe0, "U NEXT guidance");
         view_state=`LP_RUN;
         expect_left(5, 58, 16'h07e0, "runtime valid indicator");
+        // Timer 12: tens digit 1 on the right segments, ones digit 2 starts with the top bar.
+        view_seconds=12;
+        expect_left(64, 8, 16'h07ff, "timer tens");
+        expect_left(70, 6, 16'h07ff, "timer ones");
+        expect_left(83, 19, 16'h07ff, "seconds label");
+        // Sprites at double size: pig body inside its frame border.
+        expect_left(24, 24, 16'h07e0, "left pig sprite");
+        expect_left(21, 24, 16'ha285, "left frame sprite");
+        // Damage diagram: a destroyed wheel leaves a dim cross; survivors stay drawn.
+        view_intact=9'b100110000;
+        expect_left(8, 40, 16'h8000, "damage cross");
+        expect_left(24, 24, 16'h07e0, "surviving pig");
+        view_state=`LP_BUILD;
+        expect_left(8, 40, 16'h0841, "no cross in BUILD");
+        view_intact=9'b101110000;
 
         // Right view, level 1: TNT parts, then hiding an exploded block.
         level=0; view_state=`LP_BUILD;
@@ -203,10 +257,21 @@ module role4_game_display_tb;
         tnt_intact={`LP_MAX_TNT{1'b1}};
         // Before launch the vehicle sits at spawn even if physics holds an old position.
         vehicle_x=40*256;
-        expect_right(16, 44, 16'h07e0, "pig at spawn in BUILD");
+        expect_right(14, 42, 16'h07e0, "pig at spawn in BUILD");
+        expect_right(12, 42, 16'ha285, "frame at spawn in BUILD");
+        expect_right(16, 44, 16'hfd18, "pig snout");
         view_state=`LP_RUN;
-        expect_right(52, 44, 16'h07e0, "pig at vehicle in RUN");
-        expect_right(16, 44, 16'h0010, "no pig left at spawn");
+        expect_right(50, 42, 16'h07e0, "pig at vehicle in RUN");
+        expect_right(14, 42, 16'h0010, "no pig left at spawn");
+        // Explosion over TNT 0 (centre 48,16): yellow flash, orange edge, then grey smoke.
+        view_blast=8'b01;
+        expect_right(48, 16, 16'hffe0, "blast flash");
+        expect_right(48, 10, 16'h0010, "flash radius");
+        view_blast=8'b10;
+        expect_right(48, 10, 16'hfd20, "fireball edge");
+        view_blast=8'b11;
+        expect_right(48, 16, 16'h8410, "smoke");
+        view_blast=0;
         // Level 2: spikes, pit gap and path TNT.
         level=1; view_state=`LP_BUILD;
         expect_right(37, 58, 16'hc618, "spike tip");
@@ -217,7 +282,7 @@ module role4_game_display_tb;
         view_state=`LP_FAIL;
         expect_right(0, 0, 16'hf800, "fail border");
 
-        $display("PASS role4_game_display_tb: two levels, level select, fail reasons, level button, result text, TNT, hazards, spawn preview");
+        $display("PASS role4_game_display_tb: levels, level select, next level, fail reasons, timer, explosions, level button, guidance, damage diagram, sprites, TNT, hazards, spawn preview");
         $finish;
     end
     initial begin #200000; $fatal(1,"Role 4 test timed out"); end

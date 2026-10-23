@@ -24,6 +24,8 @@ All design files below are in `GPT_6_S2_01_I-FDP_project.srcs/sources_1/new/`.
 | `game_controller.v` | Role 4 - Marcus | Build/run/result/retry states and update sequencing |
 | `level_data.v` | Role 4 - Marcus | Two provisional levels: terrain, spawn, goal, TNT and hazards |
 | `level_button.v` | Role 4 - Marcus | Left OLED level button click, read from the shared mouse position |
+| `explosion_fx.v` | Role 4 - Marcus | Three-phase TNT explosion animation when a TNT intact bit falls |
+| `part_sprites.vh` | Role 4 - Marcus | Shared 8 by 8 pig, wheel, frame, engine and balloon sprites |
 | `left_renderer.v` | Role 4 - Marcus | Left OLED grid, inventory/counts, cursor, moving preview, feedback text/outlines and runtime status; shared icon drawing and 16-pixel editor cells |
 | `right_renderer.v` | Role 4 - Marcus | Right OLED world/vehicle drawing; 8-pixel gameplay cells |
 | `display_snapshot.v` | Role 4 - Marcus | Transfers consistent game state to the OLED clock and publishes at frame start |
@@ -58,7 +60,8 @@ Future audio and gameplay input additions belong to Role 1. Future movement tuni
 | `sim/clock_control_tb.v` | Shared; Role 1 maintains | Divider, physics-enable and reset checks |
 | `sim/physics_engine_tb.v` | Role 2 - Kyle | Movement arithmetic and handshake checks |
 | `sim/display_snapshot_tb.v` | Role 4 - Marcus | Snapshot transfer and frame-boundary checks |
-| `sim/role4_game_display_tb.v` | Role 4 - Marcus | Level data, level select, fail reasons, level button and renderer pixels |
+| `sim/role4_game_display_tb.v` | Role 4 - Marcus | Level data, level select/next level, fail reasons, timer, explosions, level button and renderer pixels |
+| `sim/role4_level_solutions_tb.v` | Role 4 - Marcus | Recorded solution: the preset vehicle clears both levels through the full top |
 | `sim/module_contracts_tb.v` | Shared - Roles 1, 3 and 4 | Builder, collision, controller and drawing checks |
 | `sim/game_baseline_tb.v` | Shared - all roles | Connected starter game-loop checks |
 

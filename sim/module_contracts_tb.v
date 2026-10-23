@@ -75,8 +75,8 @@ module module_contracts_tb;
         pixel=24*96+24; #1; if (left_colour != 16'h07e0) $fatal(1,"Left pig inside frame incorrect");
         pixel=24*96+21; #1; if (left_colour != 16'ha285) $fatal(1,"Left frame border missing");
         pixel=5*96+84; #1; if (left_colour != 16'hffff) $fatal(1,"Remaining frame count not drawn");
-        pixel=44*96+16; #1; if (right_colour != 16'h07e0) $fatal(1,"Right pig inside frame incorrect");
-        pixel=44*96+13; #1; if (right_colour != 16'ha285) $fatal(1,"Right frame border missing");
+        pixel=42*96+14; #1; if (right_colour != 16'h07e0) $fatal(1,"Right pig inside frame incorrect");
+        pixel=42*96+12; #1; if (right_colour != 16'ha285) $fatal(1,"Right frame border missing");
         pixel=60*96+40; #1; if (right_colour != 16'h8320) $fatal(1,"Terrain pixel incorrect");
         pixel=40*96+85; #1; if (right_colour != 16'h0320) $fatal(1,"Goal rectangle helper not connected");
         clocks(1); // Return to a falling edge after the pixel checks before driving requests.

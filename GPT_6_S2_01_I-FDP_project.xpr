@@ -118,6 +118,21 @@
           <Attr Name="UsedIn" Val="simulation"/>
         </FileInfo>
       </File>
+      <File Path="$PSRCDIR/sources_1/new/explosion_fx.v">
+        <FileInfo>
+          <Attr Name="UsedIn" Val="synthesis"/>
+          <Attr Name="UsedIn" Val="implementation"/>
+          <Attr Name="UsedIn" Val="simulation"/>
+        </FileInfo>
+      </File>
+      <File Path="$PSRCDIR/sources_1/new/part_sprites.vh">
+        <FileInfo>
+          <Attr Name="FileType" Val="Verilog Header"/>
+          <Attr Name="UsedIn" Val="synthesis"/>
+          <Attr Name="UsedIn" Val="simulation"/>
+          <Attr Name="IsVisible" Val="1"/>
+        </FileInfo>
+      </File>
       <File Path="$PSRCDIR/sources_1/new/level_button.v">
         <FileInfo>
           <Attr Name="UsedIn" Val="synthesis"/>
@@ -342,6 +357,13 @@
       <File Path="$PPRDIR/sim/construction_feedback_tb.v">
         <FileInfo>
           <Attr Name="FileType" Val="SystemVerilog"/>
+          <Attr Name="UsedIn" Val="simulation"/>
+        </FileInfo>
+      </File>
+      <File Path="$PPRDIR/sim/role4_level_solutions_tb.v">
+        <FileInfo>
+          <Attr Name="FileType" Val="SystemVerilog"/>
+          <Attr Name="AutoDisabled" Val="1"/>
           <Attr Name="UsedIn" Val="simulation"/>
         </FileInfo>
       </File>
