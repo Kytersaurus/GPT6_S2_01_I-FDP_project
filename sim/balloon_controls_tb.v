@@ -17,7 +17,7 @@ module balloon_controls_tb;
     always #5 clk=~clk;
 
     My_Top_Module #(.BUTTON_DEBOUNCE_CYCLES(2), .BUTTON_RELEASE_CYCLES(2)) dut (
-        .clk(clk), .btnC(1'b0), .btnU(1'b0), .btnR(1'b0), .btnL(1'b0),.btnD(btnD), .sw(3'b000),
+        .clk(clk), .btnC(1'b0), .btnU(1'b0), .btnR(1'b0), .btnL(1'b0),.btnD(btnD), .sw(16'd0),
         .PS2Clk(PS2Clk), .PS2Data(PS2Data), .led(led), .JA(JA), .JB(JB)
     );
     // Check renderer pixels directly without waiting for an entire OLED frame.
@@ -29,7 +29,7 @@ module balloon_controls_tb;
         .frames_left(dut.frames_left), .pigs_left(dut.pigs_left), .wheels_left(dut.wheels_left),
         .engines_left(dut.engines_left), .balloons_left(dut.balloons_left),
         .selected_part(dut.selected_part), .cursor_x(dut.cursor_x), .cursor_y(dut.cursor_y),
-        .drag_active(dut.drag_active),
+        .drag_active(dut.drag_active),.drag_from_grid(dut.drag_from_grid),.drag_source(dut.drag_source),.drag_contents(dut.drag_contents),
         .cursor_visible(1'b1), .pixel_data(colour)
     );
     // Supply completed mouse packets, button pulses and delayed world results.
@@ -56,6 +56,18 @@ module balloon_controls_tb;
             applications=applications+1;
         end
     end
+    // Test-only gameplay fixture; the hardware builder starts empty.
+    task build_test_vehicle;
+        begin
+            dut.u_builder.build_grid = {
+                `LP_PART_WHEEL, `LP_PART_EMPTY, `LP_PART_WHEEL,
+                `LP_PART_ENGINE, `LP_PART_PIG, `LP_PART_EMPTY,
+                `LP_PART_EMPTY, `LP_PART_EMPTY, `LP_PART_EMPTY
+            };
+            dut.u_builder.build_frames = 9'b000111000;
+            clocks(2);
+        end
+    endtask
     task clocks;
         input integer count;
         begin repeat(count) @(negedge clk); end
@@ -114,7 +126,7 @@ module balloon_controls_tb;
     endtask
 
     initial begin
-        clocks(20); btnD=0; clocks(280);
+        clocks(20); btnD=0; clocks(280); build_test_vehicle();
         // Exercise the real top-level preview bus across the OLED clock boundary.
         // Supply frame boundaries early, while the physical driver is still starting.
         force dut.left_frame=1'b1;
@@ -123,17 +135,19 @@ module balloon_controls_tb;
         if (!dut.draw_drag_active || dut.draw_cursor_x!=12 || dut.draw_cursor_y!=12 ||
             dut.draw_selected_part!=`LP_PART_FRAME)
             $fatal(1,"Preview state/cursor/selection did not cross the display snapshot");
-        pixel=15*96+15; #1;
-        if (dut.left_pixel_data!==16'ha285) $fatal(1,"Connected OLED renderer lost dragged frame");
+        pixel=6143-(8*96+8); #1;
+        if (dut.left_pixel_data!==16'ha285) $fatal(1,"Rotated JA renderer lost dragged frame");
+        pixel=6143-(12*96+12); #1;
+        if (dut.left_pixel_data!==16'hffff) $fatal(1,"Rotated JA cursor no longer aligns with mouse coordinates");
         packet(54,55,0,0); clocks(400);
-        pixel=15*96+15; #1;
+        pixel=6143-(8*96+8); #1;
         if (dut.draw_drag_active || dut.left_pixel_data!==16'h0841 || dut.frames_left!=2)
             $fatal(1,"Cancelled preview persisted through the display snapshot");
         // A rejected drop must carry its reason and target through the same snapshot.
         left_click(74,18); left_click(12,12); clocks(400);
         if (dut.draw_feedback_code!=`LP_FEEDBACK_NEED_FRAME || dut.draw_feedback_cell!=0)
             $fatal(1,"Rejected placement feedback was lost in the display snapshot");
-        pixel=4*96+4; #1;
+        pixel=6143-(4*96+4); #1;
         if (dut.left_pixel_data!==16'hf800 || dut.build_grid[2:0]!=`LP_PART_EMPTY || dut.pigs_left!=0)
             $fatal(1,"Connected feedback outline or rejected placement changed the build");
         release dut.left_frame;
@@ -231,11 +245,13 @@ module balloon_controls_tb;
         if (dut.game_state!=`LP_BUILD || dut.balloon_count!=2 || dut.balloons_left!=0)
             $fatal(1,"Return to construction did not restore popped balloons");
 
-        // Reset while a click is waiting also discards it and restores the preset.
+        // Reset while a click is waiting also discards it and clears construction.
         launch_or_retry(); begin_update(); wait_movement(); left_click(28,12);
         btnD=1; clocks(10); btnD=0; clocks(20);
-        if (dut.game_state!=`LP_BUILD || dut.pop_pending || dut.balloon_count!=0 || dut.balloons_left!=2)
-            $fatal(1,"Reset retained a pop or failed to restore preset inventory");
+        if (dut.game_state!=`LP_BUILD || dut.pop_pending || dut.balloon_count!=0 ||
+            dut.balloons_left!=2 || dut.build_grid!==0 || dut.build_frames!==0 ||
+            dut.frames_left!=5 || dut.pigs_left!=1 || dut.wheels_left!=2 || dut.engines_left!=1)
+            $fatal(1,"Reset retained a pop or failed to restore the blank builder/full inventory");
         if (dut.build_grid===saved_grid) $fatal(1,"Reset retained edited construction");
         $display("PASS balloon_controls_tb: fresh clicks, held/invalid input, RUN cursor, queued pops, step/world boundaries, counts/mass, inventory, retry, results and reset");
         $finish;

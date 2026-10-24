@@ -4,7 +4,7 @@
 // Reads the same mouse position as mouse_adapter, so the button needs no change there.
 // The button lies outside the grid and inventory, so its clicks never edit the build.
 module level_button (
-    input wire clk, reset,
+    input wire clk, reset, input_enabled,
     input wire [2:0] game_state,
     input wire [11:0] mouse_x, mouse_y,
     input wire mouse_left, mouse_right, mouse_event,
@@ -20,7 +20,7 @@ module level_button (
             if (mouse_event) begin
                 left_was_down <= mouse_left;
                 // One request per fresh press; holding the button does not repeat.
-                if (mouse_left && !mouse_right && !left_was_down && on_button && game_state == `LP_BUILD)
+                if (input_enabled && mouse_left && !mouse_right && !left_was_down && on_button && game_state == `LP_BUILD)
                     level_next_req <= 1;
             end
         end

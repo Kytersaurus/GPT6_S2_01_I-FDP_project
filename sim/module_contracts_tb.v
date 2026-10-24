@@ -15,7 +15,7 @@ module module_contracts_tb;
     wire [7:0] mass;
     vehicle_builder builder (
         .clk(clk),.reset(reset),.game_state(builder_state),.run_init(builder_init),.init_ready(builder_ready),
-        .edit_valid(1'b0),.edit_op(2'd0),.edit_cell(4'd0),.edit_part(3'd0),
+        .edit_valid(1'b0),.edit_op(2'd0),.edit_cell(4'd0),.edit_source(4'd15),.edit_part(3'd0),
         .damage_valid(damage_valid),.damage_ready(damage_ready),.damage_mask(damage_mask),.damage_frame_mask(9'd0),
         .build_grid(grid),.build_frames(frames),.intact_mask(intact),.frame_intact_mask(frame_intact),
         .build_valid(valid),.build_error(error),.pig_alive(pig_alive),
@@ -55,7 +55,7 @@ module module_contracts_tb;
         .feedback_code(`LP_FEEDBACK_NONE),.feedback_cell(4'd0),
         .frames_left(frames_left),.pigs_left(pigs_left),.wheels_left(wheels_left),
         .engines_left(engines_left),.balloons_left(balloons_left),.selected_part(`LP_PART_FRAME),
-        .drag_active(1'b0),
+        .drag_active(1'b0),.drag_from_grid(1'b0),.drag_source(4'd9),.drag_contents(3'd0),
         .cursor_x(7'd0),.cursor_y(7'd0),.cursor_visible(1'b0),.pixel_data(left_colour)
     );
     right_renderer right_view (
@@ -65,12 +65,24 @@ module module_contracts_tb;
         .spawn_x(16'sd1024),.spawn_y(16'sd8192),.tnt_count(3'd0),.tnt_positions(64'd0),.tnt_intact(4'd0),
         .hazard_count(2'd0),.hazard_rects(64'd0),.pixel_data(right_colour)
     );
+    // Test-only gameplay fixture; the hardware builder starts empty.
+    task build_test_vehicle;
+        begin
+            builder.build_grid = {
+                `LP_PART_WHEEL, `LP_PART_EMPTY, `LP_PART_WHEEL,
+                `LP_PART_ENGINE, `LP_PART_PIG, `LP_PART_EMPTY,
+                `LP_PART_EMPTY, `LP_PART_EMPTY, `LP_PART_EMPTY
+            };
+            builder.build_frames = 9'b000111000;
+            clocks(2);
+        end
+    endtask
     task clocks;
         input integer count;
         begin repeat(count) @(negedge clk); end
     endtask
     initial begin
-        clocks(3); reset=0; clocks(2);
+        clocks(3); reset=0; clocks(2); build_test_vehicle();
         if (!valid || !pig_alive || wheels!=2 || engines!=1 || mass!=13) $fatal(1,"Initial properties incorrect");
         pixel=24*96+24; #1; if (left_colour != 16'h07e0) $fatal(1,"Left pig inside frame incorrect");
         pixel=24*96+21; #1; if (left_colour != 16'ha285) $fatal(1,"Left frame border missing");

@@ -3,7 +3,7 @@
 `include "game_defs.vh"
 module game_baseline_tb;
     reg clk=0, btnC=0, btnU=0, btnD=1;
-    reg [2:0] sw=1;
+    reg [15:0] sw=1;
     wire [15:0] led;
     wire [7:0] JA, JB;
     tri1 PS2Clk, PS2Data;
@@ -16,6 +16,18 @@ module game_baseline_tb;
         .clk(clk), .btnC(btnC), .btnU(btnU), .btnR(1'b0), .btnL(1'b0),.btnD(btnD), .sw(sw),
         .PS2Clk(PS2Clk), .PS2Data(PS2Data), .led(led), .JA(JA), .JB(JB)
     );
+    // Test-only gameplay fixture; the hardware builder starts empty.
+    task build_test_vehicle;
+        begin
+            dut.u_builder.build_grid = {
+                `LP_PART_WHEEL, `LP_PART_EMPTY, `LP_PART_WHEEL,
+                `LP_PART_ENGINE, `LP_PART_PIG, `LP_PART_EMPTY,
+                `LP_PART_EMPTY, `LP_PART_EMPTY, `LP_PART_EMPTY
+            };
+            dut.u_builder.build_frames = 9'b000111000;
+            clocks(2);
+        end
+    endtask
     task clocks;
         input integer count;
         begin repeat(count) @(negedge clk); end
@@ -44,7 +56,13 @@ module game_baseline_tb;
     end
     initial begin
         clocks(20); btnD=0; clocks(280);
-        if (dut.game_state !== `LP_BUILD || !dut.build_valid || dut.mass_units != 13) $fatal(1,"Invalid startup build");
+        if (dut.build_grid!==0 || dut.build_frames!==0 || dut.build_valid || dut.mass_units!=0 ||
+            dut.frames_left!=5 || dut.pigs_left!=1 || dut.wheels_left!=2 ||
+            dut.engines_left!=1 || dut.balloons_left!=2) $fatal(1,"Startup was not empty with full stock");
+        btnC=1; clocks(12); btnC=0; clocks(12);
+        if (dut.game_state!=`LP_BUILD || launches!=0) $fatal(1,"Empty build launched");
+        build_test_vehicle();
+        if (dut.game_state !== `LP_BUILD || !dut.build_valid || dut.mass_units != 13) $fatal(1,"Invalid test build");
         btnC=1;
         wait_success();
         stopped_x=dut.vehicle_x;
@@ -59,7 +77,9 @@ module game_baseline_tb;
         sw=0; clocks(8); btnC=1; clocks(12); btnC=0; clocks(500);
         if (dut.game_state != `LP_RUN || dut.vehicle_x != 16'sd1024) $fatal(1,"Disabled engine still propelled vehicle");
         btnD=1; clocks(10); btnD=0; clocks(20);
-        if (dut.game_state != `LP_BUILD || dut.vehicle_x != 16'sd1024) $fatal(1,"Reset did not restore startup");
+        if (dut.game_state != `LP_BUILD || dut.vehicle_x != 16'sd1024 ||
+            dut.build_grid!==0 || dut.build_frames!==0 || dut.build_valid || dut.frames_left!=5)
+            $fatal(1,"Reset did not restore the blank builder");
         $display("PASS game_baseline_tb: launch, landing, goal, held input, retry, edit, engine off, reset, update sequencing");
         $finish;
     end

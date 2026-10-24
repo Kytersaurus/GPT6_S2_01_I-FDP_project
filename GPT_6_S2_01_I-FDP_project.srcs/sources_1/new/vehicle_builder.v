@@ -17,7 +17,7 @@ module vehicle_builder #(
     output reg init_ready,
     input wire edit_valid,
     input wire [1:0] edit_op,
-    input wire [3:0] edit_cell,
+    input wire [3:0] edit_cell, edit_source,
     input wire [2:0] edit_part,
     input wire damage_valid,
     output wire damage_ready,
@@ -36,18 +36,12 @@ module vehicle_builder #(
     output reg [3:0] frames_left, pigs_left, wheels_left, engines_left, balloons_left,
     output reg [7:0] mass_units
 );
-    localparam [26:0] STARTER_GRID = {
-        `LP_PART_WHEEL, `LP_PART_EMPTY, `LP_PART_WHEEL,
-        `LP_PART_ENGINE, `LP_PART_PIG, `LP_PART_EMPTY,
-        `LP_PART_EMPTY, `LP_PART_EMPTY, `LP_PART_EMPTY
-    };
-    localparam [8:0] STARTER_FRAMES = 9'b000111000;
-    localparam [8:0] STARTER_INTACT = 9'b101110000;
     reg [8:0] content_mask;
     reg placement_valid, stock_valid;
     integer index, saved_frames, saved_pigs, saved_wheels, saved_engines, saved_balloons;
     reg [2:0] part;
     reg [2:0] edit_result;
+    reg [2:0] source_part;
     reg [31:0] feedback_count;
     assign damage_ready = (game_state == `LP_RUN) && !run_init;
 
@@ -55,6 +49,8 @@ module vehicle_builder #(
     // Repeating the same placement or removing an empty cell is a quiet no-op.
     always @* begin
         edit_result = `LP_FEEDBACK_NONE;
+        source_part = `LP_PART_EMPTY;
+        if (edit_source < 9) source_part = build_grid[edit_source*3 +: 3];
         if (game_state == `LP_BUILD && !run_init && edit_valid && edit_cell < 9) begin
             case (edit_op)
                 `LP_EDIT_PLACE: case (edit_part)
@@ -94,6 +90,32 @@ module vehicle_builder #(
                 `LP_EDIT_REMOVE:
                     if (build_grid[edit_cell*3 +: 3] != `LP_PART_EMPTY || build_frames[edit_cell])
                         edit_result = `LP_FEEDBACK_REMOVED;
+                `LP_EDIT_MOVE: if (edit_source < 9 && edit_source != edit_cell) begin
+                    if (edit_part == `LP_PART_FRAME && build_frames[edit_source]) begin
+                        if (build_frames[edit_cell] || build_grid[edit_cell*3 +: 3] != `LP_PART_EMPTY)
+                            edit_result = `LP_FEEDBACK_OCCUPIED;
+                        else edit_result = `LP_FEEDBACK_PLACED;
+                    end else if (source_part == edit_part && source_part != `LP_PART_EMPTY) begin
+                        if (build_grid[edit_cell*3 +: 3] != `LP_PART_EMPTY) edit_result = `LP_FEEDBACK_OCCUPIED;
+                        else case (edit_part)
+                            `LP_PART_PIG, `LP_PART_ENGINE:
+                                edit_result = build_frames[edit_cell] ? `LP_FEEDBACK_PLACED : `LP_FEEDBACK_NEED_FRAME;
+                            `LP_PART_WHEEL:
+                                if (build_frames[edit_cell]) edit_result = `LP_FEEDBACK_OCCUPIED;
+                                else if (edit_cell < 3) edit_result = `LP_FEEDBACK_FRAME_ABOVE;
+                                else edit_result = build_frames[edit_cell-3] ? `LP_FEEDBACK_PLACED : `LP_FEEDBACK_FRAME_ABOVE;
+                            `LP_PART_BALLOON:
+                                if (build_frames[edit_cell]) edit_result = `LP_FEEDBACK_OCCUPIED;
+                                else if (edit_cell >= 6) edit_result = `LP_FEEDBACK_FRAME_BELOW;
+                                else edit_result = build_frames[edit_cell+3] ? `LP_FEEDBACK_PLACED : `LP_FEEDBACK_FRAME_BELOW;
+                            default: begin end
+                        endcase
+                    end
+                end
+                `LP_EDIT_RETURN: if (edit_source < 9 &&
+                    ((edit_part == `LP_PART_FRAME && build_frames[edit_source]) ||
+                     (edit_part == source_part && source_part != `LP_PART_EMPTY)))
+                    edit_result = `LP_FEEDBACK_REMOVED;
                 default: begin end
             endcase
         end
@@ -101,10 +123,11 @@ module vehicle_builder #(
 
     always @(posedge clk) begin
         if (reset) begin
-            build_grid <= STARTER_GRID;
-            build_frames <= STARTER_FRAMES;
-            intact_mask <= STARTER_INTACT;
-            frame_intact_mask <= STARTER_FRAMES;
+            // Start empty; retry still restores the player's saved construction.
+            build_grid <= 0;
+            build_frames <= 0;
+            intact_mask <= 0;
+            frame_intact_mask <= 0;
             init_ready <= 0;
             feedback_code <= `LP_FEEDBACK_NONE; feedback_cell <= 0; feedback_count <= 0;
         end
@@ -130,7 +153,17 @@ module vehicle_builder #(
                 intact_mask <= content_mask;
                 frame_intact_mask <= build_frames;
                 if (edit_result == `LP_FEEDBACK_PLACED) begin
-                    if (edit_part == `LP_PART_FRAME) begin
+                    if (edit_op == `LP_EDIT_MOVE) begin
+                        // Source and destination change on the same edge; stock is unchanged.
+                        build_grid[edit_source*3 +: 3] <= `LP_PART_EMPTY;
+                        build_grid[edit_cell*3 +: 3] <= source_part;
+                        intact_mask[edit_source] <= 0;
+                        intact_mask[edit_cell] <= (source_part != `LP_PART_EMPTY);
+                        if (edit_part == `LP_PART_FRAME) begin
+                            build_frames[edit_source] <= 0; build_frames[edit_cell] <= 1;
+                            frame_intact_mask[edit_source] <= 0; frame_intact_mask[edit_cell] <= 1;
+                        end
+                    end else if (edit_part == `LP_PART_FRAME) begin
                         build_frames[edit_cell] <= 1'b1;
                         frame_intact_mask[edit_cell] <= 1'b1;
                     end else begin
@@ -139,8 +172,14 @@ module vehicle_builder #(
                         intact_mask[edit_cell] <= 1'b1;
                     end
                 end else if (edit_result == `LP_FEEDBACK_REMOVED) begin
-                    // First remove contents; a second click removes the empty frame.
-                    if (build_grid[edit_cell*3 +: 3] != `LP_PART_EMPTY) begin
+                    if (edit_op == `LP_EDIT_RETURN) begin
+                        build_grid[edit_source*3 +: 3] <= `LP_PART_EMPTY;
+                        intact_mask[edit_source] <= 0;
+                        if (edit_part == `LP_PART_FRAME) begin
+                            build_frames[edit_source] <= 0; frame_intact_mask[edit_source] <= 0;
+                        end
+                    // Right click removes contents first, then the empty frame.
+                    end else if (build_grid[edit_cell*3 +: 3] != `LP_PART_EMPTY) begin
                         build_grid[edit_cell*3 +: 3] <= `LP_PART_EMPTY;
                         intact_mask[edit_cell] <= 1'b0;
                     end else begin

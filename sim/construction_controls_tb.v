@@ -11,7 +11,9 @@ module construction_controls_tb;
     wire [6:0] cursor_x, cursor_y;
     wire [2:0] selected, edit_part;
     wire [1:0] edit_op;
-    wire [3:0] edit_cell;
+    wire [3:0] edit_cell, edit_source, drag_source;
+    wire drag_from_grid;
+    wire [2:0] drag_contents;
     reg [11:0] configured_max_x=0, configured_max_y=0, configured_x=0, configured_y=0;
     wire [26:0] grid;
     wire [8:0] frames, intact, frame_intact;
@@ -35,16 +37,17 @@ module construction_controls_tb;
     always #5 clk=~clk;
 
     mouse_adapter input_actions (
+        .input_enabled(1'b1),.build_grid(grid),.build_frames(frames),
         .clk(clk),.reset(reset),.game_state(game_state),.mouse_x(mouse_x),.mouse_y(mouse_y),
         .mouse_left(mouse_left),.mouse_right(mouse_right),.mouse_event(mouse_event),
         .mouse_value(mouse_value),.setx(setx),.sety(sety),.setmax_x(setmax_x),.setmax_y(setmax_y),
         .cursor_x(cursor_x),.cursor_y(cursor_y),.selected_part(selected),
-        .drag_active(drag_active),
-        .edit_valid(edit_valid),.edit_op(edit_op),.edit_cell(edit_cell),.edit_part(edit_part)
+        .drag_active(drag_active),.drag_from_grid(drag_from_grid),.drag_source(drag_source),.drag_contents(drag_contents),
+        .edit_valid(edit_valid),.edit_op(edit_op),.edit_cell(edit_cell),.edit_source(edit_source),.edit_part(edit_part)
     );
     vehicle_builder builder (
         .clk(clk),.reset(reset),.game_state(game_state),.run_init(run_init),.init_ready(init_ready),
-        .edit_valid(edit_valid),.edit_op(edit_op),.edit_cell(edit_cell),.edit_part(edit_part),
+        .edit_valid(edit_valid),.edit_op(edit_op),.edit_cell(edit_cell),.edit_source(edit_source),.edit_part(edit_part),
         .damage_valid(damage_valid),.damage_ready(),.damage_mask(damage_mask),.damage_frame_mask(9'd0),
         .build_grid(grid),.build_frames(frames),.intact_mask(intact),.frame_intact_mask(frame_intact),
         .build_valid(valid),.build_error(error),.pig_alive(pig_alive),.wheel_count(wheels),
@@ -53,10 +56,10 @@ module construction_controls_tb;
         .frames_left(frames_left),.pigs_left(pigs_left),.wheels_left(wheels_left),
         .engines_left(engines_left),.balloons_left(balloons_left)
     );
-    // A level limit below the preset must be invalid, rather than wrapping stock.
+    // A smaller configured inventory must also start empty without wrapping stock.
     vehicle_builder #(.FRAME_LIMIT(2)) low_stock (
         .clk(clk),.reset(reset),.game_state(`LP_BUILD),.run_init(1'b0),.init_ready(),
-        .edit_valid(1'b0),.edit_op(`LP_EDIT_PLACE),.edit_cell(4'd0),.edit_part(`LP_PART_EMPTY),
+        .edit_valid(1'b0),.edit_op(`LP_EDIT_PLACE),.edit_cell(4'd0),.edit_source(4'd15),.edit_part(`LP_PART_EMPTY),
         .damage_valid(1'b0),.damage_ready(),.damage_mask(9'd0),.damage_frame_mask(9'd0),
         .build_valid(low_stock_valid),.build_error(low_stock_error),.frames_left(low_stock_frames_left)
     );
@@ -66,7 +69,7 @@ module construction_controls_tb;
         .feedback_code(feedback_code),.feedback_cell(feedback_cell),
         .frames_left(frames_left),.pigs_left(pigs_left),.wheels_left(wheels_left),
         .engines_left(engines_left),.balloons_left(balloons_left),.selected_part(selected),
-        .drag_active(drag_active),
+        .drag_active(drag_active),.drag_from_grid(drag_from_grid),.drag_source(drag_source),.drag_contents(drag_contents),
         .cursor_x(cursor_x),.cursor_y(cursor_y),.cursor_visible(1'b1),.pixel_data(colour)
     );
     game_controller launch_guard (
@@ -94,6 +97,18 @@ module construction_controls_tb;
             previous_edit=edit_valid;
         end
     end
+    // Test-only gameplay fixture; the hardware builder starts empty.
+    task build_test_vehicle;
+        begin
+            builder.build_grid = {
+                `LP_PART_WHEEL, `LP_PART_EMPTY, `LP_PART_WHEEL,
+                `LP_PART_ENGINE, `LP_PART_PIG, `LP_PART_EMPTY,
+                `LP_PART_EMPTY, `LP_PART_EMPTY, `LP_PART_EMPTY
+            };
+            builder.build_frames = 9'b000111000;
+            clocks(2);
+        end
+    endtask
     task clocks;
         input integer count;
         begin repeat(count) @(negedge clk); end
@@ -128,10 +143,12 @@ module construction_controls_tb;
         clocks(4); reset=0; clocks(6);
         if (configured_max_x!=95 || configured_max_y!=63 || configured_x!=24 || configured_y!=24)
             $fatal(1,"Mouse OLED bounds/start position not configured");
-        if (frames_left!=2 || pigs_left!=0 || wheels_left!=0 || engines_left!=0 || balloons_left!=2)
-            $fatal(1,"Preset inventory accounting incorrect");
-        if (low_stock_valid || low_stock_error!=`LP_BUILD_ERR_INVENTORY || low_stock_frames_left!=0)
-            $fatal(1,"Oversubscribed preset or unsigned stock wrap accepted");
+        if (grid!==0 || frames!==0 || valid || frames_left!=5 || pigs_left!=1 ||
+            wheels_left!=2 || engines_left!=1 || balloons_left!=2)
+            $fatal(1,"Blank startup inventory accounting incorrect");
+        build_test_vehicle();
+        if (low_stock_valid || low_stock_error!=`LP_BUILD_ERR_PIG || low_stock_frames_left!=2)
+            $fatal(1,"Empty smaller inventory or missing-pig status incorrect");
         pixel=5*96+84; #1; if (colour!=16'hffff) $fatal(1,"Available stock digit missing");
         pixel=35*96+84; #1; if (colour!=16'hf800) $fatal(1,"Zero stock not shown red");
         pixel=4*96+56; #1; if (colour!=16'hffe0) $fatal(1,"Selected row not highlighted");
@@ -142,24 +159,24 @@ module construction_controls_tb;
         saved_grid=grid; saved_frames=frames;
         packet(74,8,1,0); packet(12,12,1,0);
         if (!drag_active) $fatal(1,"Held construction drag has no preview");
-        expect_pixel(15,15,16'ha285); expect_pixel(17,16,16'h0841);
+        expect_pixel(8,8,16'ha285); expect_pixel(10,9,16'h0841);
         expect_pixel(12,12,16'hffff);
         packet(28,12,1,0);
-        expect_pixel(31,15,16'ha285); expect_pixel(15,15,16'h0841);
+        expect_pixel(24,8,16'ha285); expect_pixel(8,8,16'h0841);
         packet(54,55,0,0);
         if (drag_active) $fatal(1,"Outside release left the preview active");
-        expect_pixel(31,15,16'h0841);
+        expect_pixel(24,8,16'h0841);
         packet(74,18,1,0); packet(12,12,1,0);
-        expect_pixel(17,17,16'h07e0); expect_pixel(17,18,16'h0000);
+        expect_pixel(10,10,16'h07e0); expect_pixel(10,11,16'h0000);
         packet(54,55,0,0);
         packet(74,28,1,0); packet(12,12,1,0);
-        expect_pixel(17,17,16'hffff); expect_pixel(15,15,16'h0841);
+        expect_pixel(10,10,16'hffff); expect_pixel(8,8,16'h0841);
         packet(54,55,0,0);
         packet(74,38,1,0); packet(12,12,1,0);
-        expect_pixel(17,18,16'hf800); expect_pixel(18,18,16'hffe0);
+        expect_pixel(10,11,16'hf800); expect_pixel(11,11,16'hffe0);
         packet(54,55,0,0);
         packet(74,48,1,0); packet(12,12,1,0);
-        expect_pixel(17,15,16'hf81f); expect_pixel(18,21,16'hffff);
+        expect_pixel(10,8,16'hf81f); expect_pixel(12,15,16'hffff);
         // Clamp the whole preview at the screen edge, without wrapping coordinates.
         packet(4095,4095,1,0);
         expect_pixel(90,56,16'hf81f); expect_pixel(91,62,16'hffff);
@@ -208,7 +225,7 @@ module construction_controls_tb;
         if (cursor_x!=95 || cursor_y!=63) $fatal(1,"Cursor did not clamp at screen edge");
 
         // Drag across several cells: change nothing until release, then place once.
-        reset=1; clocks(3); reset=0; clocks(6);
+        reset=1; clocks(3); reset=0; clocks(6); build_test_vehicle();
         saved_frames=frames; saved_grid=grid; saved_edit_count=edit_count;
         packet(74,8,1,0); packet(12,12,1,0); packet(28,12,1,0);
         if (frames!==saved_frames || grid!==saved_grid || frames_left!=2 || edit_count!=saved_edit_count)
@@ -266,8 +283,10 @@ module construction_controls_tb;
         // Reset cancels a drag as well as restoring the initial inventory.
         packet(74,8,1,0); packet(12,12,1,0);
         reset=1; clocks(3); reset=0; clocks(6); packet(12,12,0,0);
-        if (drag_active || frames!=9'b000111000 || frames_left!=2 || edit_count!=0)
-            $fatal(1,"Reset left an active drag or changed initial stock");
+        if (drag_active || grid!==0 || frames!==0 || frames_left!=5 || pigs_left!=1 ||
+            wheels_left!=2 || engines_left!=1 || balloons_left!=2 || edit_count!=0)
+            $fatal(1,"Reset left a drag or failed to restore empty construction/full stock");
+        build_test_vehicle();
         left_click(74,48); left_click(12,12); left_click(28,12);
         saved_grid=grid; left_click(44,12);
         if (balloons_left!=0 || balloons!=2 || grid!==saved_grid) $fatal(1,"Balloon limit exceeded");
@@ -289,7 +308,7 @@ module construction_controls_tb;
         if (valid || guarded_state!=`LP_BUILD) $fatal(1,"Concurrent edit launched using old build validity");
 
         // A left-button drop must also block launch on the edit-acceptance edge.
-        reset=1; clocks(3); reset=0; clocks(6);
+        reset=1; clocks(3); reset=0; clocks(6); build_test_vehicle();
         right_click(44,28); packet(74,38,1,0);
         mouse_x=28; mouse_y=28; mouse_left=0; mouse_event=1; clocks(1);
         mouse_event=0; launch=1; clocks(1); launch=0; clocks(2);

@@ -25,7 +25,7 @@ module vehicle_builder_tb;
     // Larger test-only stocks exercise all cells and the two-digit display.
     vehicle_builder #(.FRAME_LIMIT(9), .PIG_LIMIT(2), .WHEEL_LIMIT(3), .ENGINE_LIMIT(9)) dut (
         .clk(clk), .reset(reset), .game_state(game_state), .run_init(run_init), .init_ready(init_ready),
-        .edit_valid(edit_valid), .edit_op(edit_op), .edit_cell(edit_cell), .edit_part(edit_part),
+        .edit_valid(edit_valid), .edit_op(edit_op), .edit_cell(edit_cell),.edit_source(4'd15), .edit_part(edit_part),
         .damage_valid(damage_valid), .damage_ready(damage_ready), .damage_mask(damage_mask),
         .damage_frame_mask(damage_frame_mask), .build_grid(build_grid), .build_frames(build_frames),
         .intact_mask(intact_mask), .frame_intact_mask(frame_intact_mask),
@@ -41,9 +41,21 @@ module vehicle_builder_tb;
         .feedback_code(`LP_FEEDBACK_NONE), .feedback_cell(4'd0),
         .frames_left(frames_left), .pigs_left(pigs_left), .wheels_left(wheels_left),
         .engines_left(engines_left), .balloons_left(balloons_left), .selected_part(`LP_PART_FRAME),
-        .drag_active(1'b0),
+        .drag_active(1'b0),.drag_from_grid(1'b0),.drag_source(4'd9),.drag_contents(3'd0),
         .cursor_x(7'd0), .cursor_y(7'd0), .cursor_visible(1'b0), .pixel_data(colour)
     );
+    // Test-only gameplay fixture; the hardware builder starts empty.
+    task build_test_vehicle;
+        begin
+            dut.build_grid = {
+                `LP_PART_WHEEL, `LP_PART_EMPTY, `LP_PART_WHEEL,
+                `LP_PART_ENGINE, `LP_PART_PIG, `LP_PART_EMPTY,
+                `LP_PART_EMPTY, `LP_PART_EMPTY, `LP_PART_EMPTY
+            };
+            dut.build_frames = 9'b000111000;
+            clocks(2);
+        end
+    endtask
     task clocks;
         input integer count;
         begin repeat (count) @(negedge clk); end
@@ -72,8 +84,13 @@ module vehicle_builder_tb;
     endtask
     initial begin
         clocks(3); reset = 0; clocks(2);
+        if (build_grid!==0 || build_frames!==0 || intact_mask!==0 || frame_intact_mask!==0 ||
+            build_valid || pig_alive || mass!=0 || frames_left!=9 || pigs_left!=2 ||
+            wheels_left!=3 || engines_left!=9 || balloons_left!=2)
+            $fatal(1,"Empty startup or configured inventory incorrect");
+        build_test_vehicle();
         if (!build_valid || mass != 13 || intact_mask != 9'b101110000 || build_frames != 9'b000111000)
-            $fatal(1, "Starter frame/content build incorrect");
+            $fatal(1, "Test frame/content build incorrect");
         save_build();
         edit(`LP_EDIT_PLACE, 0, `LP_PART_PIG); check_unchanged();
         edit(`LP_EDIT_PLACE, 0, `LP_PART_ENGINE); check_unchanged();
@@ -123,7 +140,7 @@ module vehicle_builder_tb;
         game_state = `LP_BUILD; clocks(1);
         edit(`LP_EDIT_PLACE, 0, `LP_PART_PIG);
         if (!build_valid || mass != 44 || engines != 8) $fatal(1, "Single pig not recognised");
-        reset = 1; clocks(1); reset = 0; clocks(1);
+        reset = 1; clocks(1); reset = 0; clocks(1); build_test_vehicle();
         save_build();
         for (cell_number = 9; cell_number < 16; cell_number = cell_number + 1) begin
             edit(`LP_EDIT_PLACE, cell_number, `LP_PART_FRAME); check_unchanged();

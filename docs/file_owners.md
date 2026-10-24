@@ -13,6 +13,7 @@ All design files below are in `GPT_6_S2_01_I-FDP_project.srcs/sources_1/new/`.
 | `balloon_control.v` | Role 1 - Kaushal | Queue valid balloon clicks and apply content damage between movement/world updates |
 | `input_controller.v` | Role 1 - Kaushal | Launch/edit/jump/test button actions, engine/reverse switches and audio mute; mouse actions use the separate adapter |
 | `sound_controller.v` | Role 1 - Kaushal | Event priorities, edge detection, duplicate suppression and preemption |
+| `bgm_player.v` | Role 1 - Kaushal | The Entertainer note/duration table, tempo, quiet samples and effect pause/resume |
 | `sound_generator.v` | Role 1 - Kaushal | Seven tone profiles, note sequencing, volume fades, frame-aligned PWM and cancellation |
 | `button_debouncer.v` | Role 1 - Kaushal | User's debouncer adapted with reset and stable release |
 | `custom_clk_divider.v` | Role 1 - Kaushal; shared helper | User's divider for the OLED clock |
@@ -42,7 +43,7 @@ Audio scheduling and gameplay input belong to Role 1; the explosion event awaits
 | Project/support file | Owner | Purpose |
 | --- | --- | --- |
 | `GPT_6_S2_01_I-FDP_project.xpr` | Shared; Role 4 coordinates | Vivado source and simulation registration |
-| `GPT_6_S2_01_I-FDP_project.srcs/constrs_1/new/Basys3_Master.xdc` | Shared; Role 4 coordinates | Board pins and clock constraints, including mouse and AMP2 on JC |
+| `GPT_6_S2_01_I-FDP_project.srcs/constrs_1/new/Basys3_Master.xdc` | Shared; Role 4 coordinates | Board pins and clock constraints, including mouse and AMP2 on JXADC |
 | `.gitignore` | Shared - all roles | Excludes generated outputs and scratch files |
 | `README.md` | Shared - all roles | Current controls, limitations, setup and contribution record |
 | `docs/file_owners.md` | Shared - all roles | This file-by-file ownership list |
@@ -58,8 +59,11 @@ Audio scheduling and gameplay input belong to Role 1; the explosion event awaits
 | `sim/construction_controls_tb.v` | Role 1 - Kaushal | Mouse configuration/clicks/drag-and-drop, stock/refund rules, inventory/cursor pixels, damage/retry and edit/launch arbitration |
 | `sim/construction_feedback_tb.v` | Role 1 - Kaushal | Placement/rejection reasons, exact feedback timing, cell outlines/text, no-ops, stock/refunds and mode/reset clearing |
 | `sim/balloon_controls_tb.v` | Role 1 - Kaushal | Connected top-level balloon clicks, queue timing, mass/counts, no inventory refund, RUN pixels, retry/results/reset |
+| `sim/bgm_player_tb.v` | Role 1 - Kaushal | Melody pitches/durations/loop, shared PWM, effect pause/resume, mute/reset |
+| `sim/grid_moves_tb.v` | Role 1 - Kaushal | Mouse-built setup, bundle moves, rejected/cancelled drops, full-stock moves, inventory returns and retry |
+| `sim/single_oled_tb.v` | Shared integration | SW15 frame-boundary JA views, rotation, hidden inputs, controls and music state wiring |
 | `sim/sound_generator_tb.v` | Role 1 - Kaushal | Seven sound profiles, exact note lengths/pitches, fades, PWM frame integrity and cancellation |
-| `sim/game_audio_tb.v` | Role 1 - Kaushal | Priorities, preemption, duplicate suppression, real game events, silent ordinary controls, BTNR and JC mute/reset |
+| `sim/game_audio_tb.v` | Role 1 - Kaushal | Priorities, preemption, duplicate suppression, real game events, silent ordinary controls, BTNR and JXADC mute/reset |
 | `sim/clock_control_tb.v` | Shared; Role 1 maintains | Divider, physics-enable and reset checks |
 | `sim/physics_engine_tb.v` | Role 2 - Kyle | Movement arithmetic and handshake checks |
 | `sim/physics_friction_tb.v` | Role 2 - Kyle; shared integration | Force/mass, fractional carry, coast-to-stop, reverse, clamping and stable requests |
@@ -68,7 +72,7 @@ Audio scheduling and gameplay input belong to Role 1; the explosion event awaits
 | `sim/team_controls_tb.v` | Shared integration | Independent mute/reverse and test/jump controls through the actual top |
 | `sim/display_snapshot_tb.v` | Role 4 - Marcus | Snapshot transfer and frame-boundary checks |
 | `sim/role4_game_display_tb.v` | Role 4 - Marcus | Level data, level select/next level, fail reasons, timer, explosions, level button and renderer pixels |
-| `sim/role4_level_solutions_tb.v` | Role 4 - Marcus | Recorded solution: the preset vehicle clears both levels through the full top |
+| `sim/role4_level_solutions_tb.v` | Role 4 - Marcus | Recorded solution: an explicitly prepared test vehicle clears both levels through the full top |
 | `sim/collision_engine_tb.v` | Role 3 - Yap Ting; shared integration | Captured collision proposals, four-platform selection, signed edges, backpressure and reset |
 | `sim/module_contracts_tb.v` | Shared - Roles 1, 3 and 4 | Builder, collision, controller and drawing checks |
 | `sim/game_baseline_tb.v` | Shared - all roles | Connected starter game-loop checks |

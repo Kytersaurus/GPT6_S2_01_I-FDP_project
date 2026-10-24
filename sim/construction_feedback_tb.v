@@ -23,7 +23,7 @@ module construction_feedback_tb;
 
     vehicle_builder #(.FEEDBACK_CYCLES(1000)) builder (
         .clk(clk),.reset(reset),.game_state(state),.run_init(run_init),.init_ready(),
-        .edit_valid(edit_valid),.edit_op(operation),.edit_cell(cell_id),.edit_part(part),
+        .edit_valid(edit_valid),.edit_op(operation),.edit_cell(cell_id),.edit_source(4'd15),.edit_part(part),
         .damage_valid(1'b0),.damage_ready(),.damage_mask(9'd0),.damage_frame_mask(9'd0),
         .build_grid(grid),.build_frames(frames),.intact_mask(intact),.frame_intact_mask(frame_intact),
         .build_valid(valid),.build_error(error),.feedback_code(feedback),.feedback_cell(feedback_cell),
@@ -36,8 +36,20 @@ module construction_feedback_tb;
         .feedback_code(feedback),.feedback_cell(feedback_cell),.engine_enabled(1'b0),
         .frames_left(frames_left),.pigs_left(pigs_left),.wheels_left(wheels_left),
         .engines_left(engines_left),.balloons_left(balloons_left),.selected_part(part),
-        .drag_active(1'b0),.cursor_x(7'd0),.cursor_y(7'd0),.cursor_visible(1'b0),.pixel_data(colour)
+        .drag_active(1'b0),.drag_from_grid(1'b0),.drag_source(4'd9),.drag_contents(3'd0),.cursor_x(7'd0),.cursor_y(7'd0),.cursor_visible(1'b0),.pixel_data(colour)
     );
+    // Test-only gameplay fixture; the hardware builder starts empty.
+    task build_test_vehicle;
+        begin
+            builder.build_grid = {
+                `LP_PART_WHEEL, `LP_PART_EMPTY, `LP_PART_WHEEL,
+                `LP_PART_ENGINE, `LP_PART_PIG, `LP_PART_EMPTY,
+                `LP_PART_EMPTY, `LP_PART_EMPTY, `LP_PART_EMPTY
+            };
+            builder.build_frames = 9'b000111000;
+            clocks(2);
+        end
+    endtask
     task clocks;
         input integer count;
         begin repeat(count) @(negedge clk); end
@@ -89,6 +101,9 @@ module construction_feedback_tb;
 
     initial begin
         clocks(3); reset=0; clocks(2);
+        if (feedback!=`LP_FEEDBACK_NONE || view.message!="ADD PIG         " || valid)
+            $fatal(1,"Blank builder did not show ADD PIG");
+        build_test_vehicle();
         if (feedback!=`LP_FEEDBACK_NONE || view.message!="READY           ") $fatal(1,"Initial READY status missing");
         pixel=56*96; #1; if (colour!==16'h07e0) $fatal(1,"READY text pixel missing");
         pixel=56*96+5; #1; if (colour!==16'h0841) $fatal(1,"Character spacing missing");
@@ -181,7 +196,9 @@ module construction_feedback_tb;
         if (feedback!=`LP_FEEDBACK_NONE) $fatal(1,"Gameplay edit created construction feedback");
         state=`LP_BUILD; clocks(2); act(`LP_EDIT_REMOVE,2,`LP_PART_EMPTY);
         reset=1; clocks(2);
-        if (feedback!=`LP_FEEDBACK_NONE || frames!=9'b000111000) $fatal(1,"Reset retained feedback or edited construction");
+        if (feedback!=`LP_FEEDBACK_NONE || frames!==0 || grid!==0 || valid ||
+            frames_left!=5 || pigs_left!=1 || view.message!="ADD PIG         ")
+            $fatal(1,"Reset retained feedback or failed to clear construction");
         $display("PASS construction_feedback_tb: all edit results, outline/text pixels, exact duration, replacement, no-ops, stock/refunds, build status and mode/reset clearing");
         $finish;
     end

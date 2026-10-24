@@ -1,4 +1,4 @@
-// Owner: Role 1 - Kaushal. Short tone sequences and quiet PWM audio on JC.
+// Owner: Role 1 - Kaushal. Short tone sequences and quiet PWM audio on JXADC.
 `timescale 1ns / 1ps
 `include "game_defs.vh"
 module sound_generator #(
@@ -9,6 +9,7 @@ module sound_generator #(
 ) (
     input wire clk, reset, mute, cancel, start,
     input wire [2:0] sound_id,
+    input wire signed [3:0] bgm_sample,
     output reg busy,
     output reg [2:0] active_sound,
     output wire audio_pwm
@@ -20,8 +21,9 @@ module sound_generator #(
     reg [7:0] pwm_count, pwm_level;
     reg [31:0] half_cycles, note_cycles;
     reg [1:0] last_note;
-    wire [7:0] requested_level = (busy && !mute && !reset && !cancel) ?
-                                  (tone_high ? 8'd128+volume : 8'd128-volume) : 8'd128;
+    wire signed [8:0] music_level = 9'sd128 + bgm_sample;
+    wire [7:0] requested_level = (mute || reset || cancel) ? 8'd128 :
+                                busy ? (tone_high ? 8'd128+volume : 8'd128-volume) : music_level[7:0];
     assign audio_pwm = (pwm_count < pwm_level);
 
     // Each row describes a sound using ordinary counters and a short case table.

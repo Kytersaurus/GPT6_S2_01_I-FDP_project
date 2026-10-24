@@ -46,6 +46,7 @@ module role4_game_display_tb;
     wire button_req;
     integer button_pulses=0;
     level_button button (
+        .input_enabled(1'b1),
         .clk(clk),.reset(reset),.game_state(button_state),.mouse_x(mouse_x),.mouse_y(mouse_y),
         .mouse_left(mouse_left),.mouse_right(mouse_right),.mouse_event(mouse_event),.level_next_req(button_req)
     );
@@ -78,7 +79,7 @@ module role4_game_display_tb;
         .intact_mask(view_intact),.frame_intact_mask(9'b000111000),.build_valid(1'b1),.build_error(4'd0),.engine_enabled(1'b1),
         .feedback_code(`LP_FEEDBACK_NONE),.feedback_cell(4'd0),
         .frames_left(4'd2),.pigs_left(4'd0),.wheels_left(4'd0),.engines_left(4'd0),.balloons_left(4'd2),
-        .selected_part(`LP_PART_FRAME),.drag_active(1'b0),.cursor_x(7'd0),.cursor_y(7'd0),.cursor_visible(1'b0),
+        .selected_part(`LP_PART_FRAME),.drag_active(1'b0),.drag_from_grid(1'b0),.drag_source(4'd9),.drag_contents(3'd0),.cursor_x(7'd0),.cursor_y(7'd0),.cursor_visible(1'b0),
         .level_index(level),.fail_reason(view_reason),.run_seconds(view_seconds),.pixel_data(left_colour)
     );
     right_renderer right_view (

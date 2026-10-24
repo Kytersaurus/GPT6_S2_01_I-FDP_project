@@ -16,28 +16,28 @@ module game_audio_tb;
         .busy(busy),.active_sound(active),.sound_start(start),.sound_id(id)
     );
     sound_generator #(.BEEP_CYCLES(1024),.NOTE_CYCLES(1024),.FADE_CYCLES(8)) player (
-        .clk(clk),.reset(reset),.mute(mute),.cancel(cancel),.start(start),.sound_id(id),
+        .clk(clk),.reset(reset),.mute(mute),.cancel(cancel),.start(start),.sound_id(id),.bgm_sample(4'sd0),
         .busy(busy),.active_sound(active),.audio_pwm(pwm)
     );
     always @(posedge clk) if (!reset && start) starts=starts+1;
 
     reg btnD=1, btnC=0, btnU=0, btnR=0;
-    reg [2:0] sw=0;
+    reg [15:0] sw=0;
     reg [11:0] mx=0,my=0;
     reg ml=0,mr=0,me=0, tick=0, world=0, goal=0,hazard=0;
     reg response=0,ready=0,ground=0;
     reg signed [15:0] impact_vy=0;
     wire [15:0] led;
     wire [7:0] JA,JB;
-    wire [3:0] JC;
+    wire [3:0] JXADC;
     tri1 PS2Clk,PS2Data;
     integer top_starts=0;
     reg [2:0] last_top_sound=0;
-    My_Top_Module #(.BUTTON_DEBOUNCE_CYCLES(2),.BUTTON_RELEASE_CYCLES(2),
+    My_Top_Module #(.ENABLE_BGM(0),.BUTTON_DEBOUNCE_CYCLES(2),.BUTTON_RELEASE_CYCLES(2),
         .AUDIO_TONE_HALF_CYCLES(512),.AUDIO_BEEP_CYCLES(1024),
         .AUDIO_NOTE_CYCLES(1024),.AUDIO_FADE_CYCLES(8)) dut (
         .clk(clk),.btnC(btnC),.btnU(btnU),.btnR(btnR),.btnL(1'b0),.btnD(btnD),.sw(sw),
-        .PS2Clk(PS2Clk),.PS2Data(PS2Data),.led(led),.JA(JA),.JB(JB),.JC(JC)
+        .PS2Clk(PS2Clk),.PS2Data(PS2Data),.led(led),.JA(JA),.JB(JB),.JXADC(JXADC)
     );
     initial begin
         force dut.mouse_x=mx; force dut.mouse_y=my;
@@ -48,6 +48,18 @@ module game_audio_tb;
     always @(posedge clk) if (!dut.reset && dut.sound_start) begin
         top_starts=top_starts+1; last_top_sound=dut.sound_id;
     end
+    // Test-only gameplay fixture; the hardware builder starts empty.
+    task build_test_vehicle;
+        begin
+            dut.u_builder.build_grid = {
+                `LP_PART_WHEEL, `LP_PART_EMPTY, `LP_PART_WHEEL,
+                `LP_PART_ENGINE, `LP_PART_PIG, `LP_PART_EMPTY,
+                `LP_PART_EMPTY, `LP_PART_EMPTY, `LP_PART_EMPTY
+            };
+            dut.u_builder.build_frames = 9'b000111000;
+            clocks(2);
+        end
+    endtask
     task clocks;
         input integer count;
         begin repeat(count) @(negedge clk); end
@@ -112,8 +124,8 @@ module game_audio_tb;
         if (busy) $fatal(1,"Cancel resumed old sound");
         events=0; clocks(1);
 
-        btnD=0; clocks(280);
-        if (JC[1]!==1 || JC[2]!==0 || JC[3]!==1 || dut.u_audio.pwm_level!=128)
+        btnD=0; clocks(280); build_test_vehicle();
+        if (JXADC[1]!==1 || JXADC[2]!==0 || JXADC[3]!==1 || dut.u_audio.pwm_level!=128)
             $fatal(1,"AMP2 pins/idle PWM incorrect");
         // Selection, placement, removal, edit and engine switch are deliberately silent.
         click(74,8); click(12,12); packet(12,12,0,1); packet(12,12,0,0);
@@ -160,20 +172,20 @@ module game_audio_tb;
             $fatal(1,"Failure did not beat simultaneous goal/launch audio");
         // Editing cancels the result sound without turning off the amplifier.
         btnU=1; clocks(14); btnU=0; clocks(14);
-        if (dut.game_state!=`LP_BUILD || dut.audio_busy || JC[3]!==1)
+        if (dut.game_state!=`LP_BUILD || dut.audio_busy || JXADC[3]!==1)
             $fatal(1,"Edit did not cancel result audio quietly");
         before_starts=top_starts; btnR=1; clocks(1400);
         if (top_starts!=before_starts+1 || dut.audio_busy || last_top_sound!=`LP_SOUND_TEST)
             $fatal(1,"Held BTNR test repeated or changed");
         btnR=0; clocks(14); btnR=1; clocks(14); sw=2; clocks(8);
-        if (dut.audio_busy || JC[3]!==0) $fatal(1,"SW1 did not cancel/shut down audio");
+        if (dut.audio_busy || JXADC[3]!==0) $fatal(1,"SW1 did not cancel/shut down audio");
         before_starts=top_starts; sw=0; clocks(300);
-        if (dut.audio_busy || top_starts!=before_starts || JC[3]!==1)
+        if (dut.audio_busy || top_starts!=before_starts || JXADC[3]!==1)
             $fatal(1,"Unmute replayed held BTNR");
         btnR=0; clocks(14); btnR=1; clocks(14); btnD=1; clocks(8);
-        if (dut.audio_busy || JC[3]!==0) $fatal(1,"Reset did not stop AMP2");
+        if (dut.audio_busy || JXADC[3]!==0) $fatal(1,"Reset did not stop AMP2");
         btnR=0; btnD=0; clocks(300);
-        if (dut.audio_busy || dut.game_state!=`LP_BUILD || JC[3]!==1)
+        if (dut.audio_busy || dut.game_state!=`LP_BUILD || JXADC[3]!==1)
             $fatal(1,"Reset did not recover quietly");
         $display("PASS game_audio_tb: priorities/preemption, held/muted suppression, no queue, silent controls, launch/pop/landing/results, retry/edit, BTNR, AMP2 mute/reset");
         $finish;

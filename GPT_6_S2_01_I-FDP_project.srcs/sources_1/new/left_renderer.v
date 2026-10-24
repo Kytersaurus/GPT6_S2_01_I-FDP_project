@@ -19,6 +19,9 @@ module left_renderer #(parameter EDITOR_CELL_PIXELS = 16) (
     input wire [3:0] frames_left, pigs_left, wheels_left, engines_left, balloons_left,
     input wire [2:0] selected_part,
     input wire drag_active,
+    input wire drag_from_grid,
+    input wire [3:0] drag_source,
+    input wire [2:0] drag_contents,
     input wire [6:0] cursor_x, cursor_y,
     input wire cursor_visible,
     input wire level_index,
@@ -36,9 +39,9 @@ module left_renderer #(parameter EDITOR_CELL_PIXELS = 16) (
     wire in_build = (game_state == `LP_BUILD);
     wire in_result = (game_state == `LP_SUCCESS || game_state == `LP_FAIL);
     reg [6:0] inventory_top;
-    // Keep the 8 by 8 preview beside the cursor and fully on the OLED.
-    wire [6:0] drag_left = (cursor_x > 84) ? 7'd88 : cursor_x + 7'd3;
-    wire [6:0] drag_top = (cursor_y > 52) ? 7'd56 : cursor_y + 7'd3;
+    // Centre the 8 by 8 preview on the same cursor position, clamped to the OLED.
+    wire [6:0] drag_left = (cursor_x < 4) ? 7'd0 : (cursor_x > 92) ? 7'd88 : cursor_x - 7'd4;
+    wire [6:0] drag_top = (cursor_y < 4) ? 7'd0 : (cursor_y > 60) ? 7'd56 : cursor_y - 7'd4;
     reg [3:0] inventory_number;
     reg [2:0] inventory_part;
     reg [4:0] remaining_parts;
@@ -212,9 +215,10 @@ module left_renderer #(parameter EDITOR_CELL_PIXELS = 16) (
                     ((part != `LP_PART_EMPTY && !intact_mask[cell_index]) ||
                      (build_frames[cell_index] && !frame_intact_mask[cell_index]))) pixel_data = 16'h8000;
                 // Sprites at double size: the frame first, then its contents.
-                if (frame_intact_mask[cell_index])
+                if (frame_intact_mask[cell_index] && !(in_build && drag_active && drag_from_grid && drag_source == cell_index))
                     pixel_data = part_sprite(`LP_PART_FRAME, cell_x/2, cell_y/2, pixel_data);
-                if (intact_mask[cell_index]) pixel_data = part_sprite(part, cell_x/2, cell_y/2, pixel_data);
+                if (intact_mask[cell_index] && !(in_build && drag_active && drag_from_grid && drag_source == cell_index))
+                    pixel_data = part_sprite(part, cell_x/2, cell_y/2, pixel_data);
             end
             if (feedback_code != `LP_FEEDBACK_NONE && feedback_cell < 9 &&
                 cell_index == feedback_cell &&
@@ -256,8 +260,11 @@ module left_renderer #(parameter EDITOR_CELL_PIXELS = 16) (
             if (y >= 58 && y < 62 && x >= 36 && x < 36+game_state*6) pixel_data = 16'h07ff;
         end
         // Draw a temporary copy above the interface; the builder changes only on release.
-        if (in_build && cursor_visible && drag_active)
+        if (in_build && cursor_visible && drag_active) begin
             pixel_data = draw_part_icon(selected_part, x-drag_left, y-drag_top, pixel_data);
+            if (drag_from_grid && selected_part == `LP_PART_FRAME)
+                pixel_data = draw_part_icon(drag_contents, x-drag_left, y-drag_top, pixel_data);
+        end
         if (cursor_visible && (in_build || game_state == `LP_RUN) &&
             ((x == cursor_x && y+2 >= cursor_y && y <= cursor_y+2) ||
              (y == cursor_y && x+2 >= cursor_x && x <= cursor_x+2))) pixel_data = 16'hffff;

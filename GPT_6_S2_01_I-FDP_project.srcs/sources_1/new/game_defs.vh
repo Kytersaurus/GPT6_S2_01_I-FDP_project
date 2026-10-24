@@ -35,6 +35,8 @@
 
 `define LP_EDIT_PLACE    2'd0  // Includes replacement of an occupied cell.
 `define LP_EDIT_REMOVE   2'd1
+`define LP_EDIT_MOVE     2'd2  // Transfer from edit_source to edit_cell without charging stock.
+`define LP_EDIT_RETURN   2'd3  // Return the selected source part/bundle to inventory.
 
 `define LP_BUILD_OK             4'd0
 `define LP_BUILD_ERR_PIG        4'd1
