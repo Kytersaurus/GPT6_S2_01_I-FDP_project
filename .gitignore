@@ -42,3 +42,6 @@ Desktop.ini
 
 # Local document inspection and other scratch files
 tmp/
+
+# Vivado-generated incremental synthesis checkpoints
+*.srcs/utils_1/

@@ -51,4 +51,14 @@
 `define LP_FEEDBACK_FRAME_BELOW   3'd6
 `define LP_FEEDBACK_OCCUPIED      3'd7
 
+// Increasing IDs also give the sound priority; NONE is silence.
+`define LP_SOUND_NONE       3'd0
+`define LP_SOUND_TEST       3'd1
+`define LP_SOUND_LAUNCH     3'd2
+`define LP_SOUND_POP        3'd3
+`define LP_SOUND_COLLISION  3'd4
+`define LP_SOUND_EXPLOSION  3'd5
+`define LP_SOUND_SUCCESS    3'd6
+`define LP_SOUND_FAILURE    3'd7
+
 `endif

@@ -14,8 +14,9 @@ All game modules live beside `My_Top_Module.v` in the existing design source fol
 | `clock_control` | `game_controller` | `physics_tick` requests an update approximately 60 times per second |
 | `input_controller` | `game_controller` | `start_press` connects to both `launch_req` and `retry_req`; the current state chooses the action. `edit_press` connects to `edit_req` |
 | `input_controller` | `physics_engine` | `engine_enabled` is the synchronised SW0 state, sampled when a movement step starts |
-| `input_controller` | `audio_beep` | BTNR emits one `beep_press`; synchronised SW1 supplies `audio_muted` |
-| `audio_beep`, reset/mute wiring | Pmod AMP2 on JC | `JC[0]` PWM audio, `JC[1]` high for 6 dB gain, `JC[2]` zero/NC, `JC[3]` high only outside reset/mute |
+| `input_controller`, accepted game events | `sound_controller` | BTNR test, launch, applied pop, landing, success and failure; SW1 supplies mute |
+| `sound_controller` | `sound_generator` | Chosen three-bit sound ID and start; busy/active ID return for priority decisions |
+| `sound_generator`, reset/mute wiring | Pmod AMP2 on JC | `JC[0]` PWM audio, `JC[1]` high for 6 dB gain, `JC[2]` zero/NC, `JC[3]` high only outside reset/mute |
 | `vehicle_builder` | `physics_engine` | Four-bit `wheel_count`, `engine_count`, `balloon_count` and eight-bit `mass_units` describe surviving parts |
 | `vehicle_builder` | `game_controller` | `build_valid` gates launch; the top masks it while `edit_valid` is high so concurrent edits cannot launch using old validity. `pig_alive` participates in the final outcome |
 | `MouseCtl` | `mouse_adapter` | Completed `new_event` packets supply 12-bit x/y positions and held button levels |
@@ -40,7 +41,7 @@ Every movement coordinate and velocity is signed with eight fractional bits: 256
 
 `input_controller` instantiates the user's `button_debouncer` for BTNC, BTNU and BTNR. Each uses the shared 100 MHz clock, `freq_count=19,999,999` for 200 ms of lockout, and `RELEASE_CYCLES=2,000,000` for a stable 20 ms release before rearming. The module adds reset handling to the user's code and includes the optional release check without the hold timer. The top exposes cycle-count parameters so simulations can use short intervals. SW1 uses two sampling registers, with mute asserted during reset. The hardware top now accepts `sw[1:0]`, BTNR and four JC outputs; test fixtures tie unused button/mute inputs low explicitly.
 
-The first audio stage is a manual test beep. All its counters use 100 MHz; a 1 kHz tone changes a 390.625 kHz PWM duty between 120/256 and 136/256 for 0.2 seconds. Idle uses 128/256. Requests while busy are ignored, and mute/reset cancel playback. The AMP2 pinout and setup are in [audio setup](audio_setup.md). XDC changes only uncomment existing SW1, BTNR and JC1-JC4 mappings. Game events are still reserved for the following stage.
+Audio uses accepted launch/pop/landing/success/failure events, with a prepared explosion input awaiting Role 3. Failure outranks success, explosion, landing, pop, launch and the BTNR test. Higher priority interrupts; held/equal/lower requests do not replay or queue. The generator plays short tone sequences with quiet amplitude fades and complete PWM frames. Mute/reset/retry/edit cancel old playback; the carrier and enabled amplifier remain running between sounds. XDC mappings are unchanged. See [audio setup](audio_setup.md).
 
 ## Connected drawing path
 
@@ -63,7 +64,7 @@ During BUILD the left renderer shows five inventory rows at x=56..91 and y=4..53
 | Builder edit inputs | Connected to mouse selection/place/remove actions with inventory checks | Role 1 adds later input refinements |
 | Builder damage inputs | Content mask receives balloon pops; frame mask is zero | Role 3 produces TNT masks; Roles 1 and 3 combine/arbitrate both sources without losing requests |
 | Game guide requests | Tied inactive | Roles 1 and 4 agree navigation inputs and instruction screens |
-| Audio events | Manual BTNR beep connected; `launch_event`, `success_event`, `failure_event` remain unconnected to audio | Role 1 adds game-event sound selection/priority; Role 3 later supplies explosion events |
+| Audio events | Launch, applied balloon pops, landing, success/failure and BTNR connected; priorities and duplicate suppression implemented | Role 3 supplies actual explosion events and future wall/ceiling impact cues |
 | Mouse | Supplied controller unchanged; construction and balloon clicks connected | Role 1 adds guide controls and verifies new gameplay input on the Basys3 |
 | Balloon popping | Fresh RUN clicks queue surviving balloons and clear their intact bits between updates | Hardware check with balloons added to the build; sound effects remain future work |
 | Collision | Downward landing on rectangular platforms | Role 3 adds wall/ceiling/corner handling and TNT |
@@ -72,6 +73,9 @@ During BUILD the left renderer shows five inventory rows at x=56..91 and y=4..53
 Cell contents are row-major in 27 bits, with cell zero in bits 2:0. Frames are stored separately in nine-bit `build_frames`. Each layer has its own nine-bit intact and damage mask. `world_outcomes` still finds the pig through the content grid/mask; physics still receives counts and total mass without a port change. Review the placement rules in `interfaces.md` before adding features.
 
 ## Validation status
+
+On 24 October 2026, Kaushal reported the drag preview, construction feedback, inventory and manual AMP2 test working on the Basys3 after selecting the current bitstream instead of the older OLED-test file. Unwanted speaker clicks during ordinary actions were subsequently reported; the new audio keeps those actions deliberately silent and adds note fades/carrier-frame duty updates. Their effect on physical clicks still needs verification. The automatic game sounds added afterwards require a new hardware build; the previous bitstream does not include them.
+
 
 On 22 October 2026, all ten simulation benches passed after adding the manual AMP2 beep, BTNR and SW1 mute. `audio_beep_tb` covers PWM duty/timing, duration, busy suppression, mute/reset, held-button behaviour and JC control polarity through the connected top. A fresh routed build/bitstream and physical speaker test remain pending; the 21 October resource/timing figures below predate audio.
 

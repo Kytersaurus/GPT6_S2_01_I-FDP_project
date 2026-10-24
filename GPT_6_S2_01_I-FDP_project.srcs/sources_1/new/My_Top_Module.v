@@ -18,6 +18,8 @@ module My_Top_Module #(
     parameter integer BUTTON_RELEASE_CYCLES = 2000000,
     parameter integer AUDIO_TONE_HALF_CYCLES = 50000,
     parameter integer AUDIO_BEEP_CYCLES = 20000000,
+    parameter integer AUDIO_NOTE_CYCLES = 8000000,
+    parameter integer AUDIO_FADE_CYCLES = 50000,
     parameter integer FRAME_LIMIT = 5,
     parameter integer PIG_LIMIT = 1,
     parameter integer WHEEL_LIMIT = 2,
@@ -61,8 +63,27 @@ module My_Top_Module #(
     wire signed [15:0] previous_x, previous_y, proposed_x, proposed_y, proposed_vx, proposed_vy;
     wire signed [15:0] corrected_x, corrected_y, corrected_vx, corrected_vy;
     wire movement_committed, world_valid, world_ready, goal_hit, hazard_hit, out_of_bounds;
-    wire launch_event;
+    wire launch_event, success_event, failure_event;
     wire beep_press, audio_muted, audio_busy, audio_pwm;
+    wire sound_start;
+    wire [2:0] sound_id, active_sound;
+    reg audio_was_grounded;
+    reg [2:0] previous_game_state;
+    wire audio_cancel = run_init || (game_state == `LP_BUILD && previous_game_state != `LP_BUILD);
+    wire pop_sound_event = pop_valid && damage_ready && (|pop_mask);
+    // Ignore the first gentle contact at spawn and continuous rolling contact.
+    wire collision_sound_event = game_state == `LP_RUN && response_valid && response_ready &&
+                                 grounded && !audio_was_grounded && $signed(proposed_vy) >= 16'sd128;
+    // Role 3 will connect a one-clock pulse when TNT actually explodes.
+    wire explosion_sound_event = 1'b0;
+    always @(posedge clk) begin
+        if (reset) begin audio_was_grounded <= 0; previous_game_state <= `LP_BUILD; end
+        else begin
+            previous_game_state <= game_state;
+            if (run_init || game_state != `LP_RUN) audio_was_grounded <= 0;
+            else if (response_valid && response_ready) audio_was_grounded <= grounded;
+        end
+    end
 
     clock_control #(.PHYSICS_CYCLES(PHYSICS_CYCLES)) u_clocking (
         .clk(clk), .reset_button(btnD), .reset(reset), .oled_clk(oled_clk),
@@ -75,11 +96,20 @@ module My_Top_Module #(
         .engine_switch(sw[0]), .mute_switch(sw[1]), .start_press(start_press), .edit_press(edit_press),
         .beep_press(beep_press), .engine_enabled(engine_enabled), .audio_muted(audio_muted)
     );
-    audio_beep #(
-        .TONE_HALF_CYCLES(AUDIO_TONE_HALF_CYCLES), .BEEP_CYCLES(AUDIO_BEEP_CYCLES)
+    sound_controller u_sound_control (
+        .clk(clk), .reset(reset), .mute(audio_muted), .cancel(audio_cancel),
+        .test_event(beep_press), .launch_event(launch_event), .pop_event(pop_sound_event),
+        .collision_event(collision_sound_event), .explosion_event(explosion_sound_event),
+        .success_event(success_event), .failure_event(failure_event),
+        .busy(audio_busy), .active_sound(active_sound), .sound_start(sound_start), .sound_id(sound_id)
+    );
+    sound_generator #(
+        .TONE_HALF_CYCLES(AUDIO_TONE_HALF_CYCLES), .BEEP_CYCLES(AUDIO_BEEP_CYCLES),
+        .NOTE_CYCLES(AUDIO_NOTE_CYCLES), .FADE_CYCLES(AUDIO_FADE_CYCLES)
     ) u_audio (
-        .clk(clk), .reset(reset), .start(beep_press), .mute(audio_muted),
-        .busy(audio_busy), .audio_pwm(audio_pwm)
+        .clk(clk), .reset(reset), .start(sound_start), .sound_id(sound_id),
+        .mute(audio_muted), .cancel(audio_cancel), .busy(audio_busy),
+        .active_sound(active_sound), .audio_pwm(audio_pwm)
     );
     MouseCtl u_mouse (
         .clk(clk), .rst(reset), .xpos(mouse_x), .ypos(mouse_y), .zpos(),
@@ -127,7 +157,7 @@ module My_Top_Module #(
         .gameplay_pending(pop_pending), .gameplay_ready(gameplay_ready),
         .goal_hit(goal_hit), .hazard_hit(hazard_hit), .out_of_bounds(out_of_bounds), .game_state(game_state),
         .run_init(run_init), .step_start(step_start), .update_release(update_release),
-        .launch_event(launch_event), .success_event(), .failure_event()
+        .launch_event(launch_event), .success_event(success_event), .failure_event(failure_event)
     );
     physics_engine u_physics (
         .clk(clk), .reset(reset), .game_state(game_state), .run_init(run_init), .init_ready(init_ready[1]),

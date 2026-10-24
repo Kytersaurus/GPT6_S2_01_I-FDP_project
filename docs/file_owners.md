@@ -12,7 +12,8 @@ All design files below are in `GPT_6_S2_01_I-FDP_project.srcs/sources_1/new/`.
 | `mouse_adapter.v` | Role 1 - Kaushal | Driver coordinate setup, cursor, inventory selection, click/drag-and-drop placement, right-click removal and RUN pop requests |
 | `balloon_control.v` | Role 1 - Kaushal | Queue valid balloon clicks and apply content damage between movement/world updates |
 | `input_controller.v` | Role 1 - Kaushal | Button actions, manual beep request, engine switch and audio mute; mouse actions use the separate adapter |
-| `audio_beep.v` | Role 1 - Kaushal | Short 1 kHz PWM test beep, busy handling, mute and reset |
+| `sound_controller.v` | Role 1 - Kaushal | Event priorities, edge detection, duplicate suppression and preemption |
+| `sound_generator.v` | Role 1 - Kaushal | Seven tone profiles, note sequencing, volume fades, frame-aligned PWM and cancellation |
 | `button_debouncer.v` | Role 1 - Kaushal | User's debouncer adapted with reset and stable release |
 | `custom_clk_divider.v` | Role 1 - Kaushal; shared helper | User's divider for the OLED clock |
 | `clock_control.v` | Shared; Role 1 - Kaushal maintains starter | Clock connections, physics enable and reset |
@@ -32,7 +33,7 @@ All design files below are in `GPT_6_S2_01_I-FDP_project.srcs/sources_1/new/`.
 | `Mouse_Control.vhd` | Supplied driver; Role 1 integrates | Original driver and attribution preserved; instantiated for mouse input |
 | `Ps2Interface.vhd` | Supplied driver; Role 1 integrates | Unchanged mouse-driver dependency |
 
-Future audio and gameplay input additions belong to Role 1. Future movement tuning belongs to Role 2, TNT/collision additions to Role 3, and instructions, levels and detailed display content to Role 4. These future features are not included in this starter.
+Audio scheduling and gameplay input belong to Role 1; the explosion event awaits Role 3 integration. Future movement tuning belongs to Role 2, TNT/collision additions to Role 3, and instructions, levels and detailed display content to Role 4. These future features are not included in this starter.
 
 | Project/support file | Owner | Purpose |
 | --- | --- | --- |
@@ -44,7 +45,7 @@ Future audio and gameplay input additions belong to Role 1. Future movement tuni
 | `docs/team_setup.md` | Shared - all roles | Collaboration workflow and coding preferences |
 | `docs/interfaces.md` | Shared - all roles | Agreed/draft data formats, ports and handshakes |
 | `docs/connections.md` | Shared; Role 4 coordinates | Actual starter wiring and pending connections |
-| `docs/audio_setup.md` | Role 1 - Kaushal | AMP2 pin map, manual beep test and explanation of its counters/PWM |
+| `docs/audio_setup.md` | Role 1 - Kaushal | AMP2 pin map, game sound profiles, priority rules, click checks and hardware test procedure |
 | `scripts/add_team_sources.tcl` | Shared; Role 4 coordinates | Register design sources in Vivado |
 | `scripts/check_baseline.tcl` | Shared - all roles | Synthesis and constraint checks |
 | `scripts/run_simulations.ps1` | Shared - all roles | Runs the simulation benches |
@@ -53,7 +54,8 @@ Future audio and gameplay input additions belong to Role 1. Future movement tuni
 | `sim/construction_controls_tb.v` | Role 1 - Kaushal | Mouse configuration/clicks/drag-and-drop, stock/refund rules, inventory/cursor pixels, damage/retry and edit/launch arbitration |
 | `sim/construction_feedback_tb.v` | Role 1 - Kaushal | Placement/rejection reasons, exact feedback timing, cell outlines/text, no-ops, stock/refunds and mode/reset clearing |
 | `sim/balloon_controls_tb.v` | Role 1 - Kaushal | Connected top-level balloon clicks, queue timing, mass/counts, no inventory refund, RUN pixels, retry/results/reset |
-| `sim/audio_beep_tb.v` | Role 1 - Kaushal | Tone/PWM duty, duration, busy suppression, mute/reset, debounced button and JC controls |
+| `sim/sound_generator_tb.v` | Role 1 - Kaushal | Seven sound profiles, exact note lengths/pitches, fades, PWM frame integrity and cancellation |
+| `sim/game_audio_tb.v` | Role 1 - Kaushal | Priorities, preemption, duplicate suppression, real game events, silent ordinary controls, BTNR and JC mute/reset |
 | `sim/clock_control_tb.v` | Shared; Role 1 maintains | Divider, physics-enable and reset checks |
 | `sim/physics_engine_tb.v` | Role 2 - Kyle | Movement arithmetic and handshake checks |
 | `sim/display_snapshot_tb.v` | Role 4 - Marcus | Snapshot transfer and frame-boundary checks |

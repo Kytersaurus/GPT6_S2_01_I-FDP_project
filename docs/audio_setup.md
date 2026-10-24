@@ -1,49 +1,58 @@
-# First audio test: Pmod AMP2 on JC
+# Game audio: Pmod AMP2 on JC
 
 Owner: Role 1 - Kaushal.
 
-The first milestone is one short beep from the right button. Game-event sounds and their priority handling follow after this works on the board.
+## Hardware and programming
 
-## Connect the hardware
+With the Basys3 off, connect the AMP2 to JC pins 1-6, aligning pin numbers and GND/VCC. Connect the speaker to the AMP2 jack. OLED construction uses JA; one OLED is enough for audio/control tests.
 
-Switch the Basys3 off before connecting the Pmod AMP2. Use JC pins 1-6, aligning the pin numbers and the GND/VCC labels. Connect the lab speaker to the AMP2 audio jack.
+| AMP2 pin | Signal | Basys3 connection |
+| --- | --- | --- |
+| 1 | AIN | JC1 / `JC[0]`: PWM |
+| 2 | GAIN | JC2 / `JC[1]`: high, lower 6 dB gain |
+| 3 | NC | JC3 / `JC[2]`: zero, unused by AMP2 |
+| 4 | Active-low shutdown | JC4 / `JC[3]`: low during reset/mute |
+| 5 | GND | JC5 |
+| 6 | VCC | JC6, 3.3 V |
 
-| AMP2 pin | Signal | Basys3 connection | Verilog connection |
+Pinout, PWM support, gain and shutdown polarity follow the [Digilent AMP2 reference manual](https://digilent.com/reference/_media/pmod:pmod:pmodAMP2_rm.pdf). No new XDC mappings or clock constraints are needed for game audio.
+
+Reopen the saved project to load the new source names, or run `source scripts/add_team_sources.tcl` in the open project's Tcl Console and remove the obsolete `audio_beep.v` reference if still shown. Generate a fresh bitstream yourself. In Hardware Manager's Program Device dialog, explicitly choose `GPT_6_S2_01_I-FDP_project.runs/impl_1/My_Top_Module.bit`. Generating a new bitstream does not replace a previously selected `tmp/oled_board_test/` file in that dialog. The 24 October manual-beep/feedback hardware build predates these automatic sounds.
+
+## Sounds and priorities
+
+| Event | Sound | Total length | Connection |
 | --- | --- | --- | --- |
-| 1 | AIN | JC1, FPGA K17 | `JC[0]`: audio PWM |
-| 2 | GAIN | JC2, FPGA M18 | `JC[1]`: high for lower 6 dB gain |
-| 3 | NC | JC3, FPGA N17 | `JC[2]`: zero; AMP2 leaves this pin unconnected |
-| 4 | Active-low shutdown | JC4, FPGA P18 | `JC[3]`: low during reset/mute, high otherwise |
-| 5 | GND | JC5 | Ground supplied by the header |
-| 6 | VCC | JC6 | 3.3 V supplied by the header |
+| Failure / pig death | 440, 330, 220 Hz falling sequence | 420 ms | Accepted `failure_event` |
+| Success | 660, 880, 1320 Hz rising sequence | 300 ms | Accepted `success_event` |
+| Explosion | 160, 110, 70 Hz low falling sequence | 240 ms | Prepared; Role 3 must drive `explosion_sound_event` |
+| Landing | 220 Hz low bump | 60 ms | First accepted grounded response after airborne, impact >=0.5 pixel/update |
+| Balloon pop | 1600 Hz short tone | 40 ms | Non-empty pop mask accepted by builder |
+| Launch / retry | 660, 990 Hz rising pair | 160 ms | Accepted `launch_event` |
+| BTNR speaker test | Original 1000 Hz beep | 200 ms | Debounced right button |
 
-The AMP2 accepts PWM through its input reconstruction filter. Its pin assignments, gain levels and shutdown polarity are specified in the [Digilent Pmod AMP2 reference manual](https://digilent.com/reference/_media/pmod:pmod:pmodAMP2_rm.pdf). FPGA package-pin mappings come from the existing Basys3 XDC. The change only uncomments existing mappings for BTNR, SW1 and JC1-JC4.
+Higher rows have higher priority. A new higher-priority event interrupts the current sound. Equal/lower requests while busy are discarded, including another pop; there is no backlog to play after a result. A held event plays once and must go low before another trigger. A batch of accepted balloon pops makes one cue. Muted events are consumed rather than replayed on unmute.
 
-## Program and test
+Mouse selection, dragging, placement/removal, invalid launch, BTNU and SW0 do not have generic click sounds. BTNC only sounds when the game actually accepts a launch/retry. TNT damage/explosion triggering and wall/ceiling impacts remain Role 3 integrations, not test stubs in the hardware design.
 
-1. Reopen `GPT_6_S2_01_I-FDP_project.xpr` to load the new source registration, or use `source scripts/add_team_sources.tcl` with the project open.
-2. Generate a fresh bitstream in Vivado, then program the Basys3. The previous balloon-test bitstream does not include audio.
-3. Set SW1 to zero to unmute. Press BTNR once: expect a roughly 1 kHz beep lasting 0.2 seconds.
-4. Hold BTNR: expect one beep. Release it before pressing again.
-5. Set SW1 to one: the amplifier shuts down and a playing beep is cancelled. Unmuting must not resume the cancelled beep or replay a press made while muted.
-6. Press BTND during a beep: playback stops and the game resets.
+## Implementation
 
-The test button works in any game state. SW0 continues to control the engine. This first audio stage does not yet play sounds automatically on launch, victory, failure, collisions or balloon popping.
+`sound_controller.v` selects a three-bit ID using `if/else` and edge-detection registers. `sound_generator.v` replaces the one-off `audio_beep.v`; it uses a `case` table and counters for frequency, note duration, note index, volume and PWM. All use the shared 100 MHz clock. IDs 1..7 are in increasing priority order; zero means no sound.
 
-## How the code works
+The carrier stays at 390.625 kHz, with 128/256 duty for silence. Tone amplitude rises from zero to eight in eight steps, giving a maximum duty range of 120..136/256, then fades back down. `AUDIO_FADE_CYCLES=50000` gives four-millisecond fades. Duty changes only between complete carrier frames. These measures soften deliberate note boundaries; they cannot prove that noise from wiring, power, programming or amplifier switching has disappeared. Higher-priority preemption and mute/reset are immediate cancellations and can still produce an audible transition.
 
-`input_controller.v` uses the existing debouncer to produce one `beep_press` pulse and samples SW1 through two registers. `audio_beep.v` uses the shared 100 MHz clock for three counters:
+The AMP2 remains enabled between sounds; `JC[3]` changes only for reset/mute, not for each game event. Retry/run initialisation and return to construction cancel old sounds without resetting the PWM carrier. Positive `AUDIO_NOTE_CYCLES=8000000` sets the base 80 ms note, with constant multiples for each profile. Keep the shortest note (`AUDIO_NOTE_CYCLES/2`) and test beep longer than `16*AUDIO_FADE_CYCLES`. `AUDIO_TONE_HALF_CYCLES` and `AUDIO_BEEP_CYCLES` retain the manual test settings. Shorter legal parameters are used by simulation.
 
-- A tone counter changes the tone level every 50,000 cycles. Two halves form one period, giving `100000000 / (2 * 50000) = 1000 Hz`.
-- A duration counter stops playback after 20,000,000 cycles, or 0.2 seconds.
-- An eight-bit PWM counter repeats every 256 cycles, giving a 390.625 kHz PWM carrier. Comparing it with 120 or 136 makes a small square-wave audio signal after filtering. Idle/muted output uses 128, the centred 50% duty level.
+## Board checklist
 
-The tone and PWM are data outputs; no extra clock is created. Requests while busy are ignored. Mute/reset cancel playback rather than pausing it. The AMP2 stays enabled between beeps while unmuted, and the PWM returns to its centred idle level.
+1. Set SW1 off. In BUILD, move/select/drag/remove parts and toggle SW0/BTNU. Expect silence. Note whether the previously reported unwanted speaker click still occurs.
+2. Press and hold BTNR: hear one test beep. Release before a new test. SW1 on cancels a beep; off must not resume it. BTND stops audio and resets the game.
+3. With the preset build and SW0 on, launch: hear the rising pair, then the success sequence at the goal. Staying on the result screen must not repeat it. Retry should produce a fresh launch cue, and BTNU should stop any old result sound.
+4. Add two balloons above the preset frames and launch with SW0 off. Wait for the launch cue to finish, then click each balloon separately. Expect one short pop per accepted action. Clicking the pig, an empty cell or a popped balloon stays silent. A pop during a higher-priority sound may be intentionally inaudible.
+5. To exercise failure on the flat map, remove the engine, both wheels and the now-empty right frame. Keep the left and centre frames, with the pig in the centre, and place two balloons above them. This mass-eight build has upward acceleration; launch with SW0 off and let it rise out of bounds to hear the falling failure sequence. Retry/edit must restore the original construction.
+6. A landing cue needs a genuine fall/landing, not the normal gentle spawn contact. The flat starter does not provide a convenient jump. This trigger is checked through accepted collision-response fixtures; verify physically once a suitable level is integrated.
+7. Explosion playback is simulation-tested. Physical explosions need Role 3's trigger. Do not claim TNT audio integration until that signal is connected.
 
-`TONE_HALF_CYCLES` and `BEEP_CYCLES` are positive cycle-count parameters. The top exposes them as `AUDIO_TONE_HALF_CYCLES` and `AUDIO_BEEP_CYCLES`; the testbench shortens them for simulation.
+`sound_generator_tb` checks every profile's pitch table, exact note lengths, fades, complete PWM frames and cancellation. `game_audio_tb` checks priority/preemption, simultaneous and held events, muted/drop behaviour, silent ordinary controls, accepted launch/pop/landing/results, retry/edit, BTNR and physical JC mute/reset wiring. New automatic audio still needs board verification and a fresh routed build.
 
-## Validation and next stage
-
-On 22 October 2026, all ten simulation benches passed. `sim/audio_beep_tb.v` checks output duty, tone timing, exact duration, busy requests, mute/reset, held-button suppression, JC control polarity and independence from engine/game controls. Hardware sound and a new routed build still need verification. The previous resource/timing reports predate this module.
-
-After the beep works physically, extend the generator to accept a chosen tone/duration, then connect the existing launch/success/failure events through a small sound controller. Add event priority and duplicate suppression there; add collision/TNT events when their producers are ready.
+On 24 October 2026, all twelve simulation benches and design-only synthesis passed. The full design estimate is 3,395 LUTs (16.32%), 1,506 flip-flops (3.62%) and zero block RAM/DSP use. Reports are in `tmp/audio_events_review/`. These results do not establish routed timing or physical sound quality.
