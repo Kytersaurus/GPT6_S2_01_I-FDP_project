@@ -83,3 +83,8 @@ Keep one coordinator at a time on the top module, project and constraints. Every
 | Integration test | Owner | Purpose |
 | --- | --- | --- |
 | `sim/tnt_integration_tb.v` | Shared - Roles 1, 3 and 4 | Actual damage/audio/animation wiring, queued pops, death-before-goal and retry |
+
+| Programming support | Owner | Purpose |
+| --- | --- | --- |
+| `scripts/archive_bitstream.tcl` | Shared integration - all roles | Archive successful Vivado builds by date and update `bitstreams/LATEST.txt` |
+| `bitstreams/` | Shared integration - all roles | Dated programming files, latest-build pointer and recorded build details |

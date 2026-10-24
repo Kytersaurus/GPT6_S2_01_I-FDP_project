@@ -30,6 +30,9 @@ xsim.dir/
 *.bin
 *.ltx
 
+# Deliberately archived programming files, organised by build date.
+!bitstreams/**/*.bit
+
 # Editor and operating system files
 .vscode/
 .idea/

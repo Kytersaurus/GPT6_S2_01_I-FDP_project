@@ -1,0 +1,37 @@
+[
+  {
+    "path": "2026-10-19/192905_oled-test.bit",
+    "built": "2026-10-19T19:29:05",
+    "source_commit": null,
+    "description": "Earlier OLED construction test",
+    "sha256": "0145b2db7e8d6eb8fa670cba61aa337760756a9376de1196d070665dd991f805"
+  },
+  {
+    "path": "2026-10-21/191139_balloon-test.bit",
+    "built": "2026-10-21T19:11:39",
+    "source_commit": null,
+    "description": "Earlier balloon/control test",
+    "sha256": "230ee1e333afb659221660d2dc2453472d970ef6a6c8e09bd40470303d8c736c"
+  },
+  {
+    "path": "2026-10-24/200820_vivado-build.bit",
+    "built": "2026-10-24T20:08:20",
+    "source_commit": null,
+    "description": "Earlier Vivado output; source revision not recorded",
+    "sha256": "ebfd314e105fcc555f92bc3631b5522ea6dc3d364e9ad8c77c6b9177cb2759fb"
+  },
+  {
+    "path": "2026-10-24/225954_engine-boost-audio.bit",
+    "built": "2026-10-24T22:59:54",
+    "source_commit": "9fd5776",
+    "description": "Engine boost and audio, before TNT integration",
+    "sha256": "78ddee66125e35ae3e56a0f0e68dc3195c2d2c1793b43ddbccb26092e55eafba"
+  },
+  {
+    "path": "2026-10-25/000034_all-role-merge.bit",
+    "built": "2026-10-25T00:00:34",
+    "source_commit": "0e960d4",
+    "description": "Latest: all four roles merged, integrated TNT/collision/audio",
+    "sha256": "276516464bd607de3a5326ab6861b658ad24858dad2120b387e10185b1d4d2c5"
+  }
+]
