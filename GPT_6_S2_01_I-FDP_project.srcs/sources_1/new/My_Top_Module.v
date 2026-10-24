@@ -93,8 +93,9 @@ module My_Top_Module #(
     wire [`LP_TNT_BITS-1:0] tnt_positions;
     wire [1:0] hazard_count;
     wire [`LP_HAZARD_BITS-1:0] hazard_rects;
-    // Placeholder until Role 3's TNT logic reports which blocks have exploded.
-    wire [`LP_MAX_TNT-1:0] tnt_intact = {`LP_MAX_TNT{1'b1}};
+    wire [`LP_MAX_TNT-1:0] tnt_intact;
+    wire tnt_damage_valid, tnt_complete;
+    wire [8:0] tnt_damage_mask, tnt_frame_mask;
     wire move_valid, move_ready, response_valid, response_ready, grounded;
     wire signed [15:0] previous_x, previous_y, proposed_x, proposed_y, proposed_vx, proposed_vy;
     wire signed [15:0] corrected_x, corrected_y, corrected_vx, corrected_vy;
@@ -111,8 +112,7 @@ module My_Top_Module #(
     // Ignore the first gentle contact at spawn and continuous rolling contact.
     wire collision_sound_event = game_state == `LP_RUN && response_valid && response_ready &&
                                  grounded && !audio_was_grounded && $signed(proposed_vy) >= 16'sd128;
-    // Role 3 will connect a one-clock pulse when TNT actually explodes.
-    wire explosion_sound_event = 1'b0;
+    wire explosion_sound_event;
     always @(posedge clk) begin
         if (reset) begin audio_was_grounded <= 0; previous_game_state <= `LP_BUILD; end
         else begin
@@ -184,7 +184,9 @@ module My_Top_Module #(
     ) u_builder (
         .clk(clk), .reset(reset), .game_state(game_state), .run_init(run_init), .init_ready(init_ready[0]),
         .edit_valid(edit_valid), .edit_op(edit_op), .edit_cell(edit_cell), .edit_source(edit_source), .edit_part(edit_part),
-        .damage_valid(pop_valid), .damage_ready(damage_ready), .damage_mask(pop_mask), .damage_frame_mask(9'd0),
+        .damage_valid(pop_valid || tnt_damage_valid), .damage_ready(damage_ready),
+        .damage_mask((pop_valid ? pop_mask : 9'd0) | (tnt_damage_valid ? tnt_damage_mask : 9'd0)),
+        .damage_frame_mask(tnt_damage_valid ? tnt_frame_mask : 9'd0),
         .build_grid(build_grid), .build_frames(build_frames),
         .intact_mask(intact_mask), .frame_intact_mask(frame_intact_mask), .build_valid(build_valid),
         .build_error(build_error), .pig_alive(pig_alive), .wheel_count(wheel_count),
@@ -193,7 +195,7 @@ module My_Top_Module #(
         .frames_left(frames_left), .pigs_left(pigs_left), .wheels_left(wheels_left),
         .engines_left(engines_left), .balloons_left(balloons_left)
     );
-    // TNT positions and hazards are ready for Role 3's checks; world_outcomes does not read them yet.
+    // Geometry stays fixed throughout a run.
     level_data u_level (
         .level_index(level_index), .spawn_x(spawn_x), .spawn_y(spawn_y), .terrain_count(terrain_count),
         .terrain_rects(terrain_rects), .goal_rect(goal_rect), .tnt_count(tnt_count),
@@ -233,9 +235,21 @@ module My_Top_Module #(
         .response_valid(response_valid), .response_ready(response_ready), .corrected_x(corrected_x),
         .corrected_y(corrected_y), .corrected_vx(corrected_vx), .corrected_vy(corrected_vy), .grounded(grounded)
     );
+    // Finish TNT damage before checking the pig and goal for this movement.
+    // Physics holds its committed pose until the world result is accepted.
+    tnt_controller u_tnt (
+        .clk(clk), .reset(reset), .run_init(run_init), .game_state(game_state), .init_ready(),
+        .movement_committed(movement_committed), .previous_x(previous_x), .previous_y(previous_y),
+        .vehicle_x(vehicle_x), .vehicle_y(vehicle_y), .tnt_count(tnt_count), .tnt_positions(tnt_positions),
+        .build_grid(build_grid), .build_frames(build_frames), .intact_mask(intact_mask),
+        .frame_intact_mask(frame_intact_mask), .tnt_intact(tnt_intact),
+        .damage_valid(tnt_damage_valid), .damage_ready(damage_ready),
+        .damage_mask(tnt_damage_mask), .damage_frame_mask(tnt_frame_mask),
+        .explosion_event(explosion_sound_event), .damage_complete(tnt_complete)
+    );
     world_outcomes u_world (
         .clk(clk), .reset(reset), .run_init(run_init), .game_state(game_state), .init_ready(init_ready[2]),
-        .movement_committed(movement_committed), .vehicle_x(vehicle_x), .vehicle_y(vehicle_y),
+        .movement_committed(tnt_complete), .vehicle_x(vehicle_x), .vehicle_y(vehicle_y),
         .build_grid(build_grid), .intact_mask(intact_mask), .goal_rect(goal_rect),
         .hazard_count(hazard_count), .hazard_rects(hazard_rects), .world_valid(world_valid),
         .world_ready(world_ready), .goal_hit(goal_hit), .hazard_hit(hazard_hit), .out_of_bounds(out_of_bounds)

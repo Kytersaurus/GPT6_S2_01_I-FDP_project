@@ -45,7 +45,7 @@ Subsequent local hardware adjustments make startup/reset construction empty with
 
 ## Remaining integration work
 
-TNT damage, spike detection, wall/ceiling collision, instruction screens, final level balancing and board testing remain. The recorded solutions currently prove reachability with the starter collision/world logic; they must be rechecked after real hazards are integrated. The fixed 96 by 64 maps do not scroll or zoom. Physical audio quality and the reported unwanted speaker click still need a fresh hardware test.
+Instruction screens, final level balancing and board testing remain. TNT damage, spike detection and wall/ceiling collision are now connected; see the Role 3 integration below. The fixed 96 by 64 maps do not scroll or zoom. Physical audio quality and the reported unwanted speaker click still need a fresh hardware test.
 
 ## Player features added after the merge
 
@@ -56,3 +56,19 @@ TNT damage, spike detection, wall/ceiling collision, instruction screens, final 
 All 22 benches passed in `tmp/player_features_review/full_simulations.log`. Following the music-counter timing fix, the melody, single-OLED/state wiring and game-audio checks passed again in `music_counter_checks.log`; `melody_loop_check.log` additionally verifies the exact complete-loop length. The `.xpr` includes the new music module and three benches. Supplied OLED/mouse drivers and the main clock/divider are unchanged.
 
 The final routed design uses **6,003 LUTs (28.86%)**, **2,193 flip-flops (5.27%)**, **13 DSPs (14.44%)** and **no block RAM**. Constrained 100 MHz setup/hold timing passes with **0.055 ns setup slack** and **0.078 ns hold slack**. DRC has no error/critical-warning rules; only the existing DSP pipelining suggestions remain. Divided-OLED and external-I/O timing remain incompletely constrained. Reports and the local routed checkpoint are in `tmp/player_features_review/`; **no bitstream was generated**. Physical verification of both JA views, centred dragging, returns and audible BGM/effects is still required. These changes remain local and uncommitted.
+
+## Role 3 merge integration — 24 October 2026
+
+The Role 3 merge is connected to the actual hardware top. A committed movement first captures every contacted TNT. Each explosion supplies separate frame/content masks to the builder, an audio pulse to the sound controller, and intact-state changes to the animation/display snapshot. Balloon clicks queue during movement and apply after its world response; both valid content masks are combined if they coincide. The world checks run only after all TNT damage transfers have settled, so a pig destroyed on goal entry fails instead of winning. A movement without TNT also completes normally. BUILD and retry restore TNT; runtime damage does not change the saved build or refund stock.
+
+The first integration timing check found the parallel blast calculation too long for 100 MHz. The controller now shares a small distance lookup and checks one cell at a time across several clocks. It captures the committed pose and drains all contacted TNT before releasing world checks. This preserves the circular 12-pixel radius without wide per-cell multipliers.
+
+The side collision checks use the previous vertical span: a small gravity proposal cannot turn the far floor edge of the Level 2 gap into a wall during landing. The recorded solution puts the engine in rear cell 3 and the pig in cell 4. It clears both provisional levels; on Level 2 it loses front wheel 8 and frame 5 to TNT while the engine and pig survive. This is a reachability check, not final level balancing.
+
+The existing boost test exposed a missing mouse request: the RUN boost button was drawn but never pulsed `boost_req`. That pulse is now connected, and its test waits for the shared startup reset with a bounded timeout. The default runner includes the boost test and the new top-level TNT integration test. Vivado registers all tests for simulation, restores the baseline simulation top, and no longer refers to a generated incremental checkpoint.
+
+Hardware testing: reopen the current project, generate a new bitstream and program that exact file. Check the Level 2 blast removes the front wheel/frame, updates left-side status, plays explosion audio and animates the TNT. Check pig death, queued balloon popping, retry restoration, boost, SW1 mute and SW15 single-OLED view. The checked-in bitstream predates this integration and was intentionally not regenerated.
+
+The routed check then exposed a small construction-editor path violation (-0.212 ns). BUILD intact masks now derive directly from the saved content/frame layers, with separate runtime mask registers for damage. This removes duplicate per-edit mask updates and their long acceptance path while keeping a restored runtime copy ready for launch. The focused construction, module-contract and drag/drop tests pass with unchanged expectations.
+
+Final validation: all 26 benches in the default runner pass (`tmp/role3_builder_final_simulations.log`). The final fully routed design uses 6,729 LUTs (32.35%), 2,375 registers (5.71%), 13 DSPs (14.44%) and no block RAM. Constrained 100 MHz setup/hold checks pass with +0.020 ns setup and +0.035 ns hold slack; setup margin is small and future edits must be rechecked. DRC has no error/critical-warning rules; its 49 warnings are DSP pipeline suggestions. The divided OLED clock and external I/O retain their existing incomplete timing coverage, with no added generated-clock constraint. Reports are under `tmp/role3_validation/`. No bitstream was generated.

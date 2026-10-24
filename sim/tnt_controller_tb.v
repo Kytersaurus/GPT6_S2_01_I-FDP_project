@@ -54,6 +54,15 @@ module tnt_controller_tb;
         end
     endtask
 
+    task wait_damage;
+        integer waited;
+        begin
+            waited=0;
+            while (!damage_valid && waited<64) begin clocks(1); waited=waited+1; end
+            if (!damage_valid) $fatal(1,"TNT damage calculation stalled");
+        end
+    endtask
+
     initial begin
         // TNT 0 is at x=60,y=48. Cell 4 is close enough to be damaged.
         tnt_count=1;
@@ -67,6 +76,7 @@ module tnt_controller_tb;
         clocks(3);
         reset=0;
         clocks(1);
+        if (tnt_intact!={`LP_MAX_TNT{1'b1}}) $fatal(1,"BUILD preview hides intact TNT");
         start_run();
 
         // The vehicle travels from x=0 to x=48 in one update. Its swept
@@ -78,6 +88,7 @@ module tnt_controller_tb;
         movement_committed=1;
         clocks(1);
         movement_committed=0;
+        wait_damage();
 
         if (!explosion_event || tnt_intact[0] ||
             !damage_valid || !damage_mask[4] || !damage_frame_mask[4])
@@ -91,8 +102,10 @@ module tnt_controller_tb;
         damage_ready=1;
         clocks(1);
         damage_ready=0;
-        if (damage_valid || !damage_complete)
+        if (damage_valid || damage_complete)
             $fatal(1, "Damage request did not complete");
+        clocks(1);
+        if (!damage_complete) $fatal(1,"Movement was not released after damage");
 
         // A triggered TNT cannot trigger repeatedly.
         clocks(2);
@@ -101,12 +114,40 @@ module tnt_controller_tb;
         movement_committed=0;
         if (explosion_event || damage_valid)
             $fatal(1, "Triggered TNT fired more than once");
+        movement_committed=0;
+        clocks(1);
+        if (!damage_complete) $fatal(1,"No-explosion movement did not complete");
+
+        // Both TNT in the same sweep must be processed before releasing world checks.
+        start_run();
+        tnt_count=2;
+        tnt_positions={32'd0,8'd48,8'd61,8'd48,8'd60};
+        movement_committed=1;
+        clocks(1); movement_committed=0;
+        wait_damage();
+        if (!damage_valid || tnt_intact[0] || !tnt_intact[1])
+            $fatal(1,"First of two TNT was not selected");
+        damage_ready=1;
+        clocks(1);
+        damage_ready=0;
+        if (damage_complete) $fatal(1,"World released before the second TNT");
+        wait_damage();
+        if (!damage_valid || !explosion_event || tnt_intact[1])
+            $fatal(1,"Second touched TNT was lost");
+        damage_ready=1; clocks(1); clocks(1);
+        if (!damage_complete || damage_valid) $fatal(1,"Multiple TNT did not finish");
+        damage_ready=0;
 
         // Initialisation represents both a fresh launch and retry, so TNT
         // becomes active again.
         start_run();
         if (!tnt_intact[0])
             $fatal(1, "Retry did not rearm TNT");
+
+        // Leaving RUN cancels pending requests and restores the BUILD map preview.
+        game_state=`LP_BUILD; clocks(1);
+        if (damage_valid || tnt_intact!={`LP_MAX_TNT{1'b1}})
+            $fatal(1,"BUILD did not cancel damage and restore TNT");
 
         $display("PASS tnt_controller_tb: swept trigger, one-shot state, damage masks, backpressure and retry");
         $finish;

@@ -213,6 +213,8 @@ module collision_engine (
                             new_right > rect_left &&
                             new_left < rect_right;
 
+                        // Test sideways motion at the previous height. Gravity
+                        // must not turn a floor edge into a wall while landing.
                         left_wall_hit[check_index] <=
                             check_index < saved_count &&
                             saved_terrain[check_index*32+16 +: 8] != 0 &&
@@ -220,8 +222,8 @@ module collision_engine (
                             !saved_vx[15] &&
                             old_right <= rect_left &&
                             new_right > rect_left &&
-                            new_bottom > rect_top &&
-                            new_top < rect_bottom;
+                            old_bottom > rect_top &&
+                            old_top < rect_bottom;
 
                         right_wall_hit[check_index] <=
                             check_index < saved_count &&
@@ -230,8 +232,8 @@ module collision_engine (
                             saved_vx[15] &&
                             old_left >= rect_right &&
                             new_left < rect_right &&
-                            new_bottom > rect_top &&
-                            new_top < rect_bottom;
+                            old_bottom > rect_top &&
+                            old_top < rect_bottom;
                     end
                     phase <= CHOOSE;
                 end

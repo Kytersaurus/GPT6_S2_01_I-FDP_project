@@ -25,8 +25,8 @@ module vehicle_builder #(
     input wire [8:0] damage_frame_mask,
     output reg [26:0] build_grid,
     output reg [8:0] build_frames,
-    output reg [8:0] intact_mask,
-    output reg [8:0] frame_intact_mask,
+    output wire [8:0] intact_mask,
+    output wire [8:0] frame_intact_mask,
     output reg build_valid,
     output reg [3:0] build_error,
     output reg [2:0] feedback_code,
@@ -37,6 +37,16 @@ module vehicle_builder #(
     output reg [7:0] mass_units
 );
     reg [8:0] content_mask;
+    reg [8:0] runtime_intact, runtime_frames;
+    integer mask_index;
+    // BUILD always shows the saved construction. Only RUN needs stored damage.
+    assign intact_mask = game_state == `LP_BUILD ? content_mask : runtime_intact;
+    assign frame_intact_mask = game_state == `LP_BUILD ? build_frames : runtime_frames;
+    always @* begin
+        content_mask=0;
+        for (mask_index=0; mask_index<9; mask_index=mask_index+1)
+            content_mask[mask_index]=(build_grid[mask_index*3 +: 3] != `LP_PART_EMPTY);
+    end
     reg placement_valid, stock_valid;
     integer index, saved_frames, saved_pigs, saved_wheels, saved_engines, saved_balloons;
     reg [2:0] part;
@@ -126,8 +136,8 @@ module vehicle_builder #(
             // Start empty; retry still restores the player's saved construction.
             build_grid <= 0;
             build_frames <= 0;
-            intact_mask <= 0;
-            frame_intact_mask <= 0;
+            runtime_intact <= 0;
+            runtime_frames <= 0;
             init_ready <= 0;
             feedback_code <= `LP_FEEDBACK_NONE; feedback_cell <= 0; feedback_count <= 0;
         end
@@ -144,53 +154,46 @@ module vehicle_builder #(
             if (!run_init) init_ready <= 0;
             if (run_init && !init_ready) begin
                 // Retry restores both layers of the saved build.
-                intact_mask <= content_mask;
-                frame_intact_mask <= build_frames;
+                runtime_intact <= content_mask;
+                runtime_frames <= build_frames;
                 init_ready <= 1;
             end
             else if (game_state == `LP_BUILD) begin
-                // Returning to construction also restores damaged parts.
-                intact_mask <= content_mask;
-                frame_intact_mask <= build_frames;
+                // The BUILD outputs follow the saved layers directly.
+                // Keep a restored runtime copy ready for the next launch.
+                runtime_intact <= content_mask;
+                runtime_frames <= build_frames;
                 if (edit_result == `LP_FEEDBACK_PLACED) begin
                     if (edit_op == `LP_EDIT_MOVE) begin
                         // Source and destination change on the same edge; stock is unchanged.
                         build_grid[edit_source*3 +: 3] <= `LP_PART_EMPTY;
                         build_grid[edit_cell*3 +: 3] <= source_part;
-                        intact_mask[edit_source] <= 0;
-                        intact_mask[edit_cell] <= (source_part != `LP_PART_EMPTY);
                         if (edit_part == `LP_PART_FRAME) begin
                             build_frames[edit_source] <= 0; build_frames[edit_cell] <= 1;
-                            frame_intact_mask[edit_source] <= 0; frame_intact_mask[edit_cell] <= 1;
                         end
                     end else if (edit_part == `LP_PART_FRAME) begin
                         build_frames[edit_cell] <= 1'b1;
-                        frame_intact_mask[edit_cell] <= 1'b1;
                     end else begin
                         // [start +: 3] selects one cell's three content bits.
                         build_grid[edit_cell*3 +: 3] <= edit_part;
-                        intact_mask[edit_cell] <= 1'b1;
                     end
                 end else if (edit_result == `LP_FEEDBACK_REMOVED) begin
                     if (edit_op == `LP_EDIT_RETURN) begin
                         build_grid[edit_source*3 +: 3] <= `LP_PART_EMPTY;
-                        intact_mask[edit_source] <= 0;
                         if (edit_part == `LP_PART_FRAME) begin
-                            build_frames[edit_source] <= 0; frame_intact_mask[edit_source] <= 0;
+                            build_frames[edit_source] <= 0;
                         end
                     // Right click removes contents first, then the empty frame.
                     end else if (build_grid[edit_cell*3 +: 3] != `LP_PART_EMPTY) begin
                         build_grid[edit_cell*3 +: 3] <= `LP_PART_EMPTY;
-                        intact_mask[edit_cell] <= 1'b0;
                     end else begin
                         build_frames[edit_cell] <= 1'b0;
-                        frame_intact_mask[edit_cell] <= 1'b0;
                     end
                 end
             end
             else if (damage_valid && damage_ready) begin
-                intact_mask <= intact_mask & ~damage_mask;
-                frame_intact_mask <= frame_intact_mask & ~damage_frame_mask;
+                runtime_intact <= runtime_intact & ~damage_mask;
+                runtime_frames <= runtime_frames & ~damage_frame_mask;
             end
         end
     end
@@ -198,10 +201,9 @@ module vehicle_builder #(
         wheel_count = 0; engine_count = 0; balloon_count = 0;
         mass_units = 0; pig_alive = 0; part = 0;
         saved_frames = 0; saved_pigs = 0; saved_wheels = 0; saved_engines = 0; saved_balloons = 0;
-        content_mask = 0; placement_valid = 1;
+        placement_valid = 1;
         for (index = 0; index < 9; index = index + 1) begin
             part = build_grid[index*3 +: 3];
-            content_mask[index] = (part != `LP_PART_EMPTY);
             if (part == `LP_PART_PIG) saved_pigs = saved_pigs + 1;
             if (build_frames[index]) saved_frames = saved_frames + 1;
             if (part == `LP_PART_WHEEL) saved_wheels = saved_wheels + 1;

@@ -1,10 +1,10 @@
 // Owner: Role 4 - Marcus. Recorded solutions: the test vehicle clears both levels.
 `timescale 1ns / 1ps
 `include "game_defs.vh"
-// Solution for both levels: the test build (frames in cells 3-5, pig in 4, engine in 5,
+// Solution for both levels: the test build (frames in cells 3-5, pig in 4, engine in 3,
 // wheels in 6 and 8) with SW0 on. It drives right along y=56 into the goal at x=80.
 // On level 2 the 24-pixel vehicle spans the 16-pixel spiked pit without dropping.
-// TNT and hazard checks are not implemented by Role 3 yet; recheck once they are.
+// On level 2 the front wheel/frame are sacrificed to TNT; the rear engine survives.
 module role4_level_solutions_tb;
     reg clk=0, btnC=0, btnU=0, btnD=1;
     reg [15:0] sw=2'b01;
@@ -25,7 +25,7 @@ module role4_level_solutions_tb;
         begin
             dut.u_builder.build_grid = {
                 `LP_PART_WHEEL, `LP_PART_EMPTY, `LP_PART_WHEEL,
-                `LP_PART_ENGINE, `LP_PART_PIG, `LP_PART_EMPTY,
+                `LP_PART_EMPTY, `LP_PART_PIG, `LP_PART_ENGINE,
                 `LP_PART_EMPTY, `LP_PART_EMPTY, `LP_PART_EMPTY
             };
             dut.u_builder.build_frames = 9'b000111000;
@@ -58,6 +58,9 @@ module role4_level_solutions_tb;
                        level+1,dut.game_state,dut.fail_reason,dut.vehicle_x,dut.vehicle_y);
             if (lowest_y !== 16'sd8192) $fatal(1,"Level %0d: vehicle left the ground line (y=%0d)",level+1,lowest_y);
             if (dut.vehicle_x < 16'sd14336) $fatal(1,"Level %0d: success before the goal",level+1);
+            if (level && (dut.tnt_intact[0] || dut.intact_mask[8] || dut.frame_intact_mask[5] ||
+                          !dut.intact_mask[3] || !dut.pig_alive))
+                $fatal(1,"Level 2 did not apply the expected TNT damage");
         end
     endtask
     initial begin

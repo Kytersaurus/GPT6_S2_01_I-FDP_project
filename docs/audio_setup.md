@@ -31,7 +31,7 @@ BUILD plays at 96 BPM; RUN uses the same melody at 120 BPM. Effects take over th
 | --- | --- | --- | --- |
 | Failure / pig death | 440, 330, 220 Hz falling sequence | 420 ms | Accepted `failure_event` |
 | Success | 660, 880, 1320 Hz rising sequence | 300 ms | Accepted `success_event` |
-| Explosion | 160, 110, 70 Hz low falling sequence | 240 ms | Prepared; Role 3 must drive `explosion_sound_event` |
+| Explosion | 160, 110, 70 Hz low falling sequence | 240 ms | Connected to accepted TNT explosions |
 | Landing | 220 Hz low bump | 60 ms | First accepted grounded response after airborne, impact >=0.5 pixel/update |
 | Balloon pop | 1600 Hz short tone | 40 ms | Non-empty pop mask accepted by builder |
 | Launch / retry | 660, 990 Hz rising pair | 160 ms | Accepted `launch_event` |
@@ -39,7 +39,7 @@ BUILD plays at 96 BPM; RUN uses the same melody at 120 BPM. Effects take over th
 
 Higher rows have higher priority. A new higher-priority event interrupts the current sound. Equal/lower requests while busy are discarded, including another pop; there is no backlog to play after a result. A held event plays once and must go low before another trigger. A batch of accepted balloon pops makes one cue. Muted events are consumed rather than replayed on unmute.
 
-Mouse selection, dragging, placement/removal, invalid launch, BTNU and SW0 do not add generic click sounds over BGM. BTNC only sounds when the game actually accepts a launch/retry. TNT damage/explosion triggering and wall/ceiling impacts remain Role 3 integrations, not test stubs in the hardware design.
+Mouse selection, dragging, placement/removal, invalid launch, BTNU and SW0 do not add generic click sounds over BGM. BTNC only sounds when the game actually accepts a launch/retry. TNT damage and explosion audio are connected. Landing impacts have audio; separate wall/ceiling impact sounds remain future work.
 
 ## Implementation
 
@@ -57,7 +57,7 @@ The AMP2 remains enabled between sounds; `JXADC[3]` changes only for reset/mute,
 4. Add two balloons above that vehicle's frames and launch with SW0 off. Wait for the launch cue to finish, then click each balloon separately. Expect one short pop per accepted action. Clicking the pig, an empty cell or a popped balloon stays silent. A pop during a higher-priority sound may be intentionally inaudible.
 5. To exercise failure, add two balloons above that vehicle's middle-row frames. With integrated lift (24 per balloon, gravity 32), the valid vehicle rises even with all of those parts. Launch with SW0 off and let it rise out of bounds to hear the falling failure sequence. Retry/edit must restore the original construction.
 6. A landing cue needs a genuine fall/landing, not gentle spawn contact. Launch that vehicle without balloons and with SW0 off, wait for ground contact, then press BTNL to jump. Expect one low bump when it lands. Holding BTNL must not repeatedly jump. SW2 reverses engine thrust independently of SW1 mute; BTNR remains the test beep.
-7. Explosion playback is simulation-tested. Physical explosions need Role 3's trigger. Do not claim TNT audio integration until that signal is connected.
+7. Contact a TNT in RUN: verify damage and the explosion animation/sound. Pig death can interrupt the explosion tone because failure has higher priority. Retry restores the vehicle and TNT.
 
 `sound_generator_tb` checks every profile's pitch table, exact note lengths, fades, complete PWM frames and cancellation. `bgm_player_tb` checks the melody, loop, quiet shared PWM, effect pause/resume, mute and reset. `single_oled_tb` checks BUILD/RUN/result tempo/enable wiring and global mute. With BGM disabled for isolation, `game_audio_tb` checks priority/preemption, simultaneous and held events, muted/drop behaviour, silent ordinary controls, accepted launch/pop/landing/results, retry/edit, BTNR and physical JXADC mute/reset wiring. New automatic audio still needs board verification and a fresh routed build.
 

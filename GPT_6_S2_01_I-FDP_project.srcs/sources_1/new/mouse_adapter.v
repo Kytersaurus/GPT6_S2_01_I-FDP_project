@@ -115,10 +115,10 @@ module mouse_adapter (
                         end
                     end
                 end else if (input_enabled && game_state == `LP_RUN && mouse_left && !left_was_down &&
-                             !mouse_right && in_grid) begin
+                             !mouse_right) begin
                     // Gameplay uses one fresh press, rather than construction's drop.
-                    pop_req <= 1;
-                    pop_cell <= hovered_cell;
+                    if (in_grid) begin pop_req <= 1; pop_cell <= hovered_cell; end
+                    else if (in_boost) boost_req <= 1;
                 end
             end
         end

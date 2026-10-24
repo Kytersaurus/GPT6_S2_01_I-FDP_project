@@ -162,6 +162,14 @@ module collision_engine_tb;
         check_case(20*256,20*256,40*256,40*256,512,512,
                    32*256,32*256,0,0,1);
 
+        // Cross the level 2 gap while still supported by the left ground.
+        // The small gravity step must not catch the right floor as a wall.
+        count=2;
+        terrain={64'd0,8'd8,8'd44,8'd56,8'd52,
+                          8'd8,8'd36,8'd56,8'd0};
+        check_case(27*256,32*256,28*256+128,32*256+32,256,32,
+                   28*256+128,32*256,256,0,1);
+
         // Reset discards a captured request and restores readiness.
         ground();
         move_valid=1;

@@ -22,8 +22,9 @@ All design files below are in `GPT_6_S2_01_I-FDP_project.srcs/sources_1/new/`.
 | `seven_seg_oled.v` | Role 1 - Kaushal; used by Role 4 | User's digit drawing helper |
 | `physics_engine.v` | Role 2 - Kyle | Staged force/mass movement, fractional carry, ground friction/thrust, reverse, queued jumping and balloon lift |
 | `signed_divider16.v` | Role 2 - Kyle | Clocked signed 16-bit force divided by unsigned 8-bit mass |
-| `collision_engine.v` | Role 3 - Yap Ting | Staged platform landing; walls, ceilings and TNT remain to be added |
-| `world_outcomes.v` | Role 3 - Yap Ting | Goal and bounds checks; hazards/TNT remain to be added |
+| `collision_engine.v` | Role 3 - Yap Ting | Staged platform, wall and ceiling response with floor-edge handling |
+| `tnt_controller.v` | Role 3 - Yap Ting; shared integration with Role 1 | Swept TNT contact, queued explosions and separate frame/content blast masks |
+| `world_outcomes.v` | Role 3 - Yap Ting | Goal, spike/hazard and bounds checks after TNT damage |
 | `game_controller.v` | Role 4 - Marcus | Build/run/result/retry states and update sequencing |
 | `level_data.v` | Role 4 - Marcus | Two provisional levels: terrain, spawn, goal, TNT and hazards |
 | `level_button.v` | Role 4 - Marcus | Left OLED level button click, read from the shared mouse position |
@@ -38,7 +39,7 @@ All design files below are in `GPT_6_S2_01_I-FDP_project.srcs/sources_1/new/`.
 | `Mouse_Control.vhd` | Supplied driver; Role 1 integrates | Original driver and attribution preserved; instantiated for mouse input |
 | `Ps2Interface.vhd` | Supplied driver; Role 1 integrates | Unchanged mouse-driver dependency |
 
-Audio scheduling and gameplay input belong to Role 1; the explosion event awaits Role 3 integration. Future movement tuning belongs to Role 2, TNT/collision additions to Role 3, and instructions, levels and detailed display content to Role 4. These future features are not included in this starter.
+Audio scheduling and gameplay input belong to Role 1; Role 3 TNT events now drive damage, explosion audio and animation. Future movement tuning belongs to Role 2, TNT/collision tuning to Role 3, and instructions, levels and detailed display content to Role 4. Instructions and final level balancing remain to be completed.
 
 | Project/support file | Owner | Purpose |
 | --- | --- | --- |
@@ -78,3 +79,7 @@ Audio scheduling and gameplay input belong to Role 1; the explosion event awaits
 | `sim/game_baseline_tb.v` | Shared - all roles | Connected starter game-loop checks |
 
 Keep one coordinator at a time on the top module, project and constraints. Everyone extends their own existing modules; the source ports and `docs/interfaces.md` replace the old template copies.
+
+| Integration test | Owner | Purpose |
+| --- | --- | --- |
+| `sim/tnt_integration_tb.v` | Shared - Roles 1, 3 and 4 | Actual damage/audio/animation wiring, queued pops, death-before-goal and retry |

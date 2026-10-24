@@ -50,9 +50,9 @@ module boost_controls_tb;
     endtask
 
     initial begin
-        clocks(5);
+        clocks(20);
         btnD = 0;
-        clocks(5);
+        clocks(280); // Wait for the shared startup reset before installing the build.
 
         // Put vehicle in builder
         dut.u_builder.build_grid = {
@@ -81,7 +81,8 @@ module boost_controls_tb;
 
         if (!dut.boost_active) $fatal(1, "Boost failed to activate after clicking boost button");
 
-        $display("PASS boost_controls_tb: on-screen boost click, timed activation, and exclusion");
+        $display("PASS boost_controls_tb: on-screen boost click, activation, and exclusion");
         $finish;
     end
+    initial begin #200000; $fatal(1,"Boost control test timed out"); end
 endmodule
