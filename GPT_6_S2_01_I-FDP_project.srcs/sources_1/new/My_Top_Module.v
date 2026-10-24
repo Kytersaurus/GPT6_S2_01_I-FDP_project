@@ -236,7 +236,8 @@ module My_Top_Module #(
     world_outcomes u_world (
         .clk(clk), .reset(reset), .run_init(run_init), .game_state(game_state), .init_ready(init_ready[2]),
         .movement_committed(movement_committed), .vehicle_x(vehicle_x), .vehicle_y(vehicle_y),
-        .build_grid(build_grid), .intact_mask(intact_mask), .goal_rect(goal_rect), .world_valid(world_valid),
+        .build_grid(build_grid), .intact_mask(intact_mask), .goal_rect(goal_rect),
+        .hazard_count(hazard_count), .hazard_rects(hazard_rects), .world_valid(world_valid),
         .world_ready(world_ready), .goal_hit(goal_hit), .hazard_hit(hazard_hit), .out_of_bounds(out_of_bounds)
     );
 
