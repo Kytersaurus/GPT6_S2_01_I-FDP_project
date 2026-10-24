@@ -1,5 +1,9 @@
 # Basys3 programming file
 
-`My_Top_Module.bit` was built on 24 October 2026 at 22:59 from the implementation at `9fd5776`, before the Role 3 merge and TNT integration. It includes the earlier construction, display and audio features.
+`My_Top_Module.bit` was built on 25 October 2026 at 00:00 (Singapore time) from source commit `0e960d4`, with all four roles merged and the TNT integration completed.
 
-To test integrated TNT, hazards and collision fixes, open the current project in Vivado, generate a new bitstream, and select that new file in Program Device. The checked-in `.bit` has not been regenerated during integration.
+Includes vehicle construction, mouse drag/drop, physics and engine boost, terrain collisions, hazards, TNT damage, explosion animation/audio, level displays and retry restoration. All 26 simulations passed before generation; the routed build passed the constrained 100 MHz setup/hold checks.
+
+Download this file and select it in Vivado Hardware Manager > Program Device.
+
+SHA-256: `276516464bd607de3a5326ab6861b658ad24858dad2120b387e10185b1d4d2c5`.
