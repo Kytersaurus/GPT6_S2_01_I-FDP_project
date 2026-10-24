@@ -71,7 +71,7 @@ module construction_controls_tb;
     );
     game_controller launch_guard (
         .clk(clk),.reset(reset),.launch_req(launch),.retry_req(1'b0),.edit_req(1'b0),
-        .guide_open_req(1'b0),.guide_close_req(1'b0),.build_valid(valid && !edit_valid),.pig_alive(pig_alive),
+        .guide_open_req(1'b0),.guide_close_req(1'b0),.level_next_req(1'b0),.build_valid(valid && !edit_valid),.pig_alive(pig_alive),
         .init_ready(3'd0),.physics_tick(1'b0),.world_valid(1'b0),.world_ready(),
         .gameplay_pending(1'b0),.gameplay_ready(),
         .goal_hit(1'b0),.hazard_hit(1'b0),.out_of_bounds(1'b0),.game_state(guarded_state),
@@ -142,7 +142,7 @@ module construction_controls_tb;
         saved_grid=grid; saved_frames=frames;
         packet(74,8,1,0); packet(12,12,1,0);
         if (!drag_active) $fatal(1,"Held construction drag has no preview");
-        expect_pixel(15,15,16'ha285); expect_pixel(18,18,16'h0841);
+        expect_pixel(15,15,16'ha285); expect_pixel(17,16,16'h0841);
         expect_pixel(12,12,16'hffff);
         packet(28,12,1,0);
         expect_pixel(31,15,16'ha285); expect_pixel(15,15,16'h0841);
@@ -150,21 +150,21 @@ module construction_controls_tb;
         if (drag_active) $fatal(1,"Outside release left the preview active");
         expect_pixel(31,15,16'h0841);
         packet(74,18,1,0); packet(12,12,1,0);
-        expect_pixel(15,15,16'h07e0); expect_pixel(17,17,16'h0000);
+        expect_pixel(17,17,16'h07e0); expect_pixel(17,18,16'h0000);
         packet(54,55,0,0);
         packet(74,28,1,0); packet(12,12,1,0);
-        expect_pixel(15,15,16'hffff); expect_pixel(18,18,16'h0841);
+        expect_pixel(17,17,16'hffff); expect_pixel(15,15,16'h0841);
         packet(54,55,0,0);
         packet(74,38,1,0); packet(12,12,1,0);
-        expect_pixel(15,15,16'hf800); expect_pixel(17,18,16'hffe0);
+        expect_pixel(17,18,16'hf800); expect_pixel(18,18,16'hffe0);
         packet(54,55,0,0);
         packet(74,48,1,0); packet(12,12,1,0);
-        expect_pixel(16,15,16'hf81f); expect_pixel(18,21,16'hffff);
+        expect_pixel(17,15,16'hf81f); expect_pixel(18,21,16'hffff);
         // Clamp the whole preview at the screen edge, without wrapping coordinates.
         packet(4095,4095,1,0);
-        expect_pixel(89,56,16'hf81f); expect_pixel(91,62,16'hffff);
+        expect_pixel(90,56,16'hf81f); expect_pixel(91,62,16'hffff);
         expect_pixel(95,63,16'hffff); expect_pixel(16,15,16'h0841);
-        packet(0,0,1,0); expect_pixel(4,3,16'hf81f);
+        packet(0,0,1,0); expect_pixel(5,3,16'hf81f);
         packet(54,55,0,0);
         if (drag_active || grid!==saved_grid || frames!==saved_frames || edit_count!=0 ||
             frames_left!=2 || pigs_left!=0 || wheels_left!=0 || engines_left!=0 || balloons_left!=2)

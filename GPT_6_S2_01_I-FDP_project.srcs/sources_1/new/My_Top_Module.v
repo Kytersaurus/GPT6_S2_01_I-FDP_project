@@ -11,7 +11,7 @@
 
 `include "game_defs.vh"
 
-// SW0 engine, SW1 mute; BTNC launch/retry, BTNU edit, BTNR test beep, BTND reset.
+// SW0 engine, SW1 mute; BTNC launch/retry, BTNU edit (next level after success), BTNR test beep, BTND reset.
 module My_Top_Module #(
     parameter integer PHYSICS_CYCLES = 1666667,
     parameter integer BUTTON_DEBOUNCE_CYCLES = 20000000,
@@ -59,6 +59,17 @@ module My_Top_Module #(
     wire [2:0] terrain_count;
     wire [127:0] terrain_rects;
     wire [31:0] goal_rect;
+    wire level_next_req, level_index;
+    wire [1:0] fail_reason;
+    wire [6:0] run_seconds;
+    wire [2*`LP_MAX_TNT-1:0] blast_phase;
+    // Accepted launch and result pulses for Role 1 audio; Role 4 does not schedule sounds.
+    wire [2:0] tnt_count;
+    wire [`LP_TNT_BITS-1:0] tnt_positions;
+    wire [1:0] hazard_count;
+    wire [`LP_HAZARD_BITS-1:0] hazard_rects;
+    // Placeholder until Role 3's TNT logic reports which blocks have exploded.
+    wire [`LP_MAX_TNT-1:0] tnt_intact = {`LP_MAX_TNT{1'b1}};
     wire move_valid, move_ready, response_valid, response_ready, grounded;
     wire signed [15:0] previous_x, previous_y, proposed_x, proposed_y, proposed_vx, proposed_vy;
     wire signed [15:0] corrected_x, corrected_y, corrected_vx, corrected_vy;
@@ -126,6 +137,10 @@ module My_Top_Module #(
         .edit_valid(edit_valid), .edit_op(edit_op), .edit_cell(edit_cell), .edit_part(edit_part),
         .pop_req(pop_req), .pop_cell(pop_cell)
     );
+    level_button u_level_button (
+        .clk(clk), .reset(reset), .game_state(game_state), .mouse_x(mouse_x), .mouse_y(mouse_y),
+        .mouse_left(mouse_left), .mouse_event(mouse_event), .level_next_req(level_next_req)
+    );
     balloon_control u_balloons (
         .clk(clk), .reset(reset), .game_state(game_state), .pop_req(pop_req), .pop_cell(pop_cell),
         .build_grid(build_grid), .intact_mask(intact_mask), .gameplay_ready(gameplay_ready),
@@ -146,18 +161,26 @@ module My_Top_Module #(
         .frames_left(frames_left), .pigs_left(pigs_left), .wheels_left(wheels_left),
         .engines_left(engines_left), .balloons_left(balloons_left)
     );
+    // TNT positions and hazards are ready for Role 3's checks; world_outcomes does not read them yet.
     level_data u_level (
-        .spawn_x(spawn_x), .spawn_y(spawn_y), .terrain_count(terrain_count),
-        .terrain_rects(terrain_rects), .goal_rect(goal_rect)
+        .level_index(level_index), .spawn_x(spawn_x), .spawn_y(spawn_y), .terrain_count(terrain_count),
+        .terrain_rects(terrain_rects), .goal_rect(goal_rect), .tnt_count(tnt_count),
+        .tnt_positions(tnt_positions), .hazard_count(hazard_count), .hazard_rects(hazard_rects)
     );
     game_controller u_game (
         .clk(clk), .reset(reset), .launch_req(start_press), .retry_req(start_press), .edit_req(edit_press),
-        .guide_open_req(1'b0), .guide_close_req(1'b0), .build_valid(build_valid && !edit_valid), .pig_alive(pig_alive),
+        .guide_open_req(1'b0), .guide_close_req(1'b0), .level_next_req(level_next_req),
+        .level_index(level_index), .fail_reason(fail_reason), .run_seconds(run_seconds),
+        .build_valid(build_valid && !edit_valid), .pig_alive(pig_alive),
         .init_ready(init_ready), .physics_tick(physics_tick), .world_valid(world_valid), .world_ready(world_ready),
         .gameplay_pending(pop_pending), .gameplay_ready(gameplay_ready),
         .goal_hit(goal_hit), .hazard_hit(hazard_hit), .out_of_bounds(out_of_bounds), .game_state(game_state),
         .run_init(run_init), .step_start(step_start), .update_release(update_release),
         .launch_event(launch_event), .success_event(success_event), .failure_event(failure_event)
+    );
+    explosion_fx u_explosions (
+        .clk(clk), .reset(reset), .run_init(run_init), .physics_tick(physics_tick),
+        .tnt_intact(tnt_intact), .blast_phase(blast_phase)
     );
     physics_engine u_physics (
         .clk(clk), .reset(reset), .game_state(game_state), .run_init(run_init), .init_ready(init_ready[1]),
@@ -184,11 +207,12 @@ module My_Top_Module #(
         .world_ready(world_ready), .goal_hit(goal_hit), .hazard_hit(hazard_hit), .out_of_bounds(out_of_bounds)
     );
 
-    wire [130:0] snapshot_in = {game_state, build_grid, intact_mask, frame_intact_mask, build_valid, build_error,
+    wire [161:0] snapshot_in = {game_state, build_grid, intact_mask, frame_intact_mask, build_valid, build_error,
                               vehicle_x, vehicle_y, engine_enabled, frames_left, pigs_left, wheels_left,
                               engines_left, balloons_left, cursor_x, cursor_y, selected_part, drag_active,
-                              feedback_code, feedback_cell};
-    wire [130:0] snapshot_out;
+                              feedback_code, feedback_cell, level_index, fail_reason, tnt_intact,
+                              build_frames, run_seconds, blast_phase};
+    wire [161:0] snapshot_out;
     wire [2:0] draw_state;
     wire [26:0] draw_grid;
     wire [8:0] draw_intact, draw_frames;
@@ -200,32 +224,58 @@ module My_Top_Module #(
     wire [6:0] draw_cursor_x, draw_cursor_y;
     wire [2:0] draw_selected_part;
     wire signed [15:0] draw_x, draw_y;
+    wire draw_level;
+    wire [8:0] draw_saved_frames;
+    wire [6:0] draw_seconds;
+    wire [2*`LP_MAX_TNT-1:0] draw_blast;
+    wire [1:0] draw_fail_reason;
+    wire [`LP_MAX_TNT-1:0] draw_tnt_intact;
+    wire signed [15:0] draw_spawn_x, draw_spawn_y;
+    wire [2:0] draw_terrain_count, draw_tnt_count;
+    wire [127:0] draw_terrain_rects;
+    wire [31:0] draw_goal_rect;
+    wire [`LP_TNT_BITS-1:0] draw_tnt_positions;
+    wire [1:0] draw_hazard_count;
+    wire [`LP_HAZARD_BITS-1:0] draw_hazard_rects;
     wire left_frame;
     wire [12:0] left_pixel_index, right_pixel_index;
     wire [15:0] left_pixel_data, right_pixel_data;
     assign {draw_state, draw_grid, draw_intact, draw_frames, draw_valid, draw_error, draw_x, draw_y, draw_engine,
             draw_frames_left, draw_pigs_left, draw_wheels_left, draw_engines_left, draw_balloons_left,
             draw_cursor_x, draw_cursor_y, draw_selected_part, draw_drag_active,
-            draw_feedback_code, draw_feedback_cell} = snapshot_out;
-    display_snapshot #(.WIDTH(131)) u_snapshot (
+            draw_feedback_code, draw_feedback_cell, draw_level, draw_fail_reason, draw_tnt_intact,
+            draw_saved_frames, draw_seconds, draw_blast} = snapshot_out;
+    display_snapshot #(.WIDTH(162)) u_snapshot (
         .game_clk(clk), .game_reset(reset), .display_clk(oled_clk), .display_reset(oled_reset),
         .frame_begin(left_frame), .game_data(snapshot_in), .display_data(snapshot_out)
     );
+    // A second copy of the level table, indexed by the snapshot, keeps the map in step with the drawn state.
+    level_data u_draw_level (
+        .level_index(draw_level), .spawn_x(draw_spawn_x), .spawn_y(draw_spawn_y),
+        .terrain_count(draw_terrain_count), .terrain_rects(draw_terrain_rects), .goal_rect(draw_goal_rect),
+        .tnt_count(draw_tnt_count), .tnt_positions(draw_tnt_positions),
+        .hazard_count(draw_hazard_count), .hazard_rects(draw_hazard_rects)
+    );
     left_renderer u_left_renderer (
         .pixel_index(left_pixel_index), .game_state(draw_state), .build_grid(draw_grid),
-        .intact_mask(draw_intact), .frame_intact_mask(draw_frames),
+        .build_frames(draw_saved_frames), .intact_mask(draw_intact), .frame_intact_mask(draw_frames),
         .build_valid(draw_valid), .build_error(draw_error), .engine_enabled(draw_engine),
         .feedback_code(draw_feedback_code), .feedback_cell(draw_feedback_cell),
         .frames_left(draw_frames_left), .pigs_left(draw_pigs_left), .wheels_left(draw_wheels_left),
         .engines_left(draw_engines_left), .balloons_left(draw_balloons_left), .selected_part(draw_selected_part),
         .drag_active(draw_drag_active),
-        .cursor_x(draw_cursor_x), .cursor_y(draw_cursor_y), .cursor_visible(1'b1), .pixel_data(left_pixel_data)
+        .cursor_x(draw_cursor_x), .cursor_y(draw_cursor_y), .cursor_visible(1'b1),
+        .level_index(draw_level), .fail_reason(draw_fail_reason), .run_seconds(draw_seconds),
+        .pixel_data(left_pixel_data)
     );
     right_renderer u_right_renderer (
         .pixel_index(right_pixel_index), .game_state(draw_state), .build_grid(draw_grid),
         .intact_mask(draw_intact), .frame_intact_mask(draw_frames),
-        .vehicle_x(draw_x), .vehicle_y(draw_y), .terrain_count(terrain_count), .terrain_rects(terrain_rects),
-        .goal_rect(goal_rect), .pixel_data(right_pixel_data)
+        .vehicle_x(draw_x), .vehicle_y(draw_y), .spawn_x(draw_spawn_x), .spawn_y(draw_spawn_y),
+        .terrain_count(draw_terrain_count), .terrain_rects(draw_terrain_rects), .goal_rect(draw_goal_rect),
+        .tnt_count(draw_tnt_count), .tnt_positions(draw_tnt_positions), .tnt_intact(draw_tnt_intact),
+        .hazard_count(draw_hazard_count), .hazard_rects(draw_hazard_rects), .blast_phase(draw_blast),
+        .pixel_data(right_pixel_data)
     );
     Oled_Display u_left_oled (
         .clk(oled_clk), .reset(oled_reset), .frame_begin(left_frame), .sending_pixels(), .sample_pixel(),

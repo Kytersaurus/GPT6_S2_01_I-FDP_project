@@ -40,7 +40,7 @@ module module_contracts_tb;
     wire run_init, world_ready, step, release_step, launch_event, success_event, failure_event;
     game_controller control (
         .clk(clk),.reset(reset),.launch_req(launch),.retry_req(retry),.edit_req(1'b0),
-        .guide_open_req(1'b0),.guide_close_req(1'b0),.build_valid(build_valid),.pig_alive(live),.init_ready(ready),
+        .guide_open_req(1'b0),.guide_close_req(1'b0),.level_next_req(1'b0),.build_valid(build_valid),.pig_alive(live),.init_ready(ready),
         .physics_tick(tick),.world_valid(world_valid),.world_ready(world_ready),.goal_hit(goal),
         .gameplay_pending(1'b0),.gameplay_ready(),
         .hazard_hit(1'b0),.out_of_bounds(1'b0),.game_state(state),.run_init(run_init),
@@ -61,7 +61,9 @@ module module_contracts_tb;
     right_renderer right_view (
         .pixel_index(pixel),.game_state(builder_state),.build_grid(grid),.intact_mask(intact),.frame_intact_mask(frame_intact),
         .vehicle_x(16'sd1024),.vehicle_y(16'sd8192),.terrain_count(3'd1),
-        .terrain_rects({96'd0,8'd8,8'd96,8'd56,8'd0}),.goal_rect({8'd24,8'd16,8'd32,8'd80}),.pixel_data(right_colour)
+        .terrain_rects({96'd0,8'd8,8'd96,8'd56,8'd0}),.goal_rect({8'd24,8'd16,8'd32,8'd80}),
+        .spawn_x(16'sd1024),.spawn_y(16'sd8192),.tnt_count(3'd0),.tnt_positions(64'd0),.tnt_intact(4'd0),
+        .hazard_count(2'd0),.hazard_rects(64'd0),.pixel_data(right_colour)
     );
     task clocks;
         input integer count;
@@ -73,8 +75,8 @@ module module_contracts_tb;
         pixel=24*96+24; #1; if (left_colour != 16'h07e0) $fatal(1,"Left pig inside frame incorrect");
         pixel=24*96+21; #1; if (left_colour != 16'ha285) $fatal(1,"Left frame border missing");
         pixel=5*96+84; #1; if (left_colour != 16'hffff) $fatal(1,"Remaining frame count not drawn");
-        pixel=44*96+16; #1; if (right_colour != 16'h07e0) $fatal(1,"Right pig inside frame incorrect");
-        pixel=44*96+13; #1; if (right_colour != 16'ha285) $fatal(1,"Right frame border missing");
+        pixel=42*96+14; #1; if (right_colour != 16'h07e0) $fatal(1,"Right pig inside frame incorrect");
+        pixel=42*96+12; #1; if (right_colour != 16'ha285) $fatal(1,"Right frame border missing");
         pixel=60*96+40; #1; if (right_colour != 16'h8320) $fatal(1,"Terrain pixel incorrect");
         pixel=40*96+85; #1; if (right_colour != 16'h0320) $fatal(1,"Goal rectangle helper not connected");
         clocks(1); // Return to a falling edge after the pixel checks before driving requests.

@@ -61,4 +61,24 @@
 `define LP_SOUND_SUCCESS    3'd6
 `define LP_SOUND_FAILURE    3'd7
 
+// Levels: Role 4 selects one in BUILD and holds it through the run.
+`define LP_LEVEL_COUNT   2
+`define LP_MAX_TNT       4   // Each TNT is {y[7:0], x[7:0]}; an 8 by 8 pixel block.
+`define LP_TNT_PIXELS    8
+`define LP_TNT_BITS      64
+`define LP_MAX_HAZARDS   2   // Same {height, width, y, x} packing as terrain.
+`define LP_HAZARD_BITS   64
+
+// Left OLED level button, clicked in BUILD; x=[82,95), y=[55,64).
+`define LP_LEVEL_BUTTON_X 82
+`define LP_LEVEL_BUTTON_Y 55
+`define LP_LEVEL_BUTTON_W 13
+`define LP_LEVEL_BUTTON_H 9
+
+// Why the last run failed; checked in this priority order.
+`define LP_FAIL_NONE     2'd0
+`define LP_FAIL_PIG      2'd1
+`define LP_FAIL_HAZARD   2'd2
+`define LP_FAIL_BOUNDS   2'd3
+
 `endif
