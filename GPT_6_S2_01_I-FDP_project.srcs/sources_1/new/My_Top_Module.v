@@ -38,7 +38,7 @@ module My_Top_Module #(
     output wire [3:0] JXADC
 );
     wire reset, oled_clk, oled_reset, physics_tick, start_press, edit_press, engine_enabled;
-    wire engine_reverse, jump_press;
+    wire engine_reverse, jump_press, boost_req, boost_active;
     wire [2:0] game_state, init_ready;
     wire run_init, step_start, update_release;
     wire [26:0] build_grid;
@@ -167,7 +167,7 @@ module My_Top_Module #(
         .cursor_x(cursor_x), .cursor_y(cursor_y), .selected_part(selected_part),
         .drag_active(drag_active), .drag_from_grid(drag_from_grid), .drag_source(drag_source), .drag_contents(drag_contents),
         .edit_valid(edit_valid), .edit_op(edit_op), .edit_cell(edit_cell), .edit_source(edit_source), .edit_part(edit_part),
-        .pop_req(pop_req), .pop_cell(pop_cell)
+        .pop_req(pop_req), .pop_cell(pop_cell), .boost_req(boost_req)
     );
     level_button u_level_button (
         .clk(clk), .reset(reset), .input_enabled(builder_input_enabled), .game_state(game_state), .mouse_x(mouse_x), .mouse_y(mouse_y),
@@ -218,7 +218,7 @@ module My_Top_Module #(
         .clk(clk), .reset(reset), .game_state(game_state), .run_init(run_init), .init_ready(init_ready[1]),
         .spawn_x(spawn_x), .spawn_y(spawn_y), .step_start(step_start), .update_release(update_release),
         .wheel_count(wheel_count), .engine_count(engine_count), .balloon_count(balloon_count),
-        .mass_units(mass_units), .engine_enabled(engine_enabled), .engine_reverse(engine_reverse), .jump_press(jump_press),
+        .mass_units(mass_units), .engine_enabled(engine_enabled), .engine_reverse(engine_reverse), .jump_press(jump_press), .boost_req(boost_req), .boost_active(boost_active),
         .move_valid(move_valid), .move_ready(move_ready),
         .previous_x(previous_x), .previous_y(previous_y), .proposed_x(proposed_x), .proposed_y(proposed_y),
         .proposed_vx(proposed_vx), .proposed_vy(proposed_vy), .response_valid(response_valid),
@@ -240,13 +240,14 @@ module My_Top_Module #(
         .world_ready(world_ready), .goal_hit(goal_hit), .hazard_hit(hazard_hit), .out_of_bounds(out_of_bounds)
     );
 
-    wire [169:0] snapshot_in = {drag_from_grid, drag_source, drag_contents,
+    wire [170:0] snapshot_in = {boost_active, drag_from_grid, drag_source, drag_contents,
                               game_state, build_grid, intact_mask, frame_intact_mask, build_valid, build_error,
                               vehicle_x, vehicle_y, engine_enabled, frames_left, pigs_left, wheels_left,
                               engines_left, balloons_left, cursor_x, cursor_y, selected_part, drag_active,
                               feedback_code, feedback_cell, level_index, fail_reason, tnt_intact,
                               build_frames, run_seconds, blast_phase};
-    wire [169:0] snapshot_out;
+    wire [170:0] snapshot_out;
+    wire draw_boost_active;
     wire draw_drag_from_grid;
     wire [3:0] draw_drag_source;
     wire [2:0] draw_drag_contents;
@@ -280,13 +281,13 @@ module My_Top_Module #(
     // Reuse the map renderer for one-OLED play; JB is blank while JA shows the map.
     wire [12:0] map_pixel_index = show_map ? left_render_index : right_pixel_index;
     wire [15:0] left_pixel_data, right_pixel_data;
-    assign {draw_drag_from_grid, draw_drag_source, draw_drag_contents,
+    assign {draw_boost_active, draw_drag_from_grid, draw_drag_source, draw_drag_contents,
             draw_state, draw_grid, draw_intact, draw_frames, draw_valid, draw_error, draw_x, draw_y, draw_engine,
             draw_frames_left, draw_pigs_left, draw_wheels_left, draw_engines_left, draw_balloons_left,
             draw_cursor_x, draw_cursor_y, draw_selected_part, draw_drag_active,
             draw_feedback_code, draw_feedback_cell, draw_level, draw_fail_reason, draw_tnt_intact,
             draw_saved_frames, draw_seconds, draw_blast} = snapshot_out;
-    display_snapshot #(.WIDTH(170)) u_snapshot (
+    display_snapshot #(.WIDTH(171)) u_snapshot (
         .game_clk(clk), .game_reset(reset), .display_clk(oled_clk), .display_reset(oled_reset),
         .frame_begin(left_frame), .game_data(snapshot_in), .display_data(snapshot_out)
     );
@@ -300,7 +301,7 @@ module My_Top_Module #(
     left_renderer u_left_renderer (
         .pixel_index(left_render_index), .game_state(draw_state), .build_grid(draw_grid),
         .build_frames(draw_saved_frames), .intact_mask(draw_intact), .frame_intact_mask(draw_frames),
-        .build_valid(draw_valid), .build_error(draw_error), .engine_enabled(draw_engine),
+        .build_valid(draw_valid), .build_error(draw_error), .engine_enabled(draw_engine), .boost_active(draw_boost_active),
         .feedback_code(draw_feedback_code), .feedback_cell(draw_feedback_cell),
         .frames_left(draw_frames_left), .pigs_left(draw_pigs_left), .wheels_left(draw_wheels_left),
         .engines_left(draw_engines_left), .balloons_left(draw_balloons_left), .selected_part(draw_selected_part),

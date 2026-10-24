@@ -103,9 +103,9 @@ module sound_generator #(
                 // Keep every note longer than 16*FADE_CYCLES when changing settings.
                 if (fade_count == FADE_CYCLES-1) begin
                     fade_count <= 0;
-                    if (duration_count >= note_cycles-8*FADE_CYCLES-1) begin
+                    if (duration_count >= note_cycles-11*FADE_CYCLES-1) begin
                         if (volume != 0) volume <= volume - 1'b1;
-                    end else if (volume < 8) volume <= volume + 1'b1;
+                    end else if (volume < 11) volume <= volume + 1'b1;
                 end else fade_count <= fade_count + 1'b1;
             end
         end

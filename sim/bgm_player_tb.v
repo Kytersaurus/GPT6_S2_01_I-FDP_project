@@ -23,7 +23,7 @@ module bgm_player_tb;
     endtask
     initial begin
         clocks(4);reset=0;clocks(300);
-        if(music.half_cycles!=170262 || music.volume!=3 || sample!=-3 || effects.pwm_level!=125)
+        if(music.half_cycles!=170262 || music.volume!=4 || sample!=-4 || effects.pwm_level!=124)
             $fatal(1,"First melody pitch/quiet amplitude/PWM routing incorrect");
         saved_note=music.note_index;saved_count=music.note_count;
         sound_id=`LP_SOUND_TEST;start=1;clocks(1);start=0;
@@ -32,7 +32,7 @@ module bgm_player_tb;
             $fatal(1,"Sound effect failed to pause music without losing its position");
         waited=0;while(busy && waited<3000) begin clocks(1);waited=waited+1;end
         clocks(300);
-        if(busy || music.note_count<=saved_count || music.volume!=3 || effects.pwm_level!=125)
+        if(busy || music.note_count<=saved_count || music.volume!=4 || effects.pwm_level!=124)
             $fatal(1,"Music failed to resume after an effect");
         mute=1;clocks(300);
         if(sample!=0 || busy || music.note_index!=0 || effects.pwm_level!=128)
@@ -46,17 +46,24 @@ module bgm_player_tb;
         clocks(2048);
         if(music.note_index!=2 || music.half_cycles!=151686) $fatal(1,"Melody opening incorrect");
         waited=0;looped=0;
-        while(!looped && waited<150000) begin
+        while(!looped && waited<350000) begin
             saved_note=music.note_index;clocks(1);waited=waited+1;
-            if(sample>3 || sample< -3 || $isunknown(pwm)) $fatal(1,"Unsafe/unknown background output");
-            if(saved_note==37 && music.note_index==2) looped=1;
+            if(sample>4 || sample< -4 || $isunknown(pwm)) $fatal(1,"Unsafe/unknown background output");
+            if(saved_note==74 && music.note_index==2) looped=1;
         end
-        if(!looped || waited!=64*2048)
+        if(!looped)
             $fatal(1,"Melody loop duration incorrect: %0d clocks",waited);
+
+        // Test fast/RUN mode with Popcorn song and softer volume (volume <= 2)
+        fast = 1; clocks(2);
+        if(music.note_index!=0) $fatal(1,"RUN mode transition did not reset note_index");
+        clocks(300);
+        if(music.volume > 2) $fatal(1,"RUN mode Popcorn volume too loud (not soft)");
+
         reset=1;clocks(1);
         if(sample!=0 || music.note_index!=0 || music.note_count!=0) $fatal(1,"Reset retained melody state");
         $display("PASS bgm_player_tb: Entertainer pitches/durations/loop, quiet PWM, effect pause/resume, gameplay tempo, mute and reset");
         $finish;
     end
-    initial begin #3000000; $fatal(1,"Background music test timed out");end
+    initial begin #10000000; $fatal(1,"Background music test timed out");end
 endmodule

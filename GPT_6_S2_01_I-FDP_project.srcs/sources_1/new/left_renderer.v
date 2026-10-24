@@ -16,6 +16,7 @@ module left_renderer #(parameter EDITOR_CELL_PIXELS = 16) (
     input wire [2:0] feedback_code,
     input wire [3:0] feedback_cell,
     input wire engine_enabled,
+    input wire boost_active,
     input wire [3:0] frames_left, pigs_left, wheels_left, engines_left, balloons_left,
     input wire [2:0] selected_part,
     input wire drag_active,
@@ -58,6 +59,8 @@ module left_renderer #(parameter EDITOR_CELL_PIXELS = 16) (
     integer text_column, text_row;
     wire level_button_pixel = x >= `LP_LEVEL_BUTTON_X && x < `LP_LEVEL_BUTTON_X+`LP_LEVEL_BUTTON_W &&
                               y >= `LP_LEVEL_BUTTON_Y && y < `LP_LEVEL_BUTTON_Y+`LP_LEVEL_BUTTON_H;
+    wire boost_button_pixel = x >= `LP_BOOST_BUTTON_X && x < `LP_BOOST_BUTTON_X+`LP_BOOST_BUTTON_W &&
+                              y >= `LP_BOOST_BUTTON_Y && y < `LP_BOOST_BUTTON_Y+`LP_BOOST_BUTTON_H;
 
     // Inventory and drag preview use the same sprites as the grid and the right OLED.
     function [15:0] draw_part_icon;

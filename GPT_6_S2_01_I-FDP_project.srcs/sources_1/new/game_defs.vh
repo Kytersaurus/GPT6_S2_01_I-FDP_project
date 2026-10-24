@@ -77,6 +77,12 @@
 `define LP_LEVEL_BUTTON_W 13
 `define LP_LEVEL_BUTTON_H 9
 
+// Left OLED boost button, clicked in RUN; x=[56,72), y=[36,52).
+`define LP_BOOST_BUTTON_X 56
+`define LP_BOOST_BUTTON_Y 36
+`define LP_BOOST_BUTTON_W 16
+`define LP_BOOST_BUTTON_H 16
+
 // Why the last run failed; checked in this priority order.
 `define LP_FAIL_NONE     2'd0
 `define LP_FAIL_PIG      2'd1

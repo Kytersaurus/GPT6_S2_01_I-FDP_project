@@ -14,6 +14,8 @@ module physics_engine (
     input wire engine_enabled,
     input wire engine_reverse,
     input wire jump_press,
+    input wire boost_req,
+    output wire boost_active,
     output wire move_valid,
     input wire move_ready,
     output reg signed [15:0] previous_x, previous_y,
@@ -38,6 +40,10 @@ module physics_engine (
     reg [3:0] phase;
     reg signed [15:0] velocity_x, velocity_y;
     reg was_grounded, jump_pending;
+    reg [27:0] boost_timer; // 1.5 seconds at 100MHz is 150_000_000 cycles
+    wire is_boosting = (boost_timer != 0);
+    assign boost_active = is_boosting;
+    reg sampled_boosting;
     reg [3:0] sampled_wheels, sampled_engines, sampled_balloons;
     reg sampled_engine_enabled, sampled_engine_reverse, sampled_jump;
     wire jump_now;
@@ -93,13 +99,14 @@ module physics_engine (
 
     always @(posedge clk) begin
         if (reset) begin
-            phase <= IDLE; init_ready <= 0; was_grounded <= 0;
+            phase <= IDLE; init_ready <= 0; was_grounded <= 0; boost_timer <= 0;
             movement_committed <= 0;
             vehicle_x <= spawn_x; vehicle_y <= spawn_y;
             previous_x <= spawn_x; previous_y <= spawn_y;
             proposed_x <= spawn_x; proposed_y <= spawn_y;
             proposed_vx <= 0; proposed_vy <= 0; velocity_x <= 0; velocity_y <= 0;
-            remainder_x <= 0; pending_remainder_x <= 0; remainder_mass <= 0;
+                        remainder_x <= 0; pending_remainder_x <= 0; remainder_mass <= 0;
+                boost_timer <= 0;
             step_mass <= 0; step_remainder <= 0; step_thrust <= 0; step_drive <= 0;
             step_friction_limit <= 0; step_friction <= 0; total_force <= 0;
             step_x <= 0; step_y <= 0; step_vx <= 0; step_vy <= 0;
@@ -112,13 +119,16 @@ module physics_engine (
             movement_committed <= 0;
             divider_start <= 0;
             if (!run_init) init_ready <= 0;
+            if (boost_timer != 0) boost_timer <= boost_timer - 1'b1;
+            if (game_state == `LP_RUN && boost_req && engine_count != 0) boost_timer <= 28'd150000000;
             if (run_init && !init_ready) begin
                 phase <= IDLE; init_ready <= 1; was_grounded <= 0;
                 vehicle_x <= spawn_x; vehicle_y <= spawn_y;
                 previous_x <= spawn_x; previous_y <= spawn_y;
                 proposed_x <= spawn_x; proposed_y <= spawn_y;
                 proposed_vx <= 0; proposed_vy <= 0; velocity_x <= 0; velocity_y <= 0;
-                remainder_x <= 0; pending_remainder_x <= 0; remainder_mass <= 0;
+                            remainder_x <= 0; pending_remainder_x <= 0; remainder_mass <= 0;
+                boost_timer <= 0;
             end else if (game_state != `LP_RUN) begin
                 phase <= IDLE;
             end else case (phase)
@@ -134,14 +144,19 @@ module physics_engine (
                     sampled_balloons <= balloon_count;
                     sampled_engine_enabled <= engine_enabled; sampled_engine_reverse <= engine_reverse;
                     sampled_jump <= jump_now;
+                    sampled_boosting <= is_boosting;
                     phase <= CALC_FORCE;
                 end
                 CALC_FORCE: begin
                     // Part counting ends at the sampled registers above. Force
                     // multiplication/addition then has its own 100 MHz clock.
                     step_thrust <= 0;
-                    if (sampled_engine_enabled && sampled_engines != 0 && was_grounded)
-                        step_thrust <= sampled_engine_reverse ? -engine_magnitude : engine_magnitude;
+                    if (sampled_engine_enabled && sampled_engines != 0 && was_grounded) begin
+                        if (sampled_boosting)
+                            step_thrust <= sampled_engine_reverse ? -(engine_magnitude <<< 1) : (engine_magnitude <<< 1);
+                        else
+                            step_thrust <= sampled_engine_reverse ? -engine_magnitude : engine_magnitude;
+                    end
                     step_friction_limit <= was_grounded ? wheel_resistance : 16'd0;
                     if (sampled_jump)
                         step_vy <= -16'sd512;

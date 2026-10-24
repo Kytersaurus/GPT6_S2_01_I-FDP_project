@@ -22,7 +22,8 @@ module mouse_adapter (
     output reg [3:0] edit_source,
     output reg [2:0] edit_part,
     output reg pop_req,
-    output reg [3:0] pop_cell
+    output reg [3:0] pop_cell,
+    output reg boost_req
 );
     reg [1:0] setup_step;
     reg left_was_down, right_was_down;
@@ -30,6 +31,8 @@ module mouse_adapter (
     assign drag_active = place_pending && game_state == `LP_BUILD && input_enabled;
     wire in_grid = mouse_x >= 4 && mouse_x < 52 && mouse_y >= 4 && mouse_y < 52;
     wire in_inventory = mouse_x >= 56 && mouse_x < 92 && mouse_y >= 4 && mouse_y < 54;
+    wire in_boost = mouse_x >= `LP_BOOST_BUTTON_X && mouse_x < `LP_BOOST_BUTTON_X + `LP_BOOST_BUTTON_W &&
+                    mouse_y >= `LP_BOOST_BUTTON_Y && mouse_y < `LP_BOOST_BUTTON_Y + `LP_BOOST_BUTTON_H;
     // Used only when in_grid is true, for placement, removal and balloon clicks.
     wire [3:0] hovered_cell = ((mouse_y-4)/16)*3 + (mouse_x-4)/16;
 
@@ -51,9 +54,9 @@ module mouse_adapter (
             inventory_armed <= 0; drag_from_grid <= 0; drag_source <= 9; drag_contents <= 0;
             cursor_x <= 24; cursor_y <= 24; selected_part <= `LP_PART_FRAME;
             edit_valid <= 0; edit_op <= `LP_EDIT_PLACE; edit_cell <= 0; edit_source <= 9; edit_part <= `LP_PART_FRAME;
-            pop_req <= 0; pop_cell <= 0;
+            pop_req <= 0; pop_cell <= 0; boost_req <= 0;
         end else begin
-            edit_valid <= 0; pop_req <= 0;
+            edit_valid <= 0; pop_req <= 0; boost_req <= 0;
             // Leaving construction cancels a drag, even if no mouse packet arrives.
             if (game_state != `LP_BUILD || !input_enabled) begin
                 place_pending <= 0; inventory_armed <= 0; drag_from_grid <= 0;

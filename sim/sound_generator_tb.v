@@ -47,9 +47,9 @@ module sound_generator_tb;
                     unit.duration_count!=cycle%length || unit.half_cycles!=expected_half)
                     $fatal(1,"Sound %0d profile/timing mismatch at cycle %0d",sound,cycle);
                 if (cycle%length==0 && unit.volume!=0) $fatal(1,"Note did not start at zero volume");
-                if (cycle%length==128 && unit.volume!=8) $fatal(1,"Fade-in did not reach volume eight");
+                if (cycle%length==176 && unit.volume!=11) $fatal(1,"Fade-in did not reach volume eleven");
                 if (cycle%length==length-16 && unit.volume!=0) $fatal(1,"Fade-out did not reach silence");
-                if (unit.volume>8) $fatal(1,"Audio amplitude exceeded its quiet limit");
+                if (unit.volume>11) $fatal(1,"Audio amplitude exceeded its quiet limit");
                 clocks(1);
             end
             if (busy || active!=`LP_SOUND_NONE) $fatal(1,"Sound %0d ended at the wrong time",sound);
@@ -68,17 +68,17 @@ module sound_generator_tb;
 
         // The test tone has real half-periods within this shortened simulation.
         request(`LP_SOUND_TEST); clocks(256);
-        if (unit.tone_high || unit.tone_count!=256 || unit.volume!=8) $fatal(1,"Tone counter/fade wrong");
+        if (unit.tone_high || unit.tone_count!=256 || unit.volume!=11) $fatal(1,"Tone counter/fade wrong");
         clocks(255);
         if (unit.tone_high || unit.tone_count!=511) $fatal(1,"Tone toggled too early");
         clocks(1);
         if (!unit.tone_high || unit.tone_count!=0) $fatal(1,"Tone did not toggle at its exact half-period");
-        while (unit.pwm_count!=0 || unit.pwm_level!=120) clocks(1);
+        while (unit.pwm_count!=0 || unit.pwm_level!=117) clocks(1);
         pwm_frame();
-        if (expected_level!=120) $fatal(1,"Low half-cycle duty wrong");
-        while (unit.pwm_count!=0 || unit.pwm_level!=136) clocks(1);
+        if (expected_level!=117) $fatal(1,"Low half-cycle duty wrong");
+        while (unit.pwm_count!=0 || unit.pwm_level!=139) clocks(1);
         pwm_frame();
-        if (expected_level!=136) $fatal(1,"High half-cycle duty wrong");
+        if (expected_level!=139) $fatal(1,"High half-cycle duty wrong");
         request(`LP_SOUND_FAILURE);
         if (active!=`LP_SOUND_FAILURE || unit.note_index!=0 || unit.duration_count!=0)
             $fatal(1,"Preemption did not restart the chosen sound");
