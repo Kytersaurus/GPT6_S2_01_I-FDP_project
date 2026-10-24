@@ -13,7 +13,7 @@ All game modules live beside `My_Top_Module.v` in the existing design source fol
 | `custom_clk_divider` inside `clock_control` | Both OLED drivers | The user's divider produces 6.25 MHz with `freq_count=7`, connected directly to `oled_clk` |
 | `clock_control` | `game_controller` | `physics_tick` requests an update approximately 60 times per second |
 | `input_controller` | `game_controller` | `start_press` connects to both `launch_req` and `retry_req`; the current state chooses the action. `edit_press` connects to `edit_req` |
-| `input_controller` | `physics_engine` | `engine_enabled` is the synchronised SW0 state, sampled when a movement step starts |
+| `input_controller` | `physics_engine` | SW0 `engine_enabled`, SW2 `engine_reverse` and debounced BTNL `jump_press`, sampled/queued at the movement boundary |
 | `input_controller`, accepted game events | `sound_controller` | BTNR test, launch, applied pop, landing, success and failure; SW1 supplies mute |
 | `sound_controller` | `sound_generator` | Chosen three-bit sound ID and start; busy/active ID return for priority decisions |
 | `sound_generator`, reset/mute wiring | Pmod AMP2 on JC | `JC[0]` PWM audio, `JC[1]` high for 6 dB gain, `JC[2]` zero/NC, `JC[3]` high only outside reset/mute |
@@ -30,7 +30,7 @@ All game modules live beside `My_Top_Module.v` in the existing design source fol
 | `vehicle_builder` | Left renderer through snapshot | Three-bit `feedback_code` and four-bit `feedback_cell` describe the one-second edit result and target outline |
 | `level_data` | `physics_engine` | Signed 16-bit `spawn_x` and `spawn_y` load the initial position |
 | `game_controller` | Builder, physics, world outcomes | `run_init` stays high in INIT_RUN; each module returns one bit of the three-bit `init_ready` bus |
-| `game_controller` | `physics_engine` | `step_start` samples properties, followed by separate force/velocity/position calculation clocks; `update_release` allows the following update after world checks finish |
+| `game_controller` | `physics_engine` | `step_start` samples properties, followed by staged force/division/velocity/position calculation clocks; `update_release` allows the following update after world checks finish |
 | `physics_engine` | `collision_engine` | `move_valid`/`move_ready` transfer `previous_x/y`, `proposed_x/y` and `proposed_vx/vy` |
 | `collision_engine` | `physics_engine` | `response_valid`/`response_ready` transfer `corrected_x/y`, `corrected_vx/vy` and `grounded` |
 | `physics_engine` | `world_outcomes` | `movement_committed` pulses after `vehicle_x/y` have been updated; the world module samples those committed coordinates |
@@ -39,7 +39,7 @@ All game modules live beside `My_Top_Module.v` in the existing design source fol
 
 Every movement coordinate and velocity is signed with eight fractional bits: 256 units equals one pixel. Valid/ready payloads stay unchanged until a rising-edge transfer. Physics waits for world completion before sampling properties for another step.
 
-`input_controller` instantiates the user's `button_debouncer` for BTNC, BTNU and BTNR. Each uses the shared 100 MHz clock, `freq_count=19,999,999` for 200 ms of lockout, and `RELEASE_CYCLES=2,000,000` for a stable 20 ms release before rearming. The module adds reset handling to the user's code and includes the optional release check without the hold timer. The top exposes cycle-count parameters so simulations can use short intervals. SW1 uses two sampling registers, with mute asserted during reset. The hardware top now accepts `sw[1:0]`, BTNR and four JC outputs; test fixtures tie unused button/mute inputs low explicitly.
+`input_controller` instantiates the user's `button_debouncer` for BTNC, BTNU, BTNR and BTNL. Each uses the shared 100 MHz clock, `freq_count=19,999,999` for 200 ms of lockout, and `RELEASE_CYCLES=2,000,000` for a stable 20 ms release before rearming. The module adds reset handling to the user's code and includes the optional release check without the hold timer. The top exposes cycle-count parameters so simulations can use short intervals. SW1 uses two sampling registers, with mute asserted during reset. The hardware top now accepts `sw[2:0]`, BTNR, BTNL and four JC outputs; test fixtures tie unused button/mute inputs low explicitly.
 
 Audio uses accepted launch/pop/landing/success/failure events, with a prepared explosion input awaiting Role 3. Failure outranks success, explosion, landing, pop, launch and the BTNR test. Higher priority interrupts; held/equal/lower requests do not replay or queue. The generator plays short tone sequences with quiet amplitude fades and complete PWM frames. Mute/reset/retry/edit cancel old playback; the carrier and enabled amplifier remain running between sounds. XDC mappings are unchanged. See [audio setup](audio_setup.md).
 
@@ -68,7 +68,7 @@ During BUILD the left renderer shows five inventory rows at x=56..91 and y=4..53
 | Mouse | Supplied controller unchanged; construction and balloon clicks connected | Role 1 adds guide controls and verifies new gameplay input on the Basys3 |
 | Balloon popping | Fresh RUN clicks queue surviving balloons and clear their intact bits between updates | Hardware check with balloons added to the build; sound effects remain future work |
 | Collision | Downward landing on rectangular platforms | Role 3 adds wall/ceiling/corner handling and TNT |
-| Levels and sprites | Two provisional maps with TNT and spikes; solid-colour parts | Role 4 supplies final maps, artwork, inventory/status details and instructions |
+| Levels and sprites | Two provisional maps, sprites, level selection, run timer and results; TNT/spikes are drawn | Role 4 finishes instructions and balances final maps after Role 3 integration |
 
 Cell contents are row-major in 27 bits, with cell zero in bits 2:0. Frames are stored separately in nine-bit `build_frames`. Each layer has its own nine-bit intact and damage mask. `world_outcomes` still finds the pig through the content grid/mask; physics still receives counts and total mass without a port change. Review the placement rules in `interfaces.md` before adding features.
 

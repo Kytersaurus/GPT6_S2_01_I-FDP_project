@@ -25,11 +25,11 @@ Keep all game design files together in the existing `GPT_6_S2_01_I-FDP_project.s
 | Role | Suggested modules | Owns the state |
 | --- | --- | --- |
 | 1 | `input_controller`, `mouse_adapter`, `balloon_control`, `vehicle_builder`, `sound_controller`, `sound_generator` | Original build, inventory, intact mask, queued balloon clicks, engine control state, audio playback |
-| 2 | `physics_engine`, `movement_parameters` | Committed position, velocity and any agreed boost budget |
+| 2 | `physics_engine`, `signed_divider16` | Committed position, velocity and any agreed boost budget |
 | 3 | `collision_engine`, `tnt_controller`, `world_outcomes` | TNT triggered flags and pending interaction results |
 | 4 | `game_controller`, `level_data`, `left_renderer`, `right_renderer`, `display_snapshot`, `sprite_rom` | Game stage, active level and coherent drawing snapshots |
 
-The real modules are in the design source folder and connected in `My_Top_Module.v`. Use their ports and `docs/interfaces.md` as the interface reference. Members can split their internal logic further while preserving the external contract. Inventory, mouse layout and launch/pop/landing/result audio are connected; TNT events, final levels and instruction controls still need integration.
+The real modules are in the design source folder and connected in `My_Top_Module.v`. Use their ports and `docs/interfaces.md` as the interface reference. Members can split their internal logic further while preserving the external contract. Inventory, mouse layout and launch/pop/landing/result audio are connected; Kyle's reverse/jump/divider and Marcus's two provisional maps/sprites are integrated; TNT events, hazard checks, instruction controls and final balancing remain.
 
 ## Agree the draft interfaces
 
@@ -43,7 +43,7 @@ Review `docs/interfaces.md` together. Adopt the shared values in `game_defs.vh` 
 4. Register new source files using `scripts/add_team_sources.tcl`. It references the repository files in place; do not use a separate copied version of the same source in Vivado.
 5. Run the relevant simulation and ask the receiving teammate to check names, widths and timing before integrating.
 
-Add testbenches through Vivado's Add Simulation Sources. This keeps them out of synthesis. The default saved simulation top is `game_baseline_tb`; select `module_contracts_tb`, `display_snapshot_tb`, `physics_engine_tb`, `clock_control_tb`, `button_debouncer_tb`, `vehicle_builder_tb`, `construction_controls_tb`, `balloon_controls_tb`, `sound_generator_tb`, `game_audio_tb` or `construction_feedback_tb` to run a different bench. The source-registration script does not select a testbench. The runner includes the supplied VHDL mouse sources for mixed-language top-level simulation.
+Add testbenches through Vivado's Add Simulation Sources. This keeps them out of synthesis. The default saved simulation top is `game_baseline_tb`; select `module_contracts_tb`, `display_snapshot_tb`, `physics_engine_tb`, `clock_control_tb`, `button_debouncer_tb`, `vehicle_builder_tb`, `construction_controls_tb`, `balloon_controls_tb`, `sound_generator_tb`, `game_audio_tb`, `construction_feedback_tb`, `role4_game_display_tb`, `role4_level_solutions_tb`, `physics_friction_tb`, `signed_divider16_tb`, `physics_jump_tb` or `team_controls_tb` to run a different bench. The source-registration script does not select a testbench. The runner includes the supplied VHDL mouse sources for mixed-language top-level simulation.
 
 ## Work in separate branches
 

@@ -11,7 +11,7 @@
 
 `include "game_defs.vh"
 
-// SW0 engine, SW1 mute; BTNC launch/retry, BTNU edit (next level after success), BTNR test beep, BTND reset.
+// SW0 engine, SW1 mute, SW2 reverse, BTNL jump; BTNC launch/retry, BTNU edit (next level after success), BTNR test beep, BTND reset.
 module My_Top_Module #(
     parameter integer PHYSICS_CYCLES = 1666667,
     parameter integer BUTTON_DEBOUNCE_CYCLES = 20000000,
@@ -27,14 +27,15 @@ module My_Top_Module #(
     parameter integer BALLOON_LIMIT = 2,
     parameter integer FEEDBACK_CYCLES = 100000000
 ) (
-    input wire clk, btnC, btnU, btnR, btnD,
-    input wire [1:0] sw,
+    input wire clk, btnC, btnU, btnR, btnL, btnD,
+    input wire [2:0] sw,
     inout wire PS2Clk, PS2Data,
     output wire [15:0] led,
     output wire [7:0] JA, JB,
     output wire [3:0] JC
 );
     wire reset, oled_clk, oled_reset, physics_tick, start_press, edit_press, engine_enabled;
+    wire engine_reverse, jump_press;
     wire [2:0] game_state, init_ready;
     wire run_init, step_start, update_release;
     wire [26:0] build_grid;
@@ -103,9 +104,9 @@ module My_Top_Module #(
     input_controller #(
         .DEBOUNCE_CYCLES(BUTTON_DEBOUNCE_CYCLES), .RELEASE_CYCLES(BUTTON_RELEASE_CYCLES)
     ) u_input (
-        .clk(clk), .reset(reset), .btnC(btnC), .btnU(btnU), .btnR(btnR),
-        .engine_switch(sw[0]), .mute_switch(sw[1]), .start_press(start_press), .edit_press(edit_press),
-        .beep_press(beep_press), .engine_enabled(engine_enabled), .audio_muted(audio_muted)
+        .clk(clk), .reset(reset), .btnC(btnC), .btnU(btnU), .btnR(btnR), .btnL(btnL),
+        .engine_switch(sw[0]), .mute_switch(sw[1]), .reverse_switch(sw[2]), .start_press(start_press), .edit_press(edit_press),
+        .beep_press(beep_press), .engine_enabled(engine_enabled), .audio_muted(audio_muted), .engine_reverse(engine_reverse), .jump_press(jump_press)
     );
     sound_controller u_sound_control (
         .clk(clk), .reset(reset), .mute(audio_muted), .cancel(audio_cancel),
@@ -139,7 +140,7 @@ module My_Top_Module #(
     );
     level_button u_level_button (
         .clk(clk), .reset(reset), .game_state(game_state), .mouse_x(mouse_x), .mouse_y(mouse_y),
-        .mouse_left(mouse_left), .mouse_event(mouse_event), .level_next_req(level_next_req)
+        .mouse_left(mouse_left), .mouse_right(mouse_right), .mouse_event(mouse_event), .level_next_req(level_next_req)
     );
     balloon_control u_balloons (
         .clk(clk), .reset(reset), .game_state(game_state), .pop_req(pop_req), .pop_cell(pop_cell),
@@ -186,7 +187,8 @@ module My_Top_Module #(
         .clk(clk), .reset(reset), .game_state(game_state), .run_init(run_init), .init_ready(init_ready[1]),
         .spawn_x(spawn_x), .spawn_y(spawn_y), .step_start(step_start), .update_release(update_release),
         .wheel_count(wheel_count), .engine_count(engine_count), .balloon_count(balloon_count),
-        .mass_units(mass_units), .engine_enabled(engine_enabled), .move_valid(move_valid), .move_ready(move_ready),
+        .mass_units(mass_units), .engine_enabled(engine_enabled), .engine_reverse(engine_reverse), .jump_press(jump_press),
+        .move_valid(move_valid), .move_ready(move_ready),
         .previous_x(previous_x), .previous_y(previous_y), .proposed_x(proposed_x), .proposed_y(proposed_y),
         .proposed_vx(proposed_vx), .proposed_vy(proposed_vy), .response_valid(response_valid),
         .response_ready(response_ready), .corrected_x(corrected_x), .corrected_y(corrected_y),

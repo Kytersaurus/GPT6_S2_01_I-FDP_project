@@ -1,7 +1,7 @@
 # Owner: Shared - all roles maintain the runner and their own simulation checks.
 param(
     [string]$VivadoBin = 'C:\AMDDesignTools\2025.2\Vivado\bin',
-    [string[]]$Benches = @('game_baseline_tb', 'module_contracts_tb', 'display_snapshot_tb', 'physics_engine_tb', 'clock_control_tb', 'button_debouncer_tb', 'vehicle_builder_tb', 'construction_controls_tb', 'balloon_controls_tb', 'sound_generator_tb', 'game_audio_tb', 'construction_feedback_tb', 'role4_game_display_tb', 'role4_level_solutions_tb')
+    [string[]]$Benches = @('game_baseline_tb', 'module_contracts_tb', 'display_snapshot_tb', 'physics_engine_tb', 'clock_control_tb', 'button_debouncer_tb', 'vehicle_builder_tb', 'construction_controls_tb', 'balloon_controls_tb', 'sound_generator_tb', 'game_audio_tb', 'construction_feedback_tb', 'role4_game_display_tb', 'role4_level_solutions_tb', 'physics_friction_tb', 'signed_divider16_tb', 'physics_jump_tb', 'team_controls_tb', 'collision_engine_tb')
 )
 $ErrorActionPreference = 'Stop'
 $lpRepoRoot = Split-Path -Parent $PSScriptRoot

@@ -3,7 +3,7 @@
 `include "game_defs.vh"
 module game_baseline_tb;
     reg clk=0, btnC=0, btnU=0, btnD=1;
-    reg [1:0] sw=1;
+    reg [2:0] sw=1;
     wire [15:0] led;
     wire [7:0] JA, JB;
     tri1 PS2Clk, PS2Data;
@@ -13,7 +13,7 @@ module game_baseline_tb;
     My_Top_Module #(
         .PHYSICS_CYCLES(24), .BUTTON_DEBOUNCE_CYCLES(2), .BUTTON_RELEASE_CYCLES(2)
     ) dut (
-        .clk(clk), .btnC(btnC), .btnU(btnU), .btnR(1'b0), .btnD(btnD), .sw(sw),
+        .clk(clk), .btnC(btnC), .btnU(btnU), .btnR(1'b0), .btnL(1'b0),.btnD(btnD), .sw(sw),
         .PS2Clk(PS2Clk), .PS2Data(PS2Data), .led(led), .JA(JA), .JB(JB)
     );
     task clocks;
@@ -31,6 +31,8 @@ module game_baseline_tb;
     always @(negedge clk) begin
         if (dut.reset) active_update=0;
         else begin
+            if (dut.move_valid && $isunknown({dut.proposed_x,dut.proposed_y,dut.proposed_vx,dut.proposed_vy}))
+                $fatal(1,"Unknown movement: reverse=%b jump=%b mass=%d force=%d vx=%d rem=%d",dut.engine_reverse,dut.jump_press,dut.mass_units,dut.u_physics.step_thrust,dut.u_physics.step_vx,dut.u_physics.remainder_x);
             if (dut.launch_event) launches=launches+1;
             if (dut.step_start) begin
                 if (active_update) $fatal(1,"Overlapping physics updates");

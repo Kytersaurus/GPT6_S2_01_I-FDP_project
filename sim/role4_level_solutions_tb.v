@@ -7,7 +7,7 @@
 // TNT and hazard checks are not implemented by Role 3 yet; recheck once they are.
 module role4_level_solutions_tb;
     reg clk=0, btnC=0, btnU=0, btnD=1;
-    reg [1:0] sw=2'b01;
+    reg [2:0] sw=2'b01;
     wire [15:0] led;
     wire [7:0] JA, JB;
     tri1 PS2Clk, PS2Data;
@@ -17,7 +17,7 @@ module role4_level_solutions_tb;
     My_Top_Module #(
         .PHYSICS_CYCLES(24), .BUTTON_DEBOUNCE_CYCLES(2), .BUTTON_RELEASE_CYCLES(2)
     ) dut (
-        .clk(clk), .btnC(btnC), .btnU(btnU), .btnR(1'b0), .btnD(btnD), .sw(sw),
+        .clk(clk), .btnC(btnC), .btnU(btnU), .btnR(1'b0), .btnL(1'b0),.btnD(btnD), .sw(sw),
         .PS2Clk(PS2Clk), .PS2Data(PS2Data), .led(led), .JA(JA), .JB(JB)
     );
     task clocks;

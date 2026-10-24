@@ -20,7 +20,7 @@ set lp_hdl_files [glob -nocomplain \
 set lp_sources [get_filesets sources_1]
 foreach lp_path [lsort $lp_hdl_files] {
     if {[llength [get_files -quiet -of_objects $lp_sources $lp_path]] == 0} {
-        add_files -fileset sources_1 -norecurse $lp_path
+        add_files -fileset sources_1 -norecurse [list $lp_path]
     }
 }
 

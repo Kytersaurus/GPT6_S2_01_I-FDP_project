@@ -2,11 +2,11 @@
 
 Owner: Shared - all roles. [File-by-file owners](docs/file_owners.md) are listed separately and labelled in the custom source files.
 
-Build one shared Basys3 game by giving each member ownership of separate modules and agreeing the signals between them. The hardware top connects mouse construction, limited inventory, engine movement, gravity, flat-ground collision, a goal, retry and two OLED views. It is a baseline for team development, not the full proposal implementation.
+Build one shared Basys3 game by giving each member ownership of separate modules and agreeing the signals between them. The hardware top connects mouse construction, limited inventory, force/mass movement, reverse, ground-only jumping, balloon lift, provisional platform collision, game audio, two selectable maps and two OLED views. It is a baseline for team development, not the full proposal implementation.
 
 ## Try the starter
 
-Open `GPT_6_S2_01_I-FDP_project.xpr` in Vivado. Sources, pin constraints and the default `game_baseline_tb` simulation top are registered. The left OLED uses JA: during BUILD it shows a 48 by 48 pixel grid, five inventory rows, selection and cursor; during RUN it shows the build, status and surviving-part count. The right OLED uses JB and shows the vehicle at eight pixels per cell, ground and green goal area. Verify the physical connector arrangement before attaching displays with board power off.
+Open `GPT_6_S2_01_I-FDP_project.xpr` in Vivado. Sources, pin constraints and the default `game_baseline_tb` simulation top are registered. The left OLED uses JA: during BUILD it shows a 48 by 48 pixel grid, five inventory rows, selection and cursor; during RUN it shows the build, status and surviving-part count. The right OLED uses JB and shows the vehicle at eight pixels per cell, sprites, terrain, the goal and provisional TNT/spikes. The maps fit the fixed 96 by 64 view; there is no scrolling camera. Verify the physical connector arrangement before attaching displays with board power off.
 
 One OLED is enough for construction testing: connect it to JA and leave JB empty. Both driver instances continue running, so a missing physical display does not block the game. To inspect the map instead, switch the board off, move the OLED to JB, then power on and program the board again.
 
@@ -15,10 +15,13 @@ One OLED is enough for construction testing: connect it to JA and leave JB empty
 | Mouse left-click / drag | Select an inventory row, then click a grid cell or drag its moving preview and release over a cell to place/replace one part during BUILD |
 | Mouse right-click | Remove contents first, then the empty frame on a second click during BUILD |
 | Mouse left-click during RUN | Pop the surviving balloon in that cell on the left grid; release before clicking another balloon |
-| SW0 | Enable the engine; turn on before launching to reach the goal |
+| SW0 | Enable ground-engine thrust |
+| SW2 | Reverse engine thrust; SW1 remains audio mute |
+| BTNL | Jump once when grounded; release before another jump |
 | SW1 | Audio mute: one mutes and cancels the current sound; zero enables audio |
 | BTNC | Launch from BUILD; retry from SUCCESS/FAIL |
-| BTNU | Return to BUILD after a result |
+| BTNU | Return to BUILD; advance to the next level after SUCCESS, keep the level after FAIL |
+| Left OLED L1/L2 button | Select either provisional level during BUILD |
 | BTNR | Play one short audio test beep; release before pressing again |
 | BTND | Reset the system |
 | LED 2 through 0 | Game state: BUILD=0, INIT_RUN=1, RUN=2, SUCCESS=3, FAIL=4 |
@@ -42,9 +45,11 @@ To test on JA, place two balloons above the preset's middle-row frames, launch w
 
 Game audio uses a Pmod AMP2 on JC pins 1-6. Accepted launch, balloon pop, landing, success and failure events play distinct short tones/sequences; the explosion sound is implemented but awaits Role 3's TNT trigger. Failure/success take priority over ordinary actions; held events do not repeat and lower-priority busy events are discarded. BTNR retains its 1 kHz test beep, SW1 mutes/cancels, and reset/retry/edit clear old playback. Ordinary mouse edits and buttons have no generic click sound. Notes fade in/out and PWM duty changes only between carrier frames. See [audio setup](docs/audio_setup.md) for profiles and tests.
 
-TNT, walls/ceilings, instructions and the two final maps remain to be implemented; explosion audio awaits the TNT trigger. The builder's content damage channel currently carries balloon pops; its frame damage mask remains zero. When TNT is integrated, its masks need to be combined/arbitrated with pop requests without dropping either source. Balloon lift is provisional and temporary engine boost controls remain future work. Runtime movement still treats the vehicle as one upright body, without detached-part motion.
+TNT damage, spike detection, walls/ceilings, instructions and final level balancing remain to be implemented; the two provisional maps and sprites are integrated, while explosion audio awaits the TNT trigger. The builder's content damage channel currently carries balloon pops; its frame damage mask remains zero. When TNT is integrated, its masks need to be combined/arbitrated with pop requests without dropping either source. Balloon lift tuning is provisional and temporary engine boost controls remain future work. Runtime movement still treats the vehicle as one upright body, without detached-part motion.
 
 During BUILD, an accepted placement/removal gives its cell a green outline and shows PLACED/REMOVED along the bottom. A rejected drop gives a red outline and NO STOCK, NEED FRAME, FRAME ABOVE, FRAME BELOW or CELL OCCUPIED. The feedback lasts one second at 100 MHz (`FEEDBACK_CYCLES=100000000`), then returns to READY, ADD PIG, CHECK SUPPORT or CHECK STOCK for the saved build. A new reportable action restarts the timer; dropping the same part onto itself, removing an empty cell and cancelling outside the grid stay quiet. The builder uses one edit decision for both storage and feedback; rejected actions preserve stock and construction. Reset, launch and leaving BUILD clear transient feedback. The bottom strip replaces the small indicators during BUILD; runtime indicators remain. Text uses a small built-in 5 by 7 font that Marcus can replace later. This feedback was reported working on the physical OLED on 24 October 2026.
+
+Kyle's movement uses a staged force calculation and a 16-clock signed divider for horizontal force/mass, retaining fractional remainders so weak forces accumulate. Ground engine force is 96 units per engine and resistance is 10 per wheel; SW2 reverses thrust. Jumping sets upward velocity to -512 (two pixels/update) after confirmed ground contact. Gravity adds 32 per update; provisional balloon lift is 24 per surviving balloon, so one slows a fall and two rise. Properties are captured once per update, and world checks complete before another movement step. See [integration review](docs/integration_review.md) for branch coverage and resolved issues.
 
 ## Start together
 
@@ -102,6 +107,8 @@ On 23 October 2026, all eleven simulation benches passed after adding constructi
 The same version also passed a design-only synthesis check with no unresolved black boxes or reported inferred latches. Its synthesis estimate is 3,267 LUTs (15.71%), 1,423 flip-flops (3.42%) and zero block RAM/DSP use for the whole current design, including audio and construction feedback. Reports are in `tmp/feedback_review/`. This temporary check did not load timing constraints or run placement/routing; it establishes synthesis and an area estimate, with no new routed timing result or bitstream.
 
 On 24 October 2026, all twelve simulation benches passed after replacing the one-off test beep with game-event audio. New checks cover seven profiles, note timing/pitches, volume fades, PWM frame integrity, priority/preemption, held/muted requests, silent ordinary controls and accepted launch/pop/landing/result events. Design-only synthesis passed with no unresolved black boxes or inferred latches: 3,395 LUTs (16.32%), 1,506 flip-flops (3.62%) and zero block RAM/DSP use. This is a net increase of 128 LUTs over the previous design-only estimate. Reports/logs are under `tmp/audio_events_review/`. No implementation, bitstream generation or new audio board verification was performed for this version.
+
+On 24 October 2026, the published Role 1, Role 2 and Role 4 changes were combined and reviewed. Control conflicts, stale source registration, outdated movement tests and measured timing paths were corrected. All 19 benches passed on the final merged sources. Final routed use is 5,629 LUTs (27.06%), 2,060 flip-flops (4.95%), 13 DSPs (14.44%) and no block RAM. The constrained 100 MHz paths meet setup/hold timing, with 0.317 ns setup slack and 0.077 ns hold slack. DRC reports no error/critical-warning rules; the remaining DSP pipelining warnings concern performance/power suggestions. Divided-OLED-clock and external-I/O timing remain incompletely constrained, as before; physical board verification is still required. No bitstream was generated. See [the integration review](docs/integration_review.md) for scope, controls and remaining Role 3 work.
 
 Develop the existing `.v` modules in the design source folder. Their ports and `docs/interfaces.md` define the current interfaces; the old interface-only template copies have been removed.
 

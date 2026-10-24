@@ -14,39 +14,75 @@ module collision_engine (
     output reg signed [15:0] corrected_x, corrected_y, corrected_vx, corrected_vy,
     output reg grounded
 );
-    integer index, rx, ry, rw, rh, candidate_y, candidate_vy;
-    reg candidate_grounded;
-    localparam FOOTPRINT = `LP_GRID_ROWS * `LP_CELL_PIXELS * 256;
-    localparam VEHICLE_WIDTH = `LP_GRID_COLS * `LP_CELL_PIXELS * 256;
-    assign move_ready = !response_valid;
+    // Capture -> check four platforms in parallel -> choose the highest hit.
+    // Splitting the work avoids a chain of four full collision checks in one clock.
+    localparam IDLE=0, CHECK=1, CHOOSE=2;
+    reg [1:0] phase;
+    reg signed [15:0] saved_x, saved_y, saved_vx, saved_vy;
+    reg signed [17:0] old_bottom, new_bottom, new_right;
+    reg [127:0] saved_terrain;
+    reg [2:0] saved_count;
+    reg [3:0] platform_hit;
+    reg best_hit;
+    reg [7:0] best_top;
+    reg [8:0] rect_right_pixels;
+    reg signed [17:0] rect_left, rect_right, rect_top;
+    wire signed [17:0] new_left = {{2{saved_x[15]}},saved_x};
+    wire signed [17:0] landing_y = $signed({2'b00,best_top,8'b0}) - 18'sd6144;
+    integer select_index, check_index;
+    assign move_ready = phase == IDLE && !response_valid;
     always @* begin
-        candidate_y = $signed(proposed_y); candidate_vy = $signed(proposed_vy);
-        candidate_grounded = 0; rx = 0; ry = 0; rw = 0; rh = 0;
-        for (index = 0; index < 4; index = index + 1) begin
-            // [start +: 8] selects eight bits beginning at start.
-            rx = terrain_rects[index*32 +: 8]; ry = terrain_rects[index*32+8 +: 8];
-            rw = terrain_rects[index*32+16 +: 8]; rh = terrain_rects[index*32+24 +: 8];
-            if (index < terrain_count && rw > 0 && rh > 0 && $signed(proposed_vy) >= 0 &&
-                $signed(previous_y) + FOOTPRINT <= ry*256 &&
-                $signed(proposed_y) + FOOTPRINT >= ry*256 &&
-                $signed(proposed_x) + VEHICLE_WIDTH > rx*256 &&
-                $signed(proposed_x) < (rx+rw)*256 &&
-                (!candidate_grounded || ry*256-FOOTPRINT < candidate_y)) begin
-                candidate_y = ry*256-FOOTPRINT; candidate_vy = 0; candidate_grounded = 1;
+        best_hit = 0; best_top = 0;
+        for (select_index = 0; select_index < 4; select_index = select_index + 1) begin
+            if (platform_hit[select_index] && (!best_hit || saved_terrain[select_index*32+8 +: 8] < best_top)) begin
+                best_hit = 1;
+                best_top = saved_terrain[select_index*32+8 +: 8];
             end
         end
     end
     always @(posedge clk) begin
         if (reset) begin
-            response_valid <= 0; grounded <= 0;
+            phase <= IDLE; response_valid <= 0; grounded <= 0;
+            saved_x <= 0; saved_y <= 0; saved_vx <= 0; saved_vy <= 0;
+            old_bottom <= 0; new_bottom <= 0; new_right <= 0;
+            saved_terrain <= 0; saved_count <= 0; platform_hit <= 0;
+            rect_right_pixels = 0; rect_left = 0; rect_right = 0; rect_top = 0;
             corrected_x <= 0; corrected_y <= 0; corrected_vx <= 0; corrected_vy <= 0;
         end else begin
             if (response_valid && response_ready) response_valid <= 0;
-            if (move_valid && move_ready) begin
-                corrected_x <= proposed_x; corrected_y <= candidate_y[15:0];
-                corrected_vx <= proposed_vx; corrected_vy <= candidate_vy[15:0];
-                grounded <= candidate_grounded; response_valid <= 1;
-            end
+            case (phase)
+                IDLE: if (move_valid && move_ready) begin
+                    saved_x <= proposed_x; saved_y <= proposed_y;
+                    saved_vx <= proposed_vx; saved_vy <= proposed_vy;
+                    // 24 pixels * 256 fixed-point units; extend before addition.
+                    old_bottom <= $signed({{2{previous_y[15]}},previous_y}) + 18'sd6144;
+                    new_bottom <= $signed({{2{proposed_y[15]}},proposed_y}) + 18'sd6144;
+                    new_right <= $signed({{2{proposed_x[15]}},proposed_x}) + 18'sd6144;
+                    saved_terrain <= terrain_rects; saved_count <= terrain_count;
+                    phase <= CHECK;
+                end
+                CHECK: begin
+                    for (check_index = 0; check_index < 4; check_index = check_index + 1) begin
+                        // Temporary blocking assignments describe each parallel check.
+                        rect_left = $signed({2'b00,saved_terrain[check_index*32 +: 8],8'b0});
+                        rect_top = $signed({2'b00,saved_terrain[check_index*32+8 +: 8],8'b0});
+                        rect_right_pixels = {1'b0,saved_terrain[check_index*32 +: 8]} +
+                                            {1'b0,saved_terrain[check_index*32+16 +: 8]};
+                        rect_right = $signed({1'b0,rect_right_pixels,8'b0});
+                        platform_hit[check_index] <= check_index < saved_count &&
+                            saved_terrain[check_index*32+16 +: 8] != 0 && saved_terrain[check_index*32+24 +: 8] != 0 &&
+                            !saved_vy[15] && old_bottom <= rect_top && new_bottom >= rect_top &&
+                            new_right > rect_left && new_left < rect_right;
+                    end
+                    phase <= CHOOSE;
+                end
+                CHOOSE: begin
+                    corrected_x <= saved_x; corrected_y <= best_hit ? landing_y[15:0] : saved_y;
+                    corrected_vx <= saved_vx; corrected_vy <= best_hit ? 16'sd0 : saved_vy;
+                    grounded <= best_hit; response_valid <= 1; phase <= IDLE;
+                end
+                default: phase <= IDLE;
+            endcase
         end
     end
 endmodule

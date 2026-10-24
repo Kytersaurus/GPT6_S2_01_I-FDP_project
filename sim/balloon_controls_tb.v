@@ -17,7 +17,7 @@ module balloon_controls_tb;
     always #5 clk=~clk;
 
     My_Top_Module #(.BUTTON_DEBOUNCE_CYCLES(2), .BUTTON_RELEASE_CYCLES(2)) dut (
-        .clk(clk), .btnC(1'b0), .btnU(1'b0), .btnR(1'b0), .btnD(btnD), .sw(2'b00),
+        .clk(clk), .btnC(1'b0), .btnU(1'b0), .btnR(1'b0), .btnL(1'b0),.btnD(btnD), .sw(3'b000),
         .PS2Clk(PS2Clk), .PS2Data(PS2Data), .led(led), .JA(JA), .JB(JB)
     );
     // Check renderer pixels directly without waiting for an entire OLED frame.
@@ -92,7 +92,7 @@ module balloon_controls_tb;
     task wait_movement;
         begin
             cycles=0;
-            while (!dut.movement_committed && cycles<30) begin clocks(1); cycles=cycles+1; end
+            while (!dut.movement_committed && cycles<64) begin clocks(1); cycles=cycles+1; end
             if (!dut.movement_committed) $fatal(1,"Movement did not commit");
         end
     endtask
@@ -187,7 +187,7 @@ module balloon_controls_tb;
             applications!=previous_applications+1 || dut.balloons_left!=0)
             $fatal(1,"Queued balloons did not pop together before the next update");
         clocks(2); tick=0;
-        if (dut.u_physics.sampled_balloons!=0 || dut.u_physics.sampled_mass!=13)
+        if (dut.u_physics.sampled_balloons!=0 || dut.u_physics.step_mass!=13)
             $fatal(1,"Following physics step did not sample the reduced lift/mass");
         wait_movement(); finish_world(0,0); clocks(2);
         complete_and_retry();

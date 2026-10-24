@@ -89,12 +89,12 @@ module module_contracts_tb;
             frame_intact!=9'b000111000) $fatal(1,"Retry did not restore build");
         builder_init=0;
 
-        move_valid=1; clocks(1); move_valid=0; clocks(1);
+        move_valid=1; clocks(1); move_valid=0; clocks(2);
         if (!response_valid || !grounded || cy!=8192 || cvy!=0) $fatal(1,"Platform crossing failed");
         ny=12000; clocks(5);
         if (!response_valid || move_ready || cy!=8192) $fatal(1,"Collision response changed under backpressure");
         response_ready=1; clocks(1); response_ready=0;
-        nx=24576; move_valid=1; clocks(1); move_valid=0; clocks(1);
+        nx=24576; move_valid=1; clocks(1); move_valid=0; clocks(2);
         if (grounded || cy!=12000) $fatal(1,"Non-overlapping vehicle landed on ground");
         response_ready=1; clocks(1);
 

@@ -42,12 +42,12 @@ module role4_game_display_tb;
     // Level button with a scripted mouse.
     reg [2:0] button_state=`LP_BUILD;
     reg [11:0] mouse_x=0, mouse_y=0;
-    reg mouse_left=0, mouse_event=0;
+    reg mouse_left=0, mouse_right=0, mouse_event=0;
     wire button_req;
     integer button_pulses=0;
     level_button button (
         .clk(clk),.reset(reset),.game_state(button_state),.mouse_x(mouse_x),.mouse_y(mouse_y),
-        .mouse_left(mouse_left),.mouse_event(mouse_event),.level_next_req(button_req)
+        .mouse_left(mouse_left),.mouse_right(mouse_right),.mouse_event(mouse_event),.level_next_req(button_req)
     );
     always @(posedge clk) if (button_req) button_pulses = button_pulses + 1;
 
@@ -209,6 +209,12 @@ module role4_game_display_tb;
         mouse_left=0; mouse_event=1; clocks(1); mouse_event=0; clocks(1);
         mouse_x=81; mouse_left=1; mouse_event=1; clocks(1); mouse_event=0; mouse_left=0; clocks(2);
         if (button_pulses != 1) $fatal(1,"Press beside the button counted");
+        mouse_x=88; mouse_left=0; mouse_event=1; clocks(1); mouse_event=0; clocks(1);
+        mouse_left=1; mouse_right=1; mouse_event=1; clocks(1); mouse_event=0; clocks(2);
+        if (button_pulses != 1) $fatal(1,"Right-click did not suppress simultaneous level selection");
+        mouse_right=0; mouse_event=1; clocks(1); mouse_event=0; clocks(2);
+        if (button_pulses != 1) $fatal(1,"Releasing right while holding left selected a level");
+        mouse_left=0;
         mouse_event=1; clocks(1); mouse_event=0;
         button_state=`LP_RUN; mouse_x=88; mouse_left=1; mouse_event=1; clocks(1); mouse_event=0; clocks(2);
         if (button_pulses != 1) $fatal(1,"Button worked outside BUILD");

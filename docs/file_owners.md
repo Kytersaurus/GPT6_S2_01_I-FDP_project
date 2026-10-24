@@ -11,7 +11,7 @@ All design files below are in `GPT_6_S2_01_I-FDP_project.srcs/sources_1/new/`.
 | `vehicle_builder.v` | Role 1 - Kaushal | Frame/content editing, attachment/stock validation, timed edit feedback, inventory, runtime masks, counts and mass |
 | `mouse_adapter.v` | Role 1 - Kaushal | Driver coordinate setup, cursor, inventory selection, click/drag-and-drop placement, right-click removal and RUN pop requests |
 | `balloon_control.v` | Role 1 - Kaushal | Queue valid balloon clicks and apply content damage between movement/world updates |
-| `input_controller.v` | Role 1 - Kaushal | Button actions, manual beep request, engine switch and audio mute; mouse actions use the separate adapter |
+| `input_controller.v` | Role 1 - Kaushal | Launch/edit/jump/test button actions, engine/reverse switches and audio mute; mouse actions use the separate adapter |
 | `sound_controller.v` | Role 1 - Kaushal | Event priorities, edge detection, duplicate suppression and preemption |
 | `sound_generator.v` | Role 1 - Kaushal | Seven tone profiles, note sequencing, volume fades, frame-aligned PWM and cancellation |
 | `button_debouncer.v` | Role 1 - Kaushal | User's debouncer adapted with reset and stable release |
@@ -19,8 +19,9 @@ All design files below are in `GPT_6_S2_01_I-FDP_project.srcs/sources_1/new/`.
 | `clock_control.v` | Shared; Role 1 - Kaushal maintains starter | Clock connections, physics enable and reset |
 | `square.v` | Role 1 - Kaushal; used by Role 4 | User's rectangle drawing helper |
 | `seven_seg_oled.v` | Role 1 - Kaushal; used by Role 4 | User's digit drawing helper |
-| `physics_engine.v` | Role 2 - Kyle | Movement, gravity, engine acceleration, balloon lift and drag |
-| `collision_engine.v` | Role 3 - Yap Ting | Starter platform landing; walls, ceilings and TNT remain to be added |
+| `physics_engine.v` | Role 2 - Kyle | Staged force/mass movement, fractional carry, ground friction/thrust, reverse, queued jumping and balloon lift |
+| `signed_divider16.v` | Role 2 - Kyle | Clocked signed 16-bit force divided by unsigned 8-bit mass |
+| `collision_engine.v` | Role 3 - Yap Ting | Staged platform landing; walls, ceilings and TNT remain to be added |
 | `world_outcomes.v` | Role 3 - Yap Ting | Goal and bounds checks; hazards/TNT remain to be added |
 | `game_controller.v` | Role 4 - Marcus | Build/run/result/retry states and update sequencing |
 | `level_data.v` | Role 4 - Marcus | Two provisional levels: terrain, spawn, goal, TNT and hazards |
@@ -61,9 +62,14 @@ Audio scheduling and gameplay input belong to Role 1; the explosion event awaits
 | `sim/game_audio_tb.v` | Role 1 - Kaushal | Priorities, preemption, duplicate suppression, real game events, silent ordinary controls, BTNR and JC mute/reset |
 | `sim/clock_control_tb.v` | Shared; Role 1 maintains | Divider, physics-enable and reset checks |
 | `sim/physics_engine_tb.v` | Role 2 - Kyle | Movement arithmetic and handshake checks |
+| `sim/physics_friction_tb.v` | Role 2 - Kyle; shared integration | Force/mass, fractional carry, coast-to-stop, reverse, clamping and stable requests |
+| `sim/signed_divider16_tb.v` | Role 2 - Kyle; shared integration | Signed extremes/random operands, exact latency, captured inputs, zero divisor and cancellation |
+| `sim/physics_jump_tb.v` | Role 2 - Kyle; shared integration | Confirmed-ground/queued jumps, airborne rejection and retry |
+| `sim/team_controls_tb.v` | Shared integration | Independent mute/reverse and test/jump controls through the actual top |
 | `sim/display_snapshot_tb.v` | Role 4 - Marcus | Snapshot transfer and frame-boundary checks |
 | `sim/role4_game_display_tb.v` | Role 4 - Marcus | Level data, level select/next level, fail reasons, timer, explosions, level button and renderer pixels |
 | `sim/role4_level_solutions_tb.v` | Role 4 - Marcus | Recorded solution: the preset vehicle clears both levels through the full top |
+| `sim/collision_engine_tb.v` | Role 3 - Yap Ting; shared integration | Captured collision proposals, four-platform selection, signed edges, backpressure and reset |
 | `sim/module_contracts_tb.v` | Shared - Roles 1, 3 and 4 | Builder, collision, controller and drawing checks |
 | `sim/game_baseline_tb.v` | Shared - all roles | Connected starter game-loop checks |
 

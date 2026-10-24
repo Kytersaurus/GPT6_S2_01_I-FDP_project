@@ -7,7 +7,7 @@ module level_button (
     input wire clk, reset,
     input wire [2:0] game_state,
     input wire [11:0] mouse_x, mouse_y,
-    input wire mouse_left, mouse_event,
+    input wire mouse_left, mouse_right, mouse_event,
     output reg level_next_req
 );
     reg left_was_down;
@@ -20,7 +20,8 @@ module level_button (
             if (mouse_event) begin
                 left_was_down <= mouse_left;
                 // One request per fresh press; holding the button does not repeat.
-                if (mouse_left && !left_was_down && on_button && game_state == `LP_BUILD) level_next_req <= 1;
+                if (mouse_left && !mouse_right && !left_was_down && on_button && game_state == `LP_BUILD)
+                    level_next_req <= 1;
             end
         end
     end

@@ -22,7 +22,7 @@ module game_audio_tb;
     always @(posedge clk) if (!reset && start) starts=starts+1;
 
     reg btnD=1, btnC=0, btnU=0, btnR=0;
-    reg [1:0] sw=0;
+    reg [2:0] sw=0;
     reg [11:0] mx=0,my=0;
     reg ml=0,mr=0,me=0, tick=0, world=0, goal=0,hazard=0;
     reg response=0,ready=0,ground=0;
@@ -36,7 +36,7 @@ module game_audio_tb;
     My_Top_Module #(.BUTTON_DEBOUNCE_CYCLES(2),.BUTTON_RELEASE_CYCLES(2),
         .AUDIO_TONE_HALF_CYCLES(512),.AUDIO_BEEP_CYCLES(1024),
         .AUDIO_NOTE_CYCLES(1024),.AUDIO_FADE_CYCLES(8)) dut (
-        .clk(clk),.btnC(btnC),.btnU(btnU),.btnR(btnR),.btnD(btnD),.sw(sw),
+        .clk(clk),.btnC(btnC),.btnU(btnU),.btnR(btnR),.btnL(1'b0),.btnD(btnD),.sw(sw),
         .PS2Clk(PS2Clk),.PS2Data(PS2Data),.led(led),.JA(JA),.JB(JB),.JC(JC)
     );
     initial begin
@@ -81,9 +81,9 @@ module game_audio_tb;
         begin
             tick=1; clocks(1); tick=0;
             waited=0;
-            while (!dut.world_ready && waited<30) begin clocks(1); waited=waited+1; end
+            while (!dut.world_ready && waited<64) begin clocks(1); waited=waited+1; end
             if (!dut.world_ready) $fatal(1,"No movement update for result");
-            clocks(25); goal=won; hazard=failed; world=1; clocks(3);
+            clocks(64); goal=won; hazard=failed; world=1; clocks(3);
             world=0; goal=0; hazard=0; clocks(2);
         end
     endtask
