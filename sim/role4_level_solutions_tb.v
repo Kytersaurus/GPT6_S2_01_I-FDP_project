@@ -69,9 +69,9 @@ module role4_level_solutions_tb;
         play_level(1'b0);
         press_u();                              // Next level after success.
         play_level(1'b1);
-        press_u();                              // Next level wraps back to level 1.
-        if (dut.game_state !== `LP_BUILD || dut.level_index !== 0) $fatal(1,"Level did not wrap to level 1");
-        $display("PASS role4_level_solutions_tb: test vehicle clears level 1 and level 2, BTNU advances levels");
+        press_u();                              // Next level is the Cave Arch map (level 3).
+        if (dut.game_state !== `LP_BUILD || dut.level_index !== 2) $fatal(1,"Level 2 success did not advance to level 3");
+        $display("PASS role4_level_solutions_tb: test vehicle clears level 1 and level 2, BTNU advances to level 3");
         $finish;
     end
     initial begin #2000000; $fatal(1,"Level solution test timed out"); end

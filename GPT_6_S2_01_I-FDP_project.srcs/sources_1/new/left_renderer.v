@@ -25,9 +25,10 @@ module left_renderer #(parameter EDITOR_CELL_PIXELS = 16) (
     input wire [2:0] drag_contents,
     input wire [6:0] cursor_x, cursor_y,
     input wire cursor_visible,
-    input wire level_index,
+    input wire [`LP_LEVEL_BITS-1:0] level_index,
     input wire [1:0] fail_reason,
     input wire [6:0] run_seconds,
+    input wire anim_phase,
     output reg [15:0] pixel_data
 );
     `include "part_sprites.vh"
@@ -67,7 +68,7 @@ module left_renderer #(parameter EDITOR_CELL_PIXELS = 16) (
         input [2:0] icon_part;
         input integer icon_x, icon_y;
         input [15:0] background;
-        begin draw_part_icon = part_sprite(icon_part, icon_x, icon_y, background); end
+        begin draw_part_icon = part_sprite(icon_part, icon_x, icon_y, 1'b0, background); end
     endfunction
 
     // Five pixels per row, seven rows from top to bottom. Only used letters are stored.
@@ -101,6 +102,8 @@ module left_renderer #(parameter EDITOR_CELL_PIXELS = 16) (
                 "Z": letter_pixels = {5'b11111,5'b00001,5'b00010,5'b00100,5'b01000,5'b10000,5'b11111};
                 "1": letter_pixels = {5'b00100,5'b01100,5'b00100,5'b00100,5'b00100,5'b00100,5'b01110};
                 "2": letter_pixels = {5'b01110,5'b10001,5'b00001,5'b00010,5'b00100,5'b01000,5'b11111};
+                "3": letter_pixels = {5'b01110,5'b10001,5'b00001,5'b00110,5'b00001,5'b10001,5'b01110};
+                "4": letter_pixels = {5'b00010,5'b00110,5'b01010,5'b10010,5'b11111,5'b00010,5'b00010};
                 default: letter_pixels = 0;
             endcase
         end
@@ -217,11 +220,11 @@ module left_renderer #(parameter EDITOR_CELL_PIXELS = 16) (
                 if (!in_build && cell_x >= 4 && cell_x < 12 && (cell_x == cell_y || cell_x+cell_y == 15) &&
                     ((part != `LP_PART_EMPTY && !intact_mask[cell_index]) ||
                      (build_frames[cell_index] && !frame_intact_mask[cell_index]))) pixel_data = 16'h8000;
-                // Sprites at double size: the frame first, then its contents.
+                // Full-resolution 16 by 16 sprites: the frame first, then its contents.
                 if (frame_intact_mask[cell_index] && !(in_build && drag_active && drag_from_grid && drag_source == cell_index))
-                    pixel_data = part_sprite(`LP_PART_FRAME, cell_x/2, cell_y/2, pixel_data);
+                    pixel_data = part_sprite16(`LP_PART_FRAME, cell_x, cell_y, 1'b0, pixel_data);
                 if (intact_mask[cell_index] && !(in_build && drag_active && drag_from_grid && drag_source == cell_index))
-                    pixel_data = part_sprite(part, cell_x/2, cell_y/2, pixel_data);
+                    pixel_data = part_sprite16(part, cell_x, cell_y, anim_phase, pixel_data);
             end
             if (feedback_code != `LP_FEEDBACK_NONE && feedback_cell < 9 &&
                 cell_index == feedback_cell &&
@@ -253,7 +256,8 @@ module left_renderer #(parameter EDITOR_CELL_PIXELS = 16) (
                 pixel_data = 16'h0010;
                 if (x == `LP_LEVEL_BUTTON_X || x == `LP_LEVEL_BUTTON_X+`LP_LEVEL_BUTTON_W-1 ||
                     y == `LP_LEVEL_BUTTON_Y || y == `LP_LEVEL_BUTTON_Y+`LP_LEVEL_BUTTON_H-1) pixel_data = 16'h7bef;
-                else if (text_on(level_index ? "L2              " : "L1              ",
+                else if (text_on(level_index == 3 ? "L4              " : level_index == 2 ? "L3              " :
+                                 level_index == 1 ? "L2              " : "L1              ",
                                  `LP_LEVEL_BUTTON_X+1, `LP_LEVEL_BUTTON_Y+1, x, y)) pixel_data = 16'hffff;
             end
         end else begin

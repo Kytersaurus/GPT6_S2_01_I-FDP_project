@@ -58,11 +58,14 @@ module module_contracts_tb;
         .drag_active(1'b0),.drag_from_grid(1'b0),.drag_source(4'd9),.drag_contents(3'd0),
         .cursor_x(7'd0),.cursor_y(7'd0),.cursor_visible(1'b0),.pixel_data(left_colour)
     );
+    // Zoomed out, a 96 by 64 rectangle level fills the screen exactly as before the camera.
     right_renderer right_view (
+        .clk(clk),.zoomed_out(1'b1),.free_look(1'b0),.cursor_x(7'd0),.cursor_y(7'd0),.anim_phase(1'b0),.map_level(1'b0),.map_id(1'b0),.world_width(10'd96),.world_height(10'd64),
+        .flag_x(10'd0),.flag_y(10'd0),.map_x(),.map_y(),.map_class(3'd0),
         .pixel_index(pixel),.game_state(builder_state),.build_grid(grid),.intact_mask(intact),.frame_intact_mask(frame_intact),
-        .vehicle_x(16'sd1024),.vehicle_y(16'sd8192),.terrain_count(3'd1),
+        .vehicle_x(20'sd1024),.vehicle_y(20'sd8192),.terrain_count(3'd1),
         .terrain_rects({96'd0,8'd8,8'd96,8'd56,8'd0}),.goal_rect({8'd24,8'd16,8'd32,8'd80}),
-        .spawn_x(16'sd1024),.spawn_y(16'sd8192),.tnt_count(3'd0),.tnt_positions(64'd0),.tnt_intact(4'd0),
+        .spawn_x(20'sd1024),.spawn_y(20'sd8192),.tnt_count(3'd0),.tnt_positions(64'd0),.tnt_intact(4'd0),
         .hazard_count(2'd0),.hazard_rects(64'd0),.pixel_data(right_colour)
     );
     // Test-only gameplay fixture; the hardware builder starts empty.
@@ -87,10 +90,11 @@ module module_contracts_tb;
         pixel=24*96+24; #1; if (left_colour != 16'h07e0) $fatal(1,"Left pig inside frame incorrect");
         pixel=24*96+21; #1; if (left_colour != 16'ha285) $fatal(1,"Left frame border missing");
         pixel=5*96+84; #1; if (left_colour != 16'hffff) $fatal(1,"Remaining frame count not drawn");
-        pixel=42*96+14; #1; if (right_colour != 16'h07e0) $fatal(1,"Right pig inside frame incorrect");
-        pixel=42*96+12; #1; if (right_colour != 16'ha285) $fatal(1,"Right frame border missing");
-        pixel=60*96+40; #1; if (right_colour != 16'h8320) $fatal(1,"Terrain pixel incorrect");
-        pixel=40*96+85; #1; if (right_colour != 16'h0320) $fatal(1,"Goal rectangle helper not connected");
+        // The right renderer registers each pixel, so wait one clock after choosing it.
+        pixel=42*96+14; @(posedge clk); #1; if (right_colour != 16'h07e0) $fatal(1,"Right pig inside frame incorrect");
+        pixel=42*96+12; @(posedge clk); #1; if (right_colour != 16'ha285) $fatal(1,"Right frame border missing");
+        pixel=60*96+40; @(posedge clk); #1; if (right_colour != 16'h8320) $fatal(1,"Terrain pixel incorrect");
+        pixel=40*96+85; @(posedge clk); #1; if (right_colour != 16'h0320) $fatal(1,"Goal rectangle helper not connected");
         clocks(1); // Return to a falling edge after the pixel checks before driving requests.
         builder_state=`LP_RUN; damage_mask=9'b000100000; damage_valid=1; clocks(1); damage_valid=0; clocks(1);
         if (engines!=0 || mass!=10 || grid[17:15]!=`LP_PART_ENGINE) $fatal(1,"Damage corrupted original build/properties");

@@ -81,10 +81,17 @@ module My_Top_Module #(
     wire [8:0] pop_mask;
     wire [7:0] mass_units;
     wire signed [15:0] spawn_x, spawn_y, vehicle_x, vehicle_y;
+    // level_data's spawn is Q12.8; physics takes the low 16 bits until positions are widened.
+    wire signed [19:0] level_spawn_x, level_spawn_y;
+    assign spawn_x = level_spawn_x[15:0];
+    assign spawn_y = level_spawn_y[15:0];
     wire [2:0] terrain_count;
     wire [127:0] terrain_rects;
     wire [31:0] goal_rect;
-    wire level_next_req, level_index;
+    wire level_next_req;
+    wire [`LP_LEVEL_BITS-1:0] level_index;
+    wire [3:0] mouse_z;
+    wire zoomed_out;
     wire [1:0] fail_reason;
     wire [6:0] run_seconds;
     wire [2*`LP_MAX_TNT-1:0] blast_phase;
@@ -154,7 +161,7 @@ module My_Top_Module #(
         .pause(audio_busy || sound_start), .fast(game_state == `LP_RUN), .audio_sample(bgm_sample)
     );
     MouseCtl u_mouse (
-        .clk(clk), .rst(reset), .xpos(mouse_x), .ypos(mouse_y), .zpos(),
+        .clk(clk), .rst(reset), .xpos(mouse_x), .ypos(mouse_y), .zpos(mouse_z),
         .left(mouse_left), .middle(), .right(mouse_right), .new_event(mouse_event),
         .value(mouse_value), .setx(setx), .sety(sety), .setmax_x(setmax_x), .setmax_y(setmax_y),
         .ps2_clk(PS2Clk), .ps2_data(PS2Data)
@@ -168,6 +175,10 @@ module My_Top_Module #(
         .drag_active(drag_active), .drag_from_grid(drag_from_grid), .drag_source(drag_source), .drag_contents(drag_contents),
         .edit_valid(edit_valid), .edit_op(edit_op), .edit_cell(edit_cell), .edit_source(edit_source), .edit_part(edit_part),
         .pop_req(pop_req), .pop_cell(pop_cell), .boost_req(boost_req)
+    );
+    zoom_control u_zoom (
+        .clk(clk), .reset(reset), .zoom_switch(sw[3]), .mouse_event(mouse_event), .mouse_z(mouse_z),
+        .zoomed_out(zoomed_out)
     );
     level_button u_level_button (
         .clk(clk), .reset(reset), .input_enabled(builder_input_enabled), .game_state(game_state), .mouse_x(mouse_x), .mouse_y(mouse_y),
@@ -197,7 +208,7 @@ module My_Top_Module #(
     );
     // Geometry stays fixed throughout a run.
     level_data u_level (
-        .level_index(level_index), .spawn_x(spawn_x), .spawn_y(spawn_y), .terrain_count(terrain_count),
+        .level_index(level_index), .spawn_x(level_spawn_x), .spawn_y(level_spawn_y), .terrain_count(terrain_count),
         .terrain_rects(terrain_rects), .goal_rect(goal_rect), .tnt_count(tnt_count),
         .tnt_positions(tnt_positions), .hazard_count(hazard_count), .hazard_rects(hazard_rects)
     );
@@ -255,13 +266,13 @@ module My_Top_Module #(
         .world_ready(world_ready), .goal_hit(goal_hit), .hazard_hit(hazard_hit), .out_of_bounds(out_of_bounds)
     );
 
-    wire [170:0] snapshot_in = {boost_active, drag_from_grid, drag_source, drag_contents,
+    wire [171:0] snapshot_in = {boost_active, drag_from_grid, drag_source, drag_contents,
                               game_state, build_grid, intact_mask, frame_intact_mask, build_valid, build_error,
                               vehicle_x, vehicle_y, engine_enabled, frames_left, pigs_left, wheels_left,
                               engines_left, balloons_left, cursor_x, cursor_y, selected_part, drag_active,
                               feedback_code, feedback_cell, level_index, fail_reason, tnt_intact,
                               build_frames, run_seconds, blast_phase};
-    wire [170:0] snapshot_out;
+    wire [171:0] snapshot_out;
     wire draw_boost_active;
     wire draw_drag_from_grid;
     wire [3:0] draw_drag_source;
@@ -277,13 +288,13 @@ module My_Top_Module #(
     wire [6:0] draw_cursor_x, draw_cursor_y;
     wire [2:0] draw_selected_part;
     wire signed [15:0] draw_x, draw_y;
-    wire draw_level;
+    wire [`LP_LEVEL_BITS-1:0] draw_level;
     wire [8:0] draw_saved_frames;
     wire [6:0] draw_seconds;
     wire [2*`LP_MAX_TNT-1:0] draw_blast;
     wire [1:0] draw_fail_reason;
     wire [`LP_MAX_TNT-1:0] draw_tnt_intact;
-    wire signed [15:0] draw_spawn_x, draw_spawn_y;
+    wire signed [19:0] draw_spawn_x, draw_spawn_y;
     wire [2:0] draw_terrain_count, draw_tnt_count;
     wire [127:0] draw_terrain_rects;
     wire [31:0] draw_goal_rect;
@@ -302,16 +313,51 @@ module My_Top_Module #(
             draw_cursor_x, draw_cursor_y, draw_selected_part, draw_drag_active,
             draw_feedback_code, draw_feedback_cell, draw_level, draw_fail_reason, draw_tnt_intact,
             draw_saved_frames, draw_seconds, draw_blast} = snapshot_out;
-    display_snapshot #(.WIDTH(171)) u_snapshot (
+    display_snapshot #(.WIDTH(172)) u_snapshot (
         .game_clk(clk), .game_reset(reset), .display_clk(oled_clk), .display_reset(oled_reset),
         .frame_begin(left_frame), .game_data(snapshot_in), .display_data(snapshot_out)
     );
+    // Engine pistons step once every eight frames while running with SW0 on; boost doubles the rate.
+    reg [3:0] engine_frames;
+    always @(posedge oled_clk) begin
+        if (oled_reset) engine_frames <= 0;
+        else if (left_frame && draw_state == `LP_RUN && draw_engine)
+            engine_frames <= engine_frames + (draw_boost_active ? 4'd2 : 4'd1);
+    end
+    wire anim_phase = engine_frames[3];
+    // The map zoom and SW4 free look also change only between complete frames.
+    reg zoom_meta_display, zoom_sync_display, draw_zoomed_out;
+    reg look_meta_display, look_sync_display, draw_free_look;
+    always @(posedge oled_clk) begin
+        if (oled_reset) begin
+            zoom_meta_display <= 0; zoom_sync_display <= 0; draw_zoomed_out <= 0;
+            look_meta_display <= 0; look_sync_display <= 0; draw_free_look <= 0;
+        end else begin
+            zoom_meta_display <= zoomed_out; zoom_sync_display <= zoom_meta_display;
+            look_meta_display <= sw[4]; look_sync_display <= look_meta_display;
+            if (left_frame) begin
+                draw_zoomed_out <= zoom_sync_display;
+                draw_free_look <= look_sync_display;
+            end
+        end
+    end
     // A second copy of the level table, indexed by the snapshot, keeps the map in step with the drawn state.
+    wire draw_map_level, draw_map_id;
+    wire [9:0] draw_world_width, draw_world_height, draw_flag_x, draw_flag_y;
     level_data u_draw_level (
         .level_index(draw_level), .spawn_x(draw_spawn_x), .spawn_y(draw_spawn_y),
         .terrain_count(draw_terrain_count), .terrain_rects(draw_terrain_rects), .goal_rect(draw_goal_rect),
         .tnt_count(draw_tnt_count), .tnt_positions(draw_tnt_positions),
-        .hazard_count(draw_hazard_count), .hazard_rects(draw_hazard_rects)
+        .hazard_count(draw_hazard_count), .hazard_rects(draw_hazard_rects),
+        .map_level(draw_map_level), .map_id(draw_map_id), .world_width(draw_world_width), .world_height(draw_world_height),
+        .flag_x(draw_flag_x), .flag_y(draw_flag_y)
+    );
+    // Cave Arch map ROM: the draw port follows the renderer; the query port is reserved for collision.
+    wire signed [10:0] map_draw_x, map_draw_y;
+    wire [2:0] map_draw_class;
+    level_map u_level_map (
+        .map_id(draw_map_id), .draw_clk(oled_clk), .draw_x(map_draw_x), .draw_y(map_draw_y), .draw_class(map_draw_class),
+        .query_clk(clk), .query_x(11'sd0), .query_y(11'sd0), .query_class()
     );
     left_renderer u_left_renderer (
         .pixel_index(left_render_index), .game_state(draw_state), .build_grid(draw_grid),
@@ -324,15 +370,22 @@ module My_Top_Module #(
         .drag_from_grid(draw_drag_from_grid), .drag_source(draw_drag_source), .drag_contents(draw_drag_contents),
         .cursor_x(draw_cursor_x), .cursor_y(draw_cursor_y), .cursor_visible(1'b1),
         .level_index(draw_level), .fail_reason(draw_fail_reason), .run_seconds(draw_seconds),
-        .pixel_data(left_pixel_data)
+        .anim_phase(anim_phase), .pixel_data(left_pixel_data)
     );
     right_renderer u_right_renderer (
-        .pixel_index(map_pixel_index), .game_state(draw_state), .build_grid(draw_grid),
+        .clk(oled_clk), .pixel_index(map_pixel_index), .zoomed_out(draw_zoomed_out),
+        .free_look(draw_free_look), .cursor_x(draw_cursor_x), .cursor_y(draw_cursor_y),
+        .game_state(draw_state), .build_grid(draw_grid),
         .intact_mask(draw_intact), .frame_intact_mask(draw_frames),
-        .vehicle_x(draw_x), .vehicle_y(draw_y), .spawn_x(draw_spawn_x), .spawn_y(draw_spawn_y),
+        // Today's 16-bit positions, sign-extended to the renderer's 20-bit inputs.
+        .vehicle_x({{4{draw_x[15]}}, draw_x}), .vehicle_y({{4{draw_y[15]}}, draw_y}),
+        .spawn_x(draw_spawn_x), .spawn_y(draw_spawn_y),
         .terrain_count(draw_terrain_count), .terrain_rects(draw_terrain_rects), .goal_rect(draw_goal_rect),
         .tnt_count(draw_tnt_count), .tnt_positions(draw_tnt_positions), .tnt_intact(draw_tnt_intact),
         .hazard_count(draw_hazard_count), .hazard_rects(draw_hazard_rects), .blast_phase(draw_blast),
+        .anim_phase(anim_phase), .map_level(draw_map_level), .map_id(draw_map_id), .world_width(draw_world_width),
+        .world_height(draw_world_height), .flag_x(draw_flag_x), .flag_y(draw_flag_y),
+        .map_x(map_draw_x), .map_y(map_draw_y), .map_class(map_draw_class),
         .pixel_data(right_pixel_data)
     );
     Oled_Display u_left_oled (

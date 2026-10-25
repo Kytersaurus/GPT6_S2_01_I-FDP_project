@@ -26,12 +26,14 @@ All design files below are in `GPT_6_S2_01_I-FDP_project.srcs/sources_1/new/`.
 | `tnt_controller.v` | Role 3 - Yap Ting; shared integration with Role 1 | Swept TNT contact, queued explosions and separate frame/content blast masks |
 | `world_outcomes.v` | Role 3 - Yap Ting | Goal, spike/hazard and bounds checks after TNT damage |
 | `game_controller.v` | Role 4 - Marcus | Build/run/result/retry states and update sequencing |
-| `level_data.v` | Role 4 - Marcus | Two provisional levels: terrain, spawn, goal, TNT and hazards |
+| `level_data.v` | Role 4 - Marcus | Two simple test levels and the Cave Arch and Cave Flight map levels: terrain, spawn, goal, TNT, hazards, world size, map choice and flag |
+| `level_map.v`, `cave_arch_map.mem`, `cave_flight_map.mem` | Role 4 - Marcus | Block-RAM Cave Arch and Cave Flight terrain classes; draw port for the renderer, query port reserved for collision |
+| `zoom_control.v` | Role 4 - Marcus | Map zoom from SW3 and the mouse wheel |
 | `level_button.v` | Role 4 - Marcus | Left OLED level button click, read from the shared mouse position |
 | `explosion_fx.v` | Role 4 - Marcus | Three-phase TNT explosion animation when a TNT intact bit falls |
-| `part_sprites.vh` | Role 4 - Marcus | Shared 8 by 8 pig, wheel, frame, engine and balloon sprites |
+| `part_sprites.vh` | Role 4 - Marcus | Shared 8 by 8 (zoomed out, icons), 12 by 12 (map view) and 16 by 16 (editor) part, TNT and fan/rocket sprites with per-part palettes |
 | `left_renderer.v` | Role 4 - Marcus | Left OLED grid, inventory/counts, cursor, moving preview, feedback text/outlines and runtime status; shared icon drawing and 16-pixel editor cells |
-| `right_renderer.v` | Role 4 - Marcus | Right OLED world/vehicle drawing; 8-pixel gameplay cells |
+| `right_renderer.v` | Role 4 - Marcus | Right OLED world/vehicle drawing with a following camera; 1.5x view with 12 by 12 sprites, 1x zoomed-out view |
 | `display_snapshot.v` | Role 4 - Marcus | Transfers consistent game state to the OLED clock and publishes at frame start |
 | `game_defs.vh` | Shared - all roles | Agreed part IDs, state IDs and dimensions |
 | `My_Top_Module.v` | Shared; Role 4 - Marcus coordinates | Connections between everyone's modules |

@@ -173,7 +173,7 @@ module construction_controls_tb;
         expect_pixel(10,10,16'hffff); expect_pixel(8,8,16'h0841);
         packet(54,55,0,0);
         packet(74,38,1,0); packet(12,12,1,0);
-        expect_pixel(10,11,16'hf800); expect_pixel(11,11,16'hffe0);
+        expect_pixel(10,11,16'hc618); expect_pixel(13,11,16'h0000); expect_pixel(10,9,16'h5ae9);
         packet(54,55,0,0);
         packet(74,48,1,0); packet(12,12,1,0);
         expect_pixel(10,8,16'hf81f); expect_pixel(12,15,16'hffff);

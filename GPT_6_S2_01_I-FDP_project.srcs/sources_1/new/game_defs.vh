@@ -23,8 +23,9 @@
 `define LP_PART_PIG      3'd2
 `define LP_PART_WHEEL    3'd3
 `define LP_PART_ENGINE   3'd4
-`define LP_PART_BOOSTER  3'd5  // Reserved ID; boost is planned as an engine ability.
+`define LP_PART_BOOSTER  3'd5  // Reserved ID with a rocket sprite; boost is planned as an engine ability.
 `define LP_PART_BALLOON  3'd6
+`define LP_PART_FAN      3'd7  // Sprite only; the builder still rejects it.
 
 `define LP_BUILD         3'd0
 `define LP_INIT_RUN      3'd1
@@ -64,7 +65,22 @@
 `define LP_SOUND_FAILURE    3'd7
 
 // Levels: Role 4 selects one in BUILD and holds it through the run.
-`define LP_LEVEL_COUNT   2
+`define LP_LEVEL_COUNT   4
+`define LP_LEVEL_BITS    2
+
+// Block-RAM maps in level_map: one 3-bit class per world pixel. Sky and cave background are
+// open; the other classes are solid. Map 0 is Cave Arch (level 3), address {y[8:0], x[8:0]};
+// map 1 is Cave Flight (level 4, a flying level), address {y[7:0], x[9:0]}.
+`define LP_MAP_WIDTH     478
+`define LP_MAP_HEIGHT    291
+`define LP_FLIGHT_WIDTH  890
+`define LP_FLIGHT_HEIGHT 213
+`define LP_MAP_SKY       3'd0
+`define LP_MAP_CAVE      3'd1
+`define LP_MAP_ROCK      3'd2
+`define LP_MAP_GRASS     3'd3
+`define LP_MAP_ROAD      3'd4
+`define LP_MAP_DARK      3'd5
 `define LP_MAX_TNT       4   // Each TNT is {y[7:0], x[7:0]}; an 8 by 8 pixel block.
 `define LP_TNT_PIXELS    8
 `define LP_TNT_BITS      64

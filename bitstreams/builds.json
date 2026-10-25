@@ -1,37 +1,51 @@
-[
-  {
-    "path": "2026-10-19/192905_oled-test.bit",
-    "built": "2026-10-19T19:29:05",
-    "source_commit": null,
-    "description": "Earlier OLED construction test",
-    "sha256": "0145b2db7e8d6eb8fa670cba61aa337760756a9376de1196d070665dd991f805"
-  },
-  {
-    "path": "2026-10-21/191139_balloon-test.bit",
-    "built": "2026-10-21T19:11:39",
-    "source_commit": null,
-    "description": "Earlier balloon/control test",
-    "sha256": "230ee1e333afb659221660d2dc2453472d970ef6a6c8e09bd40470303d8c736c"
-  },
-  {
-    "path": "2026-10-24/200820_vivado-build.bit",
-    "built": "2026-10-24T20:08:20",
-    "source_commit": null,
-    "description": "Earlier Vivado output; source revision not recorded",
-    "sha256": "ebfd314e105fcc555f92bc3631b5522ea6dc3d364e9ad8c77c6b9177cb2759fb"
-  },
-  {
-    "path": "2026-10-24/225954_engine-boost-audio.bit",
-    "built": "2026-10-24T22:59:54",
-    "source_commit": "9fd5776",
-    "description": "Engine boost and audio, before TNT integration",
-    "sha256": "78ddee66125e35ae3e56a0f0e68dc3195c2d2c1793b43ddbccb26092e55eafba"
-  },
-  {
-    "path": "2026-10-25/000034_all-role-merge.bit",
-    "built": "2026-10-25T00:00:34",
-    "source_commit": "0e960d4",
-    "description": "Latest: all four roles merged, integrated TNT/collision/audio",
-    "sha256": "276516464bd607de3a5326ab6861b658ad24858dad2120b387e10185b1d4d2c5"
-  }
+﻿[
+    {
+        "path":  "2026-10-19/192905_oled-test.bit",
+        "built":  "2026-10-19T19:29:05",
+        "source_commit":  null,
+        "description":  "Earlier OLED construction test",
+        "sha256":  "0145b2db7e8d6eb8fa670cba61aa337760756a9376de1196d070665dd991f805"
+    },
+    {
+        "path":  "2026-10-21/191139_balloon-test.bit",
+        "built":  "2026-10-21T19:11:39",
+        "source_commit":  null,
+        "description":  "Earlier balloon/control test",
+        "sha256":  "230ee1e333afb659221660d2dc2453472d970ef6a6c8e09bd40470303d8c736c"
+    },
+    {
+        "path":  "2026-10-24/200820_vivado-build.bit",
+        "built":  "2026-10-24T20:08:20",
+        "source_commit":  null,
+        "description":  "Earlier Vivado output; source revision not recorded",
+        "sha256":  "ebfd314e105fcc555f92bc3631b5522ea6dc3d364e9ad8c77c6b9177cb2759fb"
+    },
+    {
+        "path":  "2026-10-24/225954_engine-boost-audio.bit",
+        "built":  "2026-10-24T22:59:54",
+        "source_commit":  "9fd5776",
+        "description":  "Engine boost and audio, before TNT integration",
+        "sha256":  "78ddee66125e35ae3e56a0f0e68dc3195c2d2c1793b43ddbccb26092e55eafba"
+    },
+    {
+        "path":  "2026-10-25/000034_all-role-merge.bit",
+        "built":  "2026-10-25T00:00:34",
+        "source_commit":  "0e960d4",
+        "description":  "All four roles merged, integrated TNT/collision/audio",
+        "sha256":  "276516464bd607de3a5326ab6861b658ad24858dad2120b387e10185b1d4d2c5"
+    },
+    {
+        "path":  "2026-10-25/173035_cave-arch-camera.bit",
+        "built":  "2026-10-25T17:30:35",
+        "source_commit":  "3f58d16 + uncommitted role4 changes",
+        "description":  "Role 4 test build: 16x16 sprites, Cave Arch map (view only), following camera, SW3/wheel zoom, SW4 free look",
+        "sha256":  "10a9bfea61880e130b8fcdc546a73323ef82bb1e24efda78ad4d53fd097428a6"
+    },
+    {
+        "path":  "2026-10-25/180142_map-view-12px.bit",
+        "built":  "2026-10-25T18:01:42",
+        "source_commit":  "b79d73a + uncommitted role4 changes",
+        "description":  "Latest (role4 test build): 1.5x map view with 12x12 sprites, red/white/black TNT, Cave Arch view only, SW3/wheel zoom, SW4 free look",
+        "sha256":  "568373372d3f3acfcf6d915ba64c669cafbbf7e8ca113f9784db48395691bdc8"
+    }
 ]
