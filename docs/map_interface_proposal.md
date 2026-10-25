@@ -1,4 +1,4 @@
-# Proposal: physics and collision for the Cave Arch map
+# Proposal: physics and collision for the Cave Arch and Cave Flight maps
 
 Owner: Role 4 - Marcus, for review by Role 2 (physics) and Role 3 (collision, TNT and world checks). Nothing here has been changed in Role 2 or Role 3 files; this lists what the new map needs from them.
 
@@ -7,6 +7,7 @@ Owner: Role 4 - Marcus, for review by Role 2 (physics) and Role 3 (collision, TN
 - **Level 3, Cave Arch.** The map is traced from two Bad Piggies screenshots (`docs/maps/cave_arch_reference_top.png`, `_bottom.png`). It is 478 by 291 world pixels, about five screens wide and four and a half tall. The traced result is in `docs/maps/cave_arch_classes.png`.
 - **`level_map.v`**: block-RAM ROM with one 3-bit class per world pixel (`LP_MAP_*` in `game_defs.vh`): 0 sky, 1 cave background, 2 rock, 3 grass, 4 road, 5 underground. Sky and cave background are open space; rock, grass, road and underground are solid. Grass marks the green track lines in the screenshots. It has two read ports with one clock of latency each. The draw port feeds the right renderer. **The query port is free for collision**: clock it with the 100 MHz `clk`, present signed world-pixel `query_x`/`query_y`, and read `query_class` on the next clock. Coordinates above or beside the map return sky; below it, underground.
 - **Camera and zoom.** The right OLED follows the vehicle. The default 1.5x map view shows 64 by 43 world pixels with 12 by 12 part sprites; the zoomed-out 1x view shows 96 by 64 with 8 by 8 sprites. SW3 or the mouse wheel switches between them. With SW4 up, the camera follows the mouse cursor instead of the vehicle, so the whole map can be explored on the board. The renderer already takes **20-bit Q12.8 positions**; the top sign-extends today's 16-bit values.
+- **Level 4, Cave Flight** (a flying level): traced from `docs/maps/cave_flight_reference_left.png` and `_right.png` into an 890 by 213 map (`cave_flight_map.mem`, 1024 entries per row; `map_id=1` selects it in `level_map`). Spawn (68, 178) on the ground at the bottom left; flag top-left (769, 50) on the grassy ledge at the top right. Its spawn y needs more than 16-bit positions, so `level_data` now outputs a Q12.8 spawn and the top passes the low 16 bits to physics. Positions up to x=890 and the flight itself (balloons/rockets) are part of items 1 and 2 below.
 - `level_data` outputs for level 3: spawn (104, 26) on the flat start plateau (`spawn_x=26624`, `spawn_y=6656`), `map_level=1`, `world_width=478`, `world_height=291`, and the finish flag's top-left (300, 229). The flag stands on the cave road, whose surface is at y=243.
 - Levels 1 and 2 are unchanged and stay as simple test maps. In the 1.5x view the camera already scrolls across them.
 

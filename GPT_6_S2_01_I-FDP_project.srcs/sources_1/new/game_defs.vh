@@ -65,13 +65,16 @@
 `define LP_SOUND_FAILURE    3'd7
 
 // Levels: Role 4 selects one in BUILD and holds it through the run.
-`define LP_LEVEL_COUNT   3
+`define LP_LEVEL_COUNT   4
 `define LP_LEVEL_BITS    2
 
-// Cave Arch (level 3) map: one 3-bit class per world pixel, stored in block RAM by level_map.
-// Address is {y[8:0], x[8:0]}. Sky and cave background are open; the other classes are solid.
+// Block-RAM maps in level_map: one 3-bit class per world pixel. Sky and cave background are
+// open; the other classes are solid. Map 0 is Cave Arch (level 3), address {y[8:0], x[8:0]};
+// map 1 is Cave Flight (level 4, a flying level), address {y[7:0], x[9:0]}.
 `define LP_MAP_WIDTH     478
 `define LP_MAP_HEIGHT    291
+`define LP_FLIGHT_WIDTH  890
+`define LP_FLIGHT_HEIGHT 213
 `define LP_MAP_SKY       3'd0
 `define LP_MAP_CAVE      3'd1
 `define LP_MAP_ROCK      3'd2

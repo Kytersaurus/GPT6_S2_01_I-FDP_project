@@ -36,6 +36,7 @@ module right_renderer (
     input wire [2*`LP_MAX_TNT-1:0] blast_phase,
     input wire anim_phase,
     input wire map_level,
+    input wire map_id,  // 0 Cave Arch (has the moon), 1 Cave Flight
     input wire [9:0] world_width, world_height,
     input wire [9:0] flag_x, flag_y,
     output reg signed [10:0] map_x, map_y,
@@ -149,7 +150,7 @@ module right_renderer (
                         default: map_colour = 16'ha5fd;
                     endcase
                     mx = fine_x - 464; my = fine_y - 332;
-                    if (mx*mx + my*my <= 324) map_colour = (mx*mx + (my+6)*(my+6) <= 16) ? 16'hc65a : 16'he75e;
+                    if (!map_id && mx*mx + my*my <= 324) map_colour = (mx*mx + (my+6)*(my+6) <= 16) ? 16'hc65a : 16'he75e;
                 end
             endcase
         end

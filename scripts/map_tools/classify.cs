@@ -6,10 +6,16 @@ public static class Classify {
     public const int SKY = 0, CAVE = 1, ROCK = 2, GRASS = 3, ROAD = 4, DARK = 5;
     public static readonly int[] Preview = { 0x4F668E, 0x15241C, 0x33536F, 0x40A01F, 0x3F4442, 0x111111 };
 
+    // Night-sky rule for darker screenshots: blue well above green is sky or background
+    // scenery, slightly blue is rock, green-leaning is cave. Negative disables it.
+    public static int SkyBlueMargin = -1;
+    public const int UNKNOWN = 7;
+
     public static int Pixel(int p) {
         int r = (p >> 16) & 255, g = (p >> 8) & 255, b = p & 255;
         if (g > r + 30 && g > b + 20) return GRASS;
         if (Math.Abs(r - g) < 12 && Math.Abs(g - b) < 12) return (r + g + b) / 3 > 45 ? ROAD : DARK;
+        if (SkyBlueMargin >= 0) return g >= b ? CAVE : (b - g >= SkyBlueMargin ? SKY : ROCK);
         if (b > g && r < 0.67 * g) return ROCK;
         if (r >= 0.67 * g && b >= g) return SKY;
         return CAVE;
@@ -18,6 +24,71 @@ public static class Classify {
     // UI buttons and the captioned bottom edge of each shot.
     static bool Overlay(int x, int y, int h) {
         return (x >= 366 && x < 588 && y < 82) || (x >= 862 && y < 172) || y >= h - 14 || y < 10;
+    }
+
+    // Two shots placed at (ax, ay) and (bx, by); pixels under either shot's UI come from the other.
+    // Returns raw pixels when raw is true, otherwise classes.
+    public static int[] Place(int[] a, int aw, int ah, int ax, int ay, int[] b, int bw, int bh, int bx, int by, bool raw, out int w, out int h) {
+        w = Math.Max(ax + aw, bx + bw); h = Math.Max(ay + ah, by + bh);
+        var o = new int[w * h];
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++) {
+                int qx = x - ax, qy = y - ay, rx = x - bx, ry = y - by;
+                bool inA = qx >= 0 && qx < aw && qy >= 0 && qy < ah, inB = rx >= 0 && rx < bw && ry >= 0 && ry < bh;
+                bool okA = inA && !Ui(qx, qy, aw, ah), okB = inB && !Ui(rx, ry, bw, bh);
+                int p = okA ? a[qy * aw + qx] : okB ? b[ry * bw + rx] : inA ? a[qy * aw + qx] : inB ? b[ry * bw + rx] : 0;
+                o[y * w + x] = raw ? (inA || inB ? p : unchecked((int)0xFF000000)) : (okA || okB ? Pixel(p) : UNKNOWN);
+            }
+        return o;
+    }
+
+    // Pixels no shot covers take the class of the nearest covered pixel below them.
+    public static void FillUnknownDown(int[] c, int w, int h) {
+        for (int x = 0; x < w; x++)
+            for (int y = h - 2; y >= 0; y--)
+                if (c[y * w + x] == UNKNOWN) c[y * w + x] = c[(y + 1) * w + x];
+        // Rows below every shot copy the covered pixel above.
+        for (int x = 0; x < w; x++)
+            for (int y = 1; y < h; y++)
+                if (c[y * w + x] == UNKNOWN) c[y * w + x] = c[(y - 1) * w + x];
+    }
+
+    // Pixels no shot covers take the class of the nearest covered pixel (breadth-first, 4-neighbour).
+    public static void FillUnknownNearest(int[] c, int w, int h) {
+        var queue = new Queue<int>();
+        for (int i = 0; i < c.Length; i++) if (c[i] != UNKNOWN) queue.Enqueue(i);
+        while (queue.Count > 0) {
+            int p = queue.Dequeue(), x = p % w, y = p / w;
+            foreach (var q in new[] { x > 0 ? p - 1 : -1, x < w - 1 ? p + 1 : -1, y > 0 ? p - w : -1, y < h - 1 ? p + w : -1 })
+                if (q >= 0 && c[q] == UNKNOWN) { c[q] = c[p]; queue.Enqueue(q); }
+        }
+    }
+
+    // Removes runs of class k at most maxRun long, horizontally or vertically, whose two ends
+    // touch the same other class (thin seams left along UI edges).
+    public static void CleanThin(int[] c, int w, int h, int k, int maxRun) {
+        for (int pass = 0; pass < 2; pass++) {
+            bool vertical = pass == 1;
+            int lines = vertical ? w : h, len = vertical ? h : w;
+            for (int l = 0; l < lines; l++) {
+                int i = 0;
+                while (i < len) {
+                    int p = vertical ? i * w + l : l * w + i;
+                    if (c[p] != k) { i++; continue; }
+                    int j = i; while (j < len && c[vertical ? j * w + l : l * w + j] == k) j++;
+                    if (i > 0 && j < len && j - i <= maxRun) {
+                        int before = c[vertical ? (i - 1) * w + l : l * w + i - 1], after = c[vertical ? j * w + l : l * w + j];
+                        if (before == after) for (int m = i; m < j; m++) c[vertical ? m * w + l : l * w + m] = before;
+                    }
+                    i = j;
+                }
+            }
+        }
+    }
+
+    // Bubble buttons along the top centre and the play button top right.
+    static bool Ui(int x, int y, int w, int h) {
+        return (x >= 360 && x < 592 && y < 82) || (x >= w - 82 && y < 82);
     }
 
     // Mode filter over a (2r+1)^2 window; grass is kept and ignored when voting.

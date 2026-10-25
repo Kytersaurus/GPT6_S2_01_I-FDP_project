@@ -26,8 +26,8 @@ All design files below are in `GPT_6_S2_01_I-FDP_project.srcs/sources_1/new/`.
 | `tnt_controller.v` | Role 3 - Yap Ting; shared integration with Role 1 | Swept TNT contact, queued explosions and separate frame/content blast masks |
 | `world_outcomes.v` | Role 3 - Yap Ting | Goal, spike/hazard and bounds checks after TNT damage |
 | `game_controller.v` | Role 4 - Marcus | Build/run/result/retry states and update sequencing |
-| `level_data.v` | Role 4 - Marcus | Two simple test levels and the Cave Arch map level: terrain, spawn, goal, TNT, hazards, world size and flag |
-| `level_map.v`, `cave_arch_map.mem` | Role 4 - Marcus | Block-RAM Cave Arch terrain classes; draw port for the renderer, query port reserved for collision |
+| `level_data.v` | Role 4 - Marcus | Two simple test levels and the Cave Arch and Cave Flight map levels: terrain, spawn, goal, TNT, hazards, world size, map choice and flag |
+| `level_map.v`, `cave_arch_map.mem`, `cave_flight_map.mem` | Role 4 - Marcus | Block-RAM Cave Arch and Cave Flight terrain classes; draw port for the renderer, query port reserved for collision |
 | `zoom_control.v` | Role 4 - Marcus | Map zoom from SW3 and the mouse wheel |
 | `level_button.v` | Role 4 - Marcus | Left OLED level button click, read from the shared mouse position |
 | `explosion_fx.v` | Role 4 - Marcus | Three-phase TNT explosion animation when a TNT intact bit falls |

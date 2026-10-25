@@ -60,7 +60,7 @@ module module_contracts_tb;
     );
     // Zoomed out, a 96 by 64 rectangle level fills the screen exactly as before the camera.
     right_renderer right_view (
-        .clk(clk),.zoomed_out(1'b1),.free_look(1'b0),.cursor_x(7'd0),.cursor_y(7'd0),.anim_phase(1'b0),.map_level(1'b0),.world_width(10'd96),.world_height(10'd64),
+        .clk(clk),.zoomed_out(1'b1),.free_look(1'b0),.cursor_x(7'd0),.cursor_y(7'd0),.anim_phase(1'b0),.map_level(1'b0),.map_id(1'b0),.world_width(10'd96),.world_height(10'd64),
         .flag_x(10'd0),.flag_y(10'd0),.map_x(),.map_y(),.map_class(3'd0),
         .pixel_index(pixel),.game_state(builder_state),.build_grid(grid),.intact_mask(intact),.frame_intact_mask(frame_intact),
         .vehicle_x(20'sd1024),.vehicle_y(20'sd8192),.terrain_count(3'd1),

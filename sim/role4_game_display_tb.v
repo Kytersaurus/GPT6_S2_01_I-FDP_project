@@ -7,20 +7,20 @@ module role4_game_display_tb;
 
     // Level table, checked through one instance.
     reg [`LP_LEVEL_BITS-1:0] level=0;
-    wire signed [15:0] spawn_x, spawn_y;
+    wire signed [19:0] spawn_x, spawn_y;
     wire [2:0] terrain_count, tnt_count;
     wire [127:0] terrain_rects;
     wire [31:0] goal_rect;
     wire [`LP_TNT_BITS-1:0] tnt_positions;
     wire [1:0] hazard_count;
     wire [`LP_HAZARD_BITS-1:0] hazard_rects;
-    wire map_level;
+    wire map_level, map_id;
     wire [9:0] world_width, world_height, flag_x, flag_y;
     level_data levels (
         .level_index(level),.spawn_x(spawn_x),.spawn_y(spawn_y),.terrain_count(terrain_count),
         .terrain_rects(terrain_rects),.goal_rect(goal_rect),.tnt_count(tnt_count),
         .tnt_positions(tnt_positions),.hazard_count(hazard_count),.hazard_rects(hazard_rects),
-        .map_level(map_level),.world_width(world_width),.world_height(world_height),
+        .map_level(map_level),.map_id(map_id),.world_width(world_width),.world_height(world_height),
         .flag_x(flag_x),.flag_y(flag_y)
     );
 
@@ -92,17 +92,17 @@ module role4_game_display_tb;
     wire signed [10:0] map_x, map_y;
     wire [2:0] map_class;
     level_map map_rom (
-        .draw_clk(clk),.draw_x(map_x),.draw_y(map_y),.draw_class(map_class),
+        .map_id(map_id),.draw_clk(clk),.draw_x(map_x),.draw_y(map_y),.draw_class(map_class),
         .query_clk(clk),.query_x(11'sd0),.query_y(11'sd0),.query_class()
     );
     right_renderer right_view (
         .clk(clk),.zoomed_out(zoomed_out),.free_look(free_look),.cursor_x(look_x),.cursor_y(look_y),
-        .map_level(map_level),.world_width(world_width),
+        .map_level(map_level),.map_id(map_id),.world_width(world_width),
         .world_height(world_height),.flag_x(flag_x),.flag_y(flag_y),
         .map_x(map_x),.map_y(map_y),.map_class(map_class),
         .pixel_index(pixel),.game_state(view_state),.build_grid(grid),.intact_mask(9'b101110000),
         .frame_intact_mask(9'b000111000),.vehicle_x(vehicle_x),.vehicle_y(vehicle_y),
-        .spawn_x({{4{spawn_x[15]}},spawn_x}),.spawn_y({{4{spawn_y[15]}},spawn_y}),.terrain_count(terrain_count),.terrain_rects(terrain_rects),
+        .spawn_x(spawn_x),.spawn_y(spawn_y),.terrain_count(terrain_count),.terrain_rects(terrain_rects),
         .goal_rect(goal_rect),.tnt_count(tnt_count),.tnt_positions(tnt_positions),.tnt_intact(tnt_intact),
         .hazard_count(hazard_count),.hazard_rects(hazard_rects),.blast_phase(view_blast),.anim_phase(view_phase),.pixel_data(right_colour)
     );
@@ -178,7 +178,13 @@ module role4_game_display_tb;
             $fatal(1,"Level 3 is not the Cave Arch map");
         if (spawn_x !== 16'sd26624 || spawn_y !== 16'sd6656 || flag_x != 300 || flag_y != 229)
             $fatal(1,"Level 3 spawn or flag moved");
-        if (tnt_count != 0 || hazard_count != 0) $fatal(1,"Level 3 has unexpected objects");
+        if (tnt_count != 0 || hazard_count != 0 || map_id) $fatal(1,"Level 3 has unexpected objects or map");
+        // Level 4, Cave Flight: the second map, start at the bottom left, flag on the top-right ledge.
+        level=3; #1;
+        if (!map_level || !map_id || world_width != `LP_FLIGHT_WIDTH || world_height != `LP_FLIGHT_HEIGHT)
+            $fatal(1,"Level 4 is not the Cave Flight map");
+        if (spawn_x !== 20'sd17408 || spawn_y !== 20'sd45568 || flag_x != 769 || flag_y != 50)
+            $fatal(1,"Level 4 spawn or flag moved");
 
         clocks(3); reset=0; clocks(2);
         // Level select: only in BUILD, and launch on the same clock wins.
@@ -209,7 +215,9 @@ module role4_game_display_tb;
         pulse(EDIT);
         if (state !== `LP_BUILD || level_index !== 2) $fatal(1,"Edit after SUCCESS did not move to the next level");
         pulse(LEVEL);
-        if (level_index !== 0) $fatal(1,"Level select did not wrap from level 3 to level 1");
+        if (level_index !== 3) $fatal(1,"Level select did not reach level 4");
+        pulse(LEVEL);
+        if (level_index !== 0) $fatal(1,"Level select did not wrap from level 4 to level 1");
         // Timer: four ticks per second here; counts during RUN, freezes on a result, clears on retry.
         pulse(LAUNCH); clocks(2);
         for (index = 0; index < 9; index = index + 1) pulse(TICK);

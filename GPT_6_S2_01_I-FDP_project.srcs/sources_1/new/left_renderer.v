@@ -103,6 +103,7 @@ module left_renderer #(parameter EDITOR_CELL_PIXELS = 16) (
                 "1": letter_pixels = {5'b00100,5'b01100,5'b00100,5'b00100,5'b00100,5'b00100,5'b01110};
                 "2": letter_pixels = {5'b01110,5'b10001,5'b00001,5'b00010,5'b00100,5'b01000,5'b11111};
                 "3": letter_pixels = {5'b01110,5'b10001,5'b00001,5'b00110,5'b00001,5'b10001,5'b01110};
+                "4": letter_pixels = {5'b00010,5'b00110,5'b01010,5'b10010,5'b11111,5'b00010,5'b00010};
                 default: letter_pixels = 0;
             endcase
         end
@@ -255,7 +256,8 @@ module left_renderer #(parameter EDITOR_CELL_PIXELS = 16) (
                 pixel_data = 16'h0010;
                 if (x == `LP_LEVEL_BUTTON_X || x == `LP_LEVEL_BUTTON_X+`LP_LEVEL_BUTTON_W-1 ||
                     y == `LP_LEVEL_BUTTON_Y || y == `LP_LEVEL_BUTTON_Y+`LP_LEVEL_BUTTON_H-1) pixel_data = 16'h7bef;
-                else if (text_on(level_index == 2 ? "L3              " : level_index == 1 ? "L2              " : "L1              ",
+                else if (text_on(level_index == 3 ? "L4              " : level_index == 2 ? "L3              " :
+                                 level_index == 1 ? "L2              " : "L1              ",
                                  `LP_LEVEL_BUTTON_X+1, `LP_LEVEL_BUTTON_Y+1, x, y)) pixel_data = 16'hffff;
             end
         end else begin

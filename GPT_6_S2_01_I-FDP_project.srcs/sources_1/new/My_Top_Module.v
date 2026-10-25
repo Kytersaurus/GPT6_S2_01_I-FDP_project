@@ -81,6 +81,10 @@ module My_Top_Module #(
     wire [8:0] pop_mask;
     wire [7:0] mass_units;
     wire signed [15:0] spawn_x, spawn_y, vehicle_x, vehicle_y;
+    // level_data's spawn is Q12.8; physics takes the low 16 bits until positions are widened.
+    wire signed [19:0] level_spawn_x, level_spawn_y;
+    assign spawn_x = level_spawn_x[15:0];
+    assign spawn_y = level_spawn_y[15:0];
     wire [2:0] terrain_count;
     wire [127:0] terrain_rects;
     wire [31:0] goal_rect;
@@ -204,7 +208,7 @@ module My_Top_Module #(
     );
     // Geometry stays fixed throughout a run.
     level_data u_level (
-        .level_index(level_index), .spawn_x(spawn_x), .spawn_y(spawn_y), .terrain_count(terrain_count),
+        .level_index(level_index), .spawn_x(level_spawn_x), .spawn_y(level_spawn_y), .terrain_count(terrain_count),
         .terrain_rects(terrain_rects), .goal_rect(goal_rect), .tnt_count(tnt_count),
         .tnt_positions(tnt_positions), .hazard_count(hazard_count), .hazard_rects(hazard_rects)
     );
@@ -290,7 +294,7 @@ module My_Top_Module #(
     wire [2*`LP_MAX_TNT-1:0] draw_blast;
     wire [1:0] draw_fail_reason;
     wire [`LP_MAX_TNT-1:0] draw_tnt_intact;
-    wire signed [15:0] draw_spawn_x, draw_spawn_y;
+    wire signed [19:0] draw_spawn_x, draw_spawn_y;
     wire [2:0] draw_terrain_count, draw_tnt_count;
     wire [127:0] draw_terrain_rects;
     wire [31:0] draw_goal_rect;
@@ -338,21 +342,21 @@ module My_Top_Module #(
         end
     end
     // A second copy of the level table, indexed by the snapshot, keeps the map in step with the drawn state.
-    wire draw_map_level;
+    wire draw_map_level, draw_map_id;
     wire [9:0] draw_world_width, draw_world_height, draw_flag_x, draw_flag_y;
     level_data u_draw_level (
         .level_index(draw_level), .spawn_x(draw_spawn_x), .spawn_y(draw_spawn_y),
         .terrain_count(draw_terrain_count), .terrain_rects(draw_terrain_rects), .goal_rect(draw_goal_rect),
         .tnt_count(draw_tnt_count), .tnt_positions(draw_tnt_positions),
         .hazard_count(draw_hazard_count), .hazard_rects(draw_hazard_rects),
-        .map_level(draw_map_level), .world_width(draw_world_width), .world_height(draw_world_height),
+        .map_level(draw_map_level), .map_id(draw_map_id), .world_width(draw_world_width), .world_height(draw_world_height),
         .flag_x(draw_flag_x), .flag_y(draw_flag_y)
     );
     // Cave Arch map ROM: the draw port follows the renderer; the query port is reserved for collision.
     wire signed [10:0] map_draw_x, map_draw_y;
     wire [2:0] map_draw_class;
     level_map u_level_map (
-        .draw_clk(oled_clk), .draw_x(map_draw_x), .draw_y(map_draw_y), .draw_class(map_draw_class),
+        .map_id(draw_map_id), .draw_clk(oled_clk), .draw_x(map_draw_x), .draw_y(map_draw_y), .draw_class(map_draw_class),
         .query_clk(clk), .query_x(11'sd0), .query_y(11'sd0), .query_class()
     );
     left_renderer u_left_renderer (
@@ -375,11 +379,11 @@ module My_Top_Module #(
         .intact_mask(draw_intact), .frame_intact_mask(draw_frames),
         // Today's 16-bit positions, sign-extended to the renderer's 20-bit inputs.
         .vehicle_x({{4{draw_x[15]}}, draw_x}), .vehicle_y({{4{draw_y[15]}}, draw_y}),
-        .spawn_x({{4{draw_spawn_x[15]}}, draw_spawn_x}), .spawn_y({{4{draw_spawn_y[15]}}, draw_spawn_y}),
+        .spawn_x(draw_spawn_x), .spawn_y(draw_spawn_y),
         .terrain_count(draw_terrain_count), .terrain_rects(draw_terrain_rects), .goal_rect(draw_goal_rect),
         .tnt_count(draw_tnt_count), .tnt_positions(draw_tnt_positions), .tnt_intact(draw_tnt_intact),
         .hazard_count(draw_hazard_count), .hazard_rects(draw_hazard_rects), .blast_phase(draw_blast),
-        .anim_phase(anim_phase), .map_level(draw_map_level), .world_width(draw_world_width),
+        .anim_phase(anim_phase), .map_level(draw_map_level), .map_id(draw_map_id), .world_width(draw_world_width),
         .world_height(draw_world_height), .flag_x(draw_flag_x), .flag_y(draw_flag_y),
         .map_x(map_draw_x), .map_y(map_draw_y), .map_class(map_draw_class),
         .pixel_data(right_pixel_data)
