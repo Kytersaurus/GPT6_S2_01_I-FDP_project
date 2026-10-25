@@ -36,7 +36,7 @@ module ui_visual_tb;
         begin
             left_file=$fopen({name,"_left.hex"},"w");right_file=$fopen({name,"_right.hex"},"w");
             for(p=0;p<6144;p=p+1) begin
-                pixel=p;#1;
+                pixel=p;@(posedge dut.oled_clk);#1;
                 if($isunknown(dut.left_pixel_data) || $isunknown(dut.right_pixel_data)) $fatal(1,"Unknown UI pixel");
                 $fdisplay(left_file,"%h",dut.left_pixel_data);$fdisplay(right_file,"%h",dut.right_pixel_data);
             end
@@ -51,8 +51,20 @@ module ui_visual_tb;
         state=`LP_GUIDE;frame("ui_diary_1");page=1;frame("ui_diary_2");page=2;frame("ui_diary_3");
         state=`LP_RUN;frame("ui_run");go=1;frame("ui_launch");go=0;
         state=`LP_FAIL;intact[4]=0;death=1;frame("ui_death_1");death=2;frame("ui_death_2");death=3;frame("ui_death_3");
+        // The death effect uses world coordinates at either camera zoom.
+        force dut.draw_level=2'd2;
+        force dut.draw_x=16'sd26624;force dut.draw_y=16'sd6656;
+        force dut.draw_death_x=16'sd30720;force dut.draw_death_y=16'sd10240;
+        force dut.draw_free_look=1'b0;force dut.draw_zoomed_out=1'b0;
+        death=1;pixel=36*96+54;@(posedge dut.oled_clk);#1;
+        if(dut.right_pixel_data!==16'hffe0) $fatal(1,"Death burst did not follow 1.5x camera");
+        force dut.draw_zoomed_out=1'b1;
+        pixel=34*96+52;@(posedge dut.oled_clk);#1;
+        if(dut.right_pixel_data!==16'hffe0) $fatal(1,"Death burst did not follow 1x camera");
+        state=`LP_RUN;go=1;pixel=34;@(posedge dut.oled_clk);#1;
+        if(dut.right_pixel_data!==16'h04b4) $fatal(1,"Launch banner moved with the camera");
         $display("PASS ui_visual_tb: build, diary, RUN controls, transition and death pixels exported without unknowns");
         $finish;
     end
-    initial begin #100000;$fatal(1,"UI pixel export timed out");end
+    initial begin #20000000;$fatal(1,"UI pixel export timed out");end
 endmodule

@@ -6,7 +6,8 @@ module ui_renderer (
     input wire [15:0] base_pixel,
     input wire [2:0] game_state, feedback_code,
     input wire [1:0] diary_page,
-    input wire level_index, build_valid, engine_enabled, boost_active,
+    input wire [`LP_LEVEL_BITS-1:0] level_index,
+    input wire build_valid, engine_enabled, boost_active,
     input wire fan_available, fan_on, rocket_available, rocket_ready,
     input wire [6:0] cursor_x, cursor_y,
     output reg [15:0] pixel_data
@@ -33,7 +34,12 @@ module ui_renderer (
             else begin row=5; text_top=46; end
             case (diary_page)
                 0: case (row)
-                    0: line=level_index ? "DIARY L2 1/3    " : "DIARY L1 1/3    ";
+                    0: case (level_index)
+                        0: line="DIARY L1 1/3    ";
+                        1: line="DIARY L2 1/3    ";
+                        2: line="DIARY L3 1/3    ";
+                        default: line="DIARY L4 1/3    ";
+                    endcase
                     1: line="GET PIG TO FLAG ";
                     2: line="DRAG PARTS IN   ";
                     3: line="RIGHT CLICK OUT ";
@@ -50,10 +56,10 @@ module ui_renderer (
                 endcase
                 default: case (row)
                     0: line="LEVEL HINT 3/3  ";
-                    1: line=level_index ? "PROTECT ENGINE  " : "TRY MIDDLE ROW  ";
-                    2: line=level_index ? "TNT BREAKS PARTS" : "PIG IN CENTRE   ";
-                    3: line="ENGINE AT REAR  ";
-                    4: line=level_index ? "KEEP PIG SAFE   " : "WHEELS AT EDGES ";
+                    1: line=(level_index>=2) ? "MAP TEST ONLY   " : level_index ? "PROTECT ENGINE  " : "TRY MIDDLE ROW  ";
+                    2: line=(level_index>=2) ? "PHYSICS PENDING " : level_index ? "TNT BREAKS PARTS" : "PIG IN CENTRE   ";
+                    3: line=(level_index>=2) ? "SW3 ZOOM        " : "ENGINE AT REAR  ";
+                    4: line=(level_index>=2) ? "SW4 LOOK AROUND " : level_index ? "KEEP PIG SAFE   " : "WHEELS AT EDGES ";
                     5: line="RETRY RESTORES  ";
                 endcase
             endcase
@@ -126,7 +132,7 @@ module ui_renderer (
             text_visible=1;
         end
         if (game_state==`LP_RUN && x>=56 && x<95 && y>=4 && y<16)
-            pixel_data=part_sprite(`LP_PART_ENGINE,x-58,y-6,pixel_data);
+            pixel_data=part_sprite(`LP_PART_ENGINE,x-58,y-6,1'b0,pixel_data);
         if (text_visible && text_on(line,text_left,text_top,x,y)) pixel_data=ink;
         // The pointer is also visible on diary/result controls.
         if ((x==cursor_x && y+2>=cursor_y && y<=cursor_y+2) ||
