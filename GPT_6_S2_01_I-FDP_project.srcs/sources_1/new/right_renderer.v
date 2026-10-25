@@ -20,9 +20,13 @@ module right_renderer (
     input wire [1:0] hazard_count,
     input wire [`LP_HAZARD_BITS-1:0] hazard_rects,
     input wire [2*`LP_MAX_TNT-1:0] blast_phase,
+    input wire [1:0] death_phase,
+    input wire signed [15:0] death_x, death_y,
+    input wire launch_flash,
     output reg [15:0] pixel_data
 );
     `include "part_sprites.vh"
+    `include "ui_font.vh"
 
     wire goal_pixel;
     integer x, y, vx, vy, index, rx, ry, rw, rh, cell_index, cell_x, cell_y, tx, ty, distance, radius;
@@ -87,6 +91,18 @@ module right_renderer (
                 2'd2: pixel_data = (distance <= 9) ? 16'hffe0 : 16'hfd20;
                 default: pixel_data = 16'h8410;
             endcase
+        end
+        // World-space pig burst stays visible after the pig's intact bit clears.
+        tx=x-($signed(death_x) >>> 8); ty=y-($signed(death_y) >>> 8);
+        if (death_phase!=0) begin
+            distance=(tx<0 ? -tx : tx)+(ty<0 ? -ty : ty);
+            if (death_phase==1 && distance<=4) pixel_data=16'hffe0;
+            else if (death_phase==2 && distance<=7 && (tx==0 || ty==0 || tx==ty || tx==-ty)) pixel_data=16'hf800;
+            else if (death_phase==3 && distance>=7 && distance<=9 && (tx==6 || tx==-6 || ty==6 || ty==-6)) pixel_data=16'hb800;
+        end
+        if (launch_flash && game_state==`LP_RUN && x>=34 && x<62 && y<10) begin
+            pixel_data=16'h04b4;
+            if (text_on("GO!             ",39,1,x,y)) pixel_data=16'hffff;
         end
         if (x == 0 || x == 95 || y == 0 || y == 63) begin
             if (game_state == `LP_SUCCESS) pixel_data = 16'h07e0;

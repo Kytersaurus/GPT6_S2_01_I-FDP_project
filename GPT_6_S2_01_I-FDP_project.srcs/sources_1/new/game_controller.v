@@ -15,6 +15,7 @@ module game_controller #(parameter integer TICKS_PER_SECOND = 60) (
     output wire gameplay_ready,
     input wire goal_hit, hazard_hit, out_of_bounds,
     output reg [2:0] game_state,
+    output reg [2:0] guide_return_state,
     output reg level_index,
     output reg [1:0] fail_reason,
     output reg [6:0] run_seconds,
@@ -28,7 +29,7 @@ module game_controller #(parameter integer TICKS_PER_SECOND = 60) (
     assign gameplay_ready = (game_state == `LP_RUN) && !step_busy;
     always @(posedge clk) begin
         if (reset) begin
-            game_state <= `LP_BUILD; level_index <= 0; fail_reason <= `LP_FAIL_NONE;
+            game_state <= `LP_BUILD; guide_return_state <= `LP_BUILD; level_index <= 0; fail_reason <= `LP_FAIL_NONE;
             run_seconds <= 0; second_ticks <= 0;
             step_busy <= 0; step_start <= 0; update_release <= 0;
             launch_event <= 0; success_event <= 0; failure_event <= 0;
@@ -38,11 +39,11 @@ module game_controller #(parameter integer TICKS_PER_SECOND = 60) (
             case (game_state)
                 `LP_BUILD: begin
                     step_busy <= 0;
-                    if (guide_open_req) game_state <= `LP_GUIDE;
+                    if (guide_open_req) begin guide_return_state <= `LP_BUILD; game_state <= `LP_GUIDE; end
                     else if (launch_req && build_valid) game_state <= `LP_INIT_RUN;
                     else if (level_next_req) level_index <= ~level_index;
                 end
-                `LP_GUIDE: if (guide_close_req) game_state <= `LP_BUILD;
+                `LP_GUIDE: if (guide_close_req) game_state <= guide_return_state;
                 `LP_INIT_RUN: begin
                     step_busy <= 0; fail_reason <= `LP_FAIL_NONE; run_seconds <= 0; second_ticks <= 0;
                     if (&init_ready) begin game_state <= `LP_RUN; launch_event <= 1; end
@@ -70,7 +71,8 @@ module game_controller #(parameter integer TICKS_PER_SECOND = 60) (
                 end
                 `LP_SUCCESS, `LP_FAIL: begin
                     step_busy <= 0;
-                    if (edit_req) begin
+                    if (guide_open_req) begin guide_return_state <= game_state; game_state <= `LP_GUIDE; end
+                    else if (edit_req) begin
                         game_state <= `LP_BUILD; fail_reason <= `LP_FAIL_NONE;
                         if (game_state == `LP_SUCCESS) level_index <= ~level_index;
                     end

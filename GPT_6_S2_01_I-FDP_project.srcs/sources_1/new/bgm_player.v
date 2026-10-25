@@ -1,6 +1,6 @@
 // Owner: Role 1 - Kaushal. Looping background music:
 // - BUILD mode: The Entertainer, Scott Joplin (1902), extended melody (peak volume 4).
-// - RUN mode: Popcorn, Gershon Kingsley (1969), bouncy and quiet (peak volume 2).
+// - RUN mode: original gentle 16-note loop with rests (peak volume 2).
 `timescale 1ns / 1ps
 module bgm_player #(
     parameter integer UNIT_CYCLES = 15625000, // Sixteenth note at 96 beats/minute.
@@ -18,7 +18,7 @@ module bgm_player #(
     reg [2:0] units;
     reg last_fast;
 
-    localparam integer FAST_UNIT_CYCLES = UNIT_CYCLES*4/5;
+    localparam integer FAST_UNIT_CYCLES = UNIT_CYCLES;
     localparam integer SLOW_SOUND_CYCLES = UNIT_CYCLES-UNIT_CYCLES/8;
     localparam integer FAST_SOUND_CYCLES = FAST_UNIT_CYCLES-FAST_UNIT_CYCLES/8;
     wire [31:0] unit_cycles = fast ? FAST_UNIT_CYCLES : UNIT_CYCLES;
@@ -27,7 +27,7 @@ module bgm_player #(
     wire [31:0] fade_start = fast ? FAST_SOUND_CYCLES-4*FADE_CYCLES-1 : SLOW_SOUND_CYCLES-4*FADE_CYCLES-1;
     wire last_unit = (unit_index+3'd1 >= units);
     wire note_finished = last_unit && note_count >= unit_last;
-    wire playing = enabled && !pause && !reset && !(last_unit && note_count >= sound_end);
+    wire playing = enabled && !pause && !reset && half_cycles != 0 && !(last_unit && note_count >= sound_end);
 
     wire [2:0] max_volume = fast ? 3'd2 : 3'd4; // Softer in RUN so game SFX stand out!
 
@@ -133,70 +133,30 @@ module bgm_player #(
                 default: begin half_cycles = C5; units = 1; end
             endcase
         end else begin
-            // RUN MODE: Popcorn (Gershon Kingsley) - iconic bouncy synth
+            // Original RUN melody. Zero pitch is a silent rest.
             case (note_index)
-                // Bar 1
-                0: begin half_cycles = B4; units = 1; end
-                1: begin half_cycles = A4; units = 1; end
-                2: begin half_cycles = B4; units = 1; end
-                3: begin half_cycles = FS4; units = 1; end
-                4: begin half_cycles = D4; units = 1; end
-                5: begin half_cycles = FS4; units = 1; end
-                6: begin half_cycles = B3; units = 2; end
-                // Bar 2
-                7: begin half_cycles = B4; units = 1; end
-                8: begin half_cycles = A4; units = 1; end
-                9: begin half_cycles = B4; units = 1; end
-                10: begin half_cycles = FS4; units = 1; end
-                11: begin half_cycles = D4; units = 1; end
-                12: begin half_cycles = FS4; units = 1; end
-                13: begin half_cycles = B3; units = 2; end
-                // Bar 3
-                14: begin half_cycles = B4; units = 1; end
-                15: begin half_cycles = CS5; units = 1; end
-                16: begin half_cycles = D5; units = 1; end
-                17: begin half_cycles = CS5; units = 1; end
-                18: begin half_cycles = D5; units = 1; end
-                19: begin half_cycles = B4; units = 1; end
-                20: begin half_cycles = CS5; units = 2; end
-                // Bar 4
-                21: begin half_cycles = B4; units = 1; end
-                22: begin half_cycles = CS5; units = 1; end
-                23: begin half_cycles = B4; units = 1; end
-                24: begin half_cycles = A4; units = 1; end
-                25: begin half_cycles = B4; units = 2; end
-                // Second half (variation)
-                26: begin half_cycles = B4; units = 1; end
-                27: begin half_cycles = A4; units = 1; end
-                28: begin half_cycles = B4; units = 1; end
-                29: begin half_cycles = FS4; units = 1; end
-                30: begin half_cycles = D4; units = 1; end
-                31: begin half_cycles = FS4; units = 1; end
-                32: begin half_cycles = B3; units = 2; end
-                33: begin half_cycles = B4; units = 1; end
-                34: begin half_cycles = A4; units = 1; end
-                35: begin half_cycles = B4; units = 1; end
-                36: begin half_cycles = FS4; units = 1; end
-                37: begin half_cycles = D4; units = 1; end
-                38: begin half_cycles = FS4; units = 1; end
-                39: begin half_cycles = B3; units = 2; end
-                // High finish
-                40: begin half_cycles = D5; units = 1; end
-                41: begin half_cycles = E5; units = 1; end
-                42: begin half_cycles = FS5; units = 1; end
-                43: begin half_cycles = E5; units = 1; end
-                44: begin half_cycles = FS5; units = 1; end
-                45: begin half_cycles = D5; units = 1; end
-                46: begin half_cycles = E5; units = 2; end
-                47: begin half_cycles = D5; units = 1; end
-                48: begin half_cycles = CS5; units = 1; end
-                49: begin half_cycles = B4; units = 3; end
-                default: begin half_cycles = B4; units = 1; end
+                0: begin half_cycles = C4; units = 2; end
+                1: begin half_cycles = E4; units = 2; end
+                2: begin half_cycles = G4; units = 2; end
+                3: begin half_cycles = E4; units = 2; end
+                4: begin half_cycles = A4; units = 2; end
+                5: begin half_cycles = G4; units = 2; end
+                6: begin half_cycles = D4; units = 2; end
+                7: begin half_cycles = 0; units = 2; end
+                8: begin half_cycles = F4; units = 2; end
+                9: begin half_cycles = A4; units = 2; end
+                10: begin half_cycles = G4; units = 2; end
+                11: begin half_cycles = E4; units = 2; end
+                12: begin half_cycles = D4; units = 2; end
+                13: begin half_cycles = E4; units = 2; end
+                14: begin half_cycles = C4; units = 2; end
+                15: begin half_cycles = 0; units = 2; end
+                default: begin half_cycles = 0; units = 2; end
             endcase
         end
     end
 
-    wire [6:0] loop_limit = fast ? 7'd49 : 7'd74;
+    wire [6:0] loop_limit = fast ? 7'd15 : 7'd74;
     wire [6:0] loop_start = fast ? 7'd0 : 7'd2; // The Entertainer loops back to the main theme after intro
 
     always @(posedge clk) begin

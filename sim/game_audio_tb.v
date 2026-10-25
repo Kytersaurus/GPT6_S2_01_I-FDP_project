@@ -132,6 +132,10 @@ module game_audio_tb;
         btnU=1; sw=1; clocks(20); btnU=0; sw=0; clocks(20);
         if (top_starts!=0 || dut.audio_busy || dut.u_audio.pwm_level!=128)
             $fatal(1,"Ordinary controls triggered an unintended click sound");
+        // U now opens the diary; return through its real BACK button before editing.
+        if (dut.game_state!=`LP_GUIDE) $fatal(1,"U did not open the diary");
+        click(10,59);
+        if (dut.game_state!=`LP_BUILD || top_starts!=0) $fatal(1,"Diary navigation made a sound");
         // Missing pig prevents launch, so pressing C must also remain silent.
         packet(28,28,0,1); packet(28,28,0,0);
         btnC=1; clocks(14); btnC=0; clocks(14);

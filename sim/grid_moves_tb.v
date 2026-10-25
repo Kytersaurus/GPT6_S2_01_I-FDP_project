@@ -72,9 +72,11 @@ module grid_moves_tb;
         packet(12,44,1,0);packet(28,44,0,0);
         if(dut.build_grid[20:18]!=0 || dut.build_grid[23:21]!=`LP_PART_WHEEL || dut.wheels_left!=0)
             $fatal(1,"Wheel move charged stock or lost its source");
+        // Remove the lower support: a top wheel is now legal when that frame exists.
+        packet(12,28,0,1);packet(12,28,0,0);
         save_build();packet(28,44,1,0);packet(12,12,0,0);unchanged();
         if(dut.feedback_code!=`LP_FEEDBACK_FRAME_ABOVE) $fatal(1,"Unsupported wheel drop was accepted");
-        place(4,0);packet(12,12,1,0);packet(28,12,0,0);
+        place(0,3);place(4,0);packet(12,12,1,0);packet(28,12,0,0);
         if(dut.build_grid[2:0]!=0 || dut.build_grid[5:3]!=`LP_PART_BALLOON || dut.balloons_left!=1)
             $fatal(1,"Balloon move failed");
         save_build();packet(28,12,1,0);packet(12,44,0,0);unchanged();

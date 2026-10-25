@@ -35,10 +35,19 @@ module My_Top_Module #(
     inout wire PS2Clk, PS2Data,
     output wire [15:0] led,
     output wire [7:0] JA, JB,
+    output wire [6:0] seg,
+    output wire [3:0] an,
+    output wire dp,
     output wire [3:0] JXADC
 );
     wire reset, oled_clk, oled_reset, physics_tick, start_press, edit_press, engine_enabled;
     wire engine_reverse, jump_press, boost_req, boost_active;
+    wire engine_switch_enabled, ui_engine_on, ui_launch, ui_edit, ui_guide_open, ui_guide_close;
+    wire [1:0] diary_page, death_phase;
+    wire [2:0] guide_return_state;
+    wire signed [15:0] death_x, death_y;
+    wire launch_flash;
+    assign engine_enabled = engine_switch_enabled && ui_engine_on;
     wire [2:0] game_state, init_ready;
     wire run_init, step_start, update_release;
     wire [26:0] build_grid;
@@ -131,7 +140,22 @@ module My_Top_Module #(
     ) u_input (
         .clk(clk), .reset(reset), .btnC(btnC), .btnU(btnU), .btnR(btnR), .btnL(btnL),
         .engine_switch(sw[0]), .mute_switch(sw[1]), .reverse_switch(sw[2]), .start_press(start_press), .edit_press(edit_press),
-        .beep_press(beep_press), .engine_enabled(engine_enabled), .audio_muted(audio_muted), .engine_reverse(engine_reverse), .jump_press(jump_press)
+        .beep_press(beep_press), .engine_enabled(engine_switch_enabled), .audio_muted(audio_muted), .engine_reverse(engine_reverse), .jump_press(jump_press)
+    );
+    ui_controller u_ui_control (
+        .clk(clk), .reset(reset), .input_enabled(builder_input_enabled), .run_init(run_init),
+        .physics_tick(physics_tick), .launch_event(launch_event), .game_state(game_state),
+        .mouse_x(mouse_x), .mouse_y(mouse_y), .mouse_left(mouse_left), .mouse_right(mouse_right),
+        .mouse_event(mouse_event), .next_press(start_press),
+        .fan_available(1'b0), .rocket_available(1'b0), .rocket_ready(1'b0),
+        .launch_req(ui_launch), .edit_req(ui_edit), .guide_open_req(ui_guide_open), .guide_close_req(ui_guide_close),
+        .diary_page(diary_page), .engine_on(ui_engine_on), .fan_on(), .rocket_req(), .launch_flash(launch_flash)
+    );
+    seven_seg_timer u_board_timer (.clk(clk), .reset(reset), .seconds(run_seconds), .seg(seg), .an(an), .dp(dp));
+    pig_death_effect u_pig_death (
+        .clk(clk), .reset(reset), .run_init(run_init), .physics_tick(physics_tick), .pig_alive(pig_alive),
+        .game_state(game_state), .build_grid(build_grid), .vehicle_x(vehicle_x), .vehicle_y(vehicle_y),
+        .death_phase(death_phase), .death_x(death_x), .death_y(death_y)
     );
     sound_controller u_sound_control (
         .clk(clk), .reset(reset), .mute(audio_muted), .cancel(audio_cancel),
@@ -202,8 +226,9 @@ module My_Top_Module #(
         .tnt_positions(tnt_positions), .hazard_count(hazard_count), .hazard_rects(hazard_rects)
     );
     game_controller u_game (
-        .clk(clk), .reset(reset), .launch_req(start_press), .retry_req(start_press), .edit_req(edit_press),
-        .guide_open_req(1'b0), .guide_close_req(1'b0), .level_next_req(level_next_req),
+        .clk(clk), .reset(reset), .launch_req(start_press || ui_launch), .retry_req(start_press || ui_launch), .edit_req(edit_press || ui_edit),
+        .guide_open_req(ui_guide_open || (game_state==`LP_BUILD && edit_press)), .guide_close_req(ui_guide_close || edit_press),
+        .guide_return_state(guide_return_state), .level_next_req(level_next_req),
         .level_index(level_index), .fail_reason(fail_reason), .run_seconds(run_seconds),
         .build_valid(build_valid && !edit_valid), .pig_alive(pig_alive),
         .init_ready(init_ready), .physics_tick(physics_tick), .world_valid(world_valid), .world_ready(world_ready),
@@ -255,13 +280,17 @@ module My_Top_Module #(
         .world_ready(world_ready), .goal_hit(goal_hit), .hazard_hit(hazard_hit), .out_of_bounds(out_of_bounds)
     );
 
-    wire [170:0] snapshot_in = {boost_active, drag_from_grid, drag_source, drag_contents,
+    wire [210:0] snapshot_in = {diary_page, guide_return_state, death_phase, death_x, death_y, launch_flash, boost_active, drag_from_grid, drag_source, drag_contents,
                               game_state, build_grid, intact_mask, frame_intact_mask, build_valid, build_error,
                               vehicle_x, vehicle_y, engine_enabled, frames_left, pigs_left, wheels_left,
                               engines_left, balloons_left, cursor_x, cursor_y, selected_part, drag_active,
                               feedback_code, feedback_cell, level_index, fail_reason, tnt_intact,
                               build_frames, run_seconds, blast_phase};
-    wire [170:0] snapshot_out;
+    wire [210:0] snapshot_out;
+    wire [1:0] draw_diary_page, draw_death_phase;
+    wire [2:0] draw_guide_return;
+    wire signed [15:0] draw_death_x, draw_death_y;
+    wire draw_launch_flash;
     wire draw_boost_active;
     wire draw_drag_from_grid;
     wire [3:0] draw_drag_source;
@@ -295,14 +324,14 @@ module My_Top_Module #(
     wire [12:0] left_render_index = 13'd6143 - left_pixel_index;
     // Reuse the map renderer for one-OLED play; JB is blank while JA shows the map.
     wire [12:0] map_pixel_index = show_map ? left_render_index : right_pixel_index;
-    wire [15:0] left_pixel_data, right_pixel_data;
-    assign {draw_boost_active, draw_drag_from_grid, draw_drag_source, draw_drag_contents,
+    wire [15:0] left_pixel_data, right_pixel_data, base_left_pixel_data;
+    assign {draw_diary_page, draw_guide_return, draw_death_phase, draw_death_x, draw_death_y, draw_launch_flash, draw_boost_active, draw_drag_from_grid, draw_drag_source, draw_drag_contents,
             draw_state, draw_grid, draw_intact, draw_frames, draw_valid, draw_error, draw_x, draw_y, draw_engine,
             draw_frames_left, draw_pigs_left, draw_wheels_left, draw_engines_left, draw_balloons_left,
             draw_cursor_x, draw_cursor_y, draw_selected_part, draw_drag_active,
             draw_feedback_code, draw_feedback_cell, draw_level, draw_fail_reason, draw_tnt_intact,
             draw_saved_frames, draw_seconds, draw_blast} = snapshot_out;
-    display_snapshot #(.WIDTH(171)) u_snapshot (
+    display_snapshot #(.WIDTH(211)) u_snapshot (
         .game_clk(clk), .game_reset(reset), .display_clk(oled_clk), .display_reset(oled_reset),
         .frame_begin(left_frame), .game_data(snapshot_in), .display_data(snapshot_out)
     );
@@ -324,15 +353,23 @@ module My_Top_Module #(
         .drag_from_grid(draw_drag_from_grid), .drag_source(draw_drag_source), .drag_contents(draw_drag_contents),
         .cursor_x(draw_cursor_x), .cursor_y(draw_cursor_y), .cursor_visible(1'b1),
         .level_index(draw_level), .fail_reason(draw_fail_reason), .run_seconds(draw_seconds),
-        .pixel_data(left_pixel_data)
+        .pixel_data(base_left_pixel_data)
+    );
+    ui_renderer u_ui_renderer (
+        .pixel_index(left_render_index), .base_pixel(base_left_pixel_data), .game_state(draw_state),
+        .feedback_code(draw_feedback_code), .diary_page(draw_diary_page), .level_index(draw_level),
+        .build_valid(draw_valid), .engine_enabled(draw_engine), .boost_active(draw_boost_active),
+        .fan_available(1'b0), .fan_on(1'b0), .rocket_available(1'b0), .rocket_ready(1'b0),
+        .cursor_x(draw_cursor_x), .cursor_y(draw_cursor_y), .pixel_data(left_pixel_data)
     );
     right_renderer u_right_renderer (
-        .pixel_index(map_pixel_index), .game_state(draw_state), .build_grid(draw_grid),
+        .pixel_index(map_pixel_index), .game_state(draw_state==`LP_GUIDE ? draw_guide_return : draw_state), .build_grid(draw_grid),
         .intact_mask(draw_intact), .frame_intact_mask(draw_frames),
         .vehicle_x(draw_x), .vehicle_y(draw_y), .spawn_x(draw_spawn_x), .spawn_y(draw_spawn_y),
         .terrain_count(draw_terrain_count), .terrain_rects(draw_terrain_rects), .goal_rect(draw_goal_rect),
         .tnt_count(draw_tnt_count), .tnt_positions(draw_tnt_positions), .tnt_intact(draw_tnt_intact),
         .hazard_count(draw_hazard_count), .hazard_rects(draw_hazard_rects), .blast_phase(draw_blast),
+        .death_phase(draw_death_phase), .death_x(draw_death_x), .death_y(draw_death_y), .launch_flash(draw_launch_flash),
         .pixel_data(right_pixel_data)
     );
     Oled_Display u_left_oled (

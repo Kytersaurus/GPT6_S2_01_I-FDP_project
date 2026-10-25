@@ -55,6 +55,9 @@ module vehicle_builder #(
     reg [31:0] feedback_count;
     assign damage_ready = (game_state == `LP_RUN) && !run_init;
 
+    // Shift the frame layer by one row in either direction; no edge wraps.
+    wire [8:0] wheel_support = (build_frames << 3) | (build_frames >> 3);
+
     // Decide once: this result controls both editing and the on-screen feedback.
     // Repeating the same placement or removing an empty cell is a quiet no-op.
     always @* begin
@@ -82,8 +85,7 @@ module vehicle_builder #(
                     `LP_PART_WHEEL: begin
                         if (build_grid[edit_cell*3 +: 3] == edit_part) edit_result = `LP_FEEDBACK_NONE;
                         else if (build_frames[edit_cell]) edit_result = `LP_FEEDBACK_OCCUPIED;
-                        else if (edit_cell < 3) edit_result = `LP_FEEDBACK_FRAME_ABOVE;
-                        else if (!build_frames[edit_cell-3]) edit_result = `LP_FEEDBACK_FRAME_ABOVE;
+                        else if (!wheel_support[edit_cell]) edit_result = `LP_FEEDBACK_FRAME_ABOVE;
                         else if (wheels_left == 0) edit_result = `LP_FEEDBACK_NO_STOCK;
                         else edit_result = `LP_FEEDBACK_PLACED;
                     end
@@ -112,8 +114,7 @@ module vehicle_builder #(
                                 edit_result = build_frames[edit_cell] ? `LP_FEEDBACK_PLACED : `LP_FEEDBACK_NEED_FRAME;
                             `LP_PART_WHEEL:
                                 if (build_frames[edit_cell]) edit_result = `LP_FEEDBACK_OCCUPIED;
-                                else if (edit_cell < 3) edit_result = `LP_FEEDBACK_FRAME_ABOVE;
-                                else edit_result = build_frames[edit_cell-3] ? `LP_FEEDBACK_PLACED : `LP_FEEDBACK_FRAME_ABOVE;
+                                else edit_result = wheel_support[edit_cell] ? `LP_FEEDBACK_PLACED : `LP_FEEDBACK_FRAME_ABOVE;
                             `LP_PART_BALLOON:
                                 if (build_frames[edit_cell]) edit_result = `LP_FEEDBACK_OCCUPIED;
                                 else if (edit_cell >= 6) edit_result = `LP_FEEDBACK_FRAME_BELOW;
@@ -215,8 +216,7 @@ module vehicle_builder #(
                 `LP_PART_PIG, `LP_PART_ENGINE:
                     if (!build_frames[index]) placement_valid = 0;
                 `LP_PART_WHEEL: begin
-                    if (build_frames[index] || index < 3) placement_valid = 0;
-                    else if (!build_frames[index-3]) placement_valid = 0;
+                    if (build_frames[index] || !wheel_support[index]) placement_valid = 0;
                 end
                 `LP_PART_BALLOON: begin
                     if (build_frames[index] || index >= 6) placement_valid = 0;

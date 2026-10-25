@@ -38,7 +38,7 @@ module bgm_player_tb;
         if(sample!=0 || busy || music.note_index!=0 || effects.pwm_level!=128)
             $fatal(1,"Mute did not silence/reset background and effects");
         mute=0;clocks(2);fast=1;#1;
-        if(music.unit_cycles!=1638) $fatal(1,"Gameplay tempo incorrect");
+        if(music.unit_cycles!=2048) $fatal(1,"Gameplay tempo incorrect");
         fast=0;enabled=0;clocks(2);enabled=1;
         // Check the two pickup notes and the familiar E-C opening, then a complete loop.
         clocks(2048);
@@ -54,12 +54,15 @@ module bgm_player_tb;
         if(!looped)
             $fatal(1,"Melody loop duration incorrect: %0d clocks",waited);
 
-        // Test fast/RUN mode with Popcorn song and softer volume (volume <= 2)
+        // Test fast/RUN mode with original melody and softer volume (volume <= 2)
         fast = 1; clocks(2);
         if(music.note_index!=0) $fatal(1,"RUN mode transition did not reset note_index");
         clocks(300);
-        if(music.volume > 2) $fatal(1,"RUN mode Popcorn volume too loud (not soft)");
+        if(music.volume > 2) $fatal(1,"RUN mode melody volume too loud (not soft)");
 
+        if(music.half_cycles!=191113) $fatal(1,"Original RUN opening pitch incorrect");
+        clocks(2*2048*7);
+        if(music.note_index!=7 || sample!=0) $fatal(1,"RUN melody rest missing");
         reset=1;clocks(1);
         if(sample!=0 || music.note_index!=0 || music.note_count!=0) $fatal(1,"Reset retained melody state");
         $display("PASS bgm_player_tb: Entertainer pitches/durations/loop, quiet PWM, effect pause/resume, gameplay tempo, mute and reset");
