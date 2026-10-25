@@ -38,7 +38,14 @@
         "path":  "2026-10-25/173035_cave-arch-camera.bit",
         "built":  "2026-10-25T17:30:35",
         "source_commit":  "3f58d16 + uncommitted role4 changes",
-        "description":  "Latest (role4 test build): 16x16 sprites, Cave Arch map (view only), following camera, SW3/wheel zoom, SW4 free look",
+        "description":  "Role 4 test build: 16x16 sprites, Cave Arch map (view only), following camera, SW3/wheel zoom, SW4 free look",
         "sha256":  "10a9bfea61880e130b8fcdc546a73323ef82bb1e24efda78ad4d53fd097428a6"
+    },
+    {
+        "path":  "2026-10-25/180142_map-view-12px.bit",
+        "built":  "2026-10-25T18:01:42",
+        "source_commit":  "b79d73a + uncommitted role4 changes",
+        "description":  "Latest (role4 test build): 1.5x map view with 12x12 sprites, red/white/black TNT, Cave Arch view only, SW3/wheel zoom, SW4 free look",
+        "sha256":  "568373372d3f3acfcf6d915ba64c669cafbbf7e8ca113f9784db48395691bdc8"
     }
 ]

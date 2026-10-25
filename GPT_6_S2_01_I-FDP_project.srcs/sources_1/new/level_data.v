@@ -71,7 +71,7 @@ module level_data (
                 world_width = `LP_MAP_WIDTH;
                 world_height = `LP_MAP_HEIGHT;
                 flag_x = 10'd300;
-                flag_y = 10'd231;
+                flag_y = 10'd229;   // 14-pixel pole ends on the road at y=243
             end
         endcase
     end

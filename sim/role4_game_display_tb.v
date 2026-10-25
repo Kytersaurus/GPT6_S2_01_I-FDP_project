@@ -176,7 +176,7 @@ module role4_game_display_tb;
         level=2; #1;
         if (!map_level || world_width != `LP_MAP_WIDTH || world_height != `LP_MAP_HEIGHT)
             $fatal(1,"Level 3 is not the Cave Arch map");
-        if (spawn_x !== 16'sd26624 || spawn_y !== 16'sd6656 || flag_x != 300 || flag_y != 231)
+        if (spawn_x !== 16'sd26624 || spawn_y !== 16'sd6656 || flag_x != 300 || flag_y != 229)
             $fatal(1,"Level 3 spawn or flag moved");
         if (tnt_count != 0 || hazard_count != 0) $fatal(1,"Level 3 has unexpected objects");
 
@@ -283,10 +283,11 @@ module role4_game_display_tb;
 
         // Right view, level 1: TNT parts, then hiding an exploded block.
         level=0; view_state=`LP_BUILD;
-        expect_right(46, 12, 16'hb144, "TNT stripe");
+        expect_right(46, 12, 16'hf1c5, "TNT red top");
         expect_right(44, 13, 16'hf1c5, "TNT body");
-        expect_right(45, 14, 16'hffff, "TNT letter T");
-        expect_right(46, 15, 16'hffe0, "TNT letter N");
+        expect_right(45, 14, 16'hffff, "TNT white middle");
+        expect_right(45, 15, 16'h18c3, "TNT black letter");
+        expect_right(47, 15, 16'hffff, "TNT letter gap");
         expect_right(40, 22, 16'h8320, "ledge");
         tnt_intact=0;
         expect_right(44, 13, 16'h0010, "exploded TNT");
@@ -330,20 +331,20 @@ module role4_game_display_tb;
         view_state=`LP_FAIL;
         expect_right(0, 0, 16'hf800, "fail border");
 
-        // Zoomed in, level 1: the camera frames the spawn at 2x with 16 by 16 sprites.
+        // Map view, level 1: the camera (0,20) frames the spawn at 1.5x with 12 by 12 sprites.
         level=0; view_state=`LP_BUILD; zoomed_out=0;
-        expect_right(28, 28, 16'h07e0, "2x pig");
-        expect_right(9, 28, 16'ha285, "2x frame");
-        expect_right(50, 60, 16'h8320, "2x ground");
+        expect_right(22, 33, 16'h07e0, "1.5x pig");
+        expect_right(7, 34, 16'ha285, "1.5x frame");
+        expect_right(50, 60, 16'h8320, "1.5x ground");
         // Level 3: night sky above the start plateau and grass along its top edge (map ROM).
         level=2;
         expect_right(0, 0, 16'h322d, "map sky");
-        expect_right(36, 56, 16'h2bc3, "plateau grass");
+        expect_right(39, 51, 16'h2bc3, "plateau grass");
         // The camera follows the vehicle across the map, here to the finish flag.
         view_state=`LP_RUN; vehicle_x=270*256; vehicle_y=219*256;
-        expect_right(84, 40, 16'hc618, "flag pole");
-        expect_right(86, 32, 16'h0000, "flag black square");
-        expect_right(88, 32, 16'hffff, "flag white square");
+        expect_right(76, 38, 16'hec05, "flag pole");
+        expect_right(78, 30, 16'hffff, "flag white square");
+        expect_right(81, 30, 16'h0000, "flag black square");
         // Free look: the cursor, not the vehicle, picks the camera; the corners reach the map edges.
         free_look=1; look_x=0; look_y=0;
         expect_right(0, 0, 16'h322d, "free look top-left sky");

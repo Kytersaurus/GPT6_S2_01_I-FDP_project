@@ -1,6 +1,7 @@
 // Owner: Role 4 - Marcus. Part sprites shared by both renderers.
 // Include inside a module body. Rows hold 4-bit palette entries, left pixel in the top nibble.
-// part_sprite is 8 by 8 (map, inventory icons, drag preview); part_sprite16 is 16 by 16 (editor grid).
+// part_sprite is 8 by 8 (zoomed-out map, inventory icons, drag preview); part_sprite12 is 12 by 12
+// (map view); part_sprite16 is 16 by 16 (editor grid).
 // Each part has its own 15-colour palette; entry 0 is transparent and returns the supplied background.
 // Frame contents (pig, engine) leave the frame's outer ring transparent so it stays visible.
 // sprite_phase selects the second animation frame: engine pulleys/belt and fan blades.
@@ -78,9 +79,8 @@ function [15:0] sprite_colour;
             `LP_PALETTE_TNT: case (entry)
                 4'h1: sprite_colour = 16'hf1c5;  // Red
                 4'h2: sprite_colour = 16'hb144;  // Stripe
-                4'h3: sprite_colour = 16'hffff;  // White letters / band
-                4'h4: sprite_colour = 16'h18c3;  // Black letters (16 by 16)
-                4'h6: sprite_colour = 16'hffe0;  // Yellow N
+                4'h3: sprite_colour = 16'hffff;  // White middle
+                4'h4: sprite_colour = 16'h18c3;  // Black letters
             endcase
         endcase
     end
@@ -262,7 +262,8 @@ function [15:0] part_sprite16;
     end
 endfunction
 
-// TNT block: striped red stick with white T's and a yellow N (the N shares strokes with the T's).
+
+// TNT block, 8 by 8 (zoomed out): red with a white middle and black TNT letters sharing strokes.
 function [15:0] tnt_sprite;
     input integer sprite_x, sprite_y;
     input [15:0] background;
@@ -270,30 +271,125 @@ function [15:0] tnt_sprite;
     begin
         row = 0;
         if (sprite_x >= 0 && sprite_x < 8 && sprite_y >= 0 && sprite_y < 8) case (sprite_y)
-            2: row = 32'h33316333;
-            3, 4: row = 32'h13666131;
-            5: row = 32'h13616131;
-            default: row = 32'h11211211;
+            2, 6: row = 32'h33333333;
+            3: row = 32'h44434444;
+            4: row = 32'h34344443;
+            5: row = 32'h34343443;
+            default: row = 32'h11111111;
         endcase
         tnt_sprite = sprite_colour(`LP_PALETTE_TNT, row >> ((7-sprite_x)*4), background);
     end
 endfunction
 
-// 16 by 16 TNT for the zoomed-in map: striped red with black TNT on a white band.
-function [15:0] tnt_sprite16;
+// TNT block, 12 by 12 (map view): red with a white middle and black TNT letters.
+function [15:0] tnt_sprite12;
     input integer sprite_x, sprite_y;
     input [15:0] background;
-    reg [63:0] row;
+    reg [47:0] row;
     begin
         row = 0;
-        if (sprite_x >= 0 && sprite_x < 16 && sprite_y >= 0 && sprite_y < 16) case (sprite_y)
-            5, 11: row = 64'h3333333333333333;
-            6: row = 64'h3344434334344433;
-            7: row = 64'h3334334434334333;
-            8: row = 64'h3334334344334333;
-            9, 10: row = 64'h3334334334334333;
-            default: row = 64'h1121112111211121;
+        if (sprite_x >= 0 && sprite_x < 12 && sprite_y >= 0 && sprite_y < 12) case (sprite_y)
+            3, 8: row = 48'h333333333333;
+            4: row = 48'h444343343444;
+            5: row = 48'h343344343343;
+            6: row = 48'h343343443343;
+            7: row = 48'h343343343343;
+            11: row = 48'h222222222222;
+            default: row = 48'h111111111111;
         endcase
-        tnt_sprite16 = sprite_colour(`LP_PALETTE_TNT, row >> ((15-sprite_x)*4), background);
+        tnt_sprite12 = sprite_colour(`LP_PALETTE_TNT, row >> ((11-sprite_x)*4), background);
+    end
+endfunction
+
+// 12 by 12 parts for the map view (1.5x): the same designs as the 16 by 16 editor sprites.
+function [15:0] part_sprite12;
+    input [2:0] sprite_part;
+    input integer sprite_x, sprite_y;
+    input sprite_phase;
+    input [15:0] background;
+    reg [47:0] row;
+    begin
+        row = 0;
+        if (sprite_x >= 0 && sprite_x < 12 && sprite_y >= 0 && sprite_y < 12) begin
+            case (sprite_part)
+                `LP_PART_FRAME: case (sprite_y)
+                    0, 11: row = 48'h222222222222;
+                    1: row = 48'h233333333332;
+                    2, 9: row = 48'h212222222212;
+                    3, 8: row = 48'h212100001212;
+                    10: row = 48'h211111111112;
+                    default: row = 48'h212000000212;
+                endcase
+                `LP_PART_PIG: case (sprite_y)
+                    1: row = 48'h004400004400;
+                    2: row = 48'h043344443340;
+                    3, 5, 8: row = 48'h043333333340;
+                    4: row = 48'h043853358340;
+                    6: row = 48'h043366663340;
+                    7: row = 48'h043362263340;
+                    9: row = 48'h004333333400;
+                    10: row = 48'h000444444000;
+                    default: row = 0;
+                endcase
+                `LP_PART_WHEEL: case (sprite_y)
+                    0, 11: row = 48'h000111111000;
+                    1: row = 48'h011222222110;
+                    2: row = 48'h012111111110;
+                    3, 8: row = 48'h111133331111;
+                    4, 7: row = 48'h111343343111;
+                    5, 6: row = 48'h111335533111;
+                    default: row = 48'h011111111110;
+                endcase
+                `LP_PART_ENGINE: case (sprite_y)
+                    1, 10: row = 48'h001111111100;
+                    2: row = 48'h013322277710;
+                    3: row = sprite_phase ? 48'h013222976710 : 48'h013222579710;
+                    4: row = 48'h012225477710;
+                    5: row = sprite_phase ? 48'h012774492210 : 48'h012774452210;
+                    6: row = sprite_phase ? 48'h017667522210 : 48'h017687522210;
+                    7: row = sprite_phase ? 48'h017897222410 : 48'h017697222410;
+                    8: row = 48'h012772222210;
+                    9: row = 48'h014222222210;
+                    default: row = 0;
+                endcase
+                `LP_PART_BOOSTER: case (sprite_y)
+                    1: row = 48'h000000001000;
+                    2: row = 48'h000000002100;
+                    3, 8: row = 48'h111111112210;
+                    4: row = 48'h163333333221;
+                    5: row = 48'h162255222222;
+                    6: row = 48'h162257222222;
+                    7: row = 48'h162222222221;
+                    9: row = 48'h000044002100;
+                    10: row = 48'h000045001000;
+                    11: row = 48'h006666666600;
+                    default: row = 0;
+                endcase
+                `LP_PART_BALLOON: case (sprite_y)
+                    0: row = 48'h000111111000;
+                    1: row = 48'h0013BBBBB100;
+                    2: row = 48'h0138BBBBBB10;
+                    3: row = 48'h013BBBBBBB10;
+                    4, 5: row = 48'h01BBBBBBBB10;
+                    6: row = 48'h001BBBBBB100;
+                    7: row = 48'h0001BBBB1000;
+                    8: row = 48'h00001BB10000;
+                    9: row = 48'h000001100000;
+                    10: row = 48'h000000500000;
+                    default: row = 48'h000005000000;
+                endcase
+                `LP_PART_FAN: case (sprite_y)
+                    0, 11: row = 48'h000001100000;
+                    1: row = 48'h000013310000;
+                    2, 9: row = 48'h000122221000;
+                    3, 8: row = sprite_phase ? 48'h000140041000 : 48'h000104401000;
+                    4, 7: row = sprite_phase ? 48'h000142241000 : 48'h000124421000;
+                    5, 6: row = 48'h777105501000;
+                    default: row = 48'h000012210000;
+                endcase
+                default: row = 0;
+            endcase
+        end
+        part_sprite12 = sprite_colour(sprite_part, row >> ((11-sprite_x)*4), background);
     end
 endfunction
