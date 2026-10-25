@@ -15,7 +15,7 @@ module game_controller #(parameter integer TICKS_PER_SECOND = 60) (
     output wire gameplay_ready,
     input wire goal_hit, hazard_hit, out_of_bounds,
     output reg [2:0] game_state,
-    output reg level_index,
+    output reg [`LP_LEVEL_BITS-1:0] level_index,
     output reg [1:0] fail_reason,
     output reg [6:0] run_seconds,
     output wire run_init,
@@ -23,6 +23,7 @@ module game_controller #(parameter integer TICKS_PER_SECOND = 60) (
 );
     reg step_busy;
     reg [6:0] second_ticks;
+    wire [`LP_LEVEL_BITS-1:0] next_level = (level_index == `LP_LEVEL_COUNT-1) ? 0 : level_index + 1'b1;
     assign run_init = (game_state == `LP_INIT_RUN);
     assign world_ready = (game_state == `LP_RUN) && step_busy;
     assign gameplay_ready = (game_state == `LP_RUN) && !step_busy;
@@ -40,7 +41,7 @@ module game_controller #(parameter integer TICKS_PER_SECOND = 60) (
                     step_busy <= 0;
                     if (guide_open_req) game_state <= `LP_GUIDE;
                     else if (launch_req && build_valid) game_state <= `LP_INIT_RUN;
-                    else if (level_next_req) level_index <= ~level_index;
+                    else if (level_next_req) level_index <= next_level;
                 end
                 `LP_GUIDE: if (guide_close_req) game_state <= `LP_BUILD;
                 `LP_INIT_RUN: begin
@@ -72,7 +73,7 @@ module game_controller #(parameter integer TICKS_PER_SECOND = 60) (
                     step_busy <= 0;
                     if (edit_req) begin
                         game_state <= `LP_BUILD; fail_reason <= `LP_FAIL_NONE;
-                        if (game_state == `LP_SUCCESS) level_index <= ~level_index;
+                        if (game_state == `LP_SUCCESS) level_index <= next_level;
                     end
                     else if (retry_req) game_state <= `LP_INIT_RUN;
                 end

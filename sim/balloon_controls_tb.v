@@ -173,8 +173,8 @@ module balloon_controls_tb;
         if (dut.balloon_count!=1 || dut.mass_units!=14 || dut.intact_mask[0] || dut.balloons_left!=0)
             $fatal(1,"Idle click did not pop one balloon without refund");
         pixel=12*96+12; #1; if (colour!=16'hffff) $fatal(1,"RUN cursor missing");
-        pixel=7*96+7; #1; if (colour!=16'h0841) $fatal(1,"Popped balloon still drawn");
-        pixel=7*96+23; #1; if (colour!=16'hf81f) $fatal(1,"Other balloon disappeared");
+        pixel=10*96+11; #1; if (colour!=16'h0841) $fatal(1,"Popped balloon still drawn");
+        pixel=10*96+27; #1; if (colour!=16'hf81f) $fatal(1,"Other balloon disappeared");
         clocks(1); previous_applications=applications;
         packet(28,12,1,0); packet(28,12,1,0); packet(28,12,0,0); left_click(12,12);
         if (dut.balloon_count!=1 || applications!=previous_applications || dut.pop_pending)

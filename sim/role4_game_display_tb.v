@@ -6,7 +6,7 @@ module role4_game_display_tb;
     always #5 clk=~clk;
 
     // Level table, checked through one instance.
-    reg level=0;
+    reg [`LP_LEVEL_BITS-1:0] level=0;
     wire signed [15:0] spawn_x, spawn_y;
     wire [2:0] terrain_count, tnt_count;
     wire [127:0] terrain_rects;
@@ -14,10 +14,14 @@ module role4_game_display_tb;
     wire [`LP_TNT_BITS-1:0] tnt_positions;
     wire [1:0] hazard_count;
     wire [`LP_HAZARD_BITS-1:0] hazard_rects;
+    wire map_level;
+    wire [9:0] world_width, world_height, flag_x, flag_y;
     level_data levels (
         .level_index(level),.spawn_x(spawn_x),.spawn_y(spawn_y),.terrain_count(terrain_count),
         .terrain_rects(terrain_rects),.goal_rect(goal_rect),.tnt_count(tnt_count),
-        .tnt_positions(tnt_positions),.hazard_count(hazard_count),.hazard_rects(hazard_rects)
+        .tnt_positions(tnt_positions),.hazard_count(hazard_count),.hazard_rects(hazard_rects),
+        .map_level(map_level),.world_width(world_width),.world_height(world_height),
+        .flag_x(flag_x),.flag_y(flag_y)
     );
 
     // Game controller with scripted neighbours.
@@ -25,7 +29,7 @@ module role4_game_display_tb;
     reg goal=0, hazard=0, bounds=0;
     wire world_ready, run_init, step, release_step;
     wire [2:0] state;
-    wire level_index;
+    wire [`LP_LEVEL_BITS-1:0] level_index;
     wire [1:0] fail_reason;
     wire [6:0] run_seconds;
     game_controller #(.TICKS_PER_SECOND(4)) control (
@@ -66,10 +70,13 @@ module role4_game_display_tb;
     reg [2:0] view_state=`LP_BUILD;
     reg [1:0] view_reason=`LP_FAIL_NONE;
     reg [`LP_MAX_TNT-1:0] tnt_intact={`LP_MAX_TNT{1'b1}};
-    reg signed [15:0] vehicle_x=16'sd1024, vehicle_y=16'sd8192;
+    reg signed [19:0] vehicle_x=20'sd1024, vehicle_y=20'sd8192;
+    reg zoomed_out=1, free_look=0;
+    reg [6:0] look_x=0, look_y=0;
     reg [8:0] view_intact=9'b101110000;
     reg [6:0] view_seconds=0;
     reg [2*`LP_MAX_TNT-1:0] view_blast=0;
+    reg view_phase=0;
     wire [26:0] grid = {`LP_PART_WHEEL,`LP_PART_EMPTY,`LP_PART_WHEEL,
                         `LP_PART_ENGINE,`LP_PART_PIG,`LP_PART_EMPTY,
                         `LP_PART_EMPTY,`LP_PART_EMPTY,`LP_PART_EMPTY};
@@ -80,14 +87,24 @@ module role4_game_display_tb;
         .feedback_code(`LP_FEEDBACK_NONE),.feedback_cell(4'd0),
         .frames_left(4'd2),.pigs_left(4'd0),.wheels_left(4'd0),.engines_left(4'd0),.balloons_left(4'd2),
         .selected_part(`LP_PART_FRAME),.drag_active(1'b0),.drag_from_grid(1'b0),.drag_source(4'd9),.drag_contents(3'd0),.cursor_x(7'd0),.cursor_y(7'd0),.cursor_visible(1'b0),
-        .level_index(level),.fail_reason(view_reason),.run_seconds(view_seconds),.pixel_data(left_colour)
+        .level_index(level),.fail_reason(view_reason),.run_seconds(view_seconds),.anim_phase(view_phase),.pixel_data(left_colour)
+    );
+    wire signed [10:0] map_x, map_y;
+    wire [2:0] map_class;
+    level_map map_rom (
+        .draw_clk(clk),.draw_x(map_x),.draw_y(map_y),.draw_class(map_class),
+        .query_clk(clk),.query_x(11'sd0),.query_y(11'sd0),.query_class()
     );
     right_renderer right_view (
+        .clk(clk),.zoomed_out(zoomed_out),.free_look(free_look),.cursor_x(look_x),.cursor_y(look_y),
+        .map_level(map_level),.world_width(world_width),
+        .world_height(world_height),.flag_x(flag_x),.flag_y(flag_y),
+        .map_x(map_x),.map_y(map_y),.map_class(map_class),
         .pixel_index(pixel),.game_state(view_state),.build_grid(grid),.intact_mask(9'b101110000),
         .frame_intact_mask(9'b000111000),.vehicle_x(vehicle_x),.vehicle_y(vehicle_y),
-        .spawn_x(spawn_x),.spawn_y(spawn_y),.terrain_count(terrain_count),.terrain_rects(terrain_rects),
+        .spawn_x({{4{spawn_x[15]}},spawn_x}),.spawn_y({{4{spawn_y[15]}},spawn_y}),.terrain_count(terrain_count),.terrain_rects(terrain_rects),
         .goal_rect(goal_rect),.tnt_count(tnt_count),.tnt_positions(tnt_positions),.tnt_intact(tnt_intact),
-        .hazard_count(hazard_count),.hazard_rects(hazard_rects),.blast_phase(view_blast),.pixel_data(right_colour)
+        .hazard_count(hazard_count),.hazard_rects(hazard_rects),.blast_phase(view_blast),.anim_phase(view_phase),.pixel_data(right_colour)
     );
 
     task clocks;
@@ -121,7 +138,8 @@ module role4_game_display_tb;
         input [15:0] colour;
         input [8*24-1:0] what;
         begin
-            pixel=y*96+x; #1;
+            // The right renderer registers each pixel beside its map read.
+            pixel=y*96+x; @(posedge clk); #1;
             if (right_colour !== colour) $fatal(1,"Right %0s: (%0d,%0d)=%h, expected %h",what,x,y,right_colour,colour);
         end
     endtask
@@ -153,6 +171,14 @@ module role4_game_display_tb;
         if (hazard_rects[31:0] !== {8'd4,8'd16,8'd58,8'd36}) $fatal(1,"Level 2 spikes moved");
         // The pit must stay narrower than the 24 pixel vehicle so it can be crossed.
         if (hazard_rects[23:16] >= 24) $fatal(1,"Level 2 pit wider than the vehicle");
+        if (map_level) $fatal(1,"Level 2 drawn from the map ROM");
+        // Level 3, Cave Arch: map-drawn, spawn on the flat start plateau, flag on the cave road.
+        level=2; #1;
+        if (!map_level || world_width != `LP_MAP_WIDTH || world_height != `LP_MAP_HEIGHT)
+            $fatal(1,"Level 3 is not the Cave Arch map");
+        if (spawn_x !== 16'sd26624 || spawn_y !== 16'sd6656 || flag_x != 300 || flag_y != 231)
+            $fatal(1,"Level 3 spawn or flag moved");
+        if (tnt_count != 0 || hazard_count != 0) $fatal(1,"Level 3 has unexpected objects");
 
         clocks(3); reset=0; clocks(2);
         // Level select: only in BUILD, and launch on the same clock wins.
@@ -181,7 +207,9 @@ module role4_game_display_tb;
         pulse(EDIT); run_one_step(1'b1, 1'b0, 1'b0, 1'b1);
         if (state !== `LP_SUCCESS || fail_reason !== `LP_FAIL_NONE) $fatal(1,"Goal did not succeed cleanly");
         pulse(EDIT);
-        if (state !== `LP_BUILD || level_index !== 0) $fatal(1,"Edit after SUCCESS did not move to the next level");
+        if (state !== `LP_BUILD || level_index !== 2) $fatal(1,"Edit after SUCCESS did not move to the next level");
+        pulse(LEVEL);
+        if (level_index !== 0) $fatal(1,"Level select did not wrap from level 3 to level 1");
         // Timer: four ticks per second here; counts during RUN, freezes on a result, clears on retry.
         pulse(LAUNCH); clocks(2);
         for (index = 0; index < 9; index = index + 1) pulse(TICK);
@@ -255,9 +283,10 @@ module role4_game_display_tb;
 
         // Right view, level 1: TNT parts, then hiding an exploded block.
         level=0; view_state=`LP_BUILD;
-        expect_right(48, 12, 16'hffe0, "TNT fuse");
-        expect_right(44, 13, 16'hf800, "TNT body");
-        expect_right(44, 15, 16'hffff, "TNT band");
+        expect_right(46, 12, 16'hb144, "TNT stripe");
+        expect_right(44, 13, 16'hf1c5, "TNT body");
+        expect_right(45, 14, 16'hffff, "TNT letter T");
+        expect_right(46, 15, 16'hffe0, "TNT letter N");
         expect_right(40, 22, 16'h8320, "ledge");
         tnt_intact=0;
         expect_right(44, 13, 16'h0010, "exploded TNT");
@@ -267,6 +296,18 @@ module role4_game_display_tb;
         expect_right(14, 42, 16'h07e0, "pig at spawn in BUILD");
         expect_right(12, 42, 16'ha285, "frame at spawn in BUILD");
         expect_right(16, 44, 16'hfd18, "pig snout");
+        // Engine cell at spawn (20,40): the pulley spoke turns on the second phase.
+        expect_right(22, 41, 16'h5ae9, "engine casing");
+        expect_right(22, 44, 16'hc618, "pulley rim");
+        view_phase=1;
+        expect_right(22, 44, 16'h4208, "pulley spoke turned");
+        view_phase=0;
+        // Left grid draws the 16 by 16 engine: the big pulley glint moves with the phase.
+        expect_left(42, 28, 16'hffff, "16px pulley glint");
+        view_phase=1;
+        expect_left(42, 28, 16'hc618, "16px glint moved");
+        expect_left(43, 30, 16'hffff, "16px glint new place");
+        view_phase=0;
         view_state=`LP_RUN;
         expect_right(50, 42, 16'h07e0, "pig at vehicle in RUN");
         expect_right(14, 42, 16'h0010, "no pig left at spawn");
@@ -285,9 +326,31 @@ module role4_game_display_tb;
         expect_right(36, 58, 16'h0010, "gap between spikes");
         expect_right(36, 60, 16'hc618, "spike base");
         expect_right(40, 63, 16'h8320, "pit floor");
-        expect_right(60, 49, 16'hf800, "path TNT");
+        expect_right(60, 49, 16'hf1c5, "path TNT");
         view_state=`LP_FAIL;
         expect_right(0, 0, 16'hf800, "fail border");
+
+        // Zoomed in, level 1: the camera frames the spawn at 2x with 16 by 16 sprites.
+        level=0; view_state=`LP_BUILD; zoomed_out=0;
+        expect_right(28, 28, 16'h07e0, "2x pig");
+        expect_right(9, 28, 16'ha285, "2x frame");
+        expect_right(50, 60, 16'h8320, "2x ground");
+        // Level 3: night sky above the start plateau and grass along its top edge (map ROM).
+        level=2;
+        expect_right(0, 0, 16'h322d, "map sky");
+        expect_right(36, 56, 16'h2bc3, "plateau grass");
+        // The camera follows the vehicle across the map, here to the finish flag.
+        view_state=`LP_RUN; vehicle_x=270*256; vehicle_y=219*256;
+        expect_right(84, 40, 16'hc618, "flag pole");
+        expect_right(86, 32, 16'h0000, "flag black square");
+        expect_right(88, 32, 16'hffff, "flag white square");
+        // Free look: the cursor, not the vehicle, picks the camera; the corners reach the map edges.
+        free_look=1; look_x=0; look_y=0;
+        expect_right(0, 0, 16'h322d, "free look top-left sky");
+        look_x=95; look_y=63;
+        expect_right(0, 63, 16'h1082, "free look bottom underground");
+        free_look=0;
+        zoomed_out=1; vehicle_x=1024; vehicle_y=8192; level=0;
 
         $display("PASS role4_game_display_tb: levels, level select, next level, fail reasons, timer, explosions, level button, guidance, damage diagram, sprites, TNT, hazards, spawn preview");
         $finish;

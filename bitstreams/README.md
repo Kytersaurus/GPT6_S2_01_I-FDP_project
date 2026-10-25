@@ -6,7 +6,8 @@ Open Vivado **Hardware Manager > Program Device > Browse** and select this file.
 
 | Build time | File | Contents |
 | --- | --- | --- |
-| 2026-10-25 00:00:34 | [2026-10-25/000034_all-role-merge.bit](2026-10-25/000034_all-role-merge.bit) | Latest: all four roles merged, integrated TNT/collision/audio |
+| 2026-10-25 17:30:35 | [2026-10-25/173035_cave-arch-camera.bit](2026-10-25/173035_cave-arch-camera.bit) | Role 4 test build (uncommitted changes on `role4`): 16x16 sprites, Cave Arch level 3 (view only), following camera, SW3/wheel zoom, SW4 free look. 26 simulations and 100 MHz timing passed |
+| 2026-10-25 00:00:34 | [2026-10-25/000034_all-role-merge.bit](2026-10-25/000034_all-role-merge.bit) | All four roles merged, integrated TNT/collision/audio |
 | 2026-10-24 22:59:54 | [2026-10-24/225954_engine-boost-audio.bit](2026-10-24/225954_engine-boost-audio.bit) | Engine boost and audio, before TNT integration |
 | 2026-10-24 20:08:20 | [2026-10-24/200820_vivado-build.bit](2026-10-24/200820_vivado-build.bit) | Earlier Vivado output; source revision not recorded |
 | 2026-10-21 19:11:39 | [2026-10-21/191139_balloon-test.bit](2026-10-21/191139_balloon-test.bit) | Earlier balloon/control test |

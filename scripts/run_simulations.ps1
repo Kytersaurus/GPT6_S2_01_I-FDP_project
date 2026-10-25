@@ -10,6 +10,8 @@ $lpWorkDir = Join-Path $lpRepoRoot 'tmp\baseline_sim'
 New-Item -ItemType Directory -Force -Path $lpWorkDir | Out-Null
 Push-Location $lpWorkDir
 try {
+    # $readmemh files are opened relative to the simulator's working directory.
+    Get-ChildItem -LiteralPath $lpSourceDir -Filter '*.mem' | Copy-Item -Destination $lpWorkDir -Force
     $lpVhdl = @(Get-ChildItem -LiteralPath $lpSourceDir -Filter '*.vhd' | ForEach-Object { $_.FullName })
     & (Join-Path $VivadoBin 'xvhdl.bat') @lpVhdl
     if ($LASTEXITCODE -ne 0) { throw 'Mouse driver compilation failed.' }
