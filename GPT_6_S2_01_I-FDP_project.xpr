@@ -385,6 +385,12 @@
           <Attr Name="UsedIn" Val="simulation"/>
         </FileInfo>
       </File>
+      <File Path="$PPRDIR/sim/level_selector_tb.v">
+        <FileInfo>
+          <Attr Name="FileType" Val="SystemVerilog"/>
+          <Attr Name="UsedIn" Val="simulation"/>
+        </FileInfo>
+      </File>
       <File Path="$PPRDIR/sim/timer_death_tb.v">
         <FileInfo>
           <Attr Name="FileType" Val="SystemVerilog"/>

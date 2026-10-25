@@ -3,10 +3,11 @@
 `include "game_defs.vh"
 // BUILD -> INIT_RUN -> RUN -> SUCCESS/FAIL -> retry (INIT_RUN) or edit (BUILD).
 // Edit after SUCCESS moves to the next level; edit after FAIL keeps the level.
-// The level only changes in BUILD, so geometry stays frozen for a whole run.
+// Level selection is available before launch; geometry stays frozen for a whole run.
 module game_controller #(parameter integer TICKS_PER_SECOND = 60) (
     input wire clk, reset, launch_req, retry_req, edit_req, guide_open_req, guide_close_req,
-    input wire level_next_req,
+    input wire level_next_req, level_open_req, level_close_req, level_select_req,
+    input wire [`LP_LEVEL_BITS-1:0] selected_level,
     input wire build_valid, pig_alive,
     input wire [2:0] init_ready,
     input wire physics_tick, world_valid,
@@ -42,7 +43,16 @@ module game_controller #(parameter integer TICKS_PER_SECOND = 60) (
                     step_busy <= 0;
                     if (guide_open_req) begin guide_return_state <= `LP_BUILD; game_state <= `LP_GUIDE; end
                     else if (launch_req && build_valid) game_state <= `LP_INIT_RUN;
+                    else if (level_open_req) game_state <= `LP_LEVEL_SELECT;
                     else if (level_next_req) level_index <= next_level;
+                end
+                `LP_LEVEL_SELECT: begin
+                    step_busy <= 0;
+                    if (level_close_req || edit_req) game_state <= `LP_BUILD;
+                    else if (level_select_req && selected_level < `LP_LEVEL_COUNT) begin
+                        level_index <= selected_level;
+                        game_state <= `LP_BUILD;
+                    end
                 end
                 `LP_GUIDE: if (guide_close_req) game_state <= guide_return_state;
                 `LP_INIT_RUN: begin

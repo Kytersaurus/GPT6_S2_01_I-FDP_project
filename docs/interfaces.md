@@ -28,7 +28,7 @@ The hardware baseline starts with an empty build and two provisional maps. The b
 
 Part IDs are empty=0, frame=1, pig=2, wheel=3, engine=4, reserved=5, balloon=6. Frame is an edit selection only: it sets `build_frames` and is never stored in `build_grid`. Each frame holds one pig or engine, or remains empty. Wheels occupy their own cells directly below frames; balloons occupy their own cells directly above frames. Wheels and balloons cannot share a cell with a frame. IDs 5 and 7 are rejected. Boost is a temporary engine ability controlled from the left RUN screen, rather than a separate construction item.
 
-State IDs are BUILD=0, INIT_RUN=1, RUN=2, SUCCESS=3, FAIL=4 and GUIDE=5. The reset state is BUILD. Role 4 owns transitions; GUIDE returns to its agreed previous non-running screen.
+State IDs are BUILD=0, INIT_RUN=1, RUN=2, SUCCESS=3, FAIL=4, GUIDE=5 and LEVEL_SELECT=6. The reset state is BUILD. Role 4 owns transitions; GUIDE returns to its agreed previous non-running screen.
 
 At eight pixels per cell, the grid spans 24 by 24 pixels. The starter treats it as one upright body; artwork extending outside these cells and detached-part collision geometry need coordination. Mass weights and lift/thrust values remain provisional. Widen arithmetic before narrowing to 16 bits and clamp movement to prevent overflow.
 
@@ -48,7 +48,7 @@ The editor has `EDITOR_CELL_PIXELS=16` in `left_renderer`, giving a 48 by 48 pix
 | Role 1 input/control | Role 2 | SW0 engine enable, SW2 engine reverse and a debounced BTNL `jump_press`; balloon popping updates Role 1's intact state |
 | Role 4 | Role 1 | Game state and left-screen clickable layout |
 | Role 4 level data | Roles 2 and 3 | Spawn, terrain, TNT, goal and hazard geometry; same source feeds drawing |
-| Role 4 game control | Roles 1, 3 and drawing | One-bit `level_index`, changed only in BUILD; two-bit `fail_reason` after FAIL |
+| Role 4 game control | Roles 1, 3 and drawing | Two-bit `level_index`, selected in LEVEL_SELECT or advanced after SUCCESS; two-bit `fail_reason` after FAIL |
 | Role 2 | Role 3 collision | Previous/proposed movement with valid/ready handshake |
 | Role 3 collision | Role 2 | Corrected movement and grounded flag with valid/ready handshake |
 | Role 2 | Roles 3 and 4 | Committed position and `movement_committed` pulse |
@@ -158,3 +158,7 @@ Use testbench-only fixtures: a fixed valid nine-cell build for movement, an acce
 ## Background music
 
 `bgm_player` outputs a signed four-bit sample with amplitude at most three. `sound_generator.bgm_sample` uses it when no sound effect is busy, through the existing PWM carrier. Effects retain amplitude eight and their existing priority order. The music pauses on `audio_busy || sound_start`, preserving note/tone counters and restarting its quiet fade when resumed. BUILD and RUN enable it, RUN selects 120 BPM instead of 96 BPM, and mute/result/reset/run initialisation stop/reset it. `ENABLE_BGM` and `BGM_UNIT_CYCLES` are top parameters; the separate effect tests disable music to isolate their silence checks. The 38-entry note/duration table is a single-voice octave adaptation of The Entertainer's opening strain from the public-domain Mutopia edition.
+
+## Level-menu requests
+
+`level_button.level_open_req` opens LEVEL_SELECT from BUILD. `ui_controller` sends one-cycle `level_select_req` with a two-bit `selected_level` (0 to 3), or `level_close_req` for Back. The game controller accepts these only in LEVEL_SELECT, returns to BUILD and preserves the construction. BTNU also cancels the selector. The existing `level_next_req` input remains available to game-control callers but is tied low in the hardware top; the map icon opens the menu instead of cycling. Selector state uses the existing three-bit snapshot field, so no snapshot expansion is needed. The right renderer receives BUILD while this menu is shown, keeping the selected map's spawn preview.

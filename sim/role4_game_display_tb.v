@@ -52,7 +52,7 @@ module role4_game_display_tb;
     level_button button (
         .input_enabled(1'b1),
         .clk(clk),.reset(reset),.game_state(button_state),.mouse_x(mouse_x),.mouse_y(mouse_y),
-        .mouse_left(mouse_left),.mouse_right(mouse_right),.mouse_event(mouse_event),.level_next_req(button_req)
+        .mouse_left(mouse_left),.mouse_right(mouse_right),.mouse_event(mouse_event),.level_open_req(button_req)
     );
     always @(posedge clk) if (button_req) button_pulses = button_pulses + 1;
 

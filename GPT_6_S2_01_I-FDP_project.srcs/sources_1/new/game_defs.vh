@@ -33,6 +33,7 @@
 `define LP_SUCCESS       3'd3
 `define LP_FAIL          3'd4
 `define LP_GUIDE         3'd5
+`define LP_LEVEL_SELECT  3'd6
 
 `define LP_EDIT_PLACE    2'd0  // Includes replacement of an occupied cell.
 `define LP_EDIT_REMOVE   2'd1

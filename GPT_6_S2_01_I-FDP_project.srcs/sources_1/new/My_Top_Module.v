@@ -97,7 +97,8 @@ module My_Top_Module #(
     wire [2:0] terrain_count;
     wire [127:0] terrain_rects;
     wire [31:0] goal_rect;
-    wire level_next_req;
+    wire level_open_req, level_close_req, level_select_req;
+    wire [`LP_LEVEL_BITS-1:0] selected_level;
     wire [`LP_LEVEL_BITS-1:0] level_index;
     wire [3:0] mouse_z;
     wire zoomed_out;
@@ -156,6 +157,7 @@ module My_Top_Module #(
         .mouse_event(mouse_event), .next_press(start_press),
         .fan_available(1'b0), .rocket_available(1'b0), .rocket_ready(1'b0),
         .launch_req(ui_launch), .edit_req(ui_edit), .guide_open_req(ui_guide_open), .guide_close_req(ui_guide_close),
+        .level_close_req(level_close_req), .level_select_req(level_select_req), .selected_level(selected_level),
         .diary_page(diary_page), .engine_on(ui_engine_on), .fan_on(), .rocket_req(), .launch_flash(launch_flash)
     );
     seven_seg_timer u_board_timer (.clk(clk), .reset(reset), .seconds(run_seconds), .seg(seg), .an(an), .dp(dp));
@@ -181,7 +183,7 @@ module My_Top_Module #(
     );
     bgm_player #(.UNIT_CYCLES(BGM_UNIT_CYCLES), .FADE_CYCLES(AUDIO_FADE_CYCLES)) u_bgm (
         .clk(clk), .reset(reset),
-        .enabled(ENABLE_BGM && !audio_muted && (game_state == `LP_BUILD || game_state == `LP_RUN)),
+        .enabled(ENABLE_BGM && !audio_muted && (game_state == `LP_BUILD || game_state == `LP_LEVEL_SELECT || game_state == `LP_RUN)),
         .pause(audio_busy || sound_start), .fast(game_state == `LP_RUN), .audio_sample(bgm_sample)
     );
     MouseCtl u_mouse (
@@ -206,7 +208,7 @@ module My_Top_Module #(
     );
     level_button u_level_button (
         .clk(clk), .reset(reset), .input_enabled(builder_input_enabled), .game_state(game_state), .mouse_x(mouse_x), .mouse_y(mouse_y),
-        .mouse_left(mouse_left), .mouse_right(mouse_right), .mouse_event(mouse_event), .level_next_req(level_next_req)
+        .mouse_left(mouse_left), .mouse_right(mouse_right), .mouse_event(mouse_event), .level_open_req(level_open_req)
     );
     balloon_control u_balloons (
         .clk(clk), .reset(reset), .game_state(game_state), .pop_req(pop_req), .pop_cell(pop_cell),
@@ -239,7 +241,8 @@ module My_Top_Module #(
     game_controller u_game (
         .clk(clk), .reset(reset), .launch_req(start_press || ui_launch), .retry_req(start_press || ui_launch), .edit_req(edit_press || ui_edit),
         .guide_open_req(ui_guide_open || (game_state==`LP_BUILD && edit_press)), .guide_close_req(ui_guide_close || edit_press),
-        .guide_return_state(guide_return_state), .level_next_req(level_next_req),
+        .guide_return_state(guide_return_state), .level_next_req(1'b0), .level_open_req(level_open_req),
+        .level_close_req(level_close_req), .level_select_req(level_select_req), .selected_level(selected_level),
         .level_index(level_index), .fail_reason(fail_reason), .run_seconds(run_seconds),
         .build_valid(build_valid && !edit_valid), .pig_alive(pig_alive),
         .init_ready(init_ready), .physics_tick(physics_tick), .world_valid(world_valid), .world_ready(world_ready),
@@ -411,7 +414,7 @@ module My_Top_Module #(
     right_renderer u_right_renderer (
         .clk(oled_clk), .zoomed_out(draw_zoomed_out),
         .free_look(draw_free_look), .cursor_x(draw_cursor_x), .cursor_y(draw_cursor_y),
-        .pixel_index(map_pixel_index), .game_state(draw_state==`LP_GUIDE ? draw_guide_return : draw_state), .build_grid(draw_grid),
+        .pixel_index(map_pixel_index), .game_state(draw_state==`LP_LEVEL_SELECT ? `LP_BUILD : (draw_state==`LP_GUIDE ? draw_guide_return : draw_state)), .build_grid(draw_grid),
         .intact_mask(draw_intact), .frame_intact_mask(draw_frames),
         // Today's 16-bit positions, sign-extended to the renderer's 20-bit inputs.
         .vehicle_x({{4{draw_x[15]}}, draw_x}), .vehicle_y({{4{draw_y[15]}}, draw_y}),

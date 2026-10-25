@@ -1,4 +1,4 @@
-// Owner: Role 4 - Marcus. Level button click on the left OLED.
+// Owner: Role 4 - Marcus. Map icon click on the left OLED.
 `timescale 1ns / 1ps
 `include "game_defs.vh"
 // Reads the same mouse position as mouse_adapter, so the button needs no change there.
@@ -8,20 +8,20 @@ module level_button (
     input wire [2:0] game_state,
     input wire [11:0] mouse_x, mouse_y,
     input wire mouse_left, mouse_right, mouse_event,
-    output reg level_next_req
+    output reg level_open_req
 );
     reg left_was_down;
     wire on_button = mouse_x >= `LP_LEVEL_BUTTON_X && mouse_x < `LP_LEVEL_BUTTON_X+`LP_LEVEL_BUTTON_W &&
                      mouse_y >= `LP_LEVEL_BUTTON_Y && mouse_y < `LP_LEVEL_BUTTON_Y+`LP_LEVEL_BUTTON_H;
     always @(posedge clk) begin
-        if (reset) begin left_was_down <= 0; level_next_req <= 0; end
+        if (reset) begin left_was_down <= 0; level_open_req <= 0; end
         else begin
-            level_next_req <= 0;
+            level_open_req <= 0;
             if (mouse_event) begin
                 left_was_down <= mouse_left;
                 // One request per fresh press; holding the button does not repeat.
                 if (input_enabled && mouse_left && !mouse_right && !left_was_down && on_button && game_state == `LP_BUILD)
-                    level_next_req <= 1;
+                    level_open_req <= 1;
             end
         end
     end

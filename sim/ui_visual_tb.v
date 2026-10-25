@@ -49,6 +49,8 @@ module ui_visual_tb;
         repeat(320) @(negedge clk);
         frame("ui_build");
         state=`LP_GUIDE;frame("ui_diary_1");page=1;frame("ui_diary_2");page=2;frame("ui_diary_3");
+        state=`LP_LEVEL_SELECT;frame("ui_levels");
+        force dut.draw_level=2'd3;frame("ui_levels_l4");force dut.draw_level=2'd0;
         state=`LP_RUN;frame("ui_run");go=1;frame("ui_launch");go=0;
         state=`LP_FAIL;intact[4]=0;death=1;frame("ui_death_1");death=2;frame("ui_death_2");death=3;frame("ui_death_3");
         // The death effect uses world coordinates at either camera zoom.

@@ -101,7 +101,7 @@ module mouse_adapter (
                     end else if (!mouse_left && left_was_down) begin
                         place_pending <= 0;
                         drag_from_grid <= 0;
-                        inventory_armed <= in_inventory && !drag_from_grid;
+                        inventory_armed <= place_pending && in_inventory && !drag_from_grid;
                         // One drop at the release position; outside the grid cancels it.
                         if (place_pending && drag_from_grid && in_inventory) begin
                             edit_valid <= 1; edit_op <= `LP_EDIT_RETURN;

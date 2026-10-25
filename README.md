@@ -22,7 +22,7 @@ One OLED is enough for the complete game: connect it to JA. SW15 down shows the 
 | SW1 | Audio mute: one mutes and cancels the current sound; zero enables audio |
 | BTNC | Launch from BUILD; retry from SUCCESS/FAIL |
 | BTNU | Return to BUILD; advance to the next level after SUCCESS, keep the level after FAIL |
-| Left OLED L1/L2 button | Select either provisional level during BUILD |
+| Left OLED map icon | Open the four-level selector during BUILD; choose a tile, or use Back/BTNU to cancel |
 | BTNR | Play one short audio test beep; release before pressing again |
 | BTND | Reset the system |
 | LED 2 through 0 | Game state: BUILD=0, INIT_RUN=1, RUN=2, SUCCESS=3, FAIL=4 |
@@ -83,7 +83,7 @@ Edit a valid vehicle with the mouse, check remaining stock, launch it on flat gr
 
 ## Tool checks
 
-Run `scripts/run_simulations.ps1` in PowerShell to compile the VHDL mouse drivers and run the 22 regression benches. Pass `-VivadoBin` if Vivado is installed elsewhere, or `-Benches` to choose specific benches. The benches check mouse configuration/clicks, inventory limits/refunds, construction edits and edited-build restoration, queued balloon popping, PWM beep timing/mute/reset and AMP2 controls, the connected lifecycle, button bounce and release, held input, collision backpressure, damage/restoration, invalid launch, result priority, representative pixels, display snapshot transfer, signed balloon lift, movement handshakes and clock/reset behaviour.
+Run `scripts/run_simulations.ps1` in PowerShell to compile the VHDL mouse drivers and run the 31 regression benches. Pass `-VivadoBin` if Vivado is installed elsewhere, or `-Benches` to choose specific benches. The benches check mouse configuration/clicks, inventory limits/refunds, construction edits and edited-build restoration, queued balloon popping, PWM beep timing/mute/reset and AMP2 controls, the connected lifecycle, button bounce and release, held input, collision backpressure, damage/restoration, invalid launch, result priority, representative pixels, display snapshot transfer, signed balloon lift, movement handshakes and clock/reset behaviour.
 
 From the repository root in PowerShell, run `vivado -mode batch -source (Join-Path (Get-Location).Path 'scripts/check_baseline.tcl')` to synthesise the baseline without changing the saved project. Passing the absolute script path avoids depending on Vivado's working directory. Reports go into `tmp/baseline_synthesis/`. Synthesis checks do not establish routed timing or board behaviour; test the generated design on the actual hardware before claiming features in the report.
 
@@ -126,3 +126,7 @@ On 24 October, the one-OLED SW15 selector, centred existing-part/bundle dragging
 ## Programming files
 
 Completed bitstreams are organised by build date under [`bitstreams/`](bitstreams/README.md). Check [`LATEST.txt`](bitstreams/LATEST.txt) for the current archived file and select it in Vivado Hardware Manager. Reopen the saved project to enable automatic timestamped archiving after future Generate Bitstream runs.
+
+## Level selector
+
+During BUILD, click the folded-map icon at the bottom right of the left OLED. The 2 by 2 menu offers Track, TNT Pit, Cave Arch and Cave Flight. Click a tile to select it and return to construction. A green outline marks the current level; amber WIP labels mark the cave maps, whose movement/collision integration remains pending. Back or BTNU closes the menu without changing the level. Saved construction and inventory are preserved, launch is blocked while the menu is open, and hidden or held mouse clicks cannot select a tile. The right OLED retains the current level's spawn preview while the menu is open. Regenerate the bitstream to use this menu on hardware; existing archived files predate it.
