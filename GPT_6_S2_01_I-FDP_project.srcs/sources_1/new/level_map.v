@@ -14,8 +14,9 @@ module level_map (
     input wire signed [10:0] query_x, query_y,
     output reg [2:0] query_class
 );
-    (* rom_style = "block" *) reg [2:0] arch_cells [0:512*`LP_MAP_HEIGHT-1];
-    (* rom_style = "block" *) reg [2:0] flight_cells [0:1024*`LP_FLIGHT_HEIGHT-1];
+    // Use separate BRAMs and an output mux instead of dedicated RAM cascades.
+    (* rom_style = "block", cascade_height = 1 *) reg [2:0] arch_cells [0:512*`LP_MAP_HEIGHT-1];
+    (* rom_style = "block", cascade_height = 1 *) reg [2:0] flight_cells [0:1024*`LP_FLIGHT_HEIGHT-1];
     initial $readmemh("cave_arch_map.mem", arch_cells);
     initial $readmemh("cave_flight_map.mem", flight_cells);
 
