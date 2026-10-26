@@ -14,6 +14,7 @@ module module_contracts_tb;
     wire [3:0] frames_left, pigs_left, wheels_left, engines_left, balloons_left;
     wire [7:0] mass;
     vehicle_builder builder (
+        .edit_facing_left(1'b0),
         .clk(clk),.reset(reset),.game_state(builder_state),.run_init(builder_init),.init_ready(builder_ready),
         .edit_valid(1'b0),.edit_op(2'd0),.edit_cell(4'd0),.edit_source(4'd15),.edit_part(3'd0),
         .damage_valid(damage_valid),.damage_ready(damage_ready),.damage_mask(damage_mask),.damage_frame_mask(9'd0),
@@ -50,6 +51,7 @@ module module_contracts_tb;
     reg [12:0] pixel=0;
     wire [15:0] left_colour, right_colour;
     left_renderer left_view (
+        .build_facing_left(9'd0), .selected_left(1'b0), .inventory_page(1'b0), .rockets_left(4'd1), .fans_left(4'd1),
         .pixel_index(pixel),.game_state(builder_state),.build_grid(grid),.intact_mask(intact),.frame_intact_mask(frame_intact),
         .build_valid(valid),.build_error(error),.engine_enabled(1'b1),
         .feedback_code(`LP_FEEDBACK_NONE),.feedback_cell(4'd0),
@@ -60,7 +62,8 @@ module module_contracts_tb;
     );
     // Zoomed out, a 96 by 64 rectangle level fills the screen exactly as before the camera.
     right_renderer right_view (
-        .clk(clk),.zoomed_out(1'b1),.free_look(1'b0),.cursor_x(7'd0),.cursor_y(7'd0),.anim_phase(1'b0),.map_level(1'b0),.map_id(1'b0),.world_width(10'd96),.world_height(10'd64),
+        .build_facing_left(9'd0),
+        .clk(clk),.zoomed_out(1'b1),.overview(1'b0),.free_look(1'b0),.cursor_x(7'd0),.cursor_y(7'd0),.anim_phase(1'b0),.map_level(1'b0),.map_id(1'b0),.world_width(10'd96),.world_height(10'd64),
         .flag_x(10'd0),.flag_y(10'd0),.map_x(),.map_y(),.map_class(3'd0),
         .pixel_index(pixel),.game_state(builder_state),.build_grid(grid),.intact_mask(intact),.frame_intact_mask(frame_intact),
         .vehicle_x(20'sd1024),.vehicle_y(20'sd8192),.terrain_count(3'd1),

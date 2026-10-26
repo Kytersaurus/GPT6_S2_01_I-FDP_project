@@ -23,7 +23,7 @@ One OLED is enough for the complete game: connect it to JA. SW15 down shows the 
 | BTNC | Launch from BUILD; retry from SUCCESS/FAIL |
 | BTNU | Return to BUILD; advance to the next level after SUCCESS, keep the level after FAIL |
 | Left OLED map icon | Open the four-level selector during BUILD; choose a tile, or use Back/BTNU to cancel |
-| BTNR | Play one short audio test beep; release before pressing again |
+| BTNR | Reserved; no test sound |
 | BTND | Reset the system |
 | LED 2 through 0 | Game state: BUILD=0, INIT_RUN=1, RUN=2, SUCCESS=3, FAIL=4 |
 | LED 3 | World result pending |
@@ -46,7 +46,7 @@ To test on JA, construct the simple test vehicle described above, then place two
 
 Background music is a quiet, single-voice adaptation of Scott Joplin's The Entertainer. The same roughly ten-second phrase plays at 96 BPM in BUILD and 120 BPM in RUN. Sound effects pause it and it resumes afterwards; results stop the music for the result jingle. SW1 mutes both. `ENABLE_BGM=0` disables only music at build time, and `BGM_UNIT_CYCLES` sets its base sixteenth-note duration. The note table cites the public-domain Mutopia score.
 
-Game audio uses a Pmod AMP2 on JXADC pins 1-6. Accepted launch, balloon pop, landing, success and failure events play distinct short tones/sequences; TNT explosions also trigger their own sound and animation. Failure/success take priority over ordinary actions; held events do not repeat and lower-priority busy events are discarded. BTNR retains its 1 kHz test beep, SW1 mutes/cancels, and reset/retry/edit clear old playback. Ordinary mouse edits and buttons have no generic click sound. Notes fade in/out and PWM duty changes only between carrier frames. See [audio setup](docs/audio_setup.md) for profiles and tests.
+Game audio uses a Pmod AMP2 on JXADC pins 1-6. Accepted launch, balloon pop, landing, success and failure events play distinct short tones/sequences; TNT explosions also trigger their own sound and animation. Failure/success take priority over ordinary actions; held events do not repeat and lower-priority busy events are discarded. BTNR is silent; diary page SOUND 4/4 provides volume −/+ for music and effects. SW1 mutes/cancels, and reset/retry/edit clear old playback. Ordinary mouse edits and buttons have no generic click sound. Notes fade in/out and PWM duty changes only between carrier frames. See [audio setup](docs/audio_setup.md) for profiles and tests.
 
 TNT damage, spike detection and wall/ceiling collisions are connected. TNT and queued balloon pops share the builder damage input; explosions can destroy contents and frames, update movement properties, and kill the pig before goal checks. Retry restores the saved build and TNT. Instructions, final level balancing and hardware verification remain. Balloon lift tuning is provisional; the engine boost control is available on the left RUN screen. Runtime movement still treats the vehicle as one upright body, without detached-part motion.
 
@@ -130,3 +130,7 @@ Completed bitstreams are organised by build date under [`bitstreams/`](bitstream
 ## Level selector
 
 During BUILD, click the folded-map icon at the bottom right of the left OLED. The 2 by 2 menu offers Track, TNT Pit, Cave Arch and Cave Flight. Click a tile to select it and return to construction. A green outline marks the current level; amber WIP labels mark the cave maps, whose movement/collision integration remains pending. Back or BTNU closes the menu without changing the level. Saved construction and inventory are preserved, launch is blocked while the menu is open, and hidden or held mouse clicks cannot select a tile. The right OLED retains the current level's spawn preview while the menu is open. Regenerate the bitstream to use this menu on hardware; existing archived files predate it.
+
+The current audio source includes melody plus bass, a longer BUILD arrangement, and a roughly 50-second Bad Piggies main-theme loop that starts on RUN. Diary page SOUND 4/4 provides five settings (OFF and levels 1..4); retry preserves the selection and reset restores level 4. See [audio setup](docs/audio_setup.md). A fresh bitstream and a physical listening test are still needed for these changes.
+
+The current source replaces the RUN status panel with **DRIVE / POP / SOUND** pages, with a round-arrow retry and EDIT control. Physical controls remain. Construction has P1/P2 inventory pages, left/right engine and rocket orientation, side-mounted rocket/fan stock, and contents-first dragging from filled frames. Engine direction already affects existing thrust through the top-level balance/reverse connection. Fan/rocket thrust remains for Kyle; their DRIVE buttons show WAIT until connected. See [gameplay menu and construction controls](docs/gameplay_menu.md), including the [rendered preview](docs/images/gameplay_menu_preview.png). Generate a fresh bitstream to use these changes.

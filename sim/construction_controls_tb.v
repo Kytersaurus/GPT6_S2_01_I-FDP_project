@@ -37,6 +37,7 @@ module construction_controls_tb;
     always #5 clk=~clk;
 
     mouse_adapter input_actions (
+        .build_facing_left(9'd0), .run_page(2'd1),
         .input_enabled(1'b1),.build_grid(grid),.build_frames(frames),
         .clk(clk),.reset(reset),.game_state(game_state),.mouse_x(mouse_x),.mouse_y(mouse_y),
         .mouse_left(mouse_left),.mouse_right(mouse_right),.mouse_event(mouse_event),
@@ -46,6 +47,7 @@ module construction_controls_tb;
         .edit_valid(edit_valid),.edit_op(edit_op),.edit_cell(edit_cell),.edit_source(edit_source),.edit_part(edit_part)
     );
     vehicle_builder builder (
+        .edit_facing_left(1'b0),
         .clk(clk),.reset(reset),.game_state(game_state),.run_init(run_init),.init_ready(init_ready),
         .edit_valid(edit_valid),.edit_op(edit_op),.edit_cell(edit_cell),.edit_source(edit_source),.edit_part(edit_part),
         .damage_valid(damage_valid),.damage_ready(),.damage_mask(damage_mask),.damage_frame_mask(9'd0),
@@ -58,12 +60,14 @@ module construction_controls_tb;
     );
     // A smaller configured inventory must also start empty without wrapping stock.
     vehicle_builder #(.FRAME_LIMIT(2)) low_stock (
+        .edit_facing_left(1'b0),
         .clk(clk),.reset(reset),.game_state(`LP_BUILD),.run_init(1'b0),.init_ready(),
         .edit_valid(1'b0),.edit_op(`LP_EDIT_PLACE),.edit_cell(4'd0),.edit_source(4'd15),.edit_part(`LP_PART_EMPTY),
         .damage_valid(1'b0),.damage_ready(),.damage_mask(9'd0),.damage_frame_mask(9'd0),
         .build_valid(low_stock_valid),.build_error(low_stock_error),.frames_left(low_stock_frames_left)
     );
     left_renderer view (
+        .build_facing_left(9'd0), .selected_left(1'b0), .inventory_page(1'b0), .rockets_left(4'd1), .fans_left(4'd1),
         .pixel_index(pixel),.game_state(game_state),.build_grid(grid),.intact_mask(intact),
         .frame_intact_mask(frame_intact),.build_valid(valid),.build_error(error),.engine_enabled(1'b1),
         .feedback_code(feedback_code),.feedback_cell(feedback_cell),

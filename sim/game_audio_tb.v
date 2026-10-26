@@ -16,6 +16,7 @@ module game_audio_tb;
         .busy(busy),.active_sound(active),.sound_start(start),.sound_id(id)
     );
     sound_generator #(.BEEP_CYCLES(1024),.NOTE_CYCLES(1024),.FADE_CYCLES(8)) player (
+        .master_volume(3'd4),
         .clk(clk),.reset(reset),.mute(mute),.cancel(cancel),.start(start),.sound_id(id),.bgm_sample(4'sd0),
         .busy(busy),.active_sound(active),.audio_pwm(pwm)
     );
@@ -86,6 +87,7 @@ module game_audio_tb;
             btnC=1; clocks(14); btnC=0; clocks(14);
             if (dut.game_state!=`LP_RUN || last_top_sound!=`LP_SOUND_LAUNCH)
                 $fatal(1,"Accepted launch did not trigger launch audio");
+            click(48,59);
         end
     endtask
     task result;
@@ -179,8 +181,8 @@ module game_audio_tb;
         if (dut.game_state!=`LP_BUILD || dut.audio_busy || JXADC[3]!==1)
             $fatal(1,"Edit did not cancel result audio quietly");
         before_starts=top_starts; btnR=1; clocks(1400);
-        if (top_starts!=before_starts+1 || dut.audio_busy || last_top_sound!=`LP_SOUND_TEST)
-            $fatal(1,"Held BTNR test repeated or changed");
+        if (top_starts!=before_starts || dut.audio_busy)
+            $fatal(1,"Reserved BTNR triggered audio");
         btnR=0; clocks(14); btnR=1; clocks(14); sw=2; clocks(8);
         if (dut.audio_busy || JXADC[3]!==0) $fatal(1,"SW1 did not cancel/shut down audio");
         before_starts=top_starts; sw=0; clocks(300);

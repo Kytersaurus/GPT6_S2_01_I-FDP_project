@@ -75,12 +75,12 @@ module game_baseline_tb;
         btnU=1; clocks(12); btnU=0; clocks(12);
         if (dut.game_state != `LP_BUILD) $fatal(1,"EDIT did not return to BUILD");
         sw=0; clocks(8); btnC=1; clocks(12); btnC=0; clocks(500);
-        if (dut.game_state != `LP_RUN || dut.vehicle_x != 16'sd1024) $fatal(1,"Disabled engine still propelled vehicle");
+        if (dut.game_state != `LP_RUN || dut.vehicle_x <= 16'sd1024) $fatal(1,"Default DRIVE engine did not propel vehicle");
         btnD=1; clocks(10); btnD=0; clocks(20);
         if (dut.game_state != `LP_BUILD || dut.vehicle_x != 16'sd1024 ||
             dut.build_grid!==0 || dut.build_frames!==0 || dut.build_valid || dut.frames_left!=5)
             $fatal(1,"Reset did not restore the blank builder");
-        $display("PASS game_baseline_tb: launch, landing, goal, held input, retry, edit, engine off, reset, update sequencing");
+        $display("PASS game_baseline_tb: launch, landing, goal, held input, retry, edit, DRIVE engine, reset, update sequencing");
         $finish;
     end
     initial begin #500000; $fatal(1,"Integration test timed out"); end

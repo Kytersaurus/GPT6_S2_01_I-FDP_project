@@ -8,7 +8,7 @@ module sound_generator #(
     parameter integer FADE_CYCLES = 50000      // Eight 0.5 ms volume steps.
 ) (
     input wire clk, reset, mute, cancel, start,
-    input wire [2:0] sound_id,
+    input wire [2:0] sound_id, master_volume,
     input wire signed [3:0] bgm_sample,
     output reg busy,
     output reg [2:0] active_sound,
@@ -18,6 +18,8 @@ module sound_generator #(
     reg [31:0] tone_count, duration_count, fade_count;
     reg tone_high;
     reg [3:0] volume;
+    wire [3:0] max_volume = master_volume==0 ? 0 : master_volume==1 ? 3 :
+                                 master_volume==2 ? 6 : master_volume==3 ? 8 : 11;
     reg [7:0] pwm_count, pwm_level;
     reg [31:0] half_cycles, note_cycles;
     reg [1:0] last_note;
@@ -105,7 +107,8 @@ module sound_generator #(
                     fade_count <= 0;
                     if (duration_count >= note_cycles-11*FADE_CYCLES-1) begin
                         if (volume != 0) volume <= volume - 1'b1;
-                    end else if (volume < 11) volume <= volume + 1'b1;
+                    end else if (volume < max_volume) volume <= volume + 1'b1;
+                    else if (volume > max_volume) volume <= volume - 1'b1;
                 end else fade_count <= fade_count + 1'b1;
             end
         end

@@ -2,8 +2,8 @@
 `timescale 1ns / 1ps
 `include "game_defs.vh"
 // The camera centres on the vehicle and stops at the world edges. The map view (the default)
-// shows 64 by 43 world pixels at 1.5x with 12 by 12 sprites; zoomed out shows 96 by 64 at 1x
-// with 8 by 8 sprites, which is the whole world on levels 1 and 2. In free look (SW4) the
+// shows 64 by 43 world pixels at 1.5x with 12 by 12 sprites; normal zoom-out shows 96 by 64
+// at 1x, while overview shows 128 by 86 at 0.75x. In free look (SW4) the
 // cursor position picks the camera instead, so the whole map can be explored without driving.
 // Drawing order: background (map, or sky and terrain), hazards, goal, flag, TNT, vehicle,
 // explosions, then the result border. Before launch the vehicle is drawn at the spawn point.
@@ -15,11 +15,13 @@ module right_renderer (
     input wire clk,
     input wire [12:0] pixel_index,
     input wire zoomed_out,
+    input wire overview,
     // Free look: the camera follows the mouse cursor (0..95, 0..63) across the whole world.
     input wire free_look,
     input wire [6:0] cursor_x, cursor_y,
     input wire [2:0] game_state,
     input wire [26:0] build_grid,
+    input wire [8:0] build_facing_left,
     input wire [8:0] intact_mask,
     input wire [8:0] frame_intact_mask,
     // 20-bit Q12.8 positions, ready for wider physics; today's 16-bit values are sign-extended.
@@ -62,8 +64,8 @@ module right_renderer (
     always @* begin
         sx = pixel_index % 96;
         sy = pixel_index / 96;
-        view_w = zoomed_out ? 96 : 64;
-        view_h = zoomed_out ? 64 : 43;
+        view_w = overview ? 128 : (zoomed_out ? 96 : 64);
+        view_h = overview ? 86 : (zoomed_out ? 64 : 43);
         // Signed limits: a camera left of or above the world must clamp to zero, not wrap.
         max_x = world_width;
         max_y = world_height;
@@ -81,7 +83,11 @@ module right_renderer (
         if (cam_y > max_y) cam_y = max_y;
         if (cam_x < 0) cam_x = 0;
         if (cam_y < 0) cam_y = 0;
-        if (zoomed_out) begin
+        if (overview) begin
+            next_wx = cam_x + (4*sx)/3;           next_wy = cam_y + (4*sy)/3;
+            next_fx = (3*cam_x)/4 + sx;           next_fy = (3*cam_y)/4 + sy;
+            next_tx = 2*next_wx;                  next_ty = 2*next_wy;
+        end else if (zoomed_out) begin
             next_wx = cam_x + sx;                  next_wy = cam_y + sy;
             next_fx = next_wx;                     next_fy = next_wy;
             next_tx = 2*next_wx;                   next_ty = 2*next_wy;
@@ -99,9 +105,9 @@ module right_renderer (
     // Stage 1: registered beside the map read.
     reg [6:0] px, py;
     reg signed [11:0] fx, fy, wx, wy, tex_x, tex_y;
-    reg zoomed_out_q;
+    reg zoomed_out_q, overview_q;
     always @(posedge clk) begin
-        px <= sx; py <= sy; zoomed_out_q <= zoomed_out;
+        px <= sx; py <= sy; zoomed_out_q <= zoomed_out; overview_q <= overview;
         fx <= next_fx; fy <= next_fy; wx <= next_wx; wy <= next_wy; tex_x <= next_tx; tex_y <= next_ty;
     end
 
@@ -204,18 +210,18 @@ module right_renderer (
                 else pixel_data = ((((dx-3) >>> 2) ^ ((dy-1) >>> 2)) & 1) ? 16'h0000 : 16'hffff;
             end
         end
-        // TNT: 12 by 12 in the map view, 8 by 8 zoomed out.
+        // TNT: 12 by 12 close, 8 by 8 normal/overview (overview naturally samples it smaller).
         for (index = 0; index < `LP_MAX_TNT; index = index + 1) begin
             tx = tnt_positions[index*16 +: 8];
             ty = tnt_positions[index*16+8 +: 8];
             if (index < tnt_count && tnt_intact[index])
-                pixel_data = zoomed_out_q ? tnt_sprite(wx - tx, wy - ty, pixel_data)
+                pixel_data = (zoomed_out_q || overview_q) ? tnt_sprite(wx - tx, wy - ty, pixel_data)
                                           : tnt_sprite12(fx - scaled(tx, 1'b0), fy - scaled(ty, 1'b0), pixel_data);
         end
-        // Vehicle: three cells of 12 (map view) or 8 (zoomed out) screen pixels.
-        cell_px = zoomed_out_q ? 8 : 12;
-        rel_x = fx - scaled(vx, zoomed_out_q);
-        rel_y = fy - scaled(vy, zoomed_out_q);
+        // Vehicle: three cells of 12 (close), 8 (normal) or 6 (overview) screen pixels.
+        cell_px = overview_q ? 6 : (zoomed_out_q ? 8 : 12);
+        rel_x = fx - (overview_q ? (3*vx)/4 : scaled(vx, zoomed_out_q));
+        rel_y = fy - (overview_q ? (3*vy)/4 : scaled(vy, zoomed_out_q));
         if (rel_x >= 0 && rel_x < 3*cell_px && rel_y >= 0 && rel_y < 3*cell_px) begin
             cell_col = (rel_x >= 2*cell_px) ? 2 : (rel_x >= cell_px) ? 1 : 0;
             cell_row = (rel_y >= 2*cell_px) ? 2 : (rel_y >= cell_px) ? 1 : 0;
@@ -223,12 +229,16 @@ module right_renderer (
             rel_y = rel_y - cell_row*cell_px;
             cell_index = cell_row*3 + cell_col;
             part = build_grid >> (cell_index*3);
-            if (zoomed_out_q) begin
+            if (overview_q) begin
+                // Sample the existing 8-pixel sprites into a compact 6-pixel overview.
+                if (frame_intact_mask[cell_index]) pixel_data = part_sprite(`LP_PART_FRAME, (4*rel_x)/3, (4*rel_y)/3, 1'b0, pixel_data);
+                if (intact_mask[cell_index]) pixel_data = part_sprite_facing(part, (4*rel_x)/3, (4*rel_y)/3, 8, build_facing_left[cell_index], anim_phase, pixel_data);
+            end else if (zoomed_out_q) begin
                 if (frame_intact_mask[cell_index]) pixel_data = part_sprite(`LP_PART_FRAME, rel_x, rel_y, 1'b0, pixel_data);
-                if (intact_mask[cell_index]) pixel_data = part_sprite(part, rel_x, rel_y, anim_phase, pixel_data);
+                if (intact_mask[cell_index]) pixel_data = part_sprite_facing(part, rel_x, rel_y, 8, build_facing_left[cell_index], anim_phase, pixel_data);
             end else begin
                 if (frame_intact_mask[cell_index]) pixel_data = part_sprite12(`LP_PART_FRAME, rel_x, rel_y, 1'b0, pixel_data);
-                if (intact_mask[cell_index]) pixel_data = part_sprite12(part, rel_x, rel_y, anim_phase, pixel_data);
+                if (intact_mask[cell_index]) pixel_data = part_sprite_facing(part, rel_x, rel_y, 12, build_facing_left[cell_index], anim_phase, pixel_data);
             end
         end
         // Explosions grow over three phases: yellow flash, orange fireball, grey smoke.

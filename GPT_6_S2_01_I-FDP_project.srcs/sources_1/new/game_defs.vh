@@ -23,9 +23,9 @@
 `define LP_PART_PIG      3'd2
 `define LP_PART_WHEEL    3'd3
 `define LP_PART_ENGINE   3'd4
-`define LP_PART_BOOSTER  3'd5  // Reserved ID with a rocket sprite; boost is planned as an engine ability.
+`define LP_PART_BOOSTER  3'd5  // Side-mounted rocket; thrust integration belongs to Role 2.
 `define LP_PART_BALLOON  3'd6
-`define LP_PART_FAN      3'd7  // Sprite only; the builder still rejects it.
+`define LP_PART_FAN      3'd7  // Fan; thrust integration belongs to Role 2.
 
 `define LP_BUILD         3'd0
 `define LP_INIT_RUN      3'd1
@@ -88,10 +88,10 @@
 `define LP_MAX_HAZARDS   2   // Same {height, width, y, x} packing as terrain.
 `define LP_HAZARD_BITS   64
 
-// Left OLED level button, clicked in BUILD; x=[82,95), y=[55,64).
-`define LP_LEVEL_BUTTON_X 82
+// Left OLED MAP button, clicked in BUILD; x=[78,96), y=[55,64).
+`define LP_LEVEL_BUTTON_X 78
 `define LP_LEVEL_BUTTON_Y 55
-`define LP_LEVEL_BUTTON_W 13
+`define LP_LEVEL_BUTTON_W 18
 `define LP_LEVEL_BUTTON_H 9
 
 // Left OLED boost button, clicked in RUN; x=[56,72), y=[36,52).
