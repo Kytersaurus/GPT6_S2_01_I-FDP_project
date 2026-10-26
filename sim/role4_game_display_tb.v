@@ -82,6 +82,7 @@ module role4_game_display_tb;
                         `LP_PART_EMPTY,`LP_PART_EMPTY,`LP_PART_EMPTY};
     wire [15:0] left_colour, right_colour;
     left_renderer left_view (
+        .build_facing_left(9'd0), .selected_left(1'b0), .inventory_page(1'b0), .rockets_left(4'd1), .fans_left(4'd1),
         .pixel_index(pixel),.game_state(view_state),.build_grid(grid),.build_frames(9'b000111000),
         .intact_mask(view_intact),.frame_intact_mask(9'b000111000),.build_valid(1'b1),.build_error(4'd0),.engine_enabled(1'b1),
         .feedback_code(`LP_FEEDBACK_NONE),.feedback_cell(4'd0),
@@ -96,7 +97,8 @@ module role4_game_display_tb;
         .query_clk(clk),.query_x(11'sd0),.query_y(11'sd0),.query_class()
     );
     right_renderer right_view (
-        .clk(clk),.zoomed_out(zoomed_out),.free_look(free_look),.cursor_x(look_x),.cursor_y(look_y),
+        .build_facing_left(9'd0),
+        .clk(clk),.zoomed_out(zoomed_out),.overview(1'b0),.free_look(free_look),.cursor_x(look_x),.cursor_y(look_y),
         .map_level(map_level),.map_id(map_id),.world_width(world_width),
         .world_height(world_height),.flag_x(flag_x),.flag_y(flag_y),
         .map_x(map_x),.map_y(map_y),.map_class(map_class),

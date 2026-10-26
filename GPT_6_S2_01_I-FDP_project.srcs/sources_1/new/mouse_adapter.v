@@ -5,13 +5,16 @@ module mouse_adapter (
     input wire clk, reset, input_enabled,
     input wire [2:0] game_state,
     input wire [26:0] build_grid,
-    input wire [8:0] build_frames,
+    input wire [8:0] build_frames, build_facing_left,
+    input wire [1:0] run_page,
     input wire [11:0] mouse_x, mouse_y,
     input wire mouse_left, mouse_right, mouse_event,
     output reg [11:0] mouse_value,
     output reg setx, sety, setmax_x, setmax_y,
     output reg [6:0] cursor_x, cursor_y,
     output reg [2:0] selected_part,
+    output reg selected_left, inventory_page,
+    output reg edit_facing_left,
     output wire drag_active,
     output reg drag_from_grid,
     output reg [3:0] drag_source,
@@ -29,12 +32,14 @@ module mouse_adapter (
     reg left_was_down, right_was_down;
     reg place_pending, inventory_armed;
     assign drag_active = place_pending && game_state == `LP_BUILD && input_enabled;
-    wire in_grid = mouse_x >= 4 && mouse_x < 52 && mouse_y >= 4 && mouse_y < 52;
+    wire build_grid_area = mouse_x >= 4 && mouse_x < 52 && mouse_y >= 4 && mouse_y < 52;
+    wire pop_grid_area = mouse_x >= 4 && mouse_x < 40 && mouse_y >= 12 && mouse_y < 48;
+    wire in_grid = (game_state == `LP_BUILD) ? build_grid_area : pop_grid_area;
     wire in_inventory = mouse_x >= 56 && mouse_x < 92 && mouse_y >= 4 && mouse_y < 54;
-    wire in_boost = mouse_x >= `LP_BOOST_BUTTON_X && mouse_x < `LP_BOOST_BUTTON_X + `LP_BOOST_BUTTON_W &&
-                    mouse_y >= `LP_BOOST_BUTTON_Y && mouse_y < `LP_BOOST_BUTTON_Y + `LP_BOOST_BUTTON_H;
     // Used only when in_grid is true, for placement, removal and balloon clicks.
-    wire [3:0] hovered_cell = ((mouse_y-4)/16)*3 + (mouse_x-4)/16;
+    wire [3:0] hovered_cell = (game_state == `LP_BUILD) ?
+                              ((mouse_y-4)/16)*3 + (mouse_x-4)/16 :
+                              ((mouse_y-12)/12)*3 + (mouse_x-4)/12;
 
     // Configure the supplied driver for the left OLED, then place the cursor over the grid.
     always @* begin
@@ -53,6 +58,7 @@ module mouse_adapter (
             place_pending <= 0;
             inventory_armed <= 0; drag_from_grid <= 0; drag_source <= 9; drag_contents <= 0;
             cursor_x <= 24; cursor_y <= 24; selected_part <= `LP_PART_FRAME;
+            selected_left<=0; inventory_page<=0; edit_facing_left<=0;
             edit_valid <= 0; edit_op <= `LP_EDIT_PLACE; edit_cell <= 0; edit_source <= 9; edit_part <= `LP_PART_FRAME;
             pop_req <= 0; pop_cell <= 0; boost_req <= 0;
         end else begin
@@ -81,10 +87,21 @@ module mouse_adapter (
                         place_pending <= in_inventory || in_grid;
                         drag_from_grid <= 0; drag_source <= 9; drag_contents <= 0;
                         // Select only on the initial press, not while dragging past rows.
-                        if (in_inventory) begin
+                        if (mouse_y>=55 && mouse_y<64) begin
+                            place_pending<=0;
+                            if (mouse_x>=20 && mouse_x<40) begin inventory_page<=!inventory_page; inventory_armed<=0; end
+                            else if (selected_part==`LP_PART_ENGINE || selected_part==`LP_PART_BOOSTER) begin
+                                if (mouse_x>=42 && mouse_x<52) selected_left<=1;
+                                else if (mouse_x>=53 && mouse_x<63) selected_left<=0;
+                            end
+                        end else if (in_inventory) begin
                             inventory_armed <= 1;
                             // Five fixed row boundaries avoid a hardware divide by ten.
-                            if (mouse_y < 14) selected_part <= `LP_PART_FRAME;
+                            if (inventory_page) begin
+                                if (mouse_y<14) selected_part<=`LP_PART_BOOSTER;
+                                else if (mouse_y<24) selected_part<=`LP_PART_FAN;
+                                else begin place_pending<=0; inventory_armed<=0; end
+                            end else if (mouse_y < 14) selected_part <= `LP_PART_FRAME;
                             else if (mouse_y < 24) selected_part <= `LP_PART_PIG;
                             else if (mouse_y < 34) selected_part <= `LP_PART_WHEEL;
                             else if (mouse_y < 44) selected_part <= `LP_PART_ENGINE;
@@ -93,15 +110,16 @@ module mouse_adapter (
                                      (build_frames[hovered_cell] || build_grid[hovered_cell*3 +: 3] != `LP_PART_EMPTY)) begin
                             // Existing parts are only transferred when a valid drop is accepted.
                             drag_from_grid <= 1; drag_source <= hovered_cell;
-                            if (build_frames[hovered_cell]) begin
-                                selected_part <= `LP_PART_FRAME;
-                                drag_contents <= build_grid[hovered_cell*3 +: 3];
-                            end else selected_part <= build_grid[hovered_cell*3 +: 3];
+                            if (build_grid[hovered_cell*3 +: 3] != `LP_PART_EMPTY) begin
+                                selected_part <= build_grid[hovered_cell*3 +: 3];
+                                selected_left <= build_facing_left[hovered_cell];
+                            end else selected_part <= `LP_PART_FRAME;
                         end
                     end else if (!mouse_left && left_was_down) begin
                         place_pending <= 0;
                         drag_from_grid <= 0;
-                        inventory_armed <= place_pending && in_inventory && !drag_from_grid;
+                        if (place_pending) inventory_armed <= in_inventory && !drag_from_grid;
+                        edit_facing_left<=selected_left;
                         // One drop at the release position; outside the grid cancels it.
                         if (place_pending && drag_from_grid && in_inventory) begin
                             edit_valid <= 1; edit_op <= `LP_EDIT_RETURN;
@@ -117,8 +135,8 @@ module mouse_adapter (
                 end else if (input_enabled && game_state == `LP_RUN && mouse_left && !left_was_down &&
                              !mouse_right) begin
                     // Gameplay uses one fresh press, rather than construction's drop.
-                    if (in_grid) begin pop_req <= 1; pop_cell <= hovered_cell; end
-                    else if (in_boost) boost_req <= 1;
+                    if (run_page==1 && in_grid) begin pop_req <= 1; pop_cell <= hovered_cell; end
+                    // DRIVE boost comes from ui_controller.
                 end
             end
         end

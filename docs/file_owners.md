@@ -90,3 +90,5 @@ Keep one coordinator at a time on the top module, project and constraints. Every
 | --- | --- | --- |
 | `scripts/archive_bitstream.tcl` | Shared integration - all roles | Archive successful Vivado builds by date and update `bitstreams/LATEST.txt` |
 | `bitstreams/` | Shared integration - all roles | Dated programming files, latest-build pointer and recorded build details |
+
+Role 1 also owns `sim/gameplay_menu_tb.v`, `sim/directional_parts_tb.v`, and `docs/gameplay_menu.md`. Directional sprite drawing is a shared addition to Marcus's `part_sprites.vh`, `left_renderer.v` and `right_renderer.v`; the map data and camera remain under Role 4.

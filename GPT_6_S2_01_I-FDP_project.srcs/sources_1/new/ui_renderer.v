@@ -5,7 +5,9 @@ module ui_renderer (
     input wire [12:0] pixel_index,
     input wire [15:0] base_pixel,
     input wire [2:0] game_state, feedback_code,
-    input wire [1:0] diary_page,
+    input wire [1:0] diary_page, run_page,
+    input wire inventory_page, selected_left, audio_muted,
+    input wire [2:0] selected_part,
     input wire [2:0] master_volume,
     input wire [`LP_LEVEL_BITS-1:0] level_index,
     input wire build_valid, engine_enabled, boost_active,
@@ -46,22 +48,22 @@ module ui_renderer (
                     1: line="GET PIG TO FLAG ";
                     2: line="DRAG PARTS IN   ";
                     3: line="RIGHT CLICK OUT ";
-                    4: line="SW0 POWERS CAR  ";
+                    4: line="DRIVE TAB POWERS";
                     5: line="U BACK C NEXT   ";
                 endcase
                 1: case (row)
                     0: line="PART RULES 2/4  ";
-                    1: line="PIG IN A FRAME  ";
-                    2: line="ENGINE IN FRAME ";
-                    3: line="WHEELS UP/DOWN  ";
-                    4: line="BALLOONS ABOVE  ";
-                    5: line="CLICK TO POP    ";
+                    1: line="PIG/ENG FRAME   ";
+                    2: line="WHEELS UP/DOWN  ";
+                    3: line="BALLOONS ABOVE  ";
+                    4: line="FAN/ROCKET SIDE ";
+                    5: line="POP PAGE TO POP ";
                 endcase
                 2: case (row)
                     0: line="LEVEL HINT 3/4  ";
                     1: line=(level_index>=2) ? "MAP TEST ONLY   " : level_index ? "PROTECT ENGINE  " : "TRY MIDDLE ROW  ";
                     2: line=(level_index>=2) ? "PHYSICS PENDING " : level_index ? "TNT BREAKS PARTS" : "PIG IN CENTRE   ";
-                    3: line=(level_index>=2) ? "SW3 ZOOM        " : "ENGINE AT REAR  ";
+                    3: line=(level_index>=2) ? "WHEEL ZOOM      " : "ENGINE AT REAR  ";
                     4: line=(level_index>=2) ? "SW4 LOOK AROUND " : level_index ? "KEEP PIG SAFE   " : "WHEELS AT EDGES ";
                     5: line="RETRY RESTORES  ";
                 endcase
@@ -77,7 +79,7 @@ module ui_renderer (
                     endcase
                     3: line="                ";
                     4: line="                ";
-                    5: line="SW1 MUTES ALL   ";
+                    5: line=audio_muted ? "MUTED BY SW1    " : "SW1 MUTES ALL   ";
                 endcase
             endcase
         end
@@ -89,40 +91,15 @@ module ui_renderer (
                 line="GO              "; enabled=build_valid;
             end else if (x>=64 && x<80) begin
                 button=1; button_left=64; button_right=79; text_left=69; line="?               ";
-            end else if (x>=20 && x<63) begin
-                text_left=20; ink=feedback_code>=3 ? 16'hf800 : (build_valid ? 16'h07e0 : 16'hffe0);
-                case (feedback_code)
-                    `LP_FEEDBACK_PLACED: line="PLACED          ";
-                    `LP_FEEDBACK_REMOVED: line="REMOVED         ";
-                    `LP_FEEDBACK_NO_STOCK: line="STOCK 0         ";
-                    `LP_FEEDBACK_FRAME_ABOVE, `LP_FEEDBACK_FRAME_BELOW, `LP_FEEDBACK_NEED_FRAME: line="FRAME?          ";
-                    `LP_FEEDBACK_OCCUPIED: line="TAKEN           ";
-                    default: line=build_valid ? "READY           " : "CHECK           ";
-                endcase
+            end else if (x>=20 && x<40) begin
+                button=1; button_left=20; button_right=39; text_left=23;
+                line=inventory_page ? "P2              " : "P1              ";
+            end else if ((x>=42 && x<52) || (x>=53 && x<63)) begin
+                button=1; button_left=x<52 ? 42 : 53; button_right=button_left+9; text_left=button_left+2;
+                line=x<52 ? "<               " : ">               ";
+                enabled=selected_part==`LP_PART_ENGINE || selected_part==`LP_PART_BOOSTER;
+                if ((x<52 && selected_left) || (x>=53 && !selected_left)) ink=16'hffe0;
             end else begin pixel_data=base_pixel; text_visible=0; end
-        end
-        if (game_state==`LP_BUILD && y<3) pixel_data=x<54 ? 16'h04b4 : 16'h2945;
-        if (game_state==`LP_RUN && x>=54 && y>=3 && y<54) begin
-            pixel_data=16'h0841;
-            if (x>=56 && x<95) begin
-                if (y>=4 && y<16) begin
-                    button=1; button_left=56; button_right=94; text_top=7; text_left=70;
-                    line=engine_enabled ? "ON              " : "OFF             ";
-                end else if (y>=18 && y<30) begin
-                    button=1; button_left=56; button_right=94; text_top=21; text_left=58;
-                    line=fan_available ? (fan_on ? "FAN ON          " : "FAN -           ") : "FAN -           ";
-                    enabled=fan_available;
-                end else if (y>=32 && y<42) begin
-                    button=1; button_left=56; button_right=94; text_top=33; text_left=58;
-                    line="BOOST           "; ink=boost_active ? 16'hffe0 : 16'hffff;
-                end else if (y>=44 && y<54) begin
-                    button=1; button_left=56; button_right=94; text_top=45; text_left=58;
-                    line="ROCKET          "; enabled=rocket_available && rocket_ready;
-                end
-            end
-        end
-        if (game_state==`LP_RUN && y>=55) begin
-            pixel_data=16'h0841; text_visible=1; text_left=2; text_top=56; line="SW0 POWER       "; ink=16'h07ff;
         end
         if ((game_state==`LP_GUIDE || game_state==`LP_SUCCESS || game_state==`LP_FAIL) && y>=55) begin
             pixel_data=16'h0841; text_visible=0; text_top=56;
@@ -151,23 +128,17 @@ module ui_renderer (
             pixel_data=enabled ? 16'h18e5 : 16'h18c3;
             if (enabled && cursor_x>=button_left && cursor_x<=button_right &&
                 cursor_y>=text_top-3 && cursor_y<text_top+11) pixel_data=16'h0351;
-            if (x==button_left || x==button_right || y==text_top-1 || y==text_top+7)
+            if (x==button_left || x==button_right || (text_top==32 ? (y==28 || y==43) : (y==text_top-1 || y==text_top+7)))
                 pixel_data=enabled ? 16'h04b4 : 16'h4208;
             if (!enabled) ink=16'h7bef;
             text_visible=1;
         end
-        if (game_state==`LP_RUN && x>=56 && x<95 && y>=4 && y<16)
-            pixel_data=part_sprite(`LP_PART_ENGINE,x-58,y-6,1'b0,pixel_data);
         if (text_visible && text_on(line,text_left,text_top,x,y)) pixel_data=ink;
-        // Replace the old level-cycle label with a folded-map icon.
+        // A readable MAP button is clearer than a tiny folded-map drawing.
         if (game_state==`LP_BUILD && x>=`LP_LEVEL_BUTTON_X && x<`LP_LEVEL_BUTTON_X+`LP_LEVEL_BUTTON_W && y>=55) begin
             pixel_data=16'h18e5;
             if (x==`LP_LEVEL_BUTTON_X || x==`LP_LEVEL_BUTTON_X+`LP_LEVEL_BUTTON_W-1 || y==55 || y==63) pixel_data=16'h04b4;
-            if (x>=83 && x<=92 && y>=57 && y<=61) begin
-                pixel_data=16'hcf36;
-                if (x==86 || x==89) pixel_data=16'h6b4d;
-                if ((x==84 && y==60) || (x==85 && y==59) || (x==90 && y==58)) pixel_data=16'h04b4;
-            end
+            if (text_on("MAP             ",79,56,x,y)) pixel_data=16'hffff;
         end
         if (game_state==`LP_LEVEL_SELECT) begin
             pixel_data=16'h0841;
@@ -204,6 +175,88 @@ module ui_renderer (
                     if (x==0 || x==27 || y==55 || y==63) pixel_data=16'h04b4;
                     if (text_on("BACK            ",2,56,x,y)) pixel_data=16'hffff;
                 end else if (text_on("PICK A MAP      ",32,56,x,y)) pixel_data=16'h7bef;
+            end
+        end
+        // RUN uses three large menu pages; only POP retains the vehicle diagram.
+        if (game_state==`LP_RUN) begin
+            pixel_data=(run_page==1 && x<54 && y<55) ? base_pixel : 16'h0841;
+            button=0; text_visible=0; enabled=1; ink=16'hffff; text_left=2; text_top=1;
+            if (run_page==1) begin
+                if (text_on("POP             ",2,1,x,y)) pixel_data=16'h07ff;
+                if (x>=56 && x<84 && y>=14 && y<24) begin
+                    button=1; button_left=56; button_right=83; text_top=15; text_left=58; line="EDIT            ";
+                end
+            end else begin
+                if (text_on(run_page==0 ? "DRIVE           " : "SOUND           ",2,1,x,y)) pixel_data=16'h07ff;
+                if (x>=40 && x<66 && y<10) begin
+                    button=1; button_left=40; button_right=65; text_top=1; text_left=42; line="EDIT            ";
+                end
+            end
+            if (run_page==0 && x>=4 && x<92 && y>=12 && y<54) begin
+                button_left=4; button_right=91; text_left=8;
+                if (y<22) begin button=1; text_top=13; line=engine_enabled ? "ENGINE ON       " : "ENGINE OFF      "; end
+                else if (y>=23 && y<33) begin
+                    button=1; text_top=24; enabled=fan_available;
+                    line=fan_available ? (fan_on ? "FAN ON          " : "FAN OFF         ") : "FAN WAIT        ";
+                end else if (y>=34 && y<44) begin
+                    button=1; text_top=35; line=boost_active ? "BOOST ON        " : "BOOST           ";
+                end else if (y>=45) begin
+                    button=1; text_top=46; enabled=rocket_available && rocket_ready;
+                    line=enabled ? "ROCKET FIRE     " : "ROCKET WAIT     ";
+                end
+            end
+            if (run_page==2) begin
+                if (text_on("MASTER VOLUME   ",2,10,x,y)) pixel_data=16'hffff;
+                if (y>=19 && y<26) begin
+                    case (master_volume)
+                        0: line="     OFF        "; 1: line="     1/4        ";
+                        2: line="     2/4        "; 3: line="     3/4        "; default: line="     4/4        ";
+                    endcase
+                    if (text_on(line,2,19,x,y)) pixel_data=16'hffff;
+                end
+                if (y>=46 && y<54) begin
+                    button=1; button_left=4; button_right=91; text_top=47; text_left=34;
+                    line=audio_muted ? "MUTED           " : "MUTE            ";
+                end
+                if (y>=28 && y<44 && ((x>=8 && x<36) || (x>=60 && x<88))) begin
+                    button=1; button_left=x<48 ? 8 : 60; button_right=button_left+27;
+                    text_top=32; text_left=button_left+11; line=x<48 ? "-               " : "+               ";
+                    enabled=x<48 ? master_volume>0 : master_volume<4;
+                end
+            end
+            if (y>=55) begin
+                button=1; button_left=x<32 ? 0 : x<64 ? 32 : 64; button_right=button_left+31;
+                text_top=56; text_visible=0;
+            end
+            if (button) begin
+                pixel_data=enabled ? 16'h18e5 : 16'h18c3;
+                if (enabled && cursor_x>=button_left && cursor_x<=button_right &&
+                    cursor_y>=text_top-1 && cursor_y<text_top+8) pixel_data=16'h0351;
+                if (x==button_left || x==button_right || (text_top==32 ? (y==28 || y==43) : (y==text_top-1 || y==text_top+7)))
+                    pixel_data=enabled ? 16'h04b4 : 16'h4208;
+                if (text_on(line,text_left,text_top,x,y)) pixel_data=enabled ? ink : 16'h7bef;
+            end
+            // A labelled retry button is visible on every RUN page.
+            if (x>=66 && x<96 && y<10) begin
+                pixel_data=16'h18e5;
+                if (x==66 || x==95 || y==0 || y==9) pixel_data=16'h04b4;
+                if (text_on("RETRY           ",68,1,x,y)) pixel_data=16'hffff;
+            end
+            // Icon-only page tabs: engine for DRIVE, balloon for POP and speaker for SOUND.
+            if (y>=55) begin
+                pixel_data=16'h18e5;
+                if (x==0 || x==31 || x==32 || x==63 || x==64 || x==95 || y==55 || y==63) pixel_data=16'h04b4;
+                if ((run_page==0 && x<32) || (run_page==1 && x>=32 && x<64) || (run_page==2 && x>=64)) begin
+                    if (y==56 || y==62) pixel_data=16'hffe0;
+                end
+                // Engine: body, nose and small exhaust.
+                if (x>=10 && x<=20 && y>=57 && y<=61 && (x<=18 || y==59)) pixel_data=(run_page==0) ? 16'hffe0 : 16'hffff;
+                if (x==8 && y>=58 && y<=60) pixel_data=(run_page==0) ? 16'hffe0 : 16'hffff;
+                // Balloon: round top with a string.
+                if (x>=43 && x<=53 && y>=56 && y<=61 && ((x-48)*(x-48)+(y-58)*(y-58)<=16)) pixel_data=(run_page==1) ? 16'hffe0 : 16'hffff;
+                if (x==48 && y==62) pixel_data=(run_page==1) ? 16'hffe0 : 16'hffff;
+                // Speaker: cone and two sound marks.
+                if ((x>=74 && x<=78 && y>=58 && y<=60) || (x==79 && y==57) || (x==79 && y==61) || (x==80 && y>=56 && y<=62) || (x==82 && (y==57 || y==61))) pixel_data=(run_page==2) ? 16'hffe0 : 16'hffff;
             end
         end
         // The pointer is also visible on diary/result controls.

@@ -8,7 +8,9 @@ module left_renderer #(parameter EDITOR_CELL_PIXELS = 16) (
     input wire [12:0] pixel_index,
     input wire [2:0] game_state,
     input wire [26:0] build_grid,
-    input wire [8:0] build_frames,
+    input wire [8:0] build_frames, build_facing_left,
+    input wire selected_left, inventory_page,
+    input wire [3:0] rockets_left, fans_left,
     input wire [8:0] intact_mask,
     input wire [8:0] frame_intact_mask,
     input wire build_valid,
@@ -27,7 +29,7 @@ module left_renderer #(parameter EDITOR_CELL_PIXELS = 16) (
     input wire cursor_visible,
     input wire [`LP_LEVEL_BITS-1:0] level_index,
     input wire [1:0] fail_reason,
-    input wire [6:0] run_seconds,
+    input wire [7:0] run_seconds,
     input wire anim_phase,
     output reg [15:0] pixel_data
 );
@@ -35,7 +37,12 @@ module left_renderer #(parameter EDITOR_CELL_PIXELS = 16) (
 
     wire [6:0] x = pixel_index % 96;
     wire [6:0] y = pixel_index / 96;
-    wire [6:0] grid_size = EDITOR_CELL_PIXELS * 3;
+    // BUILD keeps the detailed 16-pixel grid. RUN uses a compact 12-pixel diagram.
+    wire compact_run = (game_state == `LP_RUN);
+    wire [6:0] cell_pixels = compact_run ? 7'd12 : EDITOR_CELL_PIXELS;
+    wire [6:0] grid_left = 7'd4;
+    wire [6:0] grid_top = compact_run ? 7'd12 : 7'd4;
+    wire [6:0] grid_size = cell_pixels * 3;
     wire grid_pixel, number_pixel, tens_pixel, seconds_pixel, seconds_tens_pixel;
     wire inventory_number_pixel;
     wire in_build = (game_state == `LP_BUILD);
@@ -68,7 +75,7 @@ module left_renderer #(parameter EDITOR_CELL_PIXELS = 16) (
         input [2:0] icon_part;
         input integer icon_x, icon_y;
         input [15:0] background;
-        begin draw_part_icon = part_sprite(icon_part, icon_x, icon_y, 1'b0, background); end
+        begin draw_part_icon = part_sprite_facing(icon_part, icon_x, icon_y, 8, selected_left, 1'b0, background); end
     endfunction
 
     `include "ui_font.vh"
@@ -105,7 +112,7 @@ module left_renderer #(parameter EDITOR_CELL_PIXELS = 16) (
     end
 
     square u_grid_box (
-        .x(x), .y(y), .pos_x(7'd4), .pos_y(7'd4),
+        .x(x), .y(y), .pos_x(grid_left), .pos_y(grid_top),
         .width_x(grid_size), .length_y(grid_size), .is_in_square(grid_pixel)
     );
     seven_seg_oled u_seconds_tens (
@@ -140,6 +147,10 @@ module left_renderer #(parameter EDITOR_CELL_PIXELS = 16) (
         end else if (y >= 44 && y < 54) begin
             inventory_number = balloons_left; inventory_part = `LP_PART_BALLOON; inventory_top = 44;
         end
+        if (inventory_page) begin
+            if (y<14) begin inventory_top=4; inventory_part=`LP_PART_BOOSTER; inventory_number=rockets_left; end
+            else begin inventory_top=14; inventory_part=`LP_PART_FAN; inventory_number=fans_left; end
+        end
     end
 
     always @* begin
@@ -155,26 +166,26 @@ module left_renderer #(parameter EDITOR_CELL_PIXELS = 16) (
         part = 0;
         pixel_data = 16'h0841;
         if (grid_pixel) begin
-            cell_index = ((y-4)/EDITOR_CELL_PIXELS)*3 + (x-4)/EDITOR_CELL_PIXELS;
-            cell_x = (x-4)%EDITOR_CELL_PIXELS;
-            cell_y = (y-4)%EDITOR_CELL_PIXELS;
+            cell_index = ((y-grid_top)/cell_pixels)*3 + (x-grid_left)/cell_pixels;
+            cell_x = (x-grid_left)%cell_pixels;
+            cell_y = (y-grid_top)%cell_pixels;
             // Shift the selected cell's three bits into the bottom of the vector.
             part = build_grid >> (cell_index*3);
-            if (cell_x == 0 || cell_y == 0 || x == 4+grid_size-1 || y == 4+grid_size-1) pixel_data = 16'h7bef;
+            if (cell_x == 0 || cell_y == 0 || x == grid_left+grid_size-1 || y == grid_top+grid_size-1) pixel_data = 16'h7bef;
             else begin
                 // Damage diagram: a dim red cross under any destroyed part; survivors cover it.
-                if (!in_build && cell_x >= 4 && cell_x < 12 && (cell_x == cell_y || cell_x+cell_y == 15) &&
+                if (!in_build && cell_x >= 3 && cell_x < cell_pixels-3 && (cell_x == cell_y || cell_x+cell_y == cell_pixels-1) &&
                     ((part != `LP_PART_EMPTY && !intact_mask[cell_index]) ||
                      (build_frames[cell_index] && !frame_intact_mask[cell_index]))) pixel_data = 16'h8000;
-                // Full-resolution 16 by 16 sprites: the frame first, then its contents.
-                if (frame_intact_mask[cell_index] && !(in_build && drag_active && drag_from_grid && drag_source == cell_index))
-                    pixel_data = part_sprite16(`LP_PART_FRAME, cell_x, cell_y, 1'b0, pixel_data);
+                // Full-resolution build sprites; RUN uses compact 12-pixel sprites.
+                if (frame_intact_mask[cell_index] && !(in_build && drag_active && drag_from_grid && selected_part==`LP_PART_FRAME && drag_source == cell_index))
+                    pixel_data = compact_run ? part_sprite12(`LP_PART_FRAME, cell_x, cell_y, 1'b0, pixel_data) : part_sprite16(`LP_PART_FRAME, cell_x, cell_y, 1'b0, pixel_data);
                 if (intact_mask[cell_index] && !(in_build && drag_active && drag_from_grid && drag_source == cell_index))
-                    pixel_data = part_sprite16(part, cell_x, cell_y, anim_phase, pixel_data);
+                    pixel_data = part_sprite_facing(part, cell_x, cell_y, compact_run ? 12 : 16, build_facing_left[cell_index], anim_phase, pixel_data);
             end
             if (feedback_code != `LP_FEEDBACK_NONE && feedback_cell < 9 &&
                 cell_index == feedback_cell &&
-                (cell_x == 0 || cell_y == 0 || cell_x == EDITOR_CELL_PIXELS-1 || cell_y == EDITOR_CELL_PIXELS-1) &&
+                (cell_x == 0 || cell_y == 0 || cell_x == cell_pixels-1 || cell_y == cell_pixels-1) &&
                 in_build) pixel_data = message_colour;
         end
         if (!in_build) begin
@@ -193,7 +204,8 @@ module left_renderer #(parameter EDITOR_CELL_PIXELS = 16) (
             pixel_data = draw_part_icon(inventory_part, x-60, y-inventory_top-1, pixel_data);
             if (inventory_number_pixel) pixel_data = (inventory_number == 0) ? 16'hf800 : 16'hffff;
         end
-        if (in_build || in_result) begin
+        if (in_build && inventory_page && x>=56 && x<92 && y>=24 && y<54) pixel_data=16'h0841;
+        if (in_result) begin
             if (y >= 56 && y < 63) begin
                 pixel_data = 16'h0841;
                 if (text_column < 5 && letter_bits[34-(text_row*5+text_column)]) pixel_data = message_colour;
@@ -215,8 +227,7 @@ module left_renderer #(parameter EDITOR_CELL_PIXELS = 16) (
         // Draw a temporary copy above the interface; the builder changes only on release.
         if (in_build && cursor_visible && drag_active) begin
             pixel_data = draw_part_icon(selected_part, x-drag_left, y-drag_top, pixel_data);
-            if (drag_from_grid && selected_part == `LP_PART_FRAME)
-                pixel_data = draw_part_icon(drag_contents, x-drag_left, y-drag_top, pixel_data);
+
         end
         if (cursor_visible && (in_build || game_state == `LP_RUN) &&
             ((x == cursor_x && y+2 >= cursor_y && y <= cursor_y+2) ||

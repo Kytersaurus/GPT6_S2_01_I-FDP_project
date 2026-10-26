@@ -87,6 +87,7 @@ module game_audio_tb;
             btnC=1; clocks(14); btnC=0; clocks(14);
             if (dut.game_state!=`LP_RUN || last_top_sound!=`LP_SOUND_LAUNCH)
                 $fatal(1,"Accepted launch did not trigger launch audio");
+            click(48,59);
         end
     endtask
     task result;

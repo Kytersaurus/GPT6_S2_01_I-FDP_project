@@ -37,9 +37,9 @@ module team_controls_tb;
     initial begin
         clocks(20);btnD=0;clocks(280);build_test_vehicle();
         sw=2;clocks(8);
-        if(!dut.audio_muted || dut.engine_reverse || dut.engine_enabled) $fatal(1,"SW1 conflicts with movement");
+        if(!dut.audio_muted || dut.engine_reverse || !dut.engine_enabled) $fatal(1,"SW1 conflicts with DRIVE control");
         sw=4;clocks(8);
-        if(dut.audio_muted || !dut.engine_reverse || dut.engine_enabled) $fatal(1,"SW2 does not independently reverse");
+        if(dut.audio_muted || !dut.engine_reverse || !dut.engine_enabled) $fatal(1,"SW2 does not independently reverse");
         btnR=1;clocks(16);btnR=0;clocks(16);
         if(beep_pulses!=0 || jump_pulses!=0) $fatal(1,"Reserved BTNR made a sound or jumped");
         btnL=1;clocks(16);btnL=0;clocks(16);
@@ -57,7 +57,7 @@ module team_controls_tb;
         clocks(200);
         if(jump_pulses!=1) $fatal(1,"Held jump repeated");
         btnL=0;
-        $display("PASS team_controls_tb: independent SW0 engine/SW1 mute/SW2 reverse, BTNR silent, BTNL jump, real reverse and held-jump suppression");
+        $display("PASS team_controls_tb: DRIVE engine, SW1 mute/SW2 reverse debug, BTNR silent, BTNL jump, real reverse and held-jump suppression");
         $finish;
     end
     initial begin #100000; $fatal(1,"Merged controls test timed out");end

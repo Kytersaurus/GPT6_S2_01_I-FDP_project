@@ -22,6 +22,7 @@ module balloon_controls_tb;
     );
     // Check renderer pixels directly without waiting for an entire OLED frame.
     left_renderer view (
+        .build_facing_left(9'd0), .selected_left(1'b0), .inventory_page(1'b0), .rockets_left(4'd1), .fans_left(4'd1),
         .pixel_index(pixel), .game_state(dut.game_state), .build_grid(dut.build_grid),
         .intact_mask(dut.intact_mask), .frame_intact_mask(dut.frame_intact_mask),
         .build_valid(dut.build_valid), .build_error(dut.build_error), .engine_enabled(1'b0),
@@ -93,7 +94,7 @@ module balloon_controls_tb;
         end
     endtask
     task launch_or_retry;
-        begin start=1; clocks(1); start=0; wait_run(); end
+        begin start=1; clocks(1); start=0; wait_run(); left_click(48,59); end
     endtask
     task begin_update;
         begin
@@ -158,8 +159,9 @@ module balloon_controls_tb;
         saved_grid=dut.build_grid; saved_frames=dut.build_frames;
 
         // A construction drag held across launch must not turn into a pop.
-        packet(12,12,1,0); launch_or_retry(); packet(28,12,1,0); packet(28,12,0,0);
+        packet(12,12,1,0); start=1;clocks(1);start=0;wait_run(); packet(28,12,1,0); packet(28,12,0,0);
         if (dut.balloon_count!=2 || dut.pop_pending) $fatal(1,"Held launch click popped a balloon");
+        left_click(48,59);
         left_click(28,28); left_click(44,28); left_click(12,28); left_click(44,12);
         left_click(74,48); left_click(52,12); left_click(12,52); left_click(4095,4095);
         packet(12,12,0,1); packet(12,12,0,0);

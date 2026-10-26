@@ -19,7 +19,7 @@ module game_controller #(parameter integer TICKS_PER_SECOND = 60) (
     output reg [2:0] guide_return_state,
     output reg [`LP_LEVEL_BITS-1:0] level_index,
     output reg [1:0] fail_reason,
-    output reg [6:0] run_seconds,
+    output reg [7:0] run_seconds,
     output wire run_init,
     output reg step_start, update_release, launch_event, success_event, failure_event
 );
@@ -60,11 +60,14 @@ module game_controller #(parameter integer TICKS_PER_SECOND = 60) (
                     if (&init_ready) begin game_state <= `LP_RUN; launch_event <= 1; end
                 end
                 `LP_RUN: begin
-                    // Whole seconds of RUN, held at 99; results freeze the final time.
+                    if (edit_req) begin game_state<=`LP_BUILD; step_busy<=0; fail_reason<=`LP_FAIL_NONE; end
+                    else if (retry_req) begin game_state<=`LP_INIT_RUN; step_busy<=0; end
+                    else begin
+                    // Whole seconds of RUN, held at 4:15; results freeze the final time.
                     if (physics_tick) begin
                         if (second_ticks == TICKS_PER_SECOND-1) begin
                             second_ticks <= 0;
-                            if (run_seconds != 99) run_seconds <= run_seconds + 1;
+                            if (run_seconds != 8'hff) run_seconds <= run_seconds + 1;
                         end else second_ticks <= second_ticks + 1;
                     end
                     if (world_valid && world_ready) begin
@@ -78,6 +81,7 @@ module game_controller #(parameter integer TICKS_PER_SECOND = 60) (
                         end else if (goal_hit) begin game_state <= `LP_SUCCESS; success_event <= 1; end
                     end else if (physics_tick && !step_busy && !gameplay_pending) begin
                         step_start <= 1; step_busy <= 1;
+                    end
                     end
                 end
                 `LP_SUCCESS, `LP_FAIL: begin

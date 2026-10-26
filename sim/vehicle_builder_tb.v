@@ -24,6 +24,7 @@ module vehicle_builder_tb;
 
     // Larger test-only stocks exercise all cells and the two-digit display.
     vehicle_builder #(.FRAME_LIMIT(9), .PIG_LIMIT(2), .WHEEL_LIMIT(3), .ENGINE_LIMIT(9)) dut (
+        .edit_facing_left(1'b0),
         .clk(clk), .reset(reset), .game_state(game_state), .run_init(run_init), .init_ready(init_ready),
         .edit_valid(edit_valid), .edit_op(edit_op), .edit_cell(edit_cell),.edit_source(4'd15), .edit_part(edit_part),
         .damage_valid(damage_valid), .damage_ready(damage_ready), .damage_mask(damage_mask),
@@ -35,6 +36,7 @@ module vehicle_builder_tb;
         .engines_left(engines_left), .balloons_left(balloons_left)
     );
     left_renderer view (
+        .build_facing_left(9'd0), .selected_left(1'b0), .inventory_page(1'b0), .rockets_left(4'd1), .fans_left(4'd1),
         .pixel_index(pixel), .game_state(game_state), .build_grid(build_grid),
         .intact_mask(intact_mask), .frame_intact_mask(frame_intact_mask),
         .build_valid(build_valid), .build_error(build_error), .engine_enabled(1'b1),
