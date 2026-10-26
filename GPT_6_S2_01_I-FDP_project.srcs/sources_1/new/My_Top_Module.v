@@ -12,7 +12,7 @@
 `include "game_defs.vh"
 
 // SW0 engine, SW1 mute, SW2 reverse, SW15 JA map view; BTNL jump, BTNC launch/retry,
-// BTNU edit/next level after success, BTNR test beep and BTND reset.
+// BTNU edit/next level after success, BTNR reserved and BTND reset.
 module My_Top_Module #(
     parameter integer PHYSICS_CYCLES = 1666667,
     parameter integer BUTTON_DEBOUNCE_CYCLES = 20000000,
@@ -44,6 +44,7 @@ module My_Top_Module #(
     wire engine_reverse, jump_press, boost_req, boost_active;
     wire engine_switch_enabled, ui_engine_on, ui_launch, ui_edit, ui_guide_open, ui_guide_close;
     wire [1:0] diary_page, death_phase;
+    wire [2:0] master_volume, draw_master_volume;
     wire [2:0] guide_return_state;
     wire signed [15:0] death_x, death_y;
     wire launch_flash;
@@ -118,7 +119,7 @@ module My_Top_Module #(
     wire signed [15:0] corrected_x, corrected_y, corrected_vx, corrected_vy;
     wire movement_committed, world_valid, world_ready, goal_hit, hazard_hit, out_of_bounds;
     wire launch_event, success_event, failure_event;
-    wire beep_press, audio_muted, audio_busy, audio_pwm;
+    wire audio_muted, audio_busy, audio_pwm;
     wire sound_start;
     wire signed [3:0] bgm_sample;
     wire [2:0] sound_id, active_sound;
@@ -146,9 +147,9 @@ module My_Top_Module #(
     input_controller #(
         .DEBOUNCE_CYCLES(BUTTON_DEBOUNCE_CYCLES), .RELEASE_CYCLES(BUTTON_RELEASE_CYCLES)
     ) u_input (
-        .clk(clk), .reset(reset), .btnC(btnC), .btnU(btnU), .btnR(btnR), .btnL(btnL),
+        .clk(clk), .reset(reset), .btnC(btnC), .btnU(btnU), .btnL(btnL),
         .engine_switch(sw[0]), .mute_switch(sw[1]), .reverse_switch(sw[2]), .start_press(start_press), .edit_press(edit_press),
-        .beep_press(beep_press), .engine_enabled(engine_switch_enabled), .audio_muted(audio_muted), .engine_reverse(engine_reverse), .jump_press(jump_press)
+        .engine_enabled(engine_switch_enabled), .audio_muted(audio_muted), .engine_reverse(engine_reverse), .jump_press(jump_press)
     );
     ui_controller u_ui_control (
         .clk(clk), .reset(reset), .input_enabled(builder_input_enabled), .run_init(run_init),
@@ -158,7 +159,7 @@ module My_Top_Module #(
         .fan_available(1'b0), .rocket_available(1'b0), .rocket_ready(1'b0),
         .launch_req(ui_launch), .edit_req(ui_edit), .guide_open_req(ui_guide_open), .guide_close_req(ui_guide_close),
         .level_close_req(level_close_req), .level_select_req(level_select_req), .selected_level(selected_level),
-        .diary_page(diary_page), .engine_on(ui_engine_on), .fan_on(), .rocket_req(), .launch_flash(launch_flash)
+        .diary_page(diary_page), .master_volume(master_volume), .engine_on(ui_engine_on), .fan_on(), .rocket_req(), .launch_flash(launch_flash)
     );
     seven_seg_timer u_board_timer (.clk(clk), .reset(reset), .seconds(run_seconds), .seg(seg), .an(an), .dp(dp));
     pig_death_effect u_pig_death (
@@ -168,7 +169,7 @@ module My_Top_Module #(
     );
     sound_controller u_sound_control (
         .clk(clk), .reset(reset), .mute(audio_muted), .cancel(audio_cancel),
-        .test_event(beep_press), .launch_event(launch_event), .pop_event(pop_sound_event),
+        .test_event(1'b0), .launch_event(launch_event), .pop_event(pop_sound_event),
         .collision_event(collision_sound_event), .explosion_event(explosion_sound_event),
         .success_event(success_event), .failure_event(failure_event),
         .busy(audio_busy), .active_sound(active_sound), .sound_start(sound_start), .sound_id(sound_id)
@@ -179,12 +180,12 @@ module My_Top_Module #(
     ) u_audio (
         .clk(clk), .reset(reset), .start(sound_start), .sound_id(sound_id),
         .mute(audio_muted), .cancel(audio_cancel), .busy(audio_busy),
-        .active_sound(active_sound), .audio_pwm(audio_pwm), .bgm_sample(bgm_sample)
+        .master_volume(master_volume), .active_sound(active_sound), .audio_pwm(audio_pwm), .bgm_sample(bgm_sample)
     );
     bgm_player #(.UNIT_CYCLES(BGM_UNIT_CYCLES), .FADE_CYCLES(AUDIO_FADE_CYCLES)) u_bgm (
         .clk(clk), .reset(reset),
-        .enabled(ENABLE_BGM && !audio_muted && (game_state == `LP_BUILD || game_state == `LP_LEVEL_SELECT || game_state == `LP_RUN)),
-        .pause(audio_busy || sound_start), .fast(game_state == `LP_RUN), .audio_sample(bgm_sample)
+        .enabled(ENABLE_BGM && !audio_muted && (game_state == `LP_BUILD || game_state == `LP_LEVEL_SELECT || game_state == `LP_GUIDE || game_state == `LP_RUN)),
+        .master_volume(master_volume), .pause(audio_busy || sound_start), .fast(game_state == `LP_RUN), .audio_sample(bgm_sample)
     );
     MouseCtl u_mouse (
         .clk(clk), .rst(reset), .xpos(mouse_x), .ypos(mouse_y), .zpos(mouse_z),
@@ -294,13 +295,13 @@ module My_Top_Module #(
         .world_ready(world_ready), .goal_hit(goal_hit), .hazard_hit(hazard_hit), .out_of_bounds(out_of_bounds)
     );
 
-    wire [211:0] snapshot_in = {diary_page, guide_return_state, death_phase, death_x, death_y, launch_flash, boost_active, drag_from_grid, drag_source, drag_contents,
+    wire [214:0] snapshot_in = {master_volume, diary_page, guide_return_state, death_phase, death_x, death_y, launch_flash, boost_active, drag_from_grid, drag_source, drag_contents,
                               game_state, build_grid, intact_mask, frame_intact_mask, build_valid, build_error,
                               vehicle_x, vehicle_y, engine_enabled, frames_left, pigs_left, wheels_left,
                               engines_left, balloons_left, cursor_x, cursor_y, selected_part, drag_active,
                               feedback_code, feedback_cell, level_index, fail_reason, tnt_intact,
                               build_frames, run_seconds, blast_phase};
-    wire [211:0] snapshot_out;
+    wire [214:0] snapshot_out;
     wire [1:0] draw_diary_page, draw_death_phase;
     wire [2:0] draw_guide_return;
     wire signed [15:0] draw_death_x, draw_death_y;
@@ -339,13 +340,13 @@ module My_Top_Module #(
     // Reuse the map renderer for one-OLED play; JB is blank while JA shows the map.
     wire [12:0] map_pixel_index = show_map ? left_render_index : right_pixel_index;
     wire [15:0] left_pixel_data, right_pixel_data, base_left_pixel_data;
-    assign {draw_diary_page, draw_guide_return, draw_death_phase, draw_death_x, draw_death_y, draw_launch_flash, draw_boost_active, draw_drag_from_grid, draw_drag_source, draw_drag_contents,
+    assign {draw_master_volume, draw_diary_page, draw_guide_return, draw_death_phase, draw_death_x, draw_death_y, draw_launch_flash, draw_boost_active, draw_drag_from_grid, draw_drag_source, draw_drag_contents,
             draw_state, draw_grid, draw_intact, draw_frames, draw_valid, draw_error, draw_x, draw_y, draw_engine,
             draw_frames_left, draw_pigs_left, draw_wheels_left, draw_engines_left, draw_balloons_left,
             draw_cursor_x, draw_cursor_y, draw_selected_part, draw_drag_active,
             draw_feedback_code, draw_feedback_cell, draw_level, draw_fail_reason, draw_tnt_intact,
             draw_saved_frames, draw_seconds, draw_blast} = snapshot_out;
-    display_snapshot #(.WIDTH(212)) u_snapshot (
+    display_snapshot #(.WIDTH(215)) u_snapshot (
         .game_clk(clk), .game_reset(reset), .display_clk(oled_clk), .display_reset(oled_reset),
         .frame_begin(left_frame), .game_data(snapshot_in), .display_data(snapshot_out)
     );
@@ -406,7 +407,7 @@ module My_Top_Module #(
     );
     ui_renderer u_ui_renderer (
         .pixel_index(left_render_index), .base_pixel(base_left_pixel_data), .game_state(draw_state),
-        .feedback_code(draw_feedback_code), .diary_page(draw_diary_page), .level_index(draw_level),
+        .feedback_code(draw_feedback_code), .diary_page(draw_diary_page), .master_volume(draw_master_volume), .level_index(draw_level),
         .build_valid(draw_valid), .engine_enabled(draw_engine), .boost_active(draw_boost_active),
         .fan_available(1'b0), .fan_on(1'b0), .rocket_available(1'b0), .rocket_ready(1'b0),
         .cursor_x(draw_cursor_x), .cursor_y(draw_cursor_y), .pixel_data(left_pixel_data)

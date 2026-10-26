@@ -10,6 +10,7 @@ module sound_generator_tb;
     always #5 clk=~clk;
     sound_generator #(.TONE_HALF_CYCLES(512), .BEEP_CYCLES(4096),
                       .NOTE_CYCLES(2048), .FADE_CYCLES(16)) unit (
+        .master_volume(3'd4),
         .clk(clk),.reset(reset),.mute(mute),.cancel(cancel),.start(start),.sound_id(id),.bgm_sample(4'sd0),
         .busy(busy),.active_sound(active),.audio_pwm(pwm)
     );

@@ -6,6 +6,7 @@ module ui_renderer (
     input wire [15:0] base_pixel,
     input wire [2:0] game_state, feedback_code,
     input wire [1:0] diary_page,
+    input wire [2:0] master_volume,
     input wire [`LP_LEVEL_BITS-1:0] level_index,
     input wire build_valid, engine_enabled, boost_active,
     input wire fan_available, fan_on, rocket_available, rocket_ready,
@@ -37,10 +38,10 @@ module ui_renderer (
             case (diary_page)
                 0: case (row)
                     0: case (level_index)
-                        0: line="DIARY L1 1/3    ";
-                        1: line="DIARY L2 1/3    ";
-                        2: line="DIARY L3 1/3    ";
-                        default: line="DIARY L4 1/3    ";
+                        0: line="DIARY L1 1/4    ";
+                        1: line="DIARY L2 1/4    ";
+                        2: line="DIARY L3 1/4    ";
+                        default: line="DIARY L4 1/4    ";
                     endcase
                     1: line="GET PIG TO FLAG ";
                     2: line="DRAG PARTS IN   ";
@@ -49,20 +50,34 @@ module ui_renderer (
                     5: line="U BACK C NEXT   ";
                 endcase
                 1: case (row)
-                    0: line="PART RULES 2/3  ";
+                    0: line="PART RULES 2/4  ";
                     1: line="PIG IN A FRAME  ";
                     2: line="ENGINE IN FRAME ";
                     3: line="WHEELS UP/DOWN  ";
                     4: line="BALLOONS ABOVE  ";
                     5: line="CLICK TO POP    ";
                 endcase
-                default: case (row)
-                    0: line="LEVEL HINT 3/3  ";
+                2: case (row)
+                    0: line="LEVEL HINT 3/4  ";
                     1: line=(level_index>=2) ? "MAP TEST ONLY   " : level_index ? "PROTECT ENGINE  " : "TRY MIDDLE ROW  ";
                     2: line=(level_index>=2) ? "PHYSICS PENDING " : level_index ? "TNT BREAKS PARTS" : "PIG IN CENTRE   ";
                     3: line=(level_index>=2) ? "SW3 ZOOM        " : "ENGINE AT REAR  ";
                     4: line=(level_index>=2) ? "SW4 LOOK AROUND " : level_index ? "KEEP PIG SAFE   " : "WHEELS AT EDGES ";
                     5: line="RETRY RESTORES  ";
+                endcase
+                default: case (row)
+                    0: line="SOUND 4/4       ";
+                    1: line="MASTER VOLUME   ";
+                    2: case (master_volume)
+                        0: line="     OFF        ";
+                        1: line="     1/4        ";
+                        2: line="     2/4        ";
+                        3: line="     3/4        ";
+                        default: line="     4/4        ";
+                    endcase
+                    3: line="                ";
+                    4: line="                ";
+                    5: line="SW1 MUTES ALL   ";
                 endcase
             endcase
         end
@@ -121,7 +136,15 @@ module ui_renderer (
             end else if (x>=64) begin
                 button=1; button_left=64; button_right=95; text_left=65;
                 line=game_state==`LP_GUIDE ? "NEXT            " : "DIARY           ";
-                enabled=game_state!=`LP_GUIDE || diary_page<2;
+                enabled=game_state!=`LP_GUIDE || diary_page<3;
+            end
+        end
+        if (game_state==`LP_GUIDE && diary_page==3 && y>=28 && y<44) begin
+            if ((x>=8 && x<36) || (x>=60 && x<88)) begin
+                button=1; button_left=x<48 ? 8 : 60; button_right=button_left+27;
+                text_left=button_left+11; text_top=32;
+                line=x<48 ? "-               " : "+               ";
+                enabled=x<48 ? master_volume>0 : master_volume<4;
             end
         end
         if (button) begin

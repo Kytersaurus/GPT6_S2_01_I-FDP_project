@@ -33,9 +33,9 @@ module ui_controls_tb;
         packet(78,59,1,0); clocks(20);
         if(dut.diary_page!=1) $fatal(1,"Held next press repeated");
         packet(78,59,0,0);click(78,59);click(78,59);
-        if(dut.diary_page!=2) $fatal(1,"Diary page bounds failed");
+        if(dut.diary_page!=3) $fatal(1,"Diary page bounds failed");
         click(43,59);
-        if(dut.diary_page!=1) $fatal(1,"Diary previous failed");
+        if(dut.diary_page!=2) $fatal(1,"Diary previous failed");
         click(12,59);
         if(dut.game_state!=`LP_BUILD || dut.build_grid!=0) $fatal(1,"Diary changed construction");
         // The board U key also opens/closes the diary without changing levels.

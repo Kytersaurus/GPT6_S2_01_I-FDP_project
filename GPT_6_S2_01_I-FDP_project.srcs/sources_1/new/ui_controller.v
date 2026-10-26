@@ -12,6 +12,7 @@ module ui_controller (
     output reg level_close_req, level_select_req,
     output reg [`LP_LEVEL_BITS-1:0] selected_level,
     output reg [1:0] diary_page,
+    output reg [2:0] master_volume,
     output reg engine_on, fan_on, rocket_req,
     output wire launch_flash
 );
@@ -20,7 +21,7 @@ module ui_controller (
     assign launch_flash = launch_ticks != 0;
     always @(posedge clk) begin
         if (reset) begin
-            left_was_down<=0; diary_page<=0; engine_on<=1; fan_on<=0;
+            left_was_down<=0; diary_page<=0; master_volume<=4; engine_on<=1; fan_on<=0;
             launch_req<=0; edit_req<=0; guide_open_req<=0; guide_close_req<=0;
             rocket_req<=0; launch_ticks<=0;
             level_close_req<=0; level_select_req<=0; selected_level<=0;
@@ -32,12 +33,15 @@ module ui_controller (
             if (game_state!=`LP_RUN) launch_ticks<=0;
             else if (launch_event) launch_ticks<=8;
             else if (physics_tick && launch_ticks!=0) launch_ticks<=launch_ticks-1;
-            if (game_state==`LP_GUIDE && next_press && diary_page<2) diary_page<=diary_page+1;
+            if (game_state==`LP_GUIDE && next_press && diary_page<3) diary_page<=diary_page+1;
             if (mouse_event) begin
                 // Track held presses even when the left view is hidden.
                 left_was_down<=mouse_left;
                 if (input_enabled && mouse_left && !left_was_down && !mouse_right) begin
-                    if (game_state==`LP_LEVEL_SELECT) begin
+                    if (game_state==`LP_GUIDE && diary_page==3 && mouse_y>=28 && mouse_y<44) begin
+                        if (mouse_x>=8 && mouse_x<36 && master_volume>0) master_volume<=master_volume-1;
+                        else if (mouse_x>=60 && mouse_x<88 && master_volume<4) master_volume<=master_volume+1;
+                    end else if (game_state==`LP_LEVEL_SELECT) begin
                         if (mouse_x<28 && mouse_y>=55 && mouse_y<64) level_close_req<=1;
                         else if (((mouse_x>=2 && mouse_x<46) || (mouse_x>=50 && mouse_x<94)) &&
                                  ((mouse_y>=12 && mouse_y<32) || (mouse_y>=34 && mouse_y<54))) begin
@@ -50,7 +54,7 @@ module ui_controller (
                     end else if (game_state==`LP_GUIDE && mouse_y>=55 && mouse_y<64) begin
                         if (mouse_x<28) guide_close_req<=1;
                         else if (mouse_x>=32 && mouse_x<60 && diary_page>0) diary_page<=diary_page-1;
-                        else if (mouse_x>=64 && mouse_x<96 && diary_page<2) diary_page<=diary_page+1;
+                        else if (mouse_x>=64 && mouse_x<96 && diary_page<3) diary_page<=diary_page+1;
                     end else if ((game_state==`LP_SUCCESS || game_state==`LP_FAIL) && mouse_y>=55 && mouse_y<64) begin
                         if (mouse_x<28) launch_req<=1;
                         else if (mouse_x>=32 && mouse_x<60) edit_req<=1;
