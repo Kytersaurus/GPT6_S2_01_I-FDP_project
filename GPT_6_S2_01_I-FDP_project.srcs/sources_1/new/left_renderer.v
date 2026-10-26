@@ -9,7 +9,8 @@ module left_renderer #(parameter EDITOR_CELL_PIXELS = 16) (
     input wire [2:0] game_state,
     input wire [26:0] build_grid,
     input wire [8:0] build_frames, build_facing_left,
-    input wire selected_left, inventory_page,
+    input wire selected_left,
+    input wire [1:0] inventory_page,
     input wire [3:0] rockets_left, fans_left,
     input wire [8:0] intact_mask,
     input wire [8:0] frame_intact_mask,
@@ -75,7 +76,7 @@ module left_renderer #(parameter EDITOR_CELL_PIXELS = 16) (
         input [2:0] icon_part;
         input integer icon_x, icon_y;
         input [15:0] background;
-        begin draw_part_icon = part_sprite_facing(icon_part, icon_x, icon_y, 8, selected_left, 1'b0, background); end
+        begin draw_part_icon = part_sprite_facing(icon_part, icon_x, icon_y, 8, 1'b0, 1'b0, background); end
     endfunction
 
     `include "ui_font.vh"
@@ -147,9 +148,10 @@ module left_renderer #(parameter EDITOR_CELL_PIXELS = 16) (
         end else if (y >= 44 && y < 54) begin
             inventory_number = balloons_left; inventory_part = `LP_PART_BALLOON; inventory_top = 44;
         end
-        if (inventory_page) begin
-            if (y<14) begin inventory_top=4; inventory_part=`LP_PART_BOOSTER; inventory_number=rockets_left; end
-            else begin inventory_top=14; inventory_part=`LP_PART_FAN; inventory_number=fans_left; end
+        if (inventory_page!=0) begin
+            inventory_top=4;
+            inventory_part=inventory_page==1 ? `LP_PART_BOOSTER : `LP_PART_FAN;
+            inventory_number=inventory_page==1 ? rockets_left : fans_left;
         end
     end
 
@@ -204,8 +206,15 @@ module left_renderer #(parameter EDITOR_CELL_PIXELS = 16) (
             pixel_data = draw_part_icon(inventory_part, x-60, y-inventory_top-1, pixel_data);
             if (inventory_number_pixel) pixel_data = (inventory_number == 0) ? 16'hf800 : 16'hffff;
         end
-        if (in_build && inventory_page && x>=56 && x<92 && y>=24 && y<54) pixel_data=16'h0841;
-        if (in_result) begin
+        if (in_build && x>=56 && x<92 && y<54 &&
+            (inventory_page!=0 && y>=14)) pixel_data=16'h0841;
+        if (in_build && x>=72 && x<79 && y>=inventory_top+2 && y<inventory_top+9 &&
+            ((inventory_page==0 && y>=34) || (inventory_page==1 && y<14))) begin
+            // Balloon always points up. Engine/rocket show the chosen facing before the count.
+            if (text_on(inventory_part==`LP_PART_BALLOON ? "^               " :
+                        selected_left ? "<               " : ">               ",72,inventory_top+2,x,y)) pixel_data=16'h07ff;
+        end
+        if (in_result || in_build) begin
             if (y >= 56 && y < 63) begin
                 pixel_data = 16'h0841;
                 if (text_column < 5 && letter_bits[34-(text_row*5+text_column)]) pixel_data = message_colour;
@@ -226,7 +235,7 @@ module left_renderer #(parameter EDITOR_CELL_PIXELS = 16) (
         end
         // Draw a temporary copy above the interface; the builder changes only on release.
         if (in_build && cursor_visible && drag_active) begin
-            pixel_data = draw_part_icon(selected_part, x-drag_left, y-drag_top, pixel_data);
+            pixel_data = part_sprite_facing(selected_part,x-drag_left,y-drag_top,8,selected_left,1'b0,pixel_data);
 
         end
         if (cursor_visible && (in_build || game_state == `LP_RUN) &&

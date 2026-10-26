@@ -10,13 +10,13 @@ module timer_death_tb;
     wire [3:0] an;
     wire dp;
     wire [1:0] phase;
-    wire signed [15:0] x,y;
+    wire signed [`LP_COORD_BITS-1:0] x,y;
     reg [3:0] seen=0;
     integer i;
     always #5 clk=~clk;
     seven_seg_timer #(.SCAN_CYCLES(2)) timer(.clk(clk),.reset(reset),.seconds(seconds),.seg(seg),.an(an),.dp(dp));
     pig_death_effect #(.PHASE_TICKS(2)) death(.clk(clk),.reset(reset),.run_init(init),.physics_tick(tick),
-        .pig_alive(alive),.game_state(state),.build_grid(grid),.vehicle_x(16'sd2560),.vehicle_y(16'sd5120),
+        .pig_alive(alive),.game_state(state),.build_grid(grid),.vehicle_x(20'sd2560),.vehicle_y(20'sd5120),
         .death_phase(phase),.death_x(x),.death_y(y));
     task clocks; input integer n; begin repeat(n) @(negedge clk); end endtask
     initial begin

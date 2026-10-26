@@ -20,7 +20,8 @@ module level_button (
             if (mouse_event) begin
                 left_was_down <= mouse_left;
                 // One request per fresh press; holding the button does not repeat.
-                if (input_enabled && mouse_left && !mouse_right && !left_was_down && on_button && game_state == `LP_BUILD)
+                if (input_enabled && mouse_left && !mouse_right && !left_was_down && ((on_button && game_state == `LP_BUILD) ||
+                     (game_state==`LP_SETTINGS && mouse_x>=8 && mouse_x<88 && mouse_y>=30 && mouse_y<44)))
                     level_open_req <= 1;
             end
         end

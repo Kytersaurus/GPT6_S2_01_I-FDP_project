@@ -7,7 +7,7 @@ module world_outcomes_tb;
     reg [2:0] game_state=`LP_BUILD;
     wire init_ready;
     reg movement_committed=0;
-    reg signed [15:0] vehicle_x=0, vehicle_y=0;
+    reg signed [`LP_COORD_BITS-1:0] vehicle_x=0, vehicle_y=0;
     reg [26:0] build_grid=0;
     reg [8:0] intact_mask=0;
     reg [31:0] goal_rect=0;
@@ -16,6 +16,14 @@ module world_outcomes_tb;
     wire world_valid, goal_hit, hazard_hit, out_of_bounds;
     reg world_ready=0;
     integer waited;
+    reg [1:0] level_index=0;
+    wire map_level;
+    wire [9:0] world_width, world_height, flag_x, flag_y;
+    level_data level (
+        .level_index(level_index), .map_level(map_level),
+        .world_width(world_width), .world_height(world_height),
+        .flag_x(flag_x), .flag_y(flag_y)
+    );
 
     always #5 clk=~clk;
 
@@ -24,6 +32,8 @@ module world_outcomes_tb;
         .init_ready(init_ready), .movement_committed(movement_committed),
         .vehicle_x(vehicle_x), .vehicle_y(vehicle_y), .build_grid(build_grid),
         .intact_mask(intact_mask), .goal_rect(goal_rect),
+        .map_level(map_level), .world_width(world_width), .world_height(world_height),
+        .flag_x(flag_x), .flag_y(flag_y),
         .hazard_count(hazard_count), .hazard_rects(hazard_rects),
         .world_valid(world_valid), .world_ready(world_ready),
         .goal_hit(goal_hit), .hazard_hit(hazard_hit), .out_of_bounds(out_of_bounds)
@@ -107,6 +117,46 @@ module world_outcomes_tb;
         check_pose(80*256,32*256,1,0,0);
 
         // Vehicle starts at the right world boundary.
+        check_pose(96*256,32*256,0,0,1);
+
+        // Exercise actual cave metadata, distant goals, and exact world edges.
+        hazard_count=0;
+        goal_rect=0;
+        level_index=2; clocks(1);
+        check_pose(104*256,26*256,0,0,0);
+        check_pose(300*256,219*256,1,0,0);
+        // Goal zone is [300,316) x [219,243), measured at pig centre.
+        check_pose(288*256-1,219*256,0,0,0);
+        check_pose(288*256,207*256,1,0,0);
+        check_pose(304*256,219*256,0,0,0);
+        check_pose(300*256,207*256-1,0,0,0);
+        check_pose(300*256,231*256,0,0,0);
+        intact_mask=0;
+        check_pose(300*256,219*256,0,0,0);
+        intact_mask=9'b000010000;
+        check_pose(478*256-1,100*256,0,0,0);
+        check_pose(478*256,100*256,0,0,1);
+        check_pose(100*256,291*256-1,0,0,0);
+        check_pose(100*256,291*256,0,0,1);
+        check_pose(-24*256+1,100*256,0,0,0);
+        check_pose(-24*256,100*256,0,0,1);
+        check_pose(100*256,-24*256+1,0,0,0);
+        check_pose(100*256,-24*256,0,0,1);
+        level_index=3; clocks(1);
+        check_pose(68*256,178*256,0,0,0);
+        check_pose(769*256,40*256,1,0,0);
+        check_pose(757*256-1,40*256,0,0,0);
+        check_pose(757*256,28*256,1,0,0);
+        check_pose(773*256,40*256,0,0,0);
+        check_pose(769*256,28*256-1,0,0,0);
+        check_pose(769*256,52*256,0,0,0);
+        // Former 8-bit goal aliases must not succeed.
+        check_pose(257*256,40*256,0,0,0);
+        check_pose(890*256-1,100*256,0,0,0);
+        check_pose(890*256,100*256,0,0,1);
+        check_pose(100*256,213*256-1,0,0,0);
+        check_pose(100*256,213*256,0,0,1);
+        level_index=0; clocks(1);
         check_pose(96*256,32*256,0,0,1);
 
         $display("PASS world_outcomes_tb: goal, hazard and bounds checks with valid/ready response");

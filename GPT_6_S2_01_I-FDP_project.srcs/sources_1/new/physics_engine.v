@@ -7,7 +7,7 @@ module physics_engine (
     input wire [2:0] game_state,
     input wire run_init,
     output reg init_ready,
-    input wire signed [15:0] spawn_x, spawn_y,
+    input wire signed [`LP_COORD_BITS-1:0] spawn_x, spawn_y,
     input wire step_start, update_release,
     input wire [3:0] wheel_count, engine_count, balloon_count,
     input wire [7:0] mass_units,
@@ -18,14 +18,16 @@ module physics_engine (
     output wire boost_active,
     output wire move_valid,
     input wire move_ready,
-    output reg signed [15:0] previous_x, previous_y,
-    output reg signed [15:0] proposed_x, proposed_y, proposed_vx, proposed_vy,
+    output reg signed [`LP_COORD_BITS-1:0] previous_x, previous_y,
+    output reg signed [`LP_COORD_BITS-1:0] proposed_x, proposed_y,
+    output reg signed [15:0] proposed_vx, proposed_vy,
     input wire response_valid,
     output wire response_ready,
-    input wire signed [15:0] corrected_x, corrected_y, corrected_vx, corrected_vy,
+    input wire signed [`LP_COORD_BITS-1:0] corrected_x, corrected_y,
+    input wire signed [15:0] corrected_vx, corrected_vy,
     input wire grounded,
     output reg movement_committed,
-    output reg signed [15:0] vehicle_x, vehicle_y
+    output reg signed [`LP_COORD_BITS-1:0] vehicle_x, vehicle_y
 );
     localparam IDLE = 0, MOMENTUM = 1, FREE_MOMENTUM = 2,
                FRICTION = 3, TOTAL_FORCE = 4, START_DIV = 5,
@@ -57,10 +59,13 @@ module physics_engine (
     reg signed [15:0] step_remainder, step_thrust, step_drive;
     reg [15:0] step_friction_limit;
     reg signed [15:0] step_friction, total_force;
-    reg signed [15:0] step_x, step_y, step_vx, step_vy, step_result_vx;
+    reg signed [`LP_COORD_BITS-1:0] step_x, step_y;
+    reg signed [15:0] step_vx, step_vy, step_result_vx;
     reg signed [24:0] step_momentum, step_free_momentum;
     reg signed [16:0] step_vx_sum;
-    reg signed [17:0] step_x_sum, step_y_sum;
+    reg signed [`LP_COORD_BITS:0] step_x_sum, step_y_sum;
+    localparam signed [`LP_COORD_BITS:0] POSITION_MAX = (1 << (`LP_COORD_BITS-1))-1;
+    localparam signed [`LP_COORD_BITS:0] POSITION_MIN = -(1 << (`LP_COORD_BITS-1));
 
     wire signed [15:0] engine_magnitude, lift;
     wire [15:0] wheel_resistance;
@@ -227,25 +232,27 @@ module physics_engine (
                     phase <= POSITION;
                 end
                 POSITION: begin
-                    step_x_sum <= $signed({{2{step_x[15]}}, step_x}) +
-                                  $signed({{2{step_result_vx[15]}}, step_result_vx});
-                    step_y_sum <= $signed({{2{step_y[15]}}, step_y}) +
-                                  $signed({{2{step_vy[15]}}, step_vy});
+                    step_x_sum <= $signed({step_x[`LP_COORD_BITS-1], step_x}) +
+                                  $signed({{(`LP_COORD_BITS-15){step_result_vx[15]}}, step_result_vx});
+                    step_y_sum <= $signed({step_y[`LP_COORD_BITS-1], step_y}) +
+                                  $signed({{(`LP_COORD_BITS-15){step_vy[15]}}, step_vy});
                     phase <= MAKE_REQUEST;
                 end
                 MAKE_REQUEST: begin
-                    if (step_x_sum > 18'sd28672) begin
-                        proposed_x <= 16'sd28672;
+                    // Saturate only at the numeric limits. World bounds are checked
+                    // after committing movement, using the selected level size.
+                    if (step_x_sum > POSITION_MAX) begin
+                        proposed_x <= POSITION_MAX[`LP_COORD_BITS-1:0];
                         pending_remainder_x <= 0;
-                    end else if (step_x_sum < -18'sd8192) begin
-                        proposed_x <= -16'sd8192;
+                    end else if (step_x_sum < POSITION_MIN) begin
+                        proposed_x <= POSITION_MIN[`LP_COORD_BITS-1:0];
                         pending_remainder_x <= 0;
-                    end else proposed_x <= step_x_sum[15:0];
-                    if (step_y_sum > 18'sd24576)
-                        proposed_y <= 16'sd24576;
-                    else if (step_y_sum < -18'sd8192)
-                        proposed_y <= -16'sd8192;
-                    else proposed_y <= step_y_sum[15:0];
+                    end else proposed_x <= step_x_sum[`LP_COORD_BITS-1:0];
+                    if (step_y_sum > POSITION_MAX)
+                        proposed_y <= POSITION_MAX[`LP_COORD_BITS-1:0];
+                    else if (step_y_sum < POSITION_MIN)
+                        proposed_y <= POSITION_MIN[`LP_COORD_BITS-1:0];
+                    else proposed_y <= step_y_sum[`LP_COORD_BITS-1:0];
                     proposed_vx <= step_result_vx; proposed_vy <= step_vy;
                     phase <= SEND;
                 end

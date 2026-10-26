@@ -27,7 +27,8 @@ module level_selector_tb;
         begin packet(x,y,0,0);packet(x,y,1,0);packet(x,y,0,0);end
     endtask
     task open_menu;
-        begin click(88,59);if(dut.game_state!==`LP_LEVEL_SELECT) $fatal(1,"Map icon did not open menu");end
+        begin click(88,59);if(dut.game_state!==`LP_SETTINGS) $fatal(1,"Gear did not open settings");
+        click(30,35);if(dut.game_state!==`LP_LEVEL_SELECT) $fatal(1,"Map icon did not open menu");end
     endtask
     task preserved;
         begin
@@ -44,14 +45,14 @@ module level_selector_tb;
         saved_grid=dut.build_grid;saved_frames=dut.build_frames;
         // Opening must not cycle; held movement over a tile must not select it.
         packet(88,59,1,0);packet(60,42,1,0);clocks(10);
-        if(dut.game_state!==`LP_LEVEL_SELECT || dut.level_index!==0) $fatal(1,"Held icon click selected a level");
-        packet(60,42,0,0);click(48,33);
+        if(dut.game_state!==`LP_SETTINGS || dut.level_index!==0) $fatal(1,"Held gear click selected a level");
+        packet(60,42,0,0);click(30,35);click(48,33);
         if(dut.game_state!==`LP_LEVEL_SELECT) $fatal(1,"Gap selected a level");
         packet(60,42,0,1);packet(60,42,0,0);
         if(dut.game_state!==`LP_LEVEL_SELECT) $fatal(1,"Right click selected a level");
         btnC=1;clocks(12);btnC=0;clocks(12);
         if(dut.game_state!==`LP_LEVEL_SELECT || dut.run_init) $fatal(1,"Launch started inside menu");
-        click(10,59);if(dut.game_state!==`LP_BUILD || dut.level_index!==0) $fatal(1,"Back changed level");
+        click(10,59);if(dut.game_state!==`LP_SETTINGS) $fatal(1,"Map Back did not return to settings");click(10,59);if(dut.game_state!==`LP_BUILD || dut.level_index!==0) $fatal(1,"Back changed level");
         for(i=0;i<4;i=i+1) begin
             open_menu();click((i%2) ? 60 : 10,(i>=2) ? 42 : 20);
             if(dut.game_state!==`LP_BUILD || dut.level_index!==i) $fatal(1,"Wrong selected level %0d",i);
@@ -59,7 +60,7 @@ module level_selector_tb;
             if(dut.u_mouse_adapter.inventory_armed || dut.drag_active) $fatal(1,"Menu release armed a construction edit");
         end
         open_menu();btnU=1;clocks(12);btnU=0;clocks(12);
-        if(dut.game_state!==`LP_BUILD || dut.level_index!==3) $fatal(1,"U did not cancel menu");
+        if(dut.game_state!==`LP_SETTINGS || dut.level_index!==3) $fatal(1,"U did not cancel menu");click(10,59);
         open_menu();force dut.builder_input_enabled=1'b0;
         click(10,20);if(dut.game_state!==`LP_LEVEL_SELECT || dut.level_index!==3) $fatal(1,"Hidden menu accepted click");
         packet(10,20,1,0);release dut.builder_input_enabled;packet(10,20,1,0);

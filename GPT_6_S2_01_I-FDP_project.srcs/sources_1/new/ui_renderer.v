@@ -6,7 +6,8 @@ module ui_renderer (
     input wire [15:0] base_pixel,
     input wire [2:0] game_state, feedback_code,
     input wire [1:0] diary_page, run_page,
-    input wire inventory_page, selected_left, audio_muted,
+    input wire [1:0] inventory_page,
+    input wire selected_left, audio_muted,
     input wire [2:0] selected_part,
     input wire [2:0] master_volume,
     input wire [`LP_LEVEL_BITS-1:0] level_index,
@@ -40,19 +41,19 @@ module ui_renderer (
             case (diary_page)
                 0: case (row)
                     0: case (level_index)
-                        0: line="DIARY L1 1/4    ";
-                        1: line="DIARY L2 1/4    ";
-                        2: line="DIARY L3 1/4    ";
-                        default: line="DIARY L4 1/4    ";
+                        0: line="DIARY L1 1/3    ";
+                        1: line="DIARY L2 1/3    ";
+                        2: line="DIARY L3 1/3    ";
+                        default: line="DIARY L4 1/3    ";
                     endcase
                     1: line="GET PIG TO FLAG ";
                     2: line="DRAG PARTS IN   ";
-                    3: line="RIGHT CLICK OUT ";
+                    3: line="CLICK SAME FLIPS";
                     4: line="DRIVE TAB POWERS";
                     5: line="U BACK C NEXT   ";
                 endcase
                 1: case (row)
-                    0: line="PART RULES 2/4  ";
+                    0: line="PART RULES 2/3  ";
                     1: line="PIG/ENG FRAME   ";
                     2: line="WHEELS UP/DOWN  ";
                     3: line="BALLOONS ABOVE  ";
@@ -60,7 +61,7 @@ module ui_renderer (
                     5: line="POP PAGE TO POP ";
                 endcase
                 2: case (row)
-                    0: line="LEVEL HINT 3/4  ";
+                    0: line="LEVEL HINT 3/3  ";
                     1: line=(level_index>=2) ? "MAP TEST ONLY   " : level_index ? "PROTECT ENGINE  " : "TRY MIDDLE ROW  ";
                     2: line=(level_index>=2) ? "PHYSICS PENDING " : level_index ? "TNT BREAKS PARTS" : "PIG IN CENTRE   ";
                     3: line=(level_index>=2) ? "WHEEL ZOOM      " : "ENGINE AT REAR  ";
@@ -68,11 +69,11 @@ module ui_renderer (
                     5: line="RETRY RESTORES  ";
                 endcase
                 default: case (row)
-                    0: line="SOUND 4/4       ";
+                    0: line="AUDIO SETTINGS  ";
                     1: line="MASTER VOLUME   ";
                     2: case (master_volume)
                         0: line="     OFF        ";
-                        1: line="     1/4        ";
+                        1: line="     1/3        ";
                         2: line="     2/4        ";
                         3: line="     3/4        ";
                         default: line="     4/4        ";
@@ -91,14 +92,11 @@ module ui_renderer (
                 line="GO              "; enabled=build_valid;
             end else if (x>=64 && x<80) begin
                 button=1; button_left=64; button_right=79; text_left=69; line="?               ";
-            end else if (x>=20 && x<40) begin
-                button=1; button_left=20; button_right=39; text_left=23;
-                line=inventory_page ? "P2              " : "P1              ";
-            end else if ((x>=42 && x<52) || (x>=53 && x<63)) begin
-                button=1; button_left=x<52 ? 42 : 53; button_right=button_left+9; text_left=button_left+2;
-                line=x<52 ? "<               " : ">               ";
-                enabled=selected_part==`LP_PART_ENGINE || selected_part==`LP_PART_BOOSTER;
-                if ((x<52 && selected_left) || (x>=53 && !selected_left)) ink=16'hffe0;
+            end else if (x>=20 && x<62) begin
+                button=1; button_left=x<34 ? 20 : x<48 ? 34 : 48;
+                button_right=button_left+13; text_left=button_left+4;
+                line=x<34 ? "1               " : x<48 ? "2               " : "3               ";
+                if (inventory_page==(x<34 ? 0 : x<48 ? 1 : 2)) ink=16'hffe0;
             end else begin pixel_data=base_pixel; text_visible=0; end
         end
         if ((game_state==`LP_GUIDE || game_state==`LP_SUCCESS || game_state==`LP_FAIL) && y>=55) begin
@@ -108,12 +106,21 @@ module ui_renderer (
                 line=game_state==`LP_GUIDE ? "BACK            " : "TRY             ";
             end else if (x>=32 && x<60) begin
                 button=1; button_left=32; button_right=59; text_left=34;
-                line=game_state==`LP_GUIDE ? "PREV            " : (game_state==`LP_SUCCESS ? "NEXT            " : "EDIT            ");
+                line=game_state==`LP_GUIDE ? "1               " : (game_state==`LP_SUCCESS ? "NEXT            " : "EDIT            ");
                 enabled=game_state!=`LP_GUIDE || diary_page>0;
             end else if (x>=64) begin
                 button=1; button_left=64; button_right=95; text_left=65;
                 line=game_state==`LP_GUIDE ? "NEXT            " : "DIARY           ";
                 enabled=game_state!=`LP_GUIDE || diary_page<3;
+            end
+        end
+        if (game_state==`LP_GUIDE && y>=55 && x>=32) begin
+            button=diary_page!=3; text_visible=0; pixel_data=16'h0841;
+            if (diary_page!=3 && x<95) begin
+                button_left=x<53 ? 32 : x<74 ? 53 : 74; button_right=button_left+20;
+                text_left=button_left+8; text_top=56;
+                line=x<53 ? "1               " : x<74 ? "2               " : "3               ";
+                enabled=1; if (diary_page==(x<53 ? 0 : x<74 ? 1 : 2)) ink=16'hffe0;
             end
         end
         if (game_state==`LP_GUIDE && diary_page==3 && y>=28 && y<44) begin
@@ -134,11 +141,34 @@ module ui_renderer (
             text_visible=1;
         end
         if (text_visible && text_on(line,text_left,text_top,x,y)) pixel_data=ink;
-        // A readable MAP button is clearer than a tiny folded-map drawing.
-        if (game_state==`LP_BUILD && x>=`LP_LEVEL_BUTTON_X && x<`LP_LEVEL_BUTTON_X+`LP_LEVEL_BUTTON_W && y>=55) begin
+        // Book cover with a question mark, and a compact gear for settings.
+        if (game_state==`LP_BUILD && y>=55 && x>=64) begin
             pixel_data=16'h18e5;
-            if (x==`LP_LEVEL_BUTTON_X || x==`LP_LEVEL_BUTTON_X+`LP_LEVEL_BUTTON_W-1 || y==55 || y==63) pixel_data=16'h04b4;
-            if (text_on("MAP             ",79,56,x,y)) pixel_data=16'hffff;
+            if (x<80) begin
+                if (x==65 || x==78 || y==55 || y==63 || x==67) pixel_data=16'h04b4;
+                if (text_on("?               ",70,56,x,y)) pixel_data=16'hffff;
+            end else begin
+                if (((x>=85 && x<=90) && (y==55 || y==63)) ||
+                    ((y>=57 && y<=61) && (x==83 || x==92)) ||
+                    ((x==85 || x==90) && (y==57 || y==61)) ||
+                    ((x==86 || x==89) && y>=58 && y<=60)) pixel_data=16'hffff;
+            end
+        end
+        // Transient placement feedback temporarily uses the toolbar's full width.
+        if (game_state==`LP_BUILD && feedback_code!=`LP_FEEDBACK_NONE && y>=55)
+            pixel_data=base_pixel;
+        if (game_state==`LP_SETTINGS) begin
+            pixel_data=16'h0841;
+            if (text_on("SETTINGS        ",24,2,x,y)) pixel_data=16'h07ff;
+            if (x>=8 && x<88 && ((y>=12 && y<26) || (y>=30 && y<44))) begin
+                pixel_data=16'h18e5;
+                if (x==8 || x==87 || y==12 || y==25 || y==30 || y==43) pixel_data=16'h04b4;
+                if (text_on(y<26 ? "AUDIO           " : "MAP SELECTION   ",10,y<26 ? 16 : 34,x,y)) pixel_data=16'hffff;
+            end
+            if (x<28 && y>=55) begin
+                pixel_data=16'h18e5;
+                if (text_on("BACK            ",2,56,x,y)) pixel_data=16'hffff;
+            end
         end
         if (game_state==`LP_LEVEL_SELECT) begin
             pixel_data=16'h0841;
@@ -209,7 +239,7 @@ module ui_renderer (
                 if (text_on("MASTER VOLUME   ",2,10,x,y)) pixel_data=16'hffff;
                 if (y>=19 && y<26) begin
                     case (master_volume)
-                        0: line="     OFF        "; 1: line="     1/4        ";
+                        0: line="     OFF        "; 1: line="     1/3        ";
                         2: line="     2/4        "; 3: line="     3/4        "; default: line="     4/4        ";
                     endcase
                     if (text_on(line,2,19,x,y)) pixel_data=16'hffff;

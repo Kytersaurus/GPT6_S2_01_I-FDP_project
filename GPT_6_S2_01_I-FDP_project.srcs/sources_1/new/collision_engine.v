@@ -9,23 +9,26 @@
 module collision_engine (
     input wire clk, reset, move_valid,
     output wire move_ready,
-    input wire signed [15:0] previous_x, previous_y,
-    input wire signed [15:0] proposed_x, proposed_y, proposed_vx, proposed_vy,
+    input wire signed [`LP_COORD_BITS-1:0] previous_x, previous_y,
+    input wire signed [`LP_COORD_BITS-1:0] proposed_x, proposed_y,
+    input wire signed [15:0] proposed_vx, proposed_vy,
     input wire [2:0] terrain_count,
     input wire [127:0] terrain_rects,
     output reg response_valid,
     input wire response_ready,
-    output reg signed [15:0] corrected_x, corrected_y, corrected_vx, corrected_vy,
+    output reg signed [`LP_COORD_BITS-1:0] corrected_x, corrected_y,
+    output reg signed [15:0] corrected_vx, corrected_vy,
     output reg grounded
 );
     localparam IDLE = 0, CHECK = 1, CHOOSE = 2;
-    localparam signed [17:0] VEHICLE_WIDTH_FP  = 18'sd6144; // 24 * 256
-    localparam signed [17:0] VEHICLE_HEIGHT_FP = 18'sd6144; // 24 * 256
+    localparam signed [`LP_COORD_BITS+1:0] VEHICLE_WIDTH_FP  = 6144; // 24 * 256
+    localparam signed [`LP_COORD_BITS+1:0] VEHICLE_HEIGHT_FP = 6144; // 24 * 256
 
     reg [1:0] phase;
-    reg signed [15:0] saved_x, saved_y, saved_vx, saved_vy;
-    reg signed [17:0] old_left, old_right, old_top, old_bottom;
-    reg signed [17:0] new_left, new_right, new_top, new_bottom;
+    reg signed [`LP_COORD_BITS-1:0] saved_x, saved_y;
+    reg signed [15:0] saved_vx, saved_vy;
+    reg signed [`LP_COORD_BITS+1:0] old_left, old_right, old_top, old_bottom;
+    reg signed [`LP_COORD_BITS+1:0] new_left, new_right, new_top, new_bottom;
     reg [127:0] saved_terrain;
     reg [2:0] saved_count;
 
@@ -42,8 +45,9 @@ module collision_engine (
     reg [8:0] best_right_wall_x;
 
     reg [8:0] rect_right_pixels, rect_bottom_pixels;
-    reg signed [17:0] rect_left, rect_right, rect_top, rect_bottom;
-    reg signed [15:0] next_x, next_y, next_vx, next_vy;
+    reg signed [`LP_COORD_BITS+1:0] rect_left, rect_right, rect_top, rect_bottom;
+    reg signed [`LP_COORD_BITS-1:0] next_x, next_y;
+    reg signed [15:0] next_vx, next_vy;
 
     integer select_index, check_index;
 
@@ -160,17 +164,17 @@ module collision_engine (
                         saved_y <= proposed_y;
                         saved_vx <= proposed_vx;
                         saved_vy <= proposed_vy;
-                        old_left <= $signed({{2{previous_x[15]}},previous_x});
-                        old_right <= $signed({{2{previous_x[15]}},previous_x}) +
+                        old_left <= $signed({{2{previous_x[`LP_COORD_BITS-1]}},previous_x});
+                        old_right <= $signed({{2{previous_x[`LP_COORD_BITS-1]}},previous_x}) +
                                      VEHICLE_WIDTH_FP;
-                        old_top <= $signed({{2{previous_y[15]}},previous_y});
-                        old_bottom <= $signed({{2{previous_y[15]}},previous_y}) +
+                        old_top <= $signed({{2{previous_y[`LP_COORD_BITS-1]}},previous_y});
+                        old_bottom <= $signed({{2{previous_y[`LP_COORD_BITS-1]}},previous_y}) +
                                       VEHICLE_HEIGHT_FP;
-                        new_left <= $signed({{2{proposed_x[15]}},proposed_x});
-                        new_right <= $signed({{2{proposed_x[15]}},proposed_x}) +
+                        new_left <= $signed({{2{proposed_x[`LP_COORD_BITS-1]}},proposed_x});
+                        new_right <= $signed({{2{proposed_x[`LP_COORD_BITS-1]}},proposed_x}) +
                                      VEHICLE_WIDTH_FP;
-                        new_top <= $signed({{2{proposed_y[15]}},proposed_y});
-                        new_bottom <= $signed({{2{proposed_y[15]}},proposed_y}) +
+                        new_top <= $signed({{2{proposed_y[`LP_COORD_BITS-1]}},proposed_y});
+                        new_bottom <= $signed({{2{proposed_y[`LP_COORD_BITS-1]}},proposed_y}) +
                                       VEHICLE_HEIGHT_FP;
                         saved_terrain <= terrain_rects;
                         saved_count <= terrain_count;

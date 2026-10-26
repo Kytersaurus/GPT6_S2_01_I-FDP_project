@@ -5,9 +5,9 @@ module pig_death_effect #(parameter integer PHASE_TICKS=6) (
     input wire clk, reset, run_init, physics_tick, pig_alive,
     input wire [2:0] game_state,
     input wire [26:0] build_grid,
-    input wire signed [15:0] vehicle_x, vehicle_y,
+    input wire signed [`LP_COORD_BITS-1:0] vehicle_x, vehicle_y,
     output reg [1:0] death_phase,
-    output reg signed [15:0] death_x, death_y
+    output reg signed [`LP_COORD_BITS-1:0] death_x, death_y
 );
     reg was_alive;
     reg [3:0] ticks;

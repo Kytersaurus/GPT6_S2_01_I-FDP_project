@@ -8,11 +8,12 @@ module physics_engine_tb;
     reg move_ready=0, response_valid=0;
     wire init_ready, move_valid, response_ready, committed;
     integer wait_cycles;
-    wire signed [15:0] px,py,nx,ny,nvx,nvy,x,y;
+    wire signed [`LP_COORD_BITS-1:0] px,py,nx,ny,x,y;
+    wire signed [15:0] nvx,nvy;
     always #5 clk=~clk;
     physics_engine dut (
         .clk(clk),.reset(reset),.game_state(game_state),.run_init(run_init),.init_ready(init_ready),
-        .spawn_x(16'sd1024),.spawn_y(16'sd8192),.step_start(step_start),.update_release(update_release),
+        .spawn_x(20'sd1024),.spawn_y(20'sd8192),.step_start(step_start),.update_release(update_release),
         .wheel_count(4'd0),.engine_count(4'd0),.balloon_count(balloons),.mass_units(8'd2),.engine_enabled(1'b0),.engine_reverse(1'b0),.jump_press(1'b0),
         .move_valid(move_valid),.move_ready(move_ready),.previous_x(px),.previous_y(py),
         .proposed_x(nx),.proposed_y(ny),.proposed_vx(nvx),.proposed_vy(nvy),

@@ -3,7 +3,7 @@
 `include "game_defs.vh"
 module tnt_integration_tb;
     reg clk=0, btnD=1, btnC=0, tick=0, committed=0, pop=0;
-    reg signed [15:0] x=1024, y=8192, old_x=1024, old_y=8192;
+    reg signed [`LP_COORD_BITS-1:0] x=1024, y=8192, old_x=1024, old_y=8192;
     wire [15:0] led;
     wire [7:0] JA,JB;
     tri1 PS2Clk,PS2Data;

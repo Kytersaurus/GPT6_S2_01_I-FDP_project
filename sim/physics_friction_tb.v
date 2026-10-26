@@ -10,10 +10,12 @@ module physics_friction_tb;
     reg [7:0] mass = 11;
     reg engine_enabled = 0, engine_reverse = 0;
     reg move_ready = 0, response_valid = 0, grounded = 1;
-    reg signed [15:0] cx = 0, cy = 0, cvx = 0, cvy = 0;
+    reg signed [`LP_COORD_BITS-1:0] cx = 0, cy = 0;
+    reg signed [15:0] cvx = 0, cvy = 0;
     wire init_ready, move_valid, response_ready, committed;
-    wire signed [15:0] px, py, nx, ny, nvx, nvy, x, y;
-    reg [95:0] held_request;
+    wire signed [`LP_COORD_BITS-1:0] px, py, nx, ny, x, y;
+    wire signed [15:0] nvx, nvy;
+    reg [4*`LP_COORD_BITS+31:0] held_request;
     integer steps, previous_velocity, wait_cycles;
 
     always #5 clk = ~clk;
@@ -21,7 +23,7 @@ module physics_friction_tb;
     physics_engine dut (
         .clk(clk), .reset(reset), .game_state(game_state),
         .run_init(run_init), .init_ready(init_ready),
-        .spawn_x(16'sd1024), .spawn_y(16'sd8192),
+        .spawn_x(20'sd1024), .spawn_y(20'sd8192),
         .step_start(step_start), .update_release(update_release),
         .wheel_count(wheels), .engine_count(engines),
         .balloon_count(4'd0), .mass_units(mass),

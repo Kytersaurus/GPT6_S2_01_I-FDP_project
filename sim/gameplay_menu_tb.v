@@ -37,7 +37,9 @@ module gameplay_menu_tb;
         clocks(20);btnD=0;clocks(300);
         place(0,3);place(0,4);place(0,1);place(1,4);
         // Select engine, choose left, then place it in an existing frame.
-        click(74,38);click(46,59);click(12,28);
+        click(74,38);click(12,28);click(12,28);
+        if(dut.engines_left!=0) $fatal(1,"Flip charged engine stock");
+        click(12,28);click(12,28);
         if(dut.build_grid[11:9]!=`LP_PART_ENGINE || !dut.build_facing_left[3] || dut.engine_balance!=-1)
             $fatal(1,"Left-facing engine selection was not saved");
         move(3,1);
@@ -49,12 +51,14 @@ module gameplay_menu_tb;
         move(3,8);move(8,3);
         if(!dut.build_frames[3] || dut.build_frames[8]) $fatal(1,"Empty frame did not move independently");
         place(2,6);place(2,7);place(4,0);
-        click(28,59);
+        click(40,59);
         if(!dut.inventory_page) $fatal(1,"Extra inventory page did not open");
-        click(74,8);click(57,59);click(44,28);
+        click(74,8);click(44,28);click(44,28);
+        if(!dut.build_facing_left[5]) $fatal(1,"Rocket click did not flip");
+        click(44,28);
         if(dut.build_grid[17:15]!=`LP_PART_BOOSTER || dut.build_facing_left[5] || dut.rockets_left!=0)
             $fatal(1,"Right-facing side rocket not placed/accounted");
-        place(1,2);
+        click(54,59);place(0,2);
         if(dut.fan_count!=1 || dut.fans_left!=0 || !dut.build_valid) $fatal(1,"Side fan placement failed");
         // Side attachment cannot wrap from the end of one row to the next.
         saved_grid=dut.build_grid;move(2,8);

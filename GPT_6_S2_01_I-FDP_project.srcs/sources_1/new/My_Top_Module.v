@@ -44,7 +44,8 @@ module My_Top_Module #(
     wire reset, oled_clk, oled_reset, physics_tick, start_press, edit_press, engine_enabled;
     wire engine_reverse, reverse_switch_enabled, jump_press, boost_req, boost_active;
     wire [1:0] run_page, draw_run_page;
-    wire selected_left, inventory_page, edit_facing_left, draw_selected_left, draw_inventory_page;
+    wire selected_left, edit_facing_left, draw_selected_left;
+    wire [1:0] inventory_page, draw_inventory_page;
     wire [8:0] build_facing_left, draw_facing_left;
     wire signed [4:0] engine_balance;
     wire [3:0] drive_engines = engine_balance<0 ? -engine_balance : engine_balance;
@@ -55,7 +56,7 @@ module My_Top_Module #(
     wire [1:0] diary_page, death_phase;
     wire [2:0] master_volume, draw_master_volume;
     wire [2:0] guide_return_state;
-    wire signed [15:0] death_x, death_y;
+    wire signed [`LP_COORD_BITS-1:0] death_x, death_y;
     wire launch_flash;
     // Normal play uses the on-screen DRIVE control; SW0 remains a lab/debug input.
     assign engine_enabled = ui_engine_on;
@@ -100,14 +101,16 @@ module My_Top_Module #(
     wire [3:0] pop_cell;
     wire [8:0] pop_mask;
     wire [7:0] mass_units;
-    wire signed [15:0] spawn_x, spawn_y, vehicle_x, vehicle_y;
-    // level_data's spawn is Q12.8; physics takes the low 16 bits until positions are widened.
+    wire signed [`LP_COORD_BITS-1:0] spawn_x, spawn_y, vehicle_x, vehicle_y;
+    // Preserve the full Q12.8 spawn throughout movement and display.
     wire signed [19:0] level_spawn_x, level_spawn_y;
-    assign spawn_x = level_spawn_x[15:0];
-    assign spawn_y = level_spawn_y[15:0];
+    assign spawn_x = level_spawn_x;
+    assign spawn_y = level_spawn_y;
     wire [2:0] terrain_count;
     wire [127:0] terrain_rects;
     wire [31:0] goal_rect;
+    wire map_level;
+    wire [9:0] world_width, world_height, flag_x, flag_y;
     wire level_open_req, level_close_req, level_select_req;
     wire [`LP_LEVEL_BITS-1:0] selected_level;
     wire [`LP_LEVEL_BITS-1:0] level_index;
@@ -125,8 +128,10 @@ module My_Top_Module #(
     wire tnt_damage_valid, tnt_complete;
     wire [8:0] tnt_damage_mask, tnt_frame_mask;
     wire move_valid, move_ready, response_valid, response_ready, grounded;
-    wire signed [15:0] previous_x, previous_y, proposed_x, proposed_y, proposed_vx, proposed_vy;
-    wire signed [15:0] corrected_x, corrected_y, corrected_vx, corrected_vy;
+    wire signed [`LP_COORD_BITS-1:0] previous_x, previous_y, proposed_x, proposed_y;
+    wire signed [15:0] proposed_vx, proposed_vy;
+    wire signed [`LP_COORD_BITS-1:0] corrected_x, corrected_y;
+    wire signed [15:0] corrected_vx, corrected_vy;
     wire movement_committed, world_valid, world_ready, goal_hit, hazard_hit, out_of_bounds;
     wire launch_event, success_event, failure_event;
     wire switch_audio_muted, audio_muted, audio_busy, audio_pwm;
@@ -195,7 +200,7 @@ module My_Top_Module #(
     );
     bgm_player #(.UNIT_CYCLES(BGM_UNIT_CYCLES), .FADE_CYCLES(AUDIO_FADE_CYCLES)) u_bgm (
         .clk(clk), .reset(reset),
-        .enabled(ENABLE_BGM && !audio_muted && (game_state == `LP_BUILD || game_state == `LP_LEVEL_SELECT || game_state == `LP_GUIDE || game_state == `LP_RUN)),
+        .enabled(ENABLE_BGM && !audio_muted && (game_state == `LP_BUILD || game_state == `LP_LEVEL_SELECT || game_state == `LP_SETTINGS || game_state == `LP_GUIDE || game_state == `LP_RUN)),
         .master_volume(master_volume), .pause(audio_busy || sound_start), .fast(game_state == `LP_RUN), .audio_sample(bgm_sample)
     );
     MouseCtl u_mouse (
@@ -252,7 +257,9 @@ module My_Top_Module #(
     level_data u_level (
         .level_index(level_index), .spawn_x(level_spawn_x), .spawn_y(level_spawn_y), .terrain_count(terrain_count),
         .terrain_rects(terrain_rects), .goal_rect(goal_rect), .tnt_count(tnt_count),
-        .tnt_positions(tnt_positions), .hazard_count(hazard_count), .hazard_rects(hazard_rects)
+        .tnt_positions(tnt_positions), .hazard_count(hazard_count), .hazard_rects(hazard_rects),
+        .map_level(map_level), .world_width(world_width), .world_height(world_height),
+        .flag_x(flag_x), .flag_y(flag_y)
     );
     game_controller u_game (
         .clk(clk), .reset(reset), .launch_req(start_press || ui_launch), .retry_req(start_press || ui_launch), .edit_req(edit_press || ui_edit),
@@ -306,21 +313,24 @@ module My_Top_Module #(
         .clk(clk), .reset(reset), .run_init(run_init), .game_state(game_state), .init_ready(init_ready[2]),
         .movement_committed(tnt_complete), .vehicle_x(vehicle_x), .vehicle_y(vehicle_y),
         .build_grid(build_grid), .intact_mask(intact_mask), .goal_rect(goal_rect),
+        .map_level(map_level), .world_width(world_width), .world_height(world_height),
+        .flag_x(flag_x), .flag_y(flag_y),
         .hazard_count(hazard_count), .hazard_rects(hazard_rects), .world_valid(world_valid),
         .world_ready(world_ready), .goal_hit(goal_hit), .hazard_hit(hazard_hit), .out_of_bounds(out_of_bounds)
     );
 
-    wire [237:0] snapshot_in = {audio_muted, run_page, selected_left, inventory_page, build_facing_left, rockets_left, fans_left, master_volume, diary_page, guide_return_state, death_phase, death_x, death_y, launch_flash, boost_active, drag_from_grid, drag_source, drag_contents,
+    localparam SNAPSHOT_WIDTH = 239 + 4*(`LP_COORD_BITS-16);
+    wire [SNAPSHOT_WIDTH-1:0] snapshot_in = {audio_muted, run_page, selected_left, inventory_page, build_facing_left, rockets_left, fans_left, master_volume, diary_page, guide_return_state, death_phase, death_x, death_y, launch_flash, boost_active, drag_from_grid, drag_source, drag_contents,
                               game_state, build_grid, intact_mask, frame_intact_mask, build_valid, build_error,
                               vehicle_x, vehicle_y, engine_enabled, frames_left, pigs_left, wheels_left,
                               engines_left, balloons_left, cursor_x, cursor_y, selected_part, drag_active,
                               feedback_code, feedback_cell, level_index, fail_reason, tnt_intact,
                               build_frames, run_seconds, blast_phase};
-    wire [237:0] snapshot_out;
+    wire [SNAPSHOT_WIDTH-1:0] snapshot_out;
     wire draw_audio_muted;
     wire [1:0] draw_diary_page, draw_death_phase;
     wire [2:0] draw_guide_return;
-    wire signed [15:0] draw_death_x, draw_death_y;
+    wire signed [`LP_COORD_BITS-1:0] draw_death_x, draw_death_y;
     wire draw_launch_flash;
     wire draw_boost_active;
     wire draw_drag_from_grid;
@@ -336,7 +346,7 @@ module My_Top_Module #(
     wire [3:0] draw_frames_left, draw_pigs_left, draw_wheels_left, draw_engines_left, draw_balloons_left;
     wire [6:0] draw_cursor_x, draw_cursor_y;
     wire [2:0] draw_selected_part;
-    wire signed [15:0] draw_x, draw_y;
+    wire signed [`LP_COORD_BITS-1:0] draw_x, draw_y;
     wire [`LP_LEVEL_BITS-1:0] draw_level;
     wire [8:0] draw_saved_frames;
     wire [7:0] draw_seconds;
@@ -362,7 +372,7 @@ module My_Top_Module #(
             draw_cursor_x, draw_cursor_y, draw_selected_part, draw_drag_active,
             draw_feedback_code, draw_feedback_cell, draw_level, draw_fail_reason, draw_tnt_intact,
             draw_saved_frames, draw_seconds, draw_blast} = snapshot_out;
-    display_snapshot #(.WIDTH(238)) u_snapshot (
+    display_snapshot #(.WIDTH(SNAPSHOT_WIDTH)) u_snapshot (
         .game_clk(clk), .game_reset(reset), .display_clk(oled_clk), .display_reset(oled_reset),
         .frame_begin(left_frame), .game_data(snapshot_in), .display_data(snapshot_out)
     );
@@ -438,10 +448,10 @@ module My_Top_Module #(
     right_renderer u_right_renderer (
         .clk(oled_clk), .zoomed_out(draw_zoomed_out), .overview(draw_overview),
         .free_look(draw_free_look), .cursor_x(draw_cursor_x), .cursor_y(draw_cursor_y),
-        .pixel_index(map_pixel_index), .game_state(draw_state==`LP_LEVEL_SELECT ? `LP_BUILD : (draw_state==`LP_GUIDE ? draw_guide_return : draw_state)), .build_grid(draw_grid),
+        .pixel_index(map_pixel_index), .game_state((draw_state==`LP_LEVEL_SELECT || draw_state==`LP_SETTINGS) ? `LP_BUILD : (draw_state==`LP_GUIDE ? draw_guide_return : draw_state)), .build_grid(draw_grid),
         .build_facing_left(draw_facing_left), .intact_mask(draw_intact), .frame_intact_mask(draw_frames),
-        // Today's 16-bit positions, sign-extended to the renderer's 20-bit inputs.
-        .vehicle_x({{4{draw_x[15]}}, draw_x}), .vehicle_y({{4{draw_y[15]}}, draw_y}),
+        // Full world coordinates cross the display snapshot without truncation.
+        .vehicle_x(draw_x), .vehicle_y(draw_y),
         .spawn_x(draw_spawn_x), .spawn_y(draw_spawn_y),
         .terrain_count(draw_terrain_count), .terrain_rects(draw_terrain_rects), .goal_rect(draw_goal_rect),
         .tnt_count(draw_tnt_count), .tnt_positions(draw_tnt_positions), .tnt_intact(draw_tnt_intact),

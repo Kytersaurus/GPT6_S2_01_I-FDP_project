@@ -5,7 +5,7 @@
 // TNT controller for the run phase.
 //
 // TNT positions are stored as {y[7:0], x[7:0]} pixel coordinates.  Vehicle
-// positions use the shared Q8.8 format and the vehicle footprint is 24 by
+// positions use the shared Q12.8 format and the vehicle footprint is 24 by
 // 24 pixels.  A swept vehicle rectangle is used so a fast movement cannot
 // pass through a TNT between two committed positions.
 //
@@ -19,10 +19,10 @@ module tnt_controller (
     output wire init_ready,
 
     input wire movement_committed,
-    input wire signed [15:0] previous_x,
-    input wire signed [15:0] previous_y,
-    input wire signed [15:0] vehicle_x,
-    input wire signed [15:0] vehicle_y,
+    input wire signed [`LP_COORD_BITS-1:0] previous_x,
+    input wire signed [`LP_COORD_BITS-1:0] previous_y,
+    input wire signed [`LP_COORD_BITS-1:0] vehicle_x,
+    input wire signed [`LP_COORD_BITS-1:0] vehicle_y,
 
     input wire [2:0] tnt_count,
     input wire [`LP_TNT_BITS-1:0] tnt_positions,
@@ -43,21 +43,21 @@ module tnt_controller (
                SEND_DAMAGE=4, WAIT_DAMAGE=5;
     reg [2:0] state;
     reg [`LP_MAX_TNT-1:0] pending_triggers;
-    reg signed [15:0] saved_x, saved_y;
+    reg signed [`LP_COORD_BITS-1:0] saved_x, saved_y;
     reg [1:0] active_tnt;
     reg [7:0] active_x, active_y;
     reg [3:0] cell_index;
     reg [`LP_MAX_TNT-1:0] trigger_mask;
     reg trigger_found;
     reg [1:0] selected_tnt;
-    reg [9:0] distance_x, distance_y;
+    reg [12:0] distance_x, distance_y;
     wire [8:0] distance_squared = {1'b0,small_square(distance_x[3:0])} +
                                          {1'b0,small_square(distance_y[3:0])};
     integer previous_x_fp, previous_y_fp, current_x_fp, current_y_fp;
     integer sweep_left_fp, sweep_right_fp, sweep_top_fp, sweep_bottom_fp;
     integer tnt_x_pixels, tnt_y_pixels, tnt_index;
     integer cell_x_pixels, cell_y_pixels;
-    reg signed [9:0] delta_x, delta_y;
+    reg signed [12:0] delta_x, delta_y;
 
     function [7:0] small_square;
         input [3:0] distance;

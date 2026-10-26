@@ -13,7 +13,8 @@ module mouse_adapter (
     output reg setx, sety, setmax_x, setmax_y,
     output reg [6:0] cursor_x, cursor_y,
     output reg [2:0] selected_part,
-    output reg selected_left, inventory_page,
+    output reg selected_left,
+    output reg [1:0] inventory_page,
     output reg edit_facing_left,
     output wire drag_active,
     output reg drag_from_grid,
@@ -89,23 +90,21 @@ module mouse_adapter (
                         // Select only on the initial press, not while dragging past rows.
                         if (mouse_y>=55 && mouse_y<64) begin
                             place_pending<=0;
-                            if (mouse_x>=20 && mouse_x<40) begin inventory_page<=!inventory_page; inventory_armed<=0; end
-                            else if (selected_part==`LP_PART_ENGINE || selected_part==`LP_PART_BOOSTER) begin
-                                if (mouse_x>=42 && mouse_x<52) selected_left<=1;
-                                else if (mouse_x>=53 && mouse_x<63) selected_left<=0;
+                            if (mouse_x>=20 && mouse_x<62) begin
+                                inventory_page <= mouse_x<34 ? 0 : mouse_x<48 ? 1 : 2;
+                                inventory_armed<=0;
                             end
                         end else if (in_inventory) begin
                             inventory_armed <= 1;
                             // Five fixed row boundaries avoid a hardware divide by ten.
-                            if (inventory_page) begin
-                                if (mouse_y<14) selected_part<=`LP_PART_BOOSTER;
-                                else if (mouse_y<24) selected_part<=`LP_PART_FAN;
+                            if (inventory_page!=0) begin
+                                if (mouse_y<14) selected_part<=inventory_page==1 ? `LP_PART_BOOSTER : `LP_PART_FAN;
                                 else begin place_pending<=0; inventory_armed<=0; end
-                            end else if (mouse_y < 14) selected_part <= `LP_PART_FRAME;
-                            else if (mouse_y < 24) selected_part <= `LP_PART_PIG;
-                            else if (mouse_y < 34) selected_part <= `LP_PART_WHEEL;
-                            else if (mouse_y < 44) selected_part <= `LP_PART_ENGINE;
-                            else selected_part <= `LP_PART_BALLOON;
+                            end else if (mouse_y<14) selected_part<=`LP_PART_FRAME;
+                            else if (mouse_y<24) selected_part<=`LP_PART_PIG;
+                            else if (mouse_y<34) selected_part<=`LP_PART_WHEEL;
+                            else if (mouse_y<44) selected_part<=`LP_PART_ENGINE;
+                            else selected_part<=`LP_PART_BALLOON;
                         end else if (in_grid && !inventory_armed &&
                                      (build_frames[hovered_cell] || build_grid[hovered_cell*3 +: 3] != `LP_PART_EMPTY)) begin
                             // Existing parts are only transferred when a valid drop is accepted.
@@ -124,6 +123,12 @@ module mouse_adapter (
                         if (place_pending && drag_from_grid && in_inventory) begin
                             edit_valid <= 1; edit_op <= `LP_EDIT_RETURN;
                             edit_source <= drag_source; edit_cell <= drag_source; edit_part <= selected_part;
+                        end else if (place_pending && drag_from_grid && in_grid && hovered_cell==drag_source &&
+                                     (selected_part==`LP_PART_ENGINE || selected_part==`LP_PART_BOOSTER)) begin
+                            // A click released on the same cell flips the saved part in place.
+                            edit_valid<=1; edit_op<=`LP_EDIT_PLACE; edit_cell<=drag_source;
+                            edit_part<=selected_part; edit_facing_left<=!selected_left;
+                            selected_left<=!selected_left;
                         end else if (place_pending && in_grid && (!drag_from_grid || hovered_cell != drag_source)) begin
                             edit_valid <= 1; edit_op <= `LP_EDIT_PLACE;
                             edit_cell <= hovered_cell;

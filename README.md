@@ -1,5 +1,7 @@
 # Laggy Piggies FPGA project
 
+The current UI uses a settings gear for Audio and Map Selection, a book-with-? diary icon, three numbered inventory pages, and click/release on an engine or rocket's own cell to flip it. Direction arrows appear before inventory counts; balloons show up. Placement feedback briefly replaces the toolbar. The wheel now steps in the corrected direction through four map scales, including a 192 by 128 world-pixel overview. See [current gameplay menu and controls](docs/gameplay_menu.md); older development notes below describe earlier layouts.
+
 Owner: Shared - all roles. [File-by-file owners](docs/file_owners.md) are listed separately and labelled in the custom source files.
 
 Build one shared Basys3 game by giving each member ownership of separate modules and agreeing the signals between them. The hardware top connects mouse construction, limited inventory, force/mass movement, reverse, ground-only jumping, balloon lift, provisional platform collision, game audio, two selectable maps and two OLED views. It is a baseline for team development, not the full proposal implementation.
@@ -134,3 +136,9 @@ During BUILD, click the folded-map icon at the bottom right of the left OLED. Th
 The current audio source includes melody plus bass, a longer BUILD arrangement, and a roughly 50-second Bad Piggies main-theme loop that starts on RUN. Diary page SOUND 4/4 provides five settings (OFF and levels 1..4); retry preserves the selection and reset restores level 4. See [audio setup](docs/audio_setup.md). A fresh bitstream and a physical listening test are still needed for these changes.
 
 The current source replaces the RUN status panel with **DRIVE / POP / SOUND** pages, with a round-arrow retry and EDIT control. Physical controls remain. Construction has P1/P2 inventory pages, left/right engine and rocket orientation, side-mounted rocket/fan stock, and contents-first dragging from filled frames. Engine direction already affects existing thrust through the top-level balance/reverse connection. Fan/rocket thrust remains for Kyle; their DRIVE buttons show WAIT until connected. See [gameplay menu and construction controls](docs/gameplay_menu.md), including the [rendered preview](docs/images/gameplay_menu_preview.png). Generate a fresh bitstream to use these changes.
+
+## Cave boundary and goal integration
+
+World checks now use each level's dimensions: 478 by 291 for Cave Arch and 890 by 213 for Cave Flight. Positions remain signed 20-bit Q12.8 through spawn, physics, collision, TNT pose checks, death effects and display transfer, so Cave Flight starts at y=178 without wrapping. A vehicle fails once its whole 24 by 24 footprint leaves the world; partial overlap is allowed. Both cave flags have 16 by 24 pig-centre goal entry zones above their supporting surfaces. Levels 1 and 2 retain their original bounds and goals. See `docs/interfaces.md` for the exact zones.
+
+The caves still use placeholder terrain platforms. ROM terrain collision and slope handling remain pending; these changes do not make the traced cave surfaces collidable. `world_outcomes_tb`, `cave_coordinates_tb` and `cave_map_integration_tb` cover cave bounds/goals, wide movement, actual game results and display transfer.

@@ -9,10 +9,13 @@ module world_outcomes (
     input wire [2:0] game_state,
     output reg init_ready,
     input wire movement_committed,
-    input wire signed [15:0] vehicle_x, vehicle_y,
+    input wire signed [`LP_COORD_BITS-1:0] vehicle_x, vehicle_y,
     input wire [26:0] build_grid,
     input wire [8:0] intact_mask,
     input wire [31:0] goal_rect,
+    input wire map_level,
+    input wire [9:0] world_width, world_height,
+    input wire [9:0] flag_x, flag_y,
     input wire [1:0] hazard_count,
     input wire [63:0] hazard_rects,
     output reg world_valid,
@@ -22,8 +25,6 @@ module world_outcomes (
     output reg out_of_bounds
 );
     localparam signed [31:0] VEHICLE_SIZE_FP = 32'sd6144; // 24 pixels * 256
-    localparam integer WORLD_WIDTH_PIXELS = 96;
-    localparam integer WORLD_HEIGHT_PIXELS = 64;
 
     integer index;
     integer pig_x, pig_y, gx, gy, gw, gh;
@@ -39,6 +40,15 @@ module world_outcomes (
         gy = goal_rect[15:8];
         gw = goal_rect[23:16];
         gh = goal_rect[31:24];
+        if (map_level) begin
+            // The 14-pixel flag pole ends at the supporting road. A 16x24
+            // entry zone above that road uses the same pig-centre rule as
+            // rectangle levels, with no 8-bit truncation of cave coordinates.
+            gx = {1'b0, flag_x};
+            gy = $signed({1'b0, flag_y}) - 10;
+            gw = 16;
+            gh = 24;
+        end
 
         // The pig centre is used for goal entry, matching the existing
         // renderer and game-controller contract.
@@ -107,9 +117,9 @@ module world_outcomes (
                     goal_hit <= candidate_goal;
                     hazard_hit <= candidate_hazard;
                     out_of_bounds <=
-                        ($signed(vehicle_x) >= WORLD_WIDTH_PIXELS*256) ||
+                        ($signed(vehicle_x) >= $signed({1'b0,world_width,8'b0})) ||
                         ($signed(vehicle_x) + VEHICLE_SIZE_FP <= 0) ||
-                        ($signed(vehicle_y) >= WORLD_HEIGHT_PIXELS*256) ||
+                        ($signed(vehicle_y) >= $signed({1'b0,world_height,8'b0})) ||
                         ($signed(vehicle_y) + VEHICLE_SIZE_FP <= 0);
                     world_valid <= 1'b1;
                 end

@@ -26,8 +26,10 @@ module module_contracts_tb;
     );
     reg move_valid=0, response_ready=0;
     wire move_ready, response_valid, grounded;
-    reg signed [15:0] px=1024, py=7936, nx=1024, ny=8704, nvx=0, nvy=512;
-    wire signed [15:0] cx,cy,cvx,cvy;
+    reg signed [`LP_COORD_BITS-1:0] px=1024, py=7936, nx=1024, ny=8704;
+    reg signed [15:0] nvx=0, nvy=512;
+    wire signed [`LP_COORD_BITS-1:0] cx,cy;
+    wire signed [15:0] cvx,cvy;
     collision_engine collision (
         .clk(clk),.reset(reset),.move_valid(move_valid),.move_ready(move_ready),
         .previous_x(px),.previous_y(py),.proposed_x(nx),.proposed_y(ny),.proposed_vx(nvx),.proposed_vy(nvy),
@@ -109,7 +111,7 @@ module module_contracts_tb;
         builder_init=0;
 
         move_valid=1; clocks(1); move_valid=0; clocks(2);
-        if (!response_valid || !grounded || cy!=8192 || cvy!=0) $fatal(1,"Platform crossing failed");
+        if (!response_valid || !grounded || cy!=8192 || cvy!=0) $fatal(1,"Platform crossing failed: valid=%b grounded=%b cy=%0d cvy=%0d",response_valid,grounded,cy,cvy);
         ny=12000; clocks(5);
         if (!response_valid || move_ready || cy!=8192) $fatal(1,"Collision response changed under backpressure");
         response_ready=1; clocks(1); response_ready=0;

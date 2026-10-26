@@ -32,7 +32,7 @@ module volume_audio_tb;
             $fatal(1,"Full-volume melody/bass not available at startup");
         btnR=1;clocks(30);btnR=0;clocks(30);
         if(starts!=0 || dut.audio_busy) $fatal(1,"Removed test button still plays audio");
-        click(70,59);click(78,59);click(78,59);click(78,59);
+        click(88,59);click(30,18);
         if(dut.diary_page!=3 || dut.game_state!=`LP_GUIDE) $fatal(1,"Sound page unreachable");
         packet(20,35,1,0);clocks(100);packet(20,35,1,0);
         if(dut.master_volume!=3) $fatal(1,"Held volume button repeated");
@@ -50,6 +50,8 @@ module volume_audio_tb;
         click(20,35);click(20,35);clocks(300);
         if(dut.master_volume!=2 || dut.u_bgm.volume!=2 || dut.u_bgm.bass_volume!=1)
             $fatal(1,"Music voices ignored selected volume");
+        click(12,59);
+        if(dut.game_state!=`LP_SETTINGS) $fatal(1,"Audio Back lost settings");
         click(12,59);
         dut.u_builder.build_grid={`LP_PART_WHEEL,`LP_PART_EMPTY,`LP_PART_WHEEL,
             `LP_PART_ENGINE,`LP_PART_PIG,`LP_PART_EMPTY,`LP_PART_EMPTY,`LP_PART_EMPTY,`LP_PART_EMPTY};

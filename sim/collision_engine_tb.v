@@ -1,14 +1,17 @@
 // Owner: Role 3 - Yap Ting; shared timing/integration checks.
 `timescale 1ns / 1ps
+`include "game_defs.vh"
 module collision_engine_tb;
     reg clk=0, reset=1, move_valid=0, response_ready=0;
-    reg signed [15:0] px=0, py=0, nx=0, ny=0, vx=0, vy=0;
+    reg signed [`LP_COORD_BITS-1:0] px=0, py=0, nx=0, ny=0;
+    reg signed [15:0] vx=0, vy=0;
     reg [2:0] count=0;
     reg [127:0] terrain=0;
     wire move_ready, response_valid, grounded;
-    wire signed [15:0] cx, cy, cvx, cvy;
+    wire signed [`LP_COORD_BITS-1:0] cx, cy;
+    wire signed [15:0] cvx, cvy;
     integer waited;
-    reg [64:0] held;
+    reg [2*`LP_COORD_BITS+32:0] held;
 
     always #5 clk=~clk;
 

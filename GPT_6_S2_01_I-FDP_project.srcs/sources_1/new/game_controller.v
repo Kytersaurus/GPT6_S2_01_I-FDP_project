@@ -43,12 +43,18 @@ module game_controller #(parameter integer TICKS_PER_SECOND = 60) (
                     step_busy <= 0;
                     if (guide_open_req) begin guide_return_state <= `LP_BUILD; game_state <= `LP_GUIDE; end
                     else if (launch_req && build_valid) game_state <= `LP_INIT_RUN;
-                    else if (level_open_req) game_state <= `LP_LEVEL_SELECT;
+                    else if (level_open_req) game_state <= `LP_SETTINGS;
                     else if (level_next_req) level_index <= next_level;
+                end
+                `LP_SETTINGS: begin
+                    step_busy<=0;
+                    if (level_close_req || edit_req) game_state<=`LP_BUILD;
+                    else if (level_open_req) game_state<=`LP_LEVEL_SELECT;
+                    else if (guide_open_req) begin guide_return_state<=`LP_SETTINGS; game_state<=`LP_GUIDE; end
                 end
                 `LP_LEVEL_SELECT: begin
                     step_busy <= 0;
-                    if (level_close_req || edit_req) game_state <= `LP_BUILD;
+                    if (level_close_req || edit_req) game_state <= `LP_SETTINGS;
                     else if (level_select_req && selected_level < `LP_LEVEL_COUNT) begin
                         level_index <= selected_level;
                         game_state <= `LP_BUILD;

@@ -9,7 +9,7 @@
 // Unused entries are zero and lie above the matching count.
 module level_data (
     input wire [`LP_LEVEL_BITS-1:0] level_index,
-    // Q12.8 spawn; physics takes the low 16 bits until positions are widened.
+    // Signed Q12.8 spawn, preserved by physics and collision.
     output reg signed [19:0] spawn_x, spawn_y,
     output reg [2:0] terrain_count,
     output reg [127:0] terrain_rects,
@@ -65,12 +65,12 @@ module level_data (
                 // Level 3, Cave Arch: start on the flat plateau (top y=50, x=97..128);
                 // the finish flag stands on the cave road (top y=243) at x=300.
                 // Collision still reads rectangles: one placeholder platform under the spawn,
-                // and no goal rectangle, until the map-based checks are agreed with Roles 2 and 3.
+                // while world_outcomes derives the goal entry zone from the flag position.
                 spawn_x = 20'sd26624;   // x=104
                 spawn_y = 20'sd6656;    // y=26
                 terrain_count = 3'd1;
                 terrain_rects = {96'd0, 8'd8, 8'd32, 8'd50, 8'd97};
-                goal_rect = 32'd0;
+                goal_rect = 32'd0; // Map goals use flag_x/flag_y, not the 8-bit rectangle.
                 map_level = 1'b1;
                 world_width = `LP_MAP_WIDTH;
                 world_height = `LP_MAP_HEIGHT;
@@ -86,7 +86,7 @@ module level_data (
                 spawn_y = 20'sd45568;   // y=178
                 terrain_count = 3'd1;
                 terrain_rects = {96'd0, 8'd8, 8'd36, 8'd202, 8'd60};
-                goal_rect = 32'd0;
+                goal_rect = 32'd0; // Map goals use flag_x/flag_y, not the 8-bit rectangle.
                 map_level = 1'b1;
                 map_id = 1'b1;
                 world_width = `LP_FLIGHT_WIDTH;

@@ -11,9 +11,9 @@
 `define LP_GRID_BITS     27
 `define LP_CELL_BITS     4
 
-// Cell size and movement format are provisional starting values.
+// World positions are signed Q12.8; velocities retain signed 16-bit Q8.8.
 `define LP_CELL_PIXELS   8
-`define LP_COORD_BITS    16
+`define LP_COORD_BITS    20
 `define LP_FRAC_BITS     8
 `define LP_MAX_TERRAIN   4
 `define LP_RECT_BITS     32
@@ -34,6 +34,7 @@
 `define LP_FAIL          3'd4
 `define LP_GUIDE         3'd5
 `define LP_LEVEL_SELECT  3'd6
+`define LP_SETTINGS      3'd7
 
 `define LP_EDIT_PLACE    2'd0  // Includes replacement of an occupied cell.
 `define LP_EDIT_REMOVE   2'd1
