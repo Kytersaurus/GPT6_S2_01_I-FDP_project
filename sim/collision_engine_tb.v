@@ -16,6 +16,7 @@ module collision_engine_tb;
     always #5 clk=~clk;
 
     collision_engine dut(
+        .map_level(1'b0), .world_width(10'd96), .world_height(10'd64), .query_class(3'd0),
         .clk(clk), .reset(reset), .move_valid(move_valid), .move_ready(move_ready),
         .previous_x(px), .previous_y(py), .proposed_x(nx), .proposed_y(ny),
         .proposed_vx(vx), .proposed_vy(vy), .terrain_count(count),

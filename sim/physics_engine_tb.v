@@ -18,7 +18,7 @@ module physics_engine_tb;
         .move_valid(move_valid),.move_ready(move_ready),.previous_x(px),.previous_y(py),
         .proposed_x(nx),.proposed_y(ny),.proposed_vx(nvx),.proposed_vy(nvy),
         .response_valid(response_valid),.response_ready(response_ready),
-        .corrected_x(nx),.corrected_y(ny),.corrected_vx(nvx),.corrected_vy(nvy),.grounded(1'b0),
+        .corrected_x(nx),.corrected_y(ny),.corrected_vx(nvx),.corrected_vy(nvy),.ground_slope(8'sd0), .grounded(1'b0),
         .movement_committed(committed),.vehicle_x(x),.vehicle_y(y)
     );
     task clocks;

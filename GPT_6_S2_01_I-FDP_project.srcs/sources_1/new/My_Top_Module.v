@@ -109,7 +109,10 @@ module My_Top_Module #(
     wire [2:0] terrain_count;
     wire [127:0] terrain_rects;
     wire [31:0] goal_rect;
-    wire map_level;
+    wire map_level, map_id;
+    wire signed [10:0] collision_query_x, collision_query_y;
+    wire collision_query_solid;
+    wire [2:0] collision_query_class = collision_query_solid ? `LP_MAP_ROCK : `LP_MAP_SKY;
     wire [9:0] world_width, world_height, flag_x, flag_y;
     wire level_open_req, level_close_req, level_select_req;
     wire [`LP_LEVEL_BITS-1:0] selected_level;
@@ -128,6 +131,8 @@ module My_Top_Module #(
     wire tnt_damage_valid, tnt_complete;
     wire [8:0] tnt_damage_mask, tnt_frame_mask;
     wire move_valid, move_ready, response_valid, response_ready, grounded;
+    wire signed [7:0] ground_slope;
+    wire signed [3:0] previous_tilt, proposed_tilt, corrected_tilt, vehicle_tilt;
     wire signed [`LP_COORD_BITS-1:0] previous_x, previous_y, proposed_x, proposed_y;
     wire signed [15:0] proposed_vx, proposed_vy;
     wire signed [`LP_COORD_BITS-1:0] corrected_x, corrected_y;
@@ -181,7 +186,7 @@ module My_Top_Module #(
     seven_seg_timer u_board_timer (.clk(clk), .reset(reset), .seconds(run_seconds), .seg(seg), .an(an), .dp(dp));
     pig_death_effect u_pig_death (
         .clk(clk), .reset(reset), .run_init(run_init), .physics_tick(physics_tick), .pig_alive(pig_alive),
-        .game_state(game_state), .build_grid(build_grid), .vehicle_x(vehicle_x), .vehicle_y(vehicle_y),
+        .game_state(game_state), .build_grid(build_grid), .vehicle_x(vehicle_x), .vehicle_y(vehicle_y), .vehicle_tilt(vehicle_tilt),
         .death_phase(death_phase), .death_x(death_x), .death_y(death_y)
     );
     sound_controller u_sound_control (
@@ -259,7 +264,7 @@ module My_Top_Module #(
         .level_index(level_index), .spawn_x(level_spawn_x), .spawn_y(level_spawn_y), .terrain_count(terrain_count),
         .terrain_rects(terrain_rects), .goal_rect(goal_rect), .tnt_count(tnt_count),
         .tnt_positions(tnt_positions), .hazard_count(hazard_count), .hazard_rects(hazard_rects),
-        .map_level(map_level), .world_width(world_width), .world_height(world_height),
+        .map_level(map_level), .map_id(map_id), .world_width(world_width), .world_height(world_height),
         .flag_x(flag_x), .flag_y(flag_y)
     );
     game_controller u_game (
@@ -288,22 +293,27 @@ module My_Top_Module #(
         .previous_x(previous_x), .previous_y(previous_y), .proposed_x(proposed_x), .proposed_y(proposed_y),
         .proposed_vx(proposed_vx), .proposed_vy(proposed_vy), .response_valid(response_valid),
         .response_ready(response_ready), .corrected_x(corrected_x), .corrected_y(corrected_y),
-        .corrected_vx(corrected_vx), .corrected_vy(corrected_vy), .grounded(grounded),
+        .corrected_vx(corrected_vx), .corrected_vy(corrected_vy), .grounded(grounded), .ground_slope(ground_slope),
+        .previous_tilt(previous_tilt), .proposed_tilt(proposed_tilt), .corrected_tilt(corrected_tilt), .vehicle_tilt(vehicle_tilt),
         .movement_committed(movement_committed), .vehicle_x(vehicle_x), .vehicle_y(vehicle_y)
     );
-    collision_engine u_collision (
-        .clk(clk), .reset(reset), .move_valid(move_valid), .move_ready(move_ready),
+    collision_engine #(.ROTATION_ONLY(1)) u_collision (
+        .collision_mask(intact_mask | frame_intact_mask),
+        .clk(clk), .reset(reset || run_init || game_state != `LP_RUN), .move_valid(move_valid), .move_ready(move_ready),
         .previous_x(previous_x), .previous_y(previous_y), .proposed_x(proposed_x), .proposed_y(proposed_y),
         .proposed_vx(proposed_vx), .proposed_vy(proposed_vy), .terrain_count(terrain_count), .terrain_rects(terrain_rects),
+        .map_level(map_level), .rotation_enabled(1'b1), .previous_tilt(previous_tilt), .proposed_tilt(proposed_tilt), .world_width(world_width), .world_height(world_height),
+        .query_x(collision_query_x), .query_y(collision_query_y), .query_class(collision_query_class),
         .response_valid(response_valid), .response_ready(response_ready), .corrected_x(corrected_x),
-        .corrected_y(corrected_y), .corrected_vx(corrected_vx), .corrected_vy(corrected_vy), .grounded(grounded)
+        .corrected_y(corrected_y), .corrected_vx(corrected_vx), .corrected_vy(corrected_vy), .grounded(grounded),
+        .ground_slope(ground_slope), .corrected_tilt(corrected_tilt)
     );
     // Finish TNT damage before checking the pig and goal for this movement.
     // Physics holds its committed pose until the world result is accepted.
     tnt_controller u_tnt (
         .clk(clk), .reset(reset), .run_init(run_init), .game_state(game_state), .init_ready(),
-        .movement_committed(movement_committed), .previous_x(previous_x), .previous_y(previous_y),
-        .vehicle_x(vehicle_x), .vehicle_y(vehicle_y), .tnt_count(tnt_count), .tnt_positions(tnt_positions),
+        .movement_committed(movement_committed), .previous_x(previous_x), .previous_y(previous_y), .previous_tilt(previous_tilt),
+        .vehicle_x(vehicle_x), .vehicle_y(vehicle_y), .vehicle_tilt(vehicle_tilt), .tnt_count(tnt_count), .tnt_positions(tnt_positions),
         .build_grid(build_grid), .build_frames(build_frames), .intact_mask(intact_mask),
         .frame_intact_mask(frame_intact_mask), .tnt_intact(tnt_intact),
         .damage_valid(tnt_damage_valid), .damage_ready(damage_ready),
@@ -312,7 +322,7 @@ module My_Top_Module #(
     );
     world_outcomes u_world (
         .clk(clk), .reset(reset), .run_init(run_init), .game_state(game_state), .init_ready(init_ready[2]),
-        .movement_committed(tnt_complete), .vehicle_x(vehicle_x), .vehicle_y(vehicle_y),
+        .movement_committed(tnt_complete), .vehicle_x(vehicle_x), .vehicle_y(vehicle_y), .vehicle_tilt(vehicle_tilt),
         .build_grid(build_grid), .intact_mask(intact_mask), .goal_rect(goal_rect),
         .map_level(map_level), .world_width(world_width), .world_height(world_height),
         .flag_x(flag_x), .flag_y(flag_y),
@@ -320,8 +330,8 @@ module My_Top_Module #(
         .world_ready(world_ready), .goal_hit(goal_hit), .hazard_hit(hazard_hit), .out_of_bounds(out_of_bounds)
     );
 
-    localparam SNAPSHOT_WIDTH = 239 + 4*(`LP_COORD_BITS-16);
-    wire [SNAPSHOT_WIDTH-1:0] snapshot_in = {audio_muted, run_page, selected_left, inventory_page, build_facing_left, rockets_left, fans_left, master_volume, diary_page, guide_return_state, death_phase, death_x, death_y, launch_flash, boost_active, drag_from_grid, drag_source, drag_contents,
+    localparam SNAPSHOT_WIDTH = 243 + 4*(`LP_COORD_BITS-16);
+    wire [SNAPSHOT_WIDTH-1:0] snapshot_in = {vehicle_tilt, audio_muted, run_page, selected_left, inventory_page, build_facing_left, rockets_left, fans_left, master_volume, diary_page, guide_return_state, death_phase, death_x, death_y, launch_flash, boost_active, drag_from_grid, drag_source, drag_contents,
                               game_state, build_grid, intact_mask, frame_intact_mask, build_valid, build_error,
                               vehicle_x, vehicle_y, engine_enabled, frames_left, pigs_left, wheels_left,
                               engines_left, balloons_left, cursor_x, cursor_y, selected_part, drag_active,
@@ -329,6 +339,7 @@ module My_Top_Module #(
                               build_frames, run_seconds, blast_phase};
     wire [SNAPSHOT_WIDTH-1:0] snapshot_out;
     wire draw_audio_muted;
+    wire signed [3:0] draw_tilt;
     wire [1:0] draw_diary_page, draw_death_phase;
     wire [2:0] draw_guide_return;
     wire signed [`LP_COORD_BITS-1:0] draw_death_x, draw_death_y;
@@ -367,7 +378,7 @@ module My_Top_Module #(
     // Reuse the map renderer for one-OLED play; JB is blank while JA shows the map.
     wire [12:0] map_pixel_index = show_map ? left_render_index : right_pixel_index;
     wire [15:0] left_pixel_data, right_pixel_data, base_left_pixel_data;
-    assign {draw_audio_muted, draw_run_page, draw_selected_left, draw_inventory_page, draw_facing_left, draw_rockets_left, draw_fans_left, draw_master_volume, draw_diary_page, draw_guide_return, draw_death_phase, draw_death_x, draw_death_y, draw_launch_flash, draw_boost_active, draw_drag_from_grid, draw_drag_source, draw_drag_contents,
+    assign {draw_tilt, draw_audio_muted, draw_run_page, draw_selected_left, draw_inventory_page, draw_facing_left, draw_rockets_left, draw_fans_left, draw_master_volume, draw_diary_page, draw_guide_return, draw_death_phase, draw_death_x, draw_death_y, draw_launch_flash, draw_boost_active, draw_drag_from_grid, draw_drag_source, draw_drag_contents,
             draw_state, draw_grid, draw_intact, draw_frames, draw_valid, draw_error, draw_x, draw_y, draw_engine,
             draw_frames_left, draw_pigs_left, draw_wheels_left, draw_engines_left, draw_balloons_left,
             draw_cursor_x, draw_cursor_y, draw_selected_part, draw_drag_active,
@@ -416,12 +427,15 @@ module My_Top_Module #(
         .map_level(draw_map_level), .map_id(draw_map_id), .world_width(draw_world_width), .world_height(draw_world_height),
         .flag_x(draw_flag_x), .flag_y(draw_flag_y)
     );
-    // Cave Arch map ROM: the draw port follows the renderer; the query port is reserved for collision.
+    // Independent map selections keep collision on the live level while the
+    // display may still hold the previous frame snapshot.
     wire signed [10:0] map_draw_x, map_draw_y;
     wire [2:0] map_draw_class;
     level_map u_level_map (
         .map_id(draw_map_id), .draw_clk(oled_clk), .draw_x(map_draw_x), .draw_y(map_draw_y), .draw_class(map_draw_class),
-        .query_clk(clk), .query_x(11'sd0), .query_y(11'sd0), .query_class()
+        .query_clk(clk), .query_map_id(map_id),
+        .query_x(collision_query_x), .query_y(collision_query_y),
+        .query_class(), .query_solid(collision_query_solid)
     );
     left_renderer u_left_renderer (
         .pixel_index(left_render_index), .game_state(draw_state), .build_grid(draw_grid),
@@ -452,7 +466,7 @@ module My_Top_Module #(
         .pixel_index(map_pixel_index), .game_state((draw_state==`LP_LEVEL_SELECT || draw_state==`LP_SETTINGS) ? `LP_BUILD : (draw_state==`LP_GUIDE ? draw_guide_return : draw_state)), .build_grid(draw_grid),
         .build_facing_left(draw_facing_left), .intact_mask(draw_intact), .frame_intact_mask(draw_frames),
         // Full world coordinates cross the display snapshot without truncation.
-        .vehicle_x(draw_x), .vehicle_y(draw_y),
+        .vehicle_x(draw_x), .vehicle_y(draw_y), .vehicle_tilt(draw_tilt),
         .spawn_x(draw_spawn_x), .spawn_y(draw_spawn_y),
         .terrain_count(draw_terrain_count), .terrain_rects(draw_terrain_rects), .goal_rect(draw_goal_rect),
         .tnt_count(draw_tnt_count), .tnt_positions(draw_tnt_positions), .tnt_intact(draw_tnt_intact),

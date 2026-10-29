@@ -26,6 +26,7 @@ module right_renderer (
     input wire [8:0] frame_intact_mask,
     // 20-bit Q12.8 positions, ready for wider physics; today's 16-bit values are sign-extended.
     input wire signed [19:0] vehicle_x, vehicle_y,
+    input wire signed [3:0] vehicle_tilt,
     input wire signed [19:0] spawn_x, spawn_y,
     input wire [2:0] terrain_count,
     input wire [127:0] terrain_rects,
@@ -50,6 +51,7 @@ module right_renderer (
 );
     `include "part_sprites.vh"
     `include "ui_font.vh"
+    `include "rotation_geometry.vh"
 
     wire before_launch = (game_state == `LP_BUILD || game_state == `LP_GUIDE);
     // Vehicle (or spawn) top-left in whole world pixels.
@@ -112,9 +114,11 @@ module right_renderer (
     reg [6:0] px, py;
     reg signed [11:0] fx, fy, wx, wy, tex_x, tex_y;
     reg zoomed_out_q, overview_q;
+    reg signed [3:0] tilt_q;
     always @(posedge clk) begin
         px <= sx; py <= sy; zoomed_out_q <= zoomed_out; overview_q <= overview;
         fx <= next_fx; fy <= next_fy; wx <= next_wx; wy <= next_wy; tex_x <= next_tx; tex_y <= next_ty;
+        tilt_q <= before_launch ? 4'sd0 : sanitize_tilt(vehicle_tilt);
     end
 
     // World position to screen-scale position for sprites.
@@ -176,6 +180,12 @@ module right_renderer (
     integer index, rx, ry, rw, rh, rel_x, rel_y, cell_px, cell_col, cell_row, cell_index, tx, ty, dx, dy, distance, radius;
     reg [2:0] part;
     reg [31:0] rectangle;
+    // Half-pixel centred coordinates keep opposite corners symmetric. Only
+    // nearby pixels enter these small products, preventing outside-world
+    // positions from aliasing into the sprite after narrowing.
+    reg signed [8:0] rotation_dx2, rotation_dy2;
+    reg signed [9:0] rotation_c, rotation_s;
+    reg signed [19:0] rotation_x_sum, rotation_y_sum;
 
     square u_goal_box (
         .x(wx[6:0]), .y(wy[6:0]), .pos_x(goal_rect[6:0]), .pos_y(goal_rect[14:8]),
@@ -185,6 +195,8 @@ module right_renderer (
     always @* begin
         rx = 0; ry = 0; rw = 0; rh = 0; rel_x = 0; rel_y = 0; cell_px = 0; cell_col = 0; cell_row = 0;
         cell_index = 0; tx = 0; ty = 0; dx = 0; dy = 0; distance = 0; radius = 0; part = 0; rectangle = 0;
+        rotation_dx2=0; rotation_dy2=0; rotation_c=0; rotation_s=0;
+        rotation_x_sum=0; rotation_y_sum=0;
         if (map_level) pixel_data = map_colour(map_class, tex_x, tex_y);
         else begin
             pixel_data = 16'h0010;
@@ -228,6 +240,20 @@ module right_renderer (
         cell_px = (overview_q && !zoomed_out_q) ? 4 : overview_q ? 6 : (zoomed_out_q ? 8 : 12);
         rel_x = fx - ((overview_q && !zoomed_out_q) ? (vx >>> 1) : overview_q ? (3*vx)/4 : scaled(vx, zoomed_out_q));
         rel_y = fy - ((overview_q && !zoomed_out_q) ? (vy >>> 1) : overview_q ? (3*vy)/4 : scaled(vy, zoomed_out_q));
+        // Inverse-map every destination pixel through the body's rotation.
+        // Zero tilt retains the original sprite lookup exactly at every zoom.
+        if (tilt_q != 0) begin
+            if (rel_x >= -cell_px && rel_x < 4*cell_px &&
+                rel_y >= -cell_px && rel_y < 4*cell_px) begin
+                rotation_dx2=2*rel_x+1-3*cell_px;
+                rotation_dy2=2*rel_y+1-3*cell_px;
+                rotation_c=rotation_cos(tilt_q); rotation_s=rotation_sin(tilt_q);
+                rotation_x_sum=rotation_c*rotation_dx2+rotation_s*rotation_dy2;
+                rotation_y_sum=-rotation_s*rotation_dx2+rotation_c*rotation_dy2;
+                rel_x=(rotation_x_sum+3*cell_px*256) >>> 9;
+                rel_y=(rotation_y_sum+3*cell_px*256) >>> 9;
+            end else begin rel_x=-1; rel_y=-1; end
+        end
         if (rel_x >= 0 && rel_x < 3*cell_px && rel_y >= 0 && rel_y < 3*cell_px) begin
             cell_col = (rel_x >= 2*cell_px) ? 2 : (rel_x >= cell_px) ? 1 : 0;
             cell_row = (rel_y >= 2*cell_px) ? 2 : (rel_y >= cell_px) ? 1 : 0;

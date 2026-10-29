@@ -7,13 +7,14 @@ file mkdir $lp_output_dir
 create_project -in_memory -part xc7a35tcpg236-1
 add_files -norecurse [glob -directory $lp_source_dir *.v]
 add_files -norecurse [glob -directory $lp_source_dir *.vhd]
+add_files -norecurse [glob -directory $lp_source_dir *.mem]
 set_property include_dirs [list $lp_source_dir] [get_filesets sources_1]
 set_property top My_Top_Module [get_filesets sources_1]
 update_compile_order -fileset sources_1
 
 # Synthesis
-synth_design -top My_Top_Module -part xc7a35tcpg236-1
 read_xdc [file join $lp_repo_root GPT_6_S2_01_I-FDP_project.srcs constrs_1 new Basys3_Master.xdc]
+synth_design -top My_Top_Module -part xc7a35tcpg236-1
 
 # Implementation
 opt_design

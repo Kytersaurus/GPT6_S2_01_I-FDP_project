@@ -1,7 +1,7 @@
 // Owner: Role 2 - Kyle. Vehicle movement and velocity.
 `timescale 1ns / 1ps
 `include "game_defs.vh"
-// Role 2: staged force calculation, clocked division, wheel friction and jumping.
+// Staged force calculation, clocked division, slope gravity, friction and jumping.
 module physics_engine (
     input wire clk, reset,
     input wire [2:0] game_state,
@@ -26,14 +26,18 @@ module physics_engine (
     input wire signed [`LP_COORD_BITS-1:0] corrected_x, corrected_y,
     input wire signed [15:0] corrected_vx, corrected_vy,
     input wire grounded,
+    input wire signed [7:0] ground_slope,
+    input wire signed [3:0] corrected_tilt,
+    output reg signed [3:0] previous_tilt, proposed_tilt, vehicle_tilt,
     output reg movement_committed,
     output reg signed [`LP_COORD_BITS-1:0] vehicle_x, vehicle_y
 );
+    `include "rotation_geometry.vh"
     localparam IDLE = 0, MOMENTUM = 1, FREE_MOMENTUM = 2,
                FRICTION = 3, TOTAL_FORCE = 4, START_DIV = 5,
                WAIT_DIV = 6, CLAMP_VELOCITY = 7, POSITION = 8,
                MAKE_REQUEST = 9, SEND = 10, WAIT_RESPONSE = 11,
-               WAIT_WORLD = 12, CALC_FORCE = 13;
+               WAIT_WORLD = 12, CALC_FORCE = 13, SLOPE_FORCE = 14, APPLY_SLOPE = 15;
     localparam signed [15:0] wheel_drag = 16'sd10;
     localparam signed [15:0] engine_force = 16'sd96;
     // Two available balloons must overcome gravity (32); one slows a fall.
@@ -42,6 +46,11 @@ module physics_engine (
     reg [3:0] phase;
     reg signed [15:0] velocity_x, velocity_y;
     reg was_grounded, jump_pending;
+    // Accepted terrain gradient in Q4.4 dy/dx; positive descends to the right.
+    reg signed [7:0] last_ground_slope, sampled_slope;
+    wire signed [3:0] desired_tilt=slope_to_tilt(last_ground_slope);
+    reg [15:0] step_slope_product;
+    reg signed [15:0] step_slope_force;
     reg [27:0] boost_timer; // 1.5 seconds at 100MHz is 150_000_000 cycles
     wire is_boosting = (boost_timer != 0);
     assign boost_active = is_boosting;
@@ -75,6 +84,26 @@ module physics_engine (
     assign lift = $signed({1'b0, sampled_balloons}) * lift_per_balloon;
     assign vertical_sum = $signed({velocity_y[15], velocity_y}) +
                           17'sd32 - $signed({lift[15], lift});
+    wire signed [16:0] net_gravity = 17'sd32 - $signed({lift[15], lift});
+    wire [7:0] slope_magnitude = sampled_slope < 0 ? -sampled_slope : sampled_slope;
+
+    // Horizontal gravity on y=s*x is g*s/(1+s*s). A small constant
+    // table avoids a second divider and preserves symmetric left/right forces.
+    // Coefficients are round(256*(q/16)/(1+(q/16)^2)), q in [0,16].
+    function [7:0] slope_factor;
+        input [7:0] q;
+        begin
+            case (q)
+                0: slope_factor=0;   1: slope_factor=16;  2: slope_factor=32;
+                3: slope_factor=46;  4: slope_factor=60;  5: slope_factor=73;
+                6: slope_factor=84;  7: slope_factor=94;  8: slope_factor=102;
+                9: slope_factor=109; 10: slope_factor=115; 11: slope_factor=120;
+                12: slope_factor=123; 13: slope_factor=125; 14: slope_factor=127;
+                15: slope_factor=128; 16: slope_factor=128;
+                default: slope_factor=0;
+            endcase
+        end
+    endfunction
 
     reg divider_start;
     reg signed [15:0] divider_input;
@@ -105,6 +134,9 @@ module physics_engine (
     always @(posedge clk) begin
         if (reset) begin
             phase <= IDLE; init_ready <= 0; was_grounded <= 0; boost_timer <= 0;
+            last_ground_slope <= 0; sampled_slope <= 0;
+            previous_tilt <= 0; proposed_tilt <= 0; vehicle_tilt <= 0;
+            step_slope_product <= 0; step_slope_force <= 0;
             movement_committed <= 0;
             vehicle_x <= spawn_x; vehicle_y <= spawn_y;
             previous_x <= spawn_x; previous_y <= spawn_y;
@@ -128,6 +160,8 @@ module physics_engine (
             if (game_state == `LP_RUN && boost_req && engine_count != 0) boost_timer <= 28'd150000000;
             if (run_init && !init_ready) begin
                 phase <= IDLE; init_ready <= 1; was_grounded <= 0;
+                last_ground_slope <= 0;
+                previous_tilt <= 0; proposed_tilt <= 0; vehicle_tilt <= 0;
                 vehicle_x <= spawn_x; vehicle_y <= spawn_y;
                 previous_x <= spawn_x; previous_y <= spawn_y;
                 proposed_x <= spawn_x; proposed_y <= spawn_y;
@@ -136,11 +170,20 @@ module physics_engine (
                 boost_timer <= 0;
             end else if (game_state != `LP_RUN) begin
                 phase <= IDLE;
+                last_ground_slope <= 0; was_grounded <= 0;
             end else case (phase)
                 IDLE: if (step_start) begin
                     // Capture all properties once. Later input changes cannot
                     // change this update while arithmetic or collision is busy.
                     previous_x <= vehicle_x; previous_y <= vehicle_y;
+                    previous_tilt <= vehicle_tilt;
+                    // Settle one angle step per update. Airborne motion keeps
+                    // its launch attitude; no artificial spin is introduced.
+                    if (was_grounded && !jump_now) begin
+                        if (desired_tilt > vehicle_tilt) proposed_tilt <= vehicle_tilt+1'b1;
+                        else if (desired_tilt < vehicle_tilt) proposed_tilt <= vehicle_tilt-1'b1;
+                        else proposed_tilt <= vehicle_tilt;
+                    end else proposed_tilt <= vehicle_tilt;
                     step_x <= vehicle_x; step_y <= vehicle_y;
                     step_vx <= velocity_x; step_mass <= mass_units;
                     step_remainder <= remainder_x;
@@ -149,6 +192,7 @@ module physics_engine (
                     sampled_balloons <= balloon_count;
                     sampled_engine_enabled <= engine_enabled; sampled_engine_reverse <= engine_reverse;
                     sampled_jump <= jump_now;
+                    sampled_slope <= last_ground_slope;
                     sampled_boosting <= is_boosting;
                     phase <= CALC_FORCE;
                 end
@@ -171,6 +215,26 @@ module physics_engine (
                         step_vy <= -16'sd512;
                     else
                         step_vy <= vertical_sum[15:0];
+                    // Lift reduces weight on the ramp. Jumping or net upward
+                    // lift detaches the body, so neither gets ground gravity.
+                    if (was_grounded && !sampled_jump && net_gravity > 0)
+                        step_slope_product <= net_gravity * slope_factor(slope_magnitude);
+                    else step_slope_product <= 0;
+                    phase <= SLOPE_FORCE;
+                end
+                SLOPE_FORCE: begin
+                    // Convert acceleration to force before the existing mass
+                    // division. Wheel resistance can balance it at rest.
+                    if (sampled_slope < 0)
+                        step_slope_force <= -($signed({1'b0,step_mass}) *
+                                              $signed({1'b0,step_slope_product[15:8]}));
+                    else
+                        step_slope_force <= $signed({1'b0,step_mass}) *
+                                            $signed({1'b0,step_slope_product[15:8]});
+                    phase <= APPLY_SLOPE;
+                end
+                APPLY_SLOPE: begin
+                    step_thrust <= step_thrust + step_slope_force;
                     phase <= MOMENTUM;
                 end
                 MOMENTUM: begin
@@ -259,8 +323,12 @@ module physics_engine (
                 SEND: if (move_ready) phase <= WAIT_RESPONSE;
                 WAIT_RESPONSE: if (response_valid) begin
                     vehicle_x <= corrected_x; vehicle_y <= corrected_y;
+                    vehicle_tilt <= sanitize_tilt(corrected_tilt);
                     velocity_x <= corrected_vx; velocity_y <= corrected_vy;
                     was_grounded <= grounded;
+                    if (grounded && ground_slope >= -8'sd16 && ground_slope <= 8'sd16)
+                        last_ground_slope <= ground_slope;
+                    else last_ground_slope <= 0;
                     // A wall/contact correction must discard pre-contact carry.
                     if (corrected_vx == proposed_vx && corrected_x == proposed_x)
                         remainder_x <= pending_remainder_x;
