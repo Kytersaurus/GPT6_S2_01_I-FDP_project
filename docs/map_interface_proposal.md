@@ -1,5 +1,7 @@
 # Proposal: physics and collision for the Cave Arch and Cave Flight maps
 
+Implementation status (28 October 2026): 20-bit positions, map-sized bounds, flag-derived goals and ROM terrain collision are connected. Collision supports an upright 24 by 24 swept footprint, three-pixel steps/snaps, walls and ceilings. The cave placeholder rectangles are removed. Slope gravity, uphill resistance and wheel friction are connected. Terrain-following rotation was added on 29 October 2026; passage clearance remains pending; the Cave Arch goal passage cannot currently fit the full footprint. The proposal below records the original plan; see `interfaces.md` for the current contract.
+
 Owner: Role 4 - Marcus, for review by Role 2 (physics) and Role 3 (collision, TNT and world checks). Nothing here has been changed in Role 2 or Role 3 files; this lists what the new map needs from them.
 
 ## What Role 4 has added

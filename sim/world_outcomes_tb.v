@@ -68,7 +68,7 @@ module world_outcomes_tb;
             movement_committed=0;
 
             waited=0;
-            while (!world_valid && waited < 4) begin
+            while (!world_valid && waited < 32) begin
                 clocks(1);
                 waited=waited+1;
             end

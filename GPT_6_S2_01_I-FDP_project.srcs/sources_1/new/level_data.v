@@ -64,12 +64,11 @@ module level_data (
             2'd2: begin
                 // Level 3, Cave Arch: start on the flat plateau (top y=50, x=97..128);
                 // the finish flag stands on the cave road (top y=243) at x=300.
-                // Collision still reads rectangles: one placeholder platform under the spawn,
-                // while world_outcomes derives the goal entry zone from the flag position.
+                // Collision queries the terrain ROM; goals derive from the flag position.
                 spawn_x = 20'sd26624;   // x=104
                 spawn_y = 20'sd6656;    // y=26
-                terrain_count = 3'd1;
-                terrain_rects = {96'd0, 8'd8, 8'd32, 8'd50, 8'd97};
+                terrain_count = 3'd0;
+                terrain_rects = 128'd0;
                 goal_rect = 32'd0; // Map goals use flag_x/flag_y, not the 8-bit rectangle.
                 map_level = 1'b1;
                 world_width = `LP_MAP_WIDTH;
@@ -81,11 +80,11 @@ module level_data (
                 // Level 4, Cave Flight: a flying level. Start on the ground at the bottom left
                 // (surface y=202..205 for x=60..96); the flag stands on the grassy ledge at the
                 // top right (surface y=64). The car must fly up through the cave tunnels.
-                // As for level 3, collision keeps one placeholder platform under the spawn.
+                // Collision queries the terrain ROM, including cave walls and ceilings.
                 spawn_x = 20'sd17408;   // x=68
                 spawn_y = 20'sd45568;   // y=178
-                terrain_count = 3'd1;
-                terrain_rects = {96'd0, 8'd8, 8'd36, 8'd202, 8'd60};
+                terrain_count = 3'd0;
+                terrain_rects = 128'd0;
                 goal_rect = 32'd0; // Map goals use flag_x/flag_y, not the 8-bit rectangle.
                 map_level = 1'b1;
                 map_id = 1'b1;

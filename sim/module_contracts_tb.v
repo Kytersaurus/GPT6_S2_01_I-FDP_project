@@ -31,6 +31,7 @@ module module_contracts_tb;
     wire signed [`LP_COORD_BITS-1:0] cx,cy;
     wire signed [15:0] cvx,cvy;
     collision_engine collision (
+        .map_level(1'b0), .world_width(10'd96), .world_height(10'd64), .query_class(3'd0),
         .clk(clk),.reset(reset),.move_valid(move_valid),.move_ready(move_ready),
         .previous_x(px),.previous_y(py),.proposed_x(nx),.proposed_y(ny),.proposed_vx(nvx),.proposed_vy(nvy),
         .terrain_count(3'd1),.terrain_rects({96'd0,8'd8,8'd96,8'd56,8'd0}),

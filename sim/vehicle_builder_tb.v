@@ -37,7 +37,8 @@ module vehicle_builder_tb;
     );
     left_renderer view (
         .build_facing_left(9'd0), .selected_left(1'b0), .inventory_page(1'b0), .rockets_left(4'd1), .fans_left(4'd1),
-        .pixel_index(pixel), .game_state(game_state), .build_grid(build_grid),
+        .pixel_index(pixel), .game_state(game_state), .build_grid(build_grid), .build_frames(build_frames),
+        .run_seconds(8'd0), .anim_phase(1'b0), .level_index(2'd0), .fail_reason(2'd0), .boost_active(1'b0),
         .intact_mask(intact_mask), .frame_intact_mask(frame_intact_mask),
         .build_valid(build_valid), .build_error(build_error), .engine_enabled(1'b1),
         .feedback_code(`LP_FEEDBACK_NONE), .feedback_cell(4'd0),
@@ -164,11 +165,14 @@ module vehicle_builder_tb;
         save_build(); game_state = `LP_RUN;
         edit(`LP_EDIT_REMOVE, 3, `LP_PART_EMPTY); check_unchanged();
         damage_frame_mask = 9'b000001000; damage_valid = 1; clocks(1); damage_valid = 0; clocks(1);
-        if (frame_intact_mask[3] || !pig_alive || mass != 11 || build_frames !== saved_frames)
+        if (frame_intact_mask !== (saved_frame_intact & ~9'b000001000) ||
+            intact_mask !== saved_intact || !pig_alive || mass != 11 || build_frames !== saved_frames)
             $fatal(1, "Frame damage incorrectly destroyed pig or saved frame");
-        pixel = 24*96+8; #1;
+        // RUN uses 12px cells at (4,12): cell3 begins at (4,24).
+        // Check a green pig interior and a transparent former wood-border pixel.
+        pixel = 27*96+9; #1;
         if (colour != 16'h07e0) $fatal(1, "Surviving pig disappeared with its frame");
-        pixel = 24*96+5; #1;
+        pixel = 25*96+5; #1;
         if (colour != 16'h0841) $fatal(1, "Destroyed frame border still drawn");
         damage_frame_mask = 0; damage_mask = 9'b000101000;
         damage_valid = 1; clocks(1); damage_valid = 0; clocks(1);

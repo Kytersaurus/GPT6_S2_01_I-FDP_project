@@ -31,7 +31,7 @@ module role4_game_display_tb;
     wire [2:0] state;
     wire [`LP_LEVEL_BITS-1:0] level_index;
     wire [1:0] fail_reason;
-    wire [6:0] run_seconds;
+    wire [7:0] run_seconds;
     game_controller #(.TICKS_PER_SECOND(4)) control (
         .clk(clk),.reset(reset),.launch_req(launch),.retry_req(retry),.edit_req(edit),
         .guide_open_req(1'b0),.guide_close_req(1'b0),.level_next_req(level_next),
@@ -46,11 +46,11 @@ module role4_game_display_tb;
     // Level button with a scripted mouse.
     reg [2:0] button_state=`LP_BUILD;
     reg [11:0] mouse_x=0, mouse_y=0;
-    reg mouse_left=0, mouse_right=0, mouse_event=0;
+    reg mouse_left=0, mouse_right=0, mouse_event=0, button_enabled=1;
     wire button_req;
     integer button_pulses=0;
     level_button button (
-        .input_enabled(1'b1),
+        .input_enabled(button_enabled),
         .clk(clk),.reset(reset),.game_state(button_state),.mouse_x(mouse_x),.mouse_y(mouse_y),
         .mouse_left(mouse_left),.mouse_right(mouse_right),.mouse_event(mouse_event),.level_open_req(button_req)
     );
@@ -74,7 +74,7 @@ module role4_game_display_tb;
     reg zoomed_out=1, free_look=0;
     reg [6:0] look_x=0, look_y=0;
     reg [8:0] view_intact=9'b101110000;
-    reg [6:0] view_seconds=0;
+    reg [7:0] view_seconds=0;
     reg [2*`LP_MAX_TNT-1:0] view_blast=0;
     reg view_phase=0;
     wire [26:0] grid = {`LP_PART_WHEEL,`LP_PART_EMPTY,`LP_PART_WHEEL,
@@ -93,6 +93,7 @@ module role4_game_display_tb;
     wire signed [10:0] map_x, map_y;
     wire [2:0] map_class;
     level_map map_rom (
+        .query_map_id(1'b0),
         .map_id(map_id),.draw_clk(clk),.draw_x(map_x),.draw_y(map_y),.draw_class(map_class),
         .query_clk(clk),.query_x(11'sd0),.query_y(11'sd0),.query_class()
     );
@@ -143,6 +144,26 @@ module role4_game_display_tb;
             // The right renderer registers each pixel beside its map read.
             pixel=y*96+x; @(posedge clk); #1;
             if (right_colour !== colour) $fatal(1,"Right %0s: (%0d,%0d)=%h, expected %h",what,x,y,right_colour,colour);
+        end
+    endtask
+    task button_packet;
+        input integer x,y;
+        input left_button,right_button;
+        begin
+            mouse_x=x; mouse_y=y; mouse_left=left_button; mouse_right=right_button;
+            mouse_event=1; clocks(1); mouse_event=0; clocks(2);
+        end
+    endtask
+    task check_button_click;
+        input integer x,y;
+        input accepted;
+        integer before_pulses;
+        begin
+            before_pulses=button_pulses;
+            button_packet(x,y,0,0); button_packet(x,y,1,0); button_packet(x,y,0,0);
+            if(button_pulses!=before_pulses+accepted)
+                $fatal(1,"Button boundary (%0d,%0d) state%0d enabled%b: pulses%0d expected%0d",
+                    x,y,button_state,button_enabled,button_pulses-before_pulses,accepted);
         end
     endtask
     // Launch, then answer one movement step with the given outcome flags.
@@ -240,32 +261,47 @@ module role4_game_display_tb;
         fx_init=1; fx_intact=4'b1111; clocks(1); fx_init=0; clocks(2);
         if (fx_phase !== 0) $fatal(1,"Restored TNT started an explosion");
 
-        // Level button: one pulse per fresh press inside the button, in BUILD only.
-        mouse_x=88; mouse_y=59; mouse_left=1; mouse_event=1; clocks(1); mouse_event=0; clocks(2);
-        if (button_pulses != 1) $fatal(1,"Button press not detected");
-        mouse_event=1; clocks(1); mouse_event=0; clocks(2);
-        if (button_pulses != 1) $fatal(1,"Held button repeated");
-        mouse_left=0; mouse_event=1; clocks(1); mouse_event=0; clocks(1);
-        mouse_x=81; mouse_left=1; mouse_event=1; clocks(1); mouse_event=0; mouse_left=0; clocks(2);
-        if (button_pulses != 1) $fatal(1,"Press beside the button counted");
-        mouse_x=88; mouse_left=0; mouse_event=1; clocks(1); mouse_event=0; clocks(1);
-        mouse_left=1; mouse_right=1; mouse_event=1; clocks(1); mouse_event=0; clocks(2);
-        if (button_pulses != 1) $fatal(1,"Right-click did not suppress simultaneous level selection");
-        mouse_right=0; mouse_event=1; clocks(1); mouse_event=0; clocks(2);
-        if (button_pulses != 1) $fatal(1,"Releasing right while holding left selected a level");
-        mouse_left=0;
-        mouse_event=1; clocks(1); mouse_event=0;
-        button_state=`LP_RUN; mouse_x=88; mouse_left=1; mouse_event=1; clocks(1); mouse_event=0; clocks(2);
-        if (button_pulses != 1) $fatal(1,"Button worked outside BUILD");
+        // The shared map/gear hitbox is x=[78,96), y=[55,64). The old
+        // outside sample x=81 became an inside point when this button widened.
+        check_button_click(`LP_LEVEL_BUTTON_X,`LP_LEVEL_BUTTON_Y,1);
+        check_button_click(`LP_LEVEL_BUTTON_X+`LP_LEVEL_BUTTON_W-1,`LP_LEVEL_BUTTON_Y,1);
+        check_button_click(`LP_LEVEL_BUTTON_X,`LP_LEVEL_BUTTON_Y+`LP_LEVEL_BUTTON_H-1,1);
+        check_button_click(`LP_LEVEL_BUTTON_X+`LP_LEVEL_BUTTON_W-1,`LP_LEVEL_BUTTON_Y+`LP_LEVEL_BUTTON_H-1,1);
+        check_button_click(`LP_LEVEL_BUTTON_X-1,59,0);
+        check_button_click(`LP_LEVEL_BUTTON_X+`LP_LEVEL_BUTTON_W,59,0);
+        check_button_click(88,`LP_LEVEL_BUTTON_Y-1,0);
+        check_button_click(88,`LP_LEVEL_BUTTON_Y+`LP_LEVEL_BUTTON_H,0);
+        index=button_pulses;
+        button_packet(88,59,1,0);
+        if(button_pulses!=index+1) $fatal(1,"Fresh button press was lost");
+        button_packet(88,59,1,0); button_packet(77,59,1,0); button_packet(88,59,1,0);
+        if(button_pulses!=index+1) $fatal(1,"Held/dragged button press repeated");
+        button_packet(88,59,0,0); index=button_pulses;
+        button_packet(88,59,1,1); button_packet(88,59,1,0);
+        if(button_pulses!=index) $fatal(1,"Right-click or its held-left release selected a level");
+        button_packet(88,59,0,0);
+        button_state=`LP_RUN; check_button_click(88,59,0);
+        button_state=`LP_BUILD; button_enabled=0; check_button_click(88,59,0);
+        button_packet(88,59,1,0); index=button_pulses; button_enabled=1;
+        button_packet(88,59,1,0);
+        if(button_pulses!=index) $fatal(1,"Hidden held press became a fresh button press");
+        button_packet(88,59,0,0); check_button_click(88,59,1);
+        // Settings has a separate map-row hitbox; the BUILD icon is inactive.
+        button_state=`LP_SETTINGS;
+        check_button_click(8,30,1); check_button_click(87,43,1);
+        check_button_click(7,35,0); check_button_click(88,35,0);
+        check_button_click(30,29,0); check_button_click(30,44,0);
+        check_button_click(88,59,0);
+        button_state=`LP_BUILD;
 
         // Left view: level button text, then result messages.
         level=0; view_state=`LP_BUILD;
-        expect_left(82, 55, 16'h7bef, "button border");
-        expect_left(83, 56, 16'hffff, "button L");
-        expect_left(91, 56, 16'hffff, "button 1");
-        expect_left(90, 56, 16'h0010, "button 1 gap");
+        expect_left(`LP_LEVEL_BUTTON_X, `LP_LEVEL_BUTTON_Y, 16'h7bef, "button border");
+        expect_left(`LP_LEVEL_BUTTON_X+1, `LP_LEVEL_BUTTON_Y+1, 16'hffff, "button L");
+        expect_left(`LP_LEVEL_BUTTON_X+9, `LP_LEVEL_BUTTON_Y+1, 16'hffff, "button 1");
+        expect_left(`LP_LEVEL_BUTTON_X+8, `LP_LEVEL_BUTTON_Y+1, 16'h0010, "button 1 gap");
         level=1;
-        expect_left(90, 56, 16'hffff, "button 2");
+        expect_left(`LP_LEVEL_BUTTON_X+8, `LP_LEVEL_BUTTON_Y+1, 16'hffff, "button 2");
         view_state=`LP_FAIL; view_reason=`LP_FAIL_PIG;
         expect_left(0, 56, 16'hf800, "PIG LOST text");
         expect_left(83, 56, 16'h0841, "no button after run");
@@ -280,15 +316,15 @@ module role4_game_display_tb;
         expect_left(64, 8, 16'h07ff, "timer tens");
         expect_left(70, 6, 16'h07ff, "timer ones");
         expect_left(83, 19, 16'h07ff, "seconds label");
-        // Sprites at double size: pig body inside its frame border.
-        expect_left(24, 24, 16'h07e0, "left pig sprite");
-        expect_left(21, 24, 16'ha285, "left frame sprite");
+        // RUN uses the compact12-pixel grid at(4,12); BUILD/results retain16-pixel cells.
+        expect_left(21, 27, 16'h07e0, "left pig sprite");
+        expect_left(17, 34, 16'ha285, "left frame sprite");
         // Damage diagram: a destroyed wheel leaves a dim cross; survivors stay drawn.
         view_intact=9'b100110000;
-        expect_left(8, 40, 16'h8000, "damage cross");
-        expect_left(24, 24, 16'h07e0, "surviving pig");
+        expect_left(7, 39, 16'h8000, "damage cross");
+        expect_left(21, 27, 16'h07e0, "surviving pig");
         view_state=`LP_BUILD;
-        expect_left(8, 40, 16'h0841, "no cross in BUILD");
+        expect_left(7, 39, 16'h0841, "no cross in BUILD");
         view_intact=9'b101110000;
 
         // Right view, level 1: TNT parts, then hiding an exploded block.
