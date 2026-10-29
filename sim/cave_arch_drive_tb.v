@@ -19,7 +19,7 @@ module cave_arch_drive_tb;
     wire map_level, map_id;
     wire [9:0] world_width, world_height, flag_x, flag_y;
     level_data u_level (
-        .level_index(2'd2), .spawn_x(spawn_x), .spawn_y(spawn_y), .terrain_count(), .terrain_rects(),
+        .level_index(2'd0), .spawn_x(spawn_x), .spawn_y(spawn_y), .terrain_count(), .terrain_rects(),
         .goal_rect(), .tnt_count(), .tnt_positions(), .hazard_count(), .hazard_rects(),
         .map_level(map_level), .map_id(map_id), .world_width(world_width), .world_height(world_height),
         .flag_x(flag_x), .flag_y(flag_y)

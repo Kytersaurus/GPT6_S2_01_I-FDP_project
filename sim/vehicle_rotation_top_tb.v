@@ -15,7 +15,7 @@ module vehicle_rotation_top_tb;
         .sw(16'd0),.PS2Clk(PS2Clk),.PS2Data(PS2Data)
     );
     initial begin
-        force dut.level_index=2'd2;
+        force dut.level_index=2'd0;
         force dut.left_frame=1'b1;
     end
     task clocks;

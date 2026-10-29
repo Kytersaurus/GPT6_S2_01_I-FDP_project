@@ -1,8 +1,8 @@
 // Owner: Role 3 - Yap Ting; shared map collision integration.
 `timescale 1ns / 1ps
 `include "game_defs.vh"
-// Capture the route for the whole request/response transaction. Rectangle
-// levels retain their original checker; cave levels use registered ROM reads.
+// Capture the route for the whole request/response transaction.
+// All levels now use registered ROM reads (map collision).
 module collision_engine #(parameter ROTATION_ONLY = 0) (
     input wire clk, reset, move_valid,
     output wire move_ready,
@@ -27,8 +27,8 @@ module collision_engine #(parameter ROTATION_ONLY = 0) (
     output wire signed [`LP_TILT_BITS-1:0] corrected_tilt,
     output wire signed [1:0] tip_dir
 );
-    reg busy, active_map, active_rotation;
-    wire use_rotation=ROTATION_ONLY || rotation_enabled;
+    reg busy, active_rotation;
+    wire use_rotation = ROTATION_ONLY || rotation_enabled;
     wire rot_ready, rot_valid, rot_ground;
     wire signed [`LP_COORD_BITS-1:0] rot_x, rot_y;
     wire signed [15:0] rot_vx, rot_vy;
@@ -38,41 +38,34 @@ module collision_engine #(parameter ROTATION_ONLY = 0) (
     wire signed [10:0] upright_qx, upright_qy, rot_qx, rot_qy;
     assign query_x = active_rotation ? rot_qx : upright_qx;
     assign query_y = active_rotation ? rot_qy : upright_qy;
-    assign corrected_tilt = active_map && active_rotation ? rot_tilt : 0;
-    assign tip_dir = active_map && active_rotation ? rot_tip : 2'sd0;
-    wire rect_ready, rect_valid, rect_ground, map_ready, map_valid, map_ground;
-    wire signed [`LP_COORD_BITS-1:0] rect_x, rect_y, map_x, map_y;
-    wire signed [15:0] rect_vx, rect_vy, map_vx, map_vy;
+    assign corrected_tilt = active_rotation ? rot_tilt : 0;
+    assign tip_dir = active_rotation ? rot_tip : 2'sd0;
+    wire map_ready, map_valid, map_ground;
+    wire signed [`LP_COORD_BITS-1:0] map_x, map_y;
+    wire signed [15:0] map_vx, map_vy;
     wire signed [7:0] map_slope;
-    assign move_ready = !busy && (map_level ? (use_rotation ? rot_ready : map_ready) : rect_ready);
-    assign response_valid = busy && (active_map ? (active_rotation ? rot_valid : map_valid) : rect_valid);
-    assign corrected_x = active_map ? (active_rotation ? rot_x : map_x) : rect_x;
-    assign corrected_y = active_map ? (active_rotation ? rot_y : map_y) : rect_y;
-    assign corrected_vx = active_map ? (active_rotation ? rot_vx : map_vx) : rect_vx;
-    assign corrected_vy = active_map ? (active_rotation ? rot_vy : map_vy) : rect_vy;
-    assign grounded = active_map ? (active_rotation ? rot_ground : map_ground) : rect_ground;
-    assign ground_slope = active_map ? (active_rotation ? rot_slope : map_slope) : 8'sd0;
+    assign move_ready = !busy && (use_rotation ? rot_ready : map_ready);
+    assign response_valid = busy && (active_rotation ? rot_valid : map_valid);
+    assign corrected_x = active_rotation ? rot_x : map_x;
+    assign corrected_y = active_rotation ? rot_y : map_y;
+    assign corrected_vx = active_rotation ? rot_vx : map_vx;
+    assign corrected_vy = active_rotation ? rot_vy : map_vy;
+    assign grounded = active_rotation ? rot_ground : map_ground;
+    assign ground_slope = active_rotation ? rot_slope : map_slope;
     always @(posedge clk) begin
-        if (reset) begin busy <= 0; active_map <= 0; active_rotation <= ROTATION_ONLY; end
+        if (reset) begin busy <= 0; active_rotation <= ROTATION_ONLY; end
         else begin
-            if (move_valid && move_ready) begin busy <= 1; active_map <= map_level; active_rotation <= use_rotation; end
+            if (move_valid && move_ready) begin busy <= 1; active_rotation <= use_rotation; end
             if (response_valid && response_ready) busy <= 0;
         end
     end
-    rectangle_collision_engine u_rect (
-        .clk(clk), .reset(reset), .move_valid(move_valid && !busy && !map_level), .move_ready(rect_ready),
-        .previous_x(previous_x), .previous_y(previous_y), .proposed_x(proposed_x), .proposed_y(proposed_y),
-        .proposed_vx(proposed_vx), .proposed_vy(proposed_vy), .terrain_count(terrain_count), .terrain_rects(terrain_rects),
-        .response_valid(rect_valid), .response_ready(response_ready && busy && !active_map),
-        .corrected_x(rect_x), .corrected_y(rect_y), .corrected_vx(rect_vx), .corrected_vy(rect_vy), .grounded(rect_ground)
-    );
     generate if (!ROTATION_ONLY) begin : g_upright_reference
     map_collision_engine u_map (
-        .clk(clk), .reset(reset), .move_valid(move_valid && !busy && map_level && !use_rotation), .move_ready(map_ready),
+        .clk(clk), .reset(reset), .move_valid(move_valid && !busy && !use_rotation), .move_ready(map_ready),
         .previous_x(previous_x), .previous_y(previous_y), .proposed_x(proposed_x), .proposed_y(proposed_y),
         .proposed_vx(proposed_vx), .proposed_vy(proposed_vy), .world_width(world_width), .world_height(world_height),
         .query_x(upright_qx), .query_y(upright_qy), .query_class(query_class),
-        .response_valid(map_valid), .response_ready(response_ready && busy && active_map && !active_rotation),
+        .response_valid(map_valid), .response_ready(response_ready && busy && !active_rotation),
         .corrected_x(map_x), .corrected_y(map_y), .corrected_vx(map_vx), .corrected_vy(map_vy), .grounded(map_ground),
         .ground_slope(map_slope)
     );
@@ -82,13 +75,13 @@ module collision_engine #(parameter ROTATION_ONLY = 0) (
         assign upright_qx=0, upright_qy=0;
     end endgenerate
     rotating_map_collision_engine u_rotated_map (
-        .clk(clk), .reset(reset), .move_valid(move_valid && !busy && map_level && use_rotation), .move_ready(rot_ready),
+        .clk(clk), .reset(reset), .move_valid(move_valid && !busy && use_rotation), .move_ready(rot_ready),
         .previous_x(previous_x), .previous_y(previous_y), .proposed_x(proposed_x), .proposed_y(proposed_y),
         .previous_tilt(previous_tilt), .proposed_tilt(proposed_tilt),
         .collision_mask(collision_mask),
         .proposed_vx(proposed_vx), .proposed_vy(proposed_vy), .world_width(world_width), .world_height(world_height),
         .query_x(rot_qx), .query_y(rot_qy), .query_class(query_class),
-        .response_valid(rot_valid), .response_ready(response_ready && busy && active_map && active_rotation),
+        .response_valid(rot_valid), .response_ready(response_ready && busy && active_rotation),
         .corrected_x(rot_x), .corrected_y(rot_y), .corrected_vx(rot_vx), .corrected_vy(rot_vy), .grounded(rot_ground),
         .ground_slope(rot_slope), .corrected_tilt(rot_tilt), .tip_dir(rot_tip)
     );
@@ -348,262 +341,3 @@ module map_collision_engine #(
     end
 endmodule
 
-// Owner: Role 3 - Yap Ting. Terrain collision response.
-`timescale 1ns / 1ps
-`include "game_defs.vh"
-
-// Collision response for the fixed 24 by 24 pixel vehicle footprint.
-// The module owns no vehicle position registers. It captures one proposed
-// movement, checks the four active terrain rectangles, and returns one stable
-// response through the existing valid/ready handshake.
-module rectangle_collision_engine (
-    input wire clk, reset, move_valid,
-    output wire move_ready,
-    input wire signed [`LP_COORD_BITS-1:0] previous_x, previous_y,
-    input wire signed [`LP_COORD_BITS-1:0] proposed_x, proposed_y,
-    input wire signed [15:0] proposed_vx, proposed_vy,
-    input wire [2:0] terrain_count,
-    input wire [127:0] terrain_rects,
-    output reg response_valid,
-    input wire response_ready,
-    output reg signed [`LP_COORD_BITS-1:0] corrected_x, corrected_y,
-    output reg signed [15:0] corrected_vx, corrected_vy,
-    output reg grounded
-);
-    localparam IDLE = 0, CHECK = 1, CHOOSE = 2;
-    localparam signed [`LP_COORD_BITS+1:0] VEHICLE_WIDTH_FP  = 6144; // 24 * 256
-    localparam signed [`LP_COORD_BITS+1:0] VEHICLE_HEIGHT_FP = 6144; // 24 * 256
-
-    reg [1:0] phase;
-    reg signed [`LP_COORD_BITS-1:0] saved_x, saved_y;
-    reg signed [15:0] saved_vx, saved_vy;
-    reg signed [`LP_COORD_BITS+1:0] old_left, old_right, old_top, old_bottom;
-    reg signed [`LP_COORD_BITS+1:0] new_left, new_right, new_top, new_bottom;
-    reg [127:0] saved_terrain;
-    reg [2:0] saved_count;
-
-    reg [3:0] landing_hit;
-    reg [3:0] ceiling_hit;
-    reg [3:0] left_wall_hit;
-    reg [3:0] right_wall_hit;
-
-    reg best_landing_hit, best_ceiling_hit;
-    reg best_left_wall_hit, best_right_wall_hit;
-    reg [7:0] best_landing_top;
-    reg [8:0] best_ceiling_bottom;
-    reg [7:0] best_left_wall_x;
-    reg [8:0] best_right_wall_x;
-
-    reg [8:0] rect_right_pixels, rect_bottom_pixels;
-    reg signed [`LP_COORD_BITS+1:0] rect_left, rect_right, rect_top, rect_bottom;
-    reg signed [`LP_COORD_BITS-1:0] next_x, next_y;
-    reg signed [15:0] next_vx, next_vy;
-
-    integer select_index, check_index;
-
-    assign move_ready = (phase == IDLE) && !response_valid;
-
-    // Choose independently on the vertical and horizontal axes. This allows
-    // a diagonal corner hit to correct both coordinates in one response.
-    // For multiple landing surfaces, the highest crossed surface wins.
-    always @* begin
-        best_landing_hit = 1'b0;
-        best_ceiling_hit = 1'b0;
-        best_left_wall_hit = 1'b0;
-        best_right_wall_hit = 1'b0;
-        best_landing_top = 8'd0;
-        best_ceiling_bottom = 9'd0;
-        best_left_wall_x = 8'd0;
-        best_right_wall_x = 9'd0;
-
-        for (select_index = 0; select_index < 4; select_index = select_index + 1) begin
-            if (landing_hit[select_index] &&
-                (!best_landing_hit ||
-                 saved_terrain[select_index*32+8 +: 8] < best_landing_top)) begin
-                best_landing_hit = 1'b1;
-                best_landing_top = saved_terrain[select_index*32+8 +: 8];
-            end
-
-            if (ceiling_hit[select_index] &&
-                (!best_ceiling_hit ||
-                 ({1'b0,saved_terrain[select_index*32+8 +: 8]} +
-                  {1'b0,saved_terrain[select_index*32+24 +: 8]}) > best_ceiling_bottom)) begin
-                best_ceiling_hit = 1'b1;
-                best_ceiling_bottom = {1'b0,saved_terrain[select_index*32+8 +: 8]} +
-                                      {1'b0,saved_terrain[select_index*32+24 +: 8]};
-            end
-
-            if (left_wall_hit[select_index] &&
-                (!best_left_wall_hit ||
-                 saved_terrain[select_index*32 +: 8] < best_left_wall_x)) begin
-                best_left_wall_hit = 1'b1;
-                best_left_wall_x = saved_terrain[select_index*32 +: 8];
-            end
-
-            if (right_wall_hit[select_index] &&
-                (!best_right_wall_hit ||
-                 ({1'b0,saved_terrain[select_index*32 +: 8]} +
-                  {1'b0,saved_terrain[select_index*32+16 +: 8]}) > best_right_wall_x)) begin
-                best_right_wall_hit = 1'b1;
-                best_right_wall_x = {1'b0,saved_terrain[select_index*32 +: 8]} +
-                                    {1'b0,saved_terrain[select_index*32+16 +: 8]};
-            end
-        end
-    end
-
-    // Calculate the response from the selected surfaces. The current
-    // coordinate convention is positive x to the right and positive y down.
-    always @* begin
-        next_x = saved_x;
-        next_y = saved_y;
-        next_vx = saved_vx;
-        next_vy = saved_vy;
-
-        if (best_landing_hit) begin
-            next_y = $signed({2'b00,best_landing_top,8'b0}) - VEHICLE_HEIGHT_FP;
-            next_vy = 16'sd0;
-        end else if (best_ceiling_hit) begin
-            next_y = $signed({1'b0,best_ceiling_bottom,8'b0});
-            next_vy = 16'sd0;
-        end
-
-        if (best_left_wall_hit) begin
-            next_x = $signed({2'b00,best_left_wall_x,8'b0}) - VEHICLE_WIDTH_FP;
-            next_vx = 16'sd0;
-        end else if (best_right_wall_hit) begin
-            next_x = $signed({1'b0,best_right_wall_x,8'b0});
-            next_vx = 16'sd0;
-        end
-    end
-
-    always @(posedge clk) begin
-        if (reset) begin
-            phase <= IDLE;
-            response_valid <= 1'b0;
-            grounded <= 1'b0;
-            saved_x <= 0;
-            saved_y <= 0;
-            saved_vx <= 0;
-            saved_vy <= 0;
-            old_left <= 0;
-            old_right <= 0;
-            old_top <= 0;
-            old_bottom <= 0;
-            new_left <= 0;
-            new_right <= 0;
-            new_top <= 0;
-            new_bottom <= 0;
-            saved_terrain <= 0;
-            saved_count <= 0;
-            landing_hit <= 0;
-            ceiling_hit <= 0;
-            left_wall_hit <= 0;
-            right_wall_hit <= 0;
-            corrected_x <= 0;
-            corrected_y <= 0;
-            corrected_vx <= 0;
-            corrected_vy <= 0;
-        end else begin
-            if (response_valid && response_ready)
-                response_valid <= 1'b0;
-
-            case (phase)
-                IDLE: begin
-                    if (move_valid && move_ready) begin
-                        saved_x <= proposed_x;
-                        saved_y <= proposed_y;
-                        saved_vx <= proposed_vx;
-                        saved_vy <= proposed_vy;
-                        old_left <= $signed({{2{previous_x[`LP_COORD_BITS-1]}},previous_x});
-                        old_right <= $signed({{2{previous_x[`LP_COORD_BITS-1]}},previous_x}) +
-                                     VEHICLE_WIDTH_FP;
-                        old_top <= $signed({{2{previous_y[`LP_COORD_BITS-1]}},previous_y});
-                        old_bottom <= $signed({{2{previous_y[`LP_COORD_BITS-1]}},previous_y}) +
-                                      VEHICLE_HEIGHT_FP;
-                        new_left <= $signed({{2{proposed_x[`LP_COORD_BITS-1]}},proposed_x});
-                        new_right <= $signed({{2{proposed_x[`LP_COORD_BITS-1]}},proposed_x}) +
-                                     VEHICLE_WIDTH_FP;
-                        new_top <= $signed({{2{proposed_y[`LP_COORD_BITS-1]}},proposed_y});
-                        new_bottom <= $signed({{2{proposed_y[`LP_COORD_BITS-1]}},proposed_y}) +
-                                      VEHICLE_HEIGHT_FP;
-                        saved_terrain <= terrain_rects;
-                        saved_count <= terrain_count;
-                        landing_hit <= 0;
-                        ceiling_hit <= 0;
-                        left_wall_hit <= 0;
-                        right_wall_hit <= 0;
-                        phase <= CHECK;
-                    end
-                end
-
-                CHECK: begin
-                    for (check_index = 0; check_index < 4; check_index = check_index + 1) begin
-                        rect_left = $signed({2'b00,saved_terrain[check_index*32 +: 8],8'b0});
-                        rect_top = $signed({2'b00,saved_terrain[check_index*32+8 +: 8],8'b0});
-                        rect_right_pixels = {1'b0,saved_terrain[check_index*32 +: 8]} +
-                                            {1'b0,saved_terrain[check_index*32+16 +: 8]};
-                        rect_bottom_pixels = {1'b0,saved_terrain[check_index*32+8 +: 8]} +
-                                             {1'b0,saved_terrain[check_index*32+24 +: 8]};
-                        rect_right = $signed({1'b0,rect_right_pixels,8'b0});
-                        rect_bottom = $signed({1'b0,rect_bottom_pixels,8'b0});
-
-                        landing_hit[check_index] <=
-                            check_index < saved_count &&
-                            saved_terrain[check_index*32+16 +: 8] != 0 &&
-                            saved_terrain[check_index*32+24 +: 8] != 0 &&
-                            !saved_vy[15] &&
-                            old_bottom <= rect_top &&
-                            new_bottom >= rect_top &&
-                            new_right > rect_left &&
-                            new_left < rect_right;
-
-                        ceiling_hit[check_index] <=
-                            check_index < saved_count &&
-                            saved_terrain[check_index*32+16 +: 8] != 0 &&
-                            saved_terrain[check_index*32+24 +: 8] != 0 &&
-                            saved_vy[15] &&
-                            old_top >= rect_bottom &&
-                            new_top <= rect_bottom &&
-                            new_right > rect_left &&
-                            new_left < rect_right;
-
-                        // Test sideways motion at the previous height. Gravity
-                        // must not turn a floor edge into a wall while landing.
-                        left_wall_hit[check_index] <=
-                            check_index < saved_count &&
-                            saved_terrain[check_index*32+16 +: 8] != 0 &&
-                            saved_terrain[check_index*32+24 +: 8] != 0 &&
-                            !saved_vx[15] &&
-                            old_right <= rect_left &&
-                            new_right > rect_left &&
-                            old_bottom > rect_top &&
-                            old_top < rect_bottom;
-
-                        right_wall_hit[check_index] <=
-                            check_index < saved_count &&
-                            saved_terrain[check_index*32+16 +: 8] != 0 &&
-                            saved_terrain[check_index*32+24 +: 8] != 0 &&
-                            saved_vx[15] &&
-                            old_left >= rect_right &&
-                            new_left < rect_right &&
-                            old_bottom > rect_top &&
-                            old_top < rect_bottom;
-                    end
-                    phase <= CHOOSE;
-                end
-
-                CHOOSE: begin
-                    corrected_x <= next_x;
-                    corrected_y <= next_y;
-                    corrected_vx <= next_vx;
-                    corrected_vy <= next_vy;
-                    grounded <= best_landing_hit;
-                    response_valid <= 1'b1;
-                    phase <= IDLE;
-                end
-
-                default: phase <= IDLE;
-            endcase
-        end
-    end
-endmodule

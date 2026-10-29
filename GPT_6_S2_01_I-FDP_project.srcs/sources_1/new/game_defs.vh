@@ -69,7 +69,7 @@
 `define LP_SOUND_FAILURE    3'd7
 
 // Levels: Role 4 selects one in BUILD and holds it through the run.
-`define LP_LEVEL_COUNT   4
+`define LP_LEVEL_COUNT   2
 `define LP_LEVEL_BITS    2
 
 // Block-RAM maps in level_map: one 3-bit class per world pixel. Sky and cave background are

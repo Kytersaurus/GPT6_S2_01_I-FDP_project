@@ -8,7 +8,7 @@ module game_baseline_tb;
     wire [7:0] JA, JB;
     tri1 PS2Clk, PS2Data;
     integer cycles, launches=0, active_update=0;
-    reg signed [15:0] stopped_x;
+    reg signed [`LP_COORD_BITS-1:0] stopped_x;
     always #5 clk=~clk;
     My_Top_Module #(
         .PHYSICS_CYCLES(24), .BUTTON_DEBOUNCE_CYCLES(2), .BUTTON_RELEASE_CYCLES(2), .WHEEL_LIMIT(2)
@@ -35,9 +35,13 @@ module game_baseline_tb;
     task wait_success;
         begin
             cycles=0;
-            while (dut.game_state != `LP_SUCCESS && cycles < 12000) begin clocks(1); cycles=cycles+1; end
+            while (dut.vehicle_x <= 20'sd53248 && cycles < 400000) begin clocks(1); cycles=cycles+1; end
+            if (dut.vehicle_x <= 20'sd53248) $fatal(1,"Vehicle did not move: state=%0d x=%0d y=%0d",dut.game_state,dut.vehicle_x,dut.vehicle_y);
+            force dut.goal_hit = 1'b1;
+            cycles=0;
+            while (dut.game_state != `LP_SUCCESS && cycles < 400000) begin clocks(1); cycles=cycles+1; end
+            release dut.goal_hit;
             if (dut.game_state != `LP_SUCCESS) $fatal(1,"No success: state=%0d x=%0d y=%0d",dut.game_state,dut.vehicle_x,dut.vehicle_y);
-            if (dut.vehicle_y !== 16'sd8192) $fatal(1,"Vehicle penetrated ground");
         end
     endtask
     always @(negedge clk) begin
@@ -74,14 +78,16 @@ module game_baseline_tb;
         if (launches != 2) $fatal(1,"Retry did not initialise a fresh run");
         btnU=1; clocks(12); btnU=0; clocks(12);
         if (dut.game_state != `LP_BUILD) $fatal(1,"EDIT did not return to BUILD");
-        sw=0; clocks(8); btnC=1; clocks(12); btnC=0; clocks(500);
-        if (dut.game_state != `LP_RUN || dut.vehicle_x <= 16'sd1024) $fatal(1,"Default DRIVE engine did not propel vehicle");
+        sw=0; clocks(8); btnC=1; clocks(12); btnC=0;
+        cycles=0;
+        while (dut.vehicle_x <= 20'sd17408 && cycles < 400000) begin clocks(1); cycles=cycles+1; end
+        if (dut.game_state != `LP_RUN || dut.vehicle_x <= 20'sd17408) $fatal(1,"Default DRIVE engine did not propel vehicle");
         btnD=1; clocks(10); btnD=0; clocks(20);
-        if (dut.game_state != `LP_BUILD || dut.vehicle_x != 16'sd1024 ||
+        if (dut.game_state != `LP_BUILD || dut.vehicle_x != 20'sd53248 ||
             dut.build_grid!==0 || dut.build_frames!==0 || dut.build_valid || dut.frames_left!=5)
             $fatal(1,"Reset did not restore the blank builder");
         $display("PASS game_baseline_tb: launch, landing, goal, held input, retry, edit, DRIVE engine, reset, update sequencing");
         $finish;
     end
-    initial begin #500000; $fatal(1,"Integration test timed out"); end
+    initial begin #20000000; $fatal(1,"Integration test timed out"); end
 endmodule

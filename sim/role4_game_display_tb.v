@@ -180,34 +180,19 @@ module role4_game_display_tb;
     endtask
     integer index;
     initial begin
-        // Level data: the spawn rests on ground; both levels keep within the packing limits.
+        // Level data: Cave Arch (level 0) and Cave Flight (level 1).
         level=0; #1;
-        if (spawn_x !== 16'sd1024 || spawn_y !== 16'sd8192) $fatal(1,"Level 1 spawn moved");
-        if (terrain_count != 2 || tnt_count != 1 || hazard_count != 0) $fatal(1,"Level 1 counts wrong");
-        if (terrain_rects[31:0] !== {8'd8,8'd96,8'd56,8'd0}) $fatal(1,"Level 1 ground is not the flat baseline");
-        if (goal_rect !== {8'd24,8'd16,8'd32,8'd80}) $fatal(1,"Level 1 goal moved");
-        if (tnt_positions[63:16] !== 0 || hazard_rects !== 0 || terrain_rects[127:64] !== 0)
-            $fatal(1,"Level 1 unused entries are not zero");
-        level=1; #1;
-        if (terrain_count != 4 || tnt_count != 2 || hazard_count != 1) $fatal(1,"Level 2 counts wrong");
-        if (tnt_positions[15:0] !== {8'd48,8'd60}) $fatal(1,"Level 2 path TNT not on the ground");
-        if (hazard_rects[31:0] !== {8'd4,8'd16,8'd58,8'd36}) $fatal(1,"Level 2 spikes moved");
-        // The pit must stay narrower than the 24 pixel vehicle so it can be crossed.
-        if (hazard_rects[23:16] >= 24) $fatal(1,"Level 2 pit wider than the vehicle");
-        if (map_level) $fatal(1,"Level 2 drawn from the map ROM");
-        // Level 3, Cave Arch: map-drawn, spawn on the flat start plateau, flag on the cave road.
-        level=2; #1;
         if (!map_level || world_width != `LP_MAP_WORLD_WIDTH || world_height != `LP_MAP_WORLD_HEIGHT)
-            $fatal(1,"Level 3 is not the Cave Arch map");
+            $fatal(1,"Level 1 is not Cave Arch");
         if (spawn_x !== 20'sd53248 || spawn_y !== 20'sd19456 || flag_x != 600 || flag_y != 472)
-            $fatal(1,"Level 3 spawn or flag moved");
-        if (tnt_count != 0 || hazard_count != 0 || map_id) $fatal(1,"Level 3 has unexpected objects or map");
-        // Level 4, Cave Flight: the second map, start at the bottom left, flag on the top-right ledge.
-        level=3; #1;
+            $fatal(1,"Level 1 spawn or flag moved");
+        if (tnt_count != 0 || hazard_count != 0 || map_id) $fatal(1,"Level 1 has unexpected objects or map");
+        level=1; #1;
         if (!map_level || !map_id || world_width != `LP_FLIGHT_WIDTH || world_height != `LP_FLIGHT_HEIGHT)
-            $fatal(1,"Level 4 is not the Cave Flight map");
+            $fatal(1,"Level 2 is not Cave Flight");
         if (spawn_x !== 20'sd17408 || spawn_y !== 20'sd45568 || flag_x != 769 || flag_y != 50)
-            $fatal(1,"Level 4 spawn or flag moved");
+            $fatal(1,"Level 2 spawn or flag moved");
+        if (tnt_count != 0 || hazard_count != 0) $fatal(1,"Level 2 has unexpected objects");
 
         clocks(3); reset=0; clocks(2);
         // Level select: only in BUILD, and launch on the same clock wins.
@@ -236,11 +221,11 @@ module role4_game_display_tb;
         pulse(EDIT); run_one_step(1'b1, 1'b0, 1'b0, 1'b1);
         if (state !== `LP_SUCCESS || fail_reason !== `LP_FAIL_NONE) $fatal(1,"Goal did not succeed cleanly");
         pulse(EDIT);
-        if (state !== `LP_BUILD || level_index !== 2) $fatal(1,"Edit after SUCCESS did not move to the next level");
+        if (state !== `LP_BUILD || level_index !== 0) $fatal(1,"Edit after SUCCESS did not wrap to level 1");
         pulse(LEVEL);
-        if (level_index !== 3) $fatal(1,"Level select did not reach level 4");
+        if (level_index !== 1) $fatal(1,"Level select did not reach level 2");
         pulse(LEVEL);
-        if (level_index !== 0) $fatal(1,"Level select did not wrap from level 4 to level 1");
+        if (level_index !== 0) $fatal(1,"Level select did not wrap from level 2 to level 1");
         // Timer: four ticks per second here; counts during RUN, freezes on a result, clears on retry.
         pulse(LAUNCH); clocks(2);
         for (index = 0; index < 9; index = index + 1) pulse(TICK);
@@ -327,64 +312,18 @@ module role4_game_display_tb;
         expect_left(7, 39, 16'h0841, "no cross in BUILD");
         view_intact=9'b101110000;
 
-        // Right view, level 1: TNT parts, then hiding an exploded block.
-        level=0; view_state=`LP_BUILD;
-        expect_right(46, 12, 16'hf1c5, "TNT red top");
-        expect_right(44, 13, 16'hf1c5, "TNT body");
-        expect_right(45, 14, 16'hffff, "TNT white middle");
-        expect_right(45, 15, 16'h18c3, "TNT black letter");
-        expect_right(47, 15, 16'hffff, "TNT letter gap");
-        expect_right(40, 22, 16'h8320, "ledge");
-        tnt_intact=0;
-        expect_right(44, 13, 16'h0010, "exploded TNT");
-        tnt_intact={`LP_MAX_TNT{1'b1}};
-        // Before launch the vehicle sits at spawn even if physics holds an old position.
-        vehicle_x=40*256;
-        expect_right(14, 42, 16'h07e0, "pig at spawn in BUILD");
-        expect_right(12, 42, 16'ha285, "frame at spawn in BUILD");
-        expect_right(16, 44, 16'hfd18, "pig snout");
-        // Engine cell at spawn (20,40): the pulley spoke turns on the second phase.
-        expect_right(22, 41, 16'h5ae9, "engine casing");
-        expect_right(22, 44, 16'hc618, "pulley rim");
-        view_phase=1;
-        expect_right(22, 44, 16'h4208, "pulley spoke turned");
-        view_phase=0;
         // Left grid draws the 16 by 16 engine: the big pulley glint moves with the phase.
         expect_left(42, 28, 16'hffff, "16px pulley glint");
         view_phase=1;
         expect_left(42, 28, 16'hc618, "16px glint moved");
         expect_left(43, 30, 16'hffff, "16px glint new place");
         view_phase=0;
-        view_state=`LP_RUN;
-        expect_right(50, 42, 16'h07e0, "pig at vehicle in RUN");
-        expect_right(14, 42, 16'h0010, "no pig left at spawn");
-        // Explosion over TNT 0 (centre 48,16): yellow flash, orange edge, then grey smoke.
-        view_blast=8'b01;
-        expect_right(48, 16, 16'hffe0, "blast flash");
-        expect_right(48, 10, 16'h0010, "flash radius");
-        view_blast=8'b10;
-        expect_right(48, 10, 16'hfd20, "fireball edge");
-        view_blast=8'b11;
-        expect_right(48, 16, 16'h8410, "smoke");
-        view_blast=0;
-        // Level 2: spikes, pit gap and path TNT.
-        level=1; view_state=`LP_BUILD;
-        expect_right(37, 58, 16'hc618, "spike tip");
-        expect_right(36, 58, 16'h0010, "gap between spikes");
-        expect_right(36, 60, 16'hc618, "spike base");
-        expect_right(40, 63, 16'h8320, "pit floor");
-        expect_right(60, 49, 16'hf1c5, "path TNT");
+
         view_state=`LP_FAIL;
         expect_right(0, 0, 16'hf800, "fail border");
 
-        // Map view, level 1: the camera (0,20) frames the spawn at 1.5x with 12 by 12 sprites.
+        // Map view, Level 0 (Cave Arch): night sky above the start plateau and grass along its top edge (map ROM).
         level=0; view_state=`LP_BUILD; zoomed_out=0;
-        expect_right(22, 33, 16'h07e0, "1.5x pig");
-        expect_right(7, 34, 16'ha285, "1.5x frame");
-        expect_right(50, 60, 16'h8320, "1.5x ground");
-        // Level 3: night sky above the start plateau and grass along its top edge (map ROM).
-        // At 2x the spawn view starts lower, in the sky's second band.
-        level=2;
         expect_right(0, 0, 16'h4af1, "map sky");
         expect_right(39, 51, 16'h2bc3, "plateau grass");
         // The camera follows the vehicle across the map, here to the finish flag.
@@ -400,7 +339,7 @@ module role4_game_display_tb;
         free_look=0;
         zoomed_out=1; vehicle_x=1024; vehicle_y=8192; level=0;
 
-        $display("PASS role4_game_display_tb: levels, level select, next level, fail reasons, timer, explosions, level button, guidance, damage diagram, sprites, TNT, hazards, spawn preview");
+        $display("PASS role4_game_display_tb: levels, level select, next level, fail reasons, timer, explosions, level button, guidance, damage diagram, sprites, spawn preview");
         $finish;
     end
     initial begin #200000; $fatal(1,"Role 4 test timed out"); end

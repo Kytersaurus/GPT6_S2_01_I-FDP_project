@@ -23,7 +23,7 @@ module ui_controller (
     assign launch_flash = launch_ticks != 0;
     always @(posedge clk) begin
         if (reset) begin
-            left_was_down<=0; diary_page<=0; master_volume<=4; engine_on<=0; fan_on<=0; sound_muted<=0;
+            left_was_down<=0; diary_page<=0; master_volume<=4; engine_on<=1; fan_on<=0; sound_muted<=0;
             run_page<=0; boost_req<=0;
             launch_req<=0; edit_req<=0; guide_open_req<=0; guide_close_req<=0;
             rocket_req<=0; launch_ticks<=0;
@@ -32,7 +32,7 @@ module ui_controller (
             launch_req<=0; edit_req<=0; guide_open_req<=0; guide_close_req<=0; rocket_req<=0;
             level_close_req<=0; level_select_req<=0;
             boost_req<=0;
-            if (run_init) begin engine_on<=0; fan_on<=0; run_page<=0; end
+            if (run_init) begin engine_on<=1; fan_on<=0; run_page<=0; end
             else if (engine_switch_changed) engine_on<=!engine_on;
             if (!fan_available || game_state!=`LP_RUN) fan_on<=0;
             if (game_state!=`LP_RUN) launch_ticks<=0;
@@ -56,9 +56,9 @@ module ui_controller (
                         end
                     end else if (game_state==`LP_LEVEL_SELECT) begin
                         if (mouse_x<28 && mouse_y>=55 && mouse_y<64) level_close_req<=1;
-                        else if (((mouse_x>=2 && mouse_x<46) || (mouse_x>=50 && mouse_x<94)) &&
+                        else if (mouse_x>=4 && mouse_x<92 &&
                                  ((mouse_y>=12 && mouse_y<32) || (mouse_y>=34 && mouse_y<54))) begin
-                            selected_level <= {mouse_y>=34, mouse_x>=50};
+                            selected_level <= (mouse_y>=34) ? 2'd1 : 2'd0;
                             level_select_req<=1;
                         end
                     end else if (game_state==`LP_BUILD && mouse_y>=55 && mouse_y<64) begin

@@ -198,30 +198,29 @@ module ui_renderer (
             pixel_data=16'h0841;
             if (text_on("SELECT LEVEL    ",12,2,x,y)) pixel_data=16'h07ff;
             // Two columns, two rows. The selected map has a green outline.
-            if (((x>=2 && x<46) || (x>=50 && x<94)) &&
+            if (x>=4 && x<92 &&
                 ((y>=12 && y<32) || (y>=34 && y<54))) begin
-                tile={y>=34,x>=50};
-                button_left=tile[0] ? 50 : 2; button_right=button_left+43;
-                text_top=tile[1] ? 34 : 12;
+                tile=(y>=34) ? 2'd1 : 2'd0;
+                button_left=4; button_right=91;
+                text_top=tile[0] ? 34 : 12;
                 tile_hover=cursor_x>=button_left && cursor_x<=button_right &&
                            cursor_y>=text_top && cursor_y<text_top+20;
                 pixel_data=tile_hover ? 16'h0351 : 16'h18e5;
                 if (x==button_left || x==button_right || y==text_top || y==text_top+19)
-                    pixel_data=(tile==level_index) ? 16'h07e0 : (tile>=2 ? 16'hfd20 : 16'h04b4);
+                    pixel_data=(tile==level_index) ? 16'h07e0 : 16'h04b4;
                 case (tile)
-                    0: line="TRACK           ";
-                    1: line="TNT PIT         ";
-                    2: line="ARCH            ";
-                    3: line="FLIGHT          ";
+                    0: line="CAVE ARCH       ";
+                    1: line="CAVE FLIGHT     ";
+                    default: line="                ";
+
                 endcase
-                if (text_on(line,button_left+1,text_top+2,x,y)) pixel_data=16'hffff;
+                if (text_on(line,button_left+6,text_top+2,x,y)) pixel_data=16'hffff;
                 case (tile)
-                    0: line="1               ";
-                    1: line="2               ";
-                    2: line="3 WIP           ";
-                    3: line="4 WIP           ";
+                    0: line="LEVEL 1         ";
+                    1: line="LEVEL 2         ";
+                    default: line="                ";
                 endcase
-                if (text_on(line,button_left+1,text_top+11,x,y)) pixel_data=tile>=2 ? 16'hfd20 : 16'h07ff;
+                if (text_on(line,button_left+6,text_top+11,x,y)) pixel_data=16'h07ff;
             end
             if (y>=55) begin
                 if (x<28) begin

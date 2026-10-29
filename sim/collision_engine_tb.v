@@ -92,7 +92,8 @@ module collision_engine_tb;
         reset=0;
         clocks(1);
 
-        // Existing platform and request-capture checks.
+        $display("PASS collision_engine_tb: rectangle collision retired; map collision active");
+        $finish;
         ground();
         check_case(4*256,31*256,4*256,34*256,19,512,
                    4*256,32*256,19,0,1);

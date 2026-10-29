@@ -3,7 +3,7 @@
 `include "game_defs.vh"
 module cave_map_integration_tb;
     reg clk=0, btnD=1, btnC=0;
-    reg [1:0] selected_level=2;
+    reg [1:0] selected_level=0;
     tri1 PS2Clk, PS2Data;
     integer waited;
     always #5 clk=~clk;
@@ -35,7 +35,7 @@ module cave_map_integration_tb;
             clocks(2); btnC=1; clocks(12); btnC=0;
             waited=0;
             while (dut.game_state!=`LP_RUN && waited<200000) begin clocks(1); waited=waited+1; end
-            if (dut.game_state!=`LP_RUN || dut.vehicle_y !== (level==2 ? 20'sd19456 : 20'sd45568))
+            if (dut.game_state!=`LP_RUN || dut.vehicle_y !== (level==0 ? 20'sd19456 : 20'sd45568))
                 $fatal(1,"Cave launch/spawn failed: state=%d y=%d",dut.game_state,dut.vehicle_y);
             clocks(200);
             if (dut.game_state!=`LP_RUN || dut.out_of_bounds)
@@ -69,11 +69,11 @@ module cave_map_integration_tb;
     initial begin
         // This injected Arch pose is inside terrain: this is a goal-wiring
         // fixture, not a playable solution for the current 24x24 footprint.
-        start_cave(2); check_result(600*256,462*256,`LP_SUCCESS);
+        start_cave(0); check_result(600*256,462*256,`LP_SUCCESS);
         // The Flight goal fixture uses a genuinely clear, supported ROM pose.
-        start_cave(3); check_result(757*256,32*256,`LP_SUCCESS);
-        start_cave(2); check_result(956*256,100*256,`LP_FAIL);
-        start_cave(3); check_result(890*256,100*256,`LP_FAIL);
+        start_cave(1); check_result(757*256,32*256,`LP_SUCCESS);
+        start_cave(0); check_result(956*256,100*256,`LP_FAIL);
+        start_cave(1); check_result(890*256,100*256,`LP_FAIL);
         $display("PASS cave_map_integration_tb: real cave spawns, success/bounds results and wide display snapshots");
         $finish;
     end

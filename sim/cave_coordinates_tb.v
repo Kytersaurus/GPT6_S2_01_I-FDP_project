@@ -4,7 +4,7 @@
 module cave_coordinates_tb;
     reg clk=0, reset=1, run_init=0, step_start=0;
     reg [2:0] game_state=`LP_BUILD;
-    reg [1:0] level_index=2;
+    reg [1:0] level_index=0;
     reg custom_spawn=0;
     reg signed [19:0] test_x=0, test_y=0;
     wire signed [19:0] spawn_x, spawn_y, x, y, px, py, nx, ny, cx, cy;
@@ -12,10 +12,12 @@ module cave_coordinates_tb;
     wire [2:0] terrain_count;
     wire [127:0] terrain_rects;
     wire [31:0] goal_rect;
-    wire map_level;
+    wire map_level, map_id;
     wire [9:0] world_width, world_height, flag_x, flag_y;
     wire move_valid, move_ready, response_valid, response_ready, grounded;
     wire signed [7:0] ground_slope;
+    wire signed [10:0] qx, qy;
+    reg [2:0] query_class;
     wire committed, world_valid, goal_hit, hazard_hit, out_of_bounds;
     reg world_ready=0;
     reg [26:0] grid=0;
@@ -24,10 +26,22 @@ module cave_coordinates_tb;
     level_data level (
         .level_index(level_index), .spawn_x(spawn_x), .spawn_y(spawn_y),
         .terrain_count(terrain_count), .terrain_rects(terrain_rects),
-        .goal_rect(goal_rect), .map_level(map_level),
+        .goal_rect(goal_rect), .map_level(map_level), .map_id(map_id),
         .world_width(world_width), .world_height(world_height),
         .flag_x(flag_x), .flag_y(flag_y)
     );
+
+    // Synthetic platform fixtures isolate coordinate range from ROM geometry.
+    always @(posedge clk) begin
+        if (!custom_spawn && (
+            (level_index == 0 && qy >= 100 && qy < 108 && qx >= 200 && qx < 232) ||
+            (level_index == 1 && qy >= 202 && qy < 210 && qx >= 60 && qx < 96)
+        ))
+            query_class <= `LP_MAP_ROCK;
+        else
+            query_class <= `LP_MAP_SKY;
+    end
+
     physics_engine physics (
         .clk(clk), .reset(reset), .game_state(game_state), .run_init(run_init),
         .spawn_x(custom_spawn ? test_x : spawn_x), .spawn_y(custom_spawn ? test_y : spawn_y),
@@ -43,11 +57,12 @@ module cave_coordinates_tb;
         .movement_committed(committed), .vehicle_x(x), .vehicle_y(y)
     );
     collision_engine collision (
-        .map_level(1'b0), .world_width(10'd96), .world_height(10'd64), .query_class(3'd0),
+        .map_level(map_level), .world_width(world_width), .world_height(world_height),
+        .query_x(qx), .query_y(qy), .query_class(query_class),
         .clk(clk), .reset(reset), .move_valid(move_valid), .move_ready(move_ready),
         .previous_x(px), .previous_y(py), .proposed_x(nx), .proposed_y(ny),
         .proposed_vx(nvx), .proposed_vy(nvy),
-        .terrain_count(3'd1), .terrain_rects(level_index==2 ? {96'd0,8'd8,8'd32,8'd100,8'd200} : {96'd0,8'd8,8'd36,8'd202,8'd60}),
+        .terrain_count(3'd0), .terrain_rects(128'd0),
         .response_valid(response_valid), .response_ready(response_ready),
         .corrected_x(cx), .corrected_y(cy), .corrected_vx(cvx), .corrected_vy(cvy),
         .grounded(grounded), .ground_slope(ground_slope)
@@ -76,7 +91,7 @@ module cave_coordinates_tb;
             run_init=0; game_state=`LP_RUN; clocks(1);
             step_start=1; clocks(1); step_start=0;
             waited=0;
-            while (!world_valid && waited<100) begin clocks(1); waited=waited+1; end
+            while (!world_valid && waited<20000) begin clocks(1); waited=waited+1; end
             if (!world_valid || x !== expected_x || y !== expected_y ||
                 grounded !== expected_ground || goal_hit !== expected_goal ||
                 out_of_bounds !== expected_bounds || hazard_hit)
@@ -93,16 +108,16 @@ module cave_coordinates_tb;
         clocks(3); reset=0; clocks(1);
         // Synthetic rectangle fixtures isolate coordinate range from ROM geometry.
         check_step(208*256,76*256,1,0,0);
-        level_index=3;
+        level_index=1;
         check_step(68*256,178*256,1,0,0);
         // Movement and collision preserve distant coordinates and remove old clamps.
         custom_spawn=1; test_x=769*256; test_y=40*256;
         check_step(769*256,40*256+32,0,1,0);
-        level_index=2; test_x=600*256; test_y=462*256;
+        level_index=0; test_x=600*256; test_y=462*256;
         check_step(600*256,462*256+32,0,1,0);
         test_x=956*256; test_y=100*256;
         check_step(956*256,100*256+32,0,0,1);
-        level_index=3; test_x=890*256; test_y=100*256;
+        level_index=1; test_x=890*256; test_y=100*256;
         check_step(890*256,100*256+32,0,0,1);
         // Signed positions still work above/left of the world.
         test_x=-25*256; test_y=-25*256;
@@ -113,5 +128,5 @@ module cave_coordinates_tb;
         $display("PASS cave_coordinates_tb: wide spawns, collision, cave goals, bounds and backpressure");
         $finish;
     end
-    initial begin #100000; $fatal(1,"Cave coordinates test timed out"); end
+    initial begin #2000000; $fatal(1,"Cave coordinates test timed out"); end
 endmodule
