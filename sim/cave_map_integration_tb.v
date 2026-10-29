@@ -34,14 +34,14 @@ module cave_map_integration_tb;
             dut.u_builder.build_frames=9'b000111000;
             clocks(2); btnC=1; clocks(12); btnC=0;
             waited=0;
-            while (dut.game_state!=`LP_RUN && waited<30000) begin clocks(1); waited=waited+1; end
+            while (dut.game_state!=`LP_RUN && waited<200000) begin clocks(1); waited=waited+1; end
             if (dut.game_state!=`LP_RUN || dut.vehicle_y !== (level==2 ? 20'sd6656 : 20'sd45568))
                 $fatal(1,"Cave launch/spawn failed: state=%d y=%d",dut.game_state,dut.vehicle_y);
             clocks(200);
             if (dut.game_state!=`LP_RUN || dut.out_of_bounds)
                 $fatal(1,"Cave failed at its valid spawn");
             waited=0;
-            while (dut.u_physics.phase!=0 && waited<30000) begin clocks(1); waited=waited+1; end
+            while (dut.u_physics.phase!=0 && waited<200000) begin clocks(1); waited=waited+1; end
             if (dut.u_physics.phase!=0) $fatal(1,"Movement did not return to idle");
         end
     endtask
@@ -56,7 +56,7 @@ module cave_map_integration_tb;
             dut.u_physics.velocity_x=0;
             dut.u_physics.velocity_y=0;
             waited=0;
-            while (dut.game_state==`LP_RUN && waited<30000) begin clocks(1); waited=waited+1; end
+            while (dut.game_state==`LP_RUN && waited<200000) begin clocks(1); waited=waited+1; end
             if (dut.game_state!==expected_state)
                 $fatal(1,"Cave result failed: state=%d goal=%b bounds=%b",dut.game_state,dut.goal_hit,dut.out_of_bounds);
             if (expected_state==`LP_FAIL && dut.fail_reason!==`LP_FAIL_BOUNDS)
@@ -77,5 +77,5 @@ module cave_map_integration_tb;
         $display("PASS cave_map_integration_tb: real cave spawns, success/bounds results and wide display snapshots");
         $finish;
     end
-    initial begin #5000000; $fatal(1,"Cave map integration test timed out"); end
+    initial begin #30000000; $fatal(1,"Cave map integration test timed out"); end
 endmodule

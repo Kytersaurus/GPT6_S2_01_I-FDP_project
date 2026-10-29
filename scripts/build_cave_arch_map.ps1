@@ -25,9 +25,28 @@ $c = [Classify]::Smooth($c, $w, $h, 2); $c = [Classify]::Smooth($c, $w, $h, 2)
 $mw = 0; $mh = 0
 $m = [Classify]::Down($c, $w, $h, 2, [ref]$mw, [ref]$mh)
 
+# Remove the decorative bush hanging inside the first valley below the arch.
+# This isolated grass patch is scenery, not the grass road at y=117..124.
+# Restrict the cleanup to its photographed bounds and GRASS pixels so nearby
+# cave rock and the real supporting surface remain unchanged.
+for ($y = 92; $y -le 100; $y++) {
+    for ($x = 225; $x -le 231; $x++) {
+        if ($m[$y*$mw+$x] -eq [Classify]::GRASS) { $m[$y*$mw+$x] = [Classify]::CAVE }
+    }
+}
+
 $sb = New-Object System.Text.StringBuilder
 [void]$sb.AppendLine("// Cave Arch map: 512 entries per row (x $mw..511 unused), $mh rows. Classes: 0 sky, 1 cave, 2 rock, 3 grass, 4 road, 5 underground.")
 for ($y = 0; $y -lt $mh; $y++) { for ($x = 0; $x -lt 512; $x++) { [void]$sb.AppendLine($(if ($x -lt $mw) { $m[$y*$mw+$x] } else { 0 })) } }
 [IO.File]::WriteAllText((Join-Path $root 'GPT_6_S2_01_I-FDP_project.srcs\sources_1\new\cave_arch_map.mem'), $sb.ToString())
 [MapTool]::Save((Join-Path $root 'docs\maps\cave_arch_classes.png'), [MapTool]::Crop([Classify]::Colour($m), $mw, 0, 0, $mw, $mh, 2), $mw*2, $mh*2)
 "Map ${mw} x $mh written"
+
+# Write the synthesis-safe one-bit collision ROM alongside the colour map.
+$solid = New-Object System.Text.StringBuilder
+[void]$solid.AppendLine('// Explicit collision ROM: 0=open sky/cave background; 1=solid terrain.')
+for ($y = 0; $y -lt $mh; $y++) { for ($x = 0; $x -lt 512; $x++) {
+    $isSolid = $x -lt $mw -and $m[$y*$mw+$x] -ge [Classify]::ROCK -and $m[$y*$mw+$x] -le [Classify]::DARK
+    [void]$solid.AppendLine($(if ($isSolid) { '1' } else { '0' }))
+} }
+[IO.File]::WriteAllText((Join-Path $root 'GPT_6_S2_01_I-FDP_project.srcs\sources_1\new\cave_arch_solid.mem'), $solid.ToString())
