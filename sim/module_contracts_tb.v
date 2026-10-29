@@ -125,7 +125,7 @@ module module_contracts_tb;
         ny=12000; clocks(5);
         if (!response_valid || move_ready || cy!=8192) $fatal(1,"Collision response changed under backpressure");
         response_ready=1; clocks(1); response_ready=0; clocks(1);
-        nx=24576; move_valid=1; clocks(1); move_valid=0;
+        px=24576; py=7936; nx=24576; ny=12000; move_valid=1; clocks(1); move_valid=0;
         waited=0;
         while (!response_valid && waited < 50000) begin clocks(1); waited=waited+1; end
         if (grounded || cy!=12000) $fatal(1,"Non-overlapping vehicle landed on ground");
