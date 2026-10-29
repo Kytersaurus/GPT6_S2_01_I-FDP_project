@@ -21,6 +21,7 @@ module ui_renderer (
     wire [6:0] x=pixel_index%96, y=pixel_index/96;
     reg [127:0] line;
     integer text_left, text_top, row, button_left, button_right;
+    integer example_local_x, example_local_y, example_row, example_col;
     reg [1:0] tile;
     reg tile_hover;
     reg text_visible, button, enabled;
@@ -29,6 +30,7 @@ module ui_renderer (
         pixel_data=base_pixel; line="                ";
         text_left=0; text_top=0; row=0; button_left=0; button_right=0;
         text_visible=0; button=0; enabled=1; ink=16'hffff; tile=0; tile_hover=0;
+        example_local_x=0; example_local_y=0; example_row=0; example_col=0;
         if (game_state==`LP_GUIDE) begin
             pixel_data=16'h0841;
             text_visible=1; text_left=2;
@@ -53,12 +55,8 @@ module ui_renderer (
                     5: line="U BACK C NEXT   ";
                 endcase
                 1: case (row)
-                    0: line="PART RULES 2/3  ";
-                    1: line="PIG/ENG FRAME   ";
-                    2: line="WHEELS UP/DOWN  ";
-                    3: line="BALLOONS ABOVE  ";
-                    4: line="FAN/ROCKET SIDE ";
-                    5: line="POP PAGE TO POP ";
+                    0: begin line="VALID BUILD 2/3 "; ink=16'h07ff; end
+                    default: line="                ";
                 endcase
                 2: case (row)
                     0: line="LEVEL HINT 3/3  ";
@@ -93,10 +91,10 @@ module ui_renderer (
             end else if (x>=64 && x<80) begin
                 button=1; button_left=64; button_right=79; text_left=69; line="?               ";
             end else if (x>=20 && x<62) begin
-                button=1; button_left=x<34 ? 20 : x<48 ? 34 : 48;
-                button_right=button_left+13; text_left=button_left+4;
-                line=x<34 ? "1               " : x<48 ? "2               " : "3               ";
-                if (inventory_page==(x<34 ? 0 : x<48 ? 1 : 2)) ink=16'hffe0;
+                button=1; button_left=x<41 ? 20 : 41;
+                button_right=button_left+20; text_left=button_left+8;
+                line=x<41 ? "1               " : "2               ";
+                if (inventory_page==(x<41 ? 0 : 1)) ink=16'hffe0;
             end else begin pixel_data=base_pixel; text_visible=0; end
         end
         if ((game_state==`LP_GUIDE || game_state==`LP_SUCCESS || game_state==`LP_FAIL) && y>=55) begin
@@ -141,6 +139,30 @@ module ui_renderer (
             text_visible=1;
         end
         if (text_visible && text_on(line,text_left,text_top,x,y)) pixel_data=ink;
+        // A passing sample build: pig in a framed centre cell with supported wheels.
+        if (game_state==`LP_GUIDE && diary_page==1) begin
+            if (text_on("VALID",48,14,x,y)) pixel_data=16'h07e0;
+            if (text_on("1 PIG",48,24,x,y)) pixel_data=16'hffff;
+            if (text_on("3 FRAMES",48,34,x,y)) pixel_data=16'hffff;
+            if (text_on("2 WHEELS",48,44,x,y)) pixel_data=16'hffff;
+            if (x>=4 && x<40 && y>=12 && y<48) begin
+                if (x<16) begin example_col=0; example_local_x=x-4; end
+                else if (x<28) begin example_col=1; example_local_x=x-16; end
+                else begin example_col=2; example_local_x=x-28; end
+                if (y<24) begin example_row=0; example_local_y=y-12; end
+                else if (y<36) begin example_row=1; example_local_y=y-24; end
+                else begin example_row=2; example_local_y=y-36; end
+                pixel_data=16'h0841;
+                if (example_local_x==0 || example_local_y==0 ||
+                    example_local_x==11 || example_local_y==11) pixel_data=16'h7bef;
+                if (example_row==1)
+                    pixel_data=part_sprite12(`LP_PART_FRAME,example_local_x,example_local_y,1'b0,pixel_data);
+                if (example_row==1 && example_col==1)
+                    pixel_data=part_sprite12(`LP_PART_PIG,example_local_x,example_local_y,1'b0,pixel_data);
+                if (example_row==2 && (example_col==0 || example_col==2))
+                    pixel_data=part_sprite12(`LP_PART_WHEEL,example_local_x,example_local_y,1'b0,pixel_data);
+            end
+        end
         // Book cover with a question mark, and a compact gear for settings.
         if (game_state==`LP_BUILD && y>=55 && x>=64) begin
             pixel_data=16'h18e5;
@@ -148,10 +170,12 @@ module ui_renderer (
                 if (x==65 || x==78 || y==55 || y==63 || x==67) pixel_data=16'h04b4;
                 if (text_on("?               ",70,56,x,y)) pixel_data=16'hffff;
             end else begin
-                if (((x>=85 && x<=90) && (y==55 || y==63)) ||
-                    ((y>=57 && y<=61) && (x==83 || x==92)) ||
-                    ((x==85 || x==90) && (y==57 || y==61)) ||
-                    ((x==86 || x==89) && y>=58 && y<=60)) pixel_data=16'hffff;
+                if (((x>=86 && x<=89) && y>=56 && y<=62) ||
+                    ((x==85 || x==90) && y>=57 && y<=61) ||
+                    (((x>=83 && x<=84) || (x>=91 && x<=92)) && y>=58 && y<=60) ||
+                    ((x==87 || x==88) && (y==55 || y==63))) begin
+                    if (!(x>=87 && x<=88 && y>=58 && y<=60)) pixel_data=16'hffff;
+                end
             end
         end
         // Transient placement feedback temporarily uses the toolbar's full width.

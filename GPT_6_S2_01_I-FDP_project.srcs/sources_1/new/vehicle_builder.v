@@ -111,7 +111,7 @@ module vehicle_builder #(
                     end
                     `LP_PART_BOOSTER, `LP_PART_FAN: begin
                         if (build_grid[edit_cell*3 +: 3] == edit_part)
-                            edit_result = (edit_part==`LP_PART_BOOSTER &&
+                            edit_result = ((edit_part==`LP_PART_BOOSTER || edit_part==`LP_PART_FAN) &&
                                            build_facing_left[edit_cell]!=edit_facing_left) ? `LP_FEEDBACK_PLACED : `LP_FEEDBACK_NONE;
                         else if (build_frames[edit_cell]) edit_result = `LP_FEEDBACK_OCCUPIED;
                         else if (!side_support[edit_cell]) edit_result = `LP_FEEDBACK_NEED_FRAME;
@@ -205,7 +205,8 @@ module vehicle_builder #(
                     end else begin
                         // [start +: 3] selects one cell's three content bits.
                         build_grid[edit_cell*3 +: 3] <= edit_part;
-                        build_facing_left[edit_cell] <= (edit_part==`LP_PART_ENGINE || edit_part==`LP_PART_BOOSTER) && edit_facing_left;
+                        build_facing_left[edit_cell] <= (edit_part==`LP_PART_ENGINE || edit_part==`LP_PART_BOOSTER ||
+                                                         edit_part==`LP_PART_FAN) && edit_facing_left;
                     end
                 end else if (edit_result == `LP_FEEDBACK_REMOVED) begin
                     if (edit_op == `LP_EDIT_RETURN) begin

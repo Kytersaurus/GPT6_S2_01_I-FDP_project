@@ -52,13 +52,13 @@ module My_Top_Module #(
     wire [3:0] rocket_count, fan_count, rockets_left, fans_left, draw_rockets_left, draw_fans_left;
     wire ui_fan_on, ui_rocket_req, ui_sound_muted;
     assign engine_reverse = reverse_switch_enabled ^ (engine_balance<0);
-    wire engine_switch_enabled, ui_engine_on, ui_launch, ui_edit, ui_guide_open, ui_guide_close;
+    wire engine_switch_changed, ui_engine_on, ui_launch, ui_edit, ui_guide_open, ui_guide_close;
     wire [1:0] diary_page, death_phase;
     wire [2:0] master_volume, draw_master_volume;
     wire [2:0] guide_return_state;
     wire signed [`LP_COORD_BITS-1:0] death_x, death_y;
     wire launch_flash;
-    // Normal play uses the on-screen DRIVE control; SW0 remains a lab/debug input.
+    // SW0 changes the shared engine state; the on-screen DRIVE control can also toggle it.
     assign engine_enabled = ui_engine_on;
     wire [2:0] game_state, init_ready;
     wire run_init, step_start, update_release;
@@ -165,13 +165,14 @@ module My_Top_Module #(
     ) u_input (
         .clk(clk), .reset(reset), .btnC(btnC), .btnU(btnU), .btnL(btnL),
         .engine_switch(sw[0]), .mute_switch(sw[1]), .reverse_switch(sw[2]), .start_press(start_press), .edit_press(edit_press),
-        .engine_enabled(engine_switch_enabled), .audio_muted(switch_audio_muted), .engine_reverse(reverse_switch_enabled), .jump_press(jump_press)
+        .engine_switch_changed(engine_switch_changed),
+        .audio_muted(switch_audio_muted), .engine_reverse(reverse_switch_enabled), .jump_press(jump_press)
     );
     ui_controller u_ui_control (
         .clk(clk), .reset(reset), .input_enabled(builder_input_enabled), .run_init(run_init),
         .physics_tick(physics_tick), .launch_event(launch_event), .game_state(game_state),
         .mouse_x(mouse_x), .mouse_y(mouse_y), .mouse_left(mouse_left), .mouse_right(mouse_right),
-        .mouse_event(mouse_event), .next_press(start_press),
+        .mouse_event(mouse_event), .next_press(start_press), .engine_switch_changed(engine_switch_changed),
         .fan_available(1'b0), .rocket_available(1'b0), .rocket_ready(1'b0),
         .launch_req(ui_launch), .edit_req(ui_edit), .guide_open_req(ui_guide_open), .guide_close_req(ui_guide_close),
         .level_close_req(level_close_req), .level_select_req(level_select_req), .selected_level(selected_level),

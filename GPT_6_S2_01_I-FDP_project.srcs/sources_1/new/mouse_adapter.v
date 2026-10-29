@@ -130,14 +130,15 @@ module mouse_adapter (
                         if (mouse_y>=55 && mouse_y<64) begin
                             place_pending<=0;
                             if (mouse_x>=20 && mouse_x<62) begin
-                                inventory_page <= mouse_x<34 ? 0 : mouse_x<48 ? 1 : 2;
+                                inventory_page <= mouse_x<41 ? 0 : 1;
                                 inventory_armed<=0;
                             end
                         end else if (in_inventory) begin
                             inventory_armed <= 1;
-                            // Five fixed row boundaries avoid a hardware divide by ten.
+                            // Basic parts use five rows; page two splits the panel between two parts.
                             if (inventory_page!=0) begin
-                                if (mouse_y<14) selected_part<=inventory_page==1 ? `LP_PART_BOOSTER : `LP_PART_FAN;
+                                if (mouse_y<28) selected_part<=`LP_PART_BOOSTER;
+                                else if (mouse_y>28) selected_part<=`LP_PART_FAN;
                                 else begin place_pending<=0; inventory_armed<=0; end
                             end else if (mouse_y<14) selected_part<=`LP_PART_FRAME;
                             else if (mouse_y<24) selected_part<=`LP_PART_PIG;
@@ -163,7 +164,8 @@ module mouse_adapter (
                             edit_valid <= 1; edit_op <= `LP_EDIT_RETURN;
                             edit_source <= drag_source; edit_cell <= drag_source; edit_part <= selected_part;
                         end else if (place_pending && drag_from_grid && in_grid && hovered_cell==drag_source &&
-                                     (selected_part==`LP_PART_ENGINE || selected_part==`LP_PART_BOOSTER)) begin
+                                     (selected_part==`LP_PART_ENGINE || selected_part==`LP_PART_BOOSTER ||
+                                      selected_part==`LP_PART_FAN)) begin
                             // A click released on the same cell flips the saved part in place.
                             edit_valid<=1; edit_op<=`LP_EDIT_PLACE; edit_cell<=drag_source;
                             edit_part<=selected_part; edit_facing_left<=!selected_left;

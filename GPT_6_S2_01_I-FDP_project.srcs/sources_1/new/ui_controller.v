@@ -5,7 +5,7 @@ module ui_controller (
     input wire clk, reset, input_enabled, run_init, physics_tick, launch_event,
     input wire [2:0] game_state,
     input wire [11:0] mouse_x, mouse_y,
-    input wire mouse_left, mouse_right, mouse_event, next_press,
+    input wire mouse_left, mouse_right, mouse_event, next_press, engine_switch_changed,
     // Kyle connects availability/readiness when fan and rocket physics is merged.
     input wire fan_available, rocket_available, rocket_ready,
     output reg launch_req, edit_req, guide_open_req, guide_close_req,
@@ -23,7 +23,7 @@ module ui_controller (
     assign launch_flash = launch_ticks != 0;
     always @(posedge clk) begin
         if (reset) begin
-            left_was_down<=0; diary_page<=0; master_volume<=4; engine_on<=1; fan_on<=0; sound_muted<=0;
+            left_was_down<=0; diary_page<=0; master_volume<=4; engine_on<=0; fan_on<=0; sound_muted<=0;
             run_page<=0; boost_req<=0;
             launch_req<=0; edit_req<=0; guide_open_req<=0; guide_close_req<=0;
             rocket_req<=0; launch_ticks<=0;
@@ -32,7 +32,8 @@ module ui_controller (
             launch_req<=0; edit_req<=0; guide_open_req<=0; guide_close_req<=0; rocket_req<=0;
             level_close_req<=0; level_select_req<=0;
             boost_req<=0;
-            if (run_init) begin engine_on<=1; fan_on<=0; run_page<=0; end
+            if (run_init) begin engine_on<=0; fan_on<=0; run_page<=0; end
+            else if (engine_switch_changed) engine_on<=!engine_on;
             if (!fan_available || game_state!=`LP_RUN) fan_on<=0;
             if (game_state!=`LP_RUN) launch_ticks<=0;
             else if (launch_event) launch_ticks<=8;
