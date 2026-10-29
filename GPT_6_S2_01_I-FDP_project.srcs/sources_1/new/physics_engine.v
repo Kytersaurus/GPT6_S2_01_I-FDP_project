@@ -84,7 +84,12 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96) (
     reg signed [5:0] spin;
     reg signed [1:0] last_tip;
     reg [3:0] spin_frac;
-    wire signed [6:0] tip_spin=spin+(last_tip > 0 ? TIP_ACCEL : last_tip < 0 ? -TIP_ACCEL : 6'sd0);
+    // A grounded body already three steps past the ground's angle in the tip direction rests
+    // on its corner: it stops tipping and settles back (a tip reported on a steep slope's
+    // stairs must not roll the body over while it sits on the slope).
+    wire tip_overdone=(last_tip > 0 && settle_error <= -3) || (last_tip < 0 && settle_error >= 3);
+    wire signed [1:0] active_tip=tip_overdone ? 2'sd0 : last_tip;
+    wire signed [6:0] tip_spin=spin+(active_tip > 0 ? TIP_ACCEL : active_tip < 0 ? -TIP_ACCEL : 6'sd0);
     wire signed [5:0] next_tip_spin=tip_spin > MAX_SPIN ? MAX_SPIN : tip_spin < -MAX_SPIN ? -MAX_SPIN : tip_spin[5:0];
     wire signed [7:0] spin_sum=$signed({1'b0,spin_frac})+(was_grounded ? next_tip_spin : spin);
     // The wheels touching the ground decide grip and drive.
@@ -226,7 +231,7 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96) (
                     // A supported body tipping over an edge gains spin; otherwise it
                     // settles one angle step per update onto the ground under it.
                     // Airborne, the body keeps the spin it left the ground with.
-                    if (was_grounded && !jump_now && last_tip == 0) begin
+                    if (was_grounded && !jump_now && active_tip == 0) begin
                         spin <= 0; spin_frac <= 0;
                         if (desired_tilt != held_target) begin held_target <= desired_tilt; held_count <= 0; end
                         else if (held_count != 2'd2) held_count <= held_count+1'b1;

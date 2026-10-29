@@ -54,5 +54,12 @@
         "source_commit":  "cdac53e",
         "description":  "Role 4 test build (role4): Cave Arch drivable end to end at 2x, full-turn rotation, wheel sides, edge tipping, ENGINE_FORCE 320, 6 px step-up, decorative grass open. 51 simulations passed; 100 MHz timing misses by 0.021 ns on one rectangle-collision path",
         "sha256":  "06c91e69213fa557c7d8209b58a0478abe521607ebeeaca29fc202ca3bc4a0b8"
+    },
+    {
+        "path":  "2026-10-30/013218_cave-arch-smooth.bit",
+        "built":  "2026-10-30T01:32:18",
+        "source_commit":  "5668802 + this commit's changes",
+        "description":  "Role 4 test build (role4): smoothed Cave Arch terrain, steady tilt, gliding display, steep-slope probe and tipping limit, spike-pit level removed (3 levels). 84% LUTs; 100 MHz timing misses by 0.122 ns on 5 builder/mass paths (Performance_ExplorePostRoutePhysOpt)",
+        "sha256":  "e356f0d275a30a16988a8409f5111230a4528bf982ef3b8a6de2b52f278587fe"
     }
 ]

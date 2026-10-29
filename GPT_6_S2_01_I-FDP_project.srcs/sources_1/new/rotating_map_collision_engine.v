@@ -273,19 +273,23 @@ module rotating_map_collision_engine (
                     else if (($signed(hit_min_x)-1)*256 >= work_x+HALF) result_tip<=-1;
                     phase<=SLOPE_LEFT;
                 end
+                // The probes look 12 pixels up and down, so a 45 degree slope drawn as the
+                // 2-pixel stairs of a 2x map still reads as even ground (a rise of 9 or 10
+                // over 8 pixels at some stair phases). Rises past 8 (45 degrees) report the
+                // supported maximum gradient.
                 SLOPE_LEFT: begin
-                    if (support_x<4 || support_x+4>=$signed({1'b0,saved_width}) || support_y<8 ||
-                        support_y+8>=$signed({1'b0,saved_height})) phase<=RESPOND;
-                    else scan_region(support_x-4,support_x-4,support_y-8,support_y+8,SLOPE_LEFT_RESULT);
+                    if (support_x<4 || support_x+4>=$signed({1'b0,saved_width}) || support_y<12 ||
+                        support_y+12>=$signed({1'b0,saved_height})) phase<=RESPOND;
+                    else scan_region(support_x-4,support_x-4,support_y-12,support_y+12,SLOPE_LEFT_RESULT);
                 end
                 SLOPE_LEFT_RESULT: begin
-                    if (scan_hit && hit_y>support_y-8) begin left_floor<=hit_y; phase<=SLOPE_RIGHT; end
+                    if (scan_hit && hit_y>support_y-12) begin left_floor<=hit_y; phase<=SLOPE_RIGHT; end
                     else phase<=RESPOND;
                 end
-                SLOPE_RIGHT: scan_region(support_x+4,support_x+4,support_y-8,support_y+8,SLOPE_RIGHT_RESULT);
+                SLOPE_RIGHT: scan_region(support_x+4,support_x+4,support_y-12,support_y+12,SLOPE_RIGHT_RESULT);
                 SLOPE_RIGHT_RESULT: begin
-                    if (scan_hit && hit_y>support_y-8 && rise>=-8 && rise<=8 && midpoint_error>=-2 && midpoint_error<=2) begin
-                        result_slope<=rise*2; slope_ok<=1;
+                    if (scan_hit && hit_y>support_y-12 && rise>=-12 && rise<=12 && midpoint_error>=-2 && midpoint_error<=2) begin
+                        result_slope<=rise>8 ? 8'sd16 : rise<-8 ? -8'sd16 : rise*2; slope_ok<=1;
                     end
                     phase<=RESPOND;
                 end

@@ -104,7 +104,8 @@ module cave_arch_drive_tb;
             end
             // +trace logs every update, for measuring how smooth the motion is.
             if (trace)
-                $display("T %0d %0d %0d %0d %b %0d",steps,vehicle_x,vehicle_y,vehicle_tilt,grounded,u_physics.display_y);
+                $display("T %0d %0d %0d %0d %b %0d %0d",steps,vehicle_x,vehicle_y,vehicle_tilt,grounded,u_physics.display_y,
+                         u_physics.velocity_x);
             if (steps%50==0)
                 $display("step %0d: x=%0d y=%0d vx=%0d vy=%0d tilt=%0d grounded=%b tip=%0d",steps,
                          vehicle_x/256,vehicle_y/256,u_physics.velocity_x,u_physics.velocity_y,vehicle_tilt,grounded,tip_dir);
