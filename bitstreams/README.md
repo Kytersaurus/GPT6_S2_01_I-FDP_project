@@ -6,6 +6,7 @@ Open Vivado **Hardware Manager > Program Device > Browse** and select this file.
 
 | Build time | File | Contents |
 | --- | --- | --- |
+| 2026-10-29 22:14:20 | [2026-10-29/221420_cave-arch-loop-physics.bit](2026-10-29/221420_cave-arch-loop-physics.bit) | Role 4 test build (`role4`, commit `cdac53e`): Cave Arch drivable end to end at 2x, full-turn rotation, wheels on both sides, edge tipping, stronger engine. 51 simulations passed; 100 MHz timing misses by 0.021 ns on one rectangle-collision path |
 | 2026-10-25 18:01:42 | [2026-10-25/180142_map-view-12px.bit](2026-10-25/180142_map-view-12px.bit) | Latest Role 4 test build (`role4`): 1.5x map view with 12x12 sprites, red/white/black TNT, Cave Arch level 3 (view only), SW3/wheel zoom, SW4 free look. 26 simulations and 100 MHz timing passed |
 | 2026-10-25 17:30:35 | [2026-10-25/173035_cave-arch-camera.bit](2026-10-25/173035_cave-arch-camera.bit) | Role 4 test build (uncommitted changes on `role4`): 16x16 sprites, Cave Arch level 3 (view only), following camera, SW3/wheel zoom, SW4 free look. 26 simulations and 100 MHz timing passed |
 | 2026-10-25 00:00:34 | [2026-10-25/000034_all-role-merge.bit](2026-10-25/000034_all-role-merge.bit) | All four roles merged, integrated TNT/collision/audio |
