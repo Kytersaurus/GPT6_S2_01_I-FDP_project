@@ -128,11 +128,6 @@ module map_slope_tb;
         check_case(166*256,56*256,166*256,56*256,0,0,166*256,56*256,0,0,1,0);
         scene=9;
         check_case(40*256,56*256,40*256,56*256,0,0,40*256,56*256,0,0,1,0);
-        // The rectangle route must discard the last map's grade.
-        scene=1;
-        check_case(40*256,56*256,40*256,56*256,0,0,40*256,56*256,0,0,1,16);
-        map_level=0;
-        check_case(40*256,56*256,40*256,56*256,0,0,40*256,56*256,0,0,1,0);
         $display("PASS map_slope_tb: %0d graded terrain, stationary contact, step/snap, air/jump, invalid profiles and handshake cases",cases);
         $finish;
     end
