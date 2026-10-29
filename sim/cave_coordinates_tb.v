@@ -47,7 +47,7 @@ module cave_coordinates_tb;
         .clk(clk), .reset(reset), .move_valid(move_valid), .move_ready(move_ready),
         .previous_x(px), .previous_y(py), .proposed_x(nx), .proposed_y(ny),
         .proposed_vx(nvx), .proposed_vy(nvy),
-        .terrain_count(3'd1), .terrain_rects(level_index==2 ? {96'd0,8'd8,8'd32,8'd50,8'd97} : {96'd0,8'd8,8'd36,8'd202,8'd60}),
+        .terrain_count(3'd1), .terrain_rects(level_index==2 ? {96'd0,8'd8,8'd32,8'd100,8'd200} : {96'd0,8'd8,8'd36,8'd202,8'd60}),
         .response_valid(response_valid), .response_ready(response_ready),
         .corrected_x(cx), .corrected_y(cy), .corrected_vx(cvx), .corrected_vy(cvy),
         .grounded(grounded), .ground_slope(ground_slope)
@@ -92,16 +92,16 @@ module cave_coordinates_tb;
         grid[4*3 +: 3]=`LP_PART_PIG;
         clocks(3); reset=0; clocks(1);
         // Synthetic rectangle fixtures isolate coordinate range from ROM geometry.
-        check_step(104*256,26*256,1,0,0);
+        check_step(208*256,76*256,1,0,0);
         level_index=3;
         check_step(68*256,178*256,1,0,0);
         // Movement and collision preserve distant coordinates and remove old clamps.
         custom_spawn=1; test_x=769*256; test_y=40*256;
         check_step(769*256,40*256+32,0,1,0);
-        level_index=2; test_x=300*256; test_y=219*256;
-        check_step(300*256,219*256+32,0,1,0);
-        test_x=478*256; test_y=100*256;
-        check_step(478*256,100*256+32,0,0,1);
+        level_index=2; test_x=600*256; test_y=462*256;
+        check_step(600*256,462*256+32,0,1,0);
+        test_x=956*256; test_y=100*256;
+        check_step(956*256,100*256+32,0,0,1);
         level_index=3; test_x=890*256; test_y=100*256;
         check_step(890*256,100*256+32,0,0,1);
         // Signed positions still work above/left of the world.

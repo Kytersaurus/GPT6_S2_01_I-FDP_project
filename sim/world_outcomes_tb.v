@@ -123,21 +123,22 @@ module world_outcomes_tb;
         hazard_count=0;
         goal_rect=0;
         level_index=2; clocks(1);
-        check_pose(104*256,26*256,0,0,0);
-        check_pose(300*256,219*256,1,0,0);
-        // Goal zone is [300,316) x [219,243), measured at pig centre.
-        check_pose(288*256-1,219*256,0,0,0);
-        check_pose(288*256,207*256,1,0,0);
-        check_pose(304*256,219*256,0,0,0);
-        check_pose(300*256,207*256-1,0,0,0);
-        check_pose(300*256,231*256,0,0,0);
+        // Cave Arch is in 2x world pixels: flag (600,472), world 956 by 582.
+        check_pose(208*256,76*256,0,0,0);
+        check_pose(600*256,462*256,1,0,0);
+        // Goal zone is [600,616) x [462,486), measured at pig centre.
+        check_pose(588*256-1,462*256,0,0,0);
+        check_pose(588*256,450*256,1,0,0);
+        check_pose(604*256,462*256,0,0,0);
+        check_pose(600*256,450*256-1,0,0,0);
+        check_pose(600*256,474*256,0,0,0);
         intact_mask=0;
-        check_pose(300*256,219*256,0,0,0);
+        check_pose(600*256,462*256,0,0,0);
         intact_mask=9'b000010000;
-        check_pose(478*256-1,100*256,0,0,0);
-        check_pose(478*256,100*256,0,0,1);
-        check_pose(100*256,291*256-1,0,0,0);
-        check_pose(100*256,291*256,0,0,1);
+        check_pose(956*256-1,100*256,0,0,0);
+        check_pose(956*256,100*256,0,0,1);
+        check_pose(100*256,582*256-1,0,0,0);
+        check_pose(100*256,582*256,0,0,1);
         check_pose(-24*256+1,100*256,0,0,0);
         check_pose(-24*256,100*256,0,0,1);
         check_pose(100*256,-24*256+1,0,0,0);

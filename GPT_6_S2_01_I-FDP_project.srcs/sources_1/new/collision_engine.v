@@ -13,7 +13,7 @@ module collision_engine #(parameter ROTATION_ONLY = 0) (
     input wire [127:0] terrain_rects,
     input wire map_level,
     input tri0 rotation_enabled,
-    input wire signed [3:0] previous_tilt, proposed_tilt,
+    input wire signed [`LP_TILT_BITS-1:0] previous_tilt, proposed_tilt,
     input tri1 [8:0] collision_mask,
     input wire [9:0] world_width, world_height,
     output wire signed [10:0] query_x, query_y,
@@ -24,7 +24,8 @@ module collision_engine #(parameter ROTATION_ONLY = 0) (
     output wire signed [15:0] corrected_vx, corrected_vy,
     output wire grounded,
     output wire signed [7:0] ground_slope,
-    output wire signed [3:0] corrected_tilt
+    output wire signed [`LP_TILT_BITS-1:0] corrected_tilt,
+    output wire signed [1:0] tip_dir
 );
     reg busy, active_map, active_rotation;
     wire use_rotation=ROTATION_ONLY || rotation_enabled;
@@ -32,11 +33,13 @@ module collision_engine #(parameter ROTATION_ONLY = 0) (
     wire signed [`LP_COORD_BITS-1:0] rot_x, rot_y;
     wire signed [15:0] rot_vx, rot_vy;
     wire signed [7:0] rot_slope;
-    wire signed [3:0] rot_tilt;
+    wire signed [`LP_TILT_BITS-1:0] rot_tilt;
+    wire signed [1:0] rot_tip;
     wire signed [10:0] upright_qx, upright_qy, rot_qx, rot_qy;
     assign query_x = active_rotation ? rot_qx : upright_qx;
     assign query_y = active_rotation ? rot_qy : upright_qy;
-    assign corrected_tilt = active_map && active_rotation ? rot_tilt : 4'sd0;
+    assign corrected_tilt = active_map && active_rotation ? rot_tilt : 0;
+    assign tip_dir = active_map && active_rotation ? rot_tip : 2'sd0;
     wire rect_ready, rect_valid, rect_ground, map_ready, map_valid, map_ground;
     wire signed [`LP_COORD_BITS-1:0] rect_x, rect_y, map_x, map_y;
     wire signed [15:0] rect_vx, rect_vy, map_vx, map_vy;
@@ -87,7 +90,7 @@ module collision_engine #(parameter ROTATION_ONLY = 0) (
         .query_x(rot_qx), .query_y(rot_qy), .query_class(query_class),
         .response_valid(rot_valid), .response_ready(response_ready && busy && active_map && active_rotation),
         .corrected_x(rot_x), .corrected_y(rot_y), .corrected_vx(rot_vx), .corrected_vy(rot_vy), .grounded(rot_ground),
-        .ground_slope(rot_slope), .corrected_tilt(rot_tilt)
+        .ground_slope(rot_slope), .corrected_tilt(rot_tilt), .tip_dir(rot_tip)
     );
 endmodule
 

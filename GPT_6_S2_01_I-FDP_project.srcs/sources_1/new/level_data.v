@@ -62,19 +62,21 @@ module level_data (
                 hazard_rects = {32'd0, 8'd4, 8'd16, 8'd58, 8'd36}; // Spikes
             end
             2'd2: begin
-                // Level 3, Cave Arch: start on the flat plateau (top y=50, x=97..128);
-                // the finish flag stands on the cave road (top y=243) at x=300.
+                // Level 3, Cave Arch, in world pixels: level_map shows the map twice as
+                // large (map pixel = world/2). Start on the flat plateau (map top y=50,
+                // x=98..128; world top y=100, x=196..257); the finish flag stands on the cave
+                // road (map top y=243 at x=300; world top y=486 at x=600).
                 // Collision queries the terrain ROM; goals derive from the flag position.
-                spawn_x = 20'sd26624;   // x=104
-                spawn_y = 20'sd6656;    // y=26
+                spawn_x = 20'sd53248;   // x=208
+                spawn_y = 20'sd19456;   // y=76: the 24-pixel vehicle rests on y=100
                 terrain_count = 3'd0;
                 terrain_rects = 128'd0;
                 goal_rect = 32'd0; // Map goals use flag_x/flag_y, not the 8-bit rectangle.
                 map_level = 1'b1;
-                world_width = `LP_MAP_WIDTH;
-                world_height = `LP_MAP_HEIGHT;
-                flag_x = 10'd300;
-                flag_y = 10'd229;   // 14-pixel pole ends on the road at y=243
+                world_width = `LP_MAP_WORLD_WIDTH;
+                world_height = `LP_MAP_WORLD_HEIGHT;
+                flag_x = 10'd600;
+                flag_y = 10'd472;   // 14-pixel pole ends on the road at y=486
             end
             default: begin
                 // Level 4, Cave Flight: a flying level. Start on the ground at the bottom left

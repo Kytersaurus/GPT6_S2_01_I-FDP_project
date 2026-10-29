@@ -2,7 +2,9 @@
 `timescale 1ns / 1ps
 `include "game_defs.vh"
 // Staged force calculation, clocked division, slope gravity, friction and jumping.
-module physics_engine (
+// ENGINE_FORCE is the ground thrust per engine. The arithmetic benches keep the
+// original 96; the game sets its tuned value in My_Top_Module.
+module physics_engine #(parameter integer ENGINE_FORCE = 96) (
     input wire clk, reset,
     input wire [2:0] game_state,
     input wire run_init,
@@ -10,6 +12,9 @@ module physics_engine (
     input wire signed [`LP_COORD_BITS-1:0] spawn_x, spawn_y,
     input wire step_start, update_release,
     input wire [3:0] wheel_count, engine_count, balloon_count,
+    // Wheels under (down) and on top of (up) the body. Left unconnected, both
+    // are zero and the total wheel_count is used whichever way up the body is.
+    input tri0 [3:0] wheels_down, wheels_up,
     input wire [7:0] mass_units,
     input wire engine_enabled,
     input wire engine_reverse,
@@ -27,8 +32,10 @@ module physics_engine (
     input wire signed [15:0] corrected_vx, corrected_vy,
     input wire grounded,
     input wire signed [7:0] ground_slope,
-    input wire signed [3:0] corrected_tilt,
-    output reg signed [3:0] previous_tilt, proposed_tilt, vehicle_tilt,
+    input wire signed [`LP_TILT_BITS-1:0] corrected_tilt,
+    // Collision's report that the body is balanced past a supporting edge.
+    input tri0 signed [1:0] tip_dir,
+    output reg signed [`LP_TILT_BITS-1:0] previous_tilt, proposed_tilt, vehicle_tilt,
     output reg movement_committed,
     output reg signed [`LP_COORD_BITS-1:0] vehicle_x, vehicle_y
 );
@@ -39,7 +46,14 @@ module physics_engine (
                MAKE_REQUEST = 9, SEND = 10, WAIT_RESPONSE = 11,
                WAIT_WORLD = 12, CALC_FORCE = 13, SLOPE_FORCE = 14, APPLY_SLOPE = 15;
     localparam signed [15:0] wheel_drag = 16'sd10;
-    localparam signed [15:0] engine_force = 16'sd96;
+    // A wheeled body resting on its side without wheels scrapes instead of rolling.
+    // Bodies with no wheel sides reported (no wheels, or legacy inputs) keep the
+    // original zero-wheel behaviour.
+    localparam signed [15:0] scrape_drag = 16'sd128;
+    // Spin is in 1/16 tilt steps per update: 16 turns 11.25 degrees each update.
+    // Tipping over an edge adds TIP_ACCEL per update, up to MAX_SPIN.
+    localparam signed [5:0] TIP_ACCEL = 6'sd3, MAX_SPIN = 6'sd16;
+    localparam signed [15:0] engine_force = ENGINE_FORCE;
     // Two available balloons must overcome gravity (32); one slows a fall.
     localparam signed [15:0] lift_per_balloon = 16'sd24;
 
@@ -48,7 +62,20 @@ module physics_engine (
     reg was_grounded, jump_pending;
     // Accepted terrain gradient in Q4.4 dy/dx; positive descends to the right.
     reg signed [7:0] last_ground_slope, sampled_slope;
-    wire signed [3:0] desired_tilt=slope_to_tilt(last_ground_slope);
+    // An upside-down body settles onto the slope with its top row down.
+    wire signed [`LP_TILT_BITS-1:0] slope_tilt=slope_to_tilt(last_ground_slope);
+    wire signed [`LP_TILT_BITS-1:0] desired_tilt=tilt_flipped(vehicle_tilt) ? slope_tilt+5'b10000 : slope_tilt;
+    // Shortest way round: the 5-bit difference wraps to -16..15.
+    wire signed [`LP_TILT_BITS-1:0] settle_error=desired_tilt-vehicle_tilt;
+    reg signed [5:0] spin;
+    reg signed [1:0] last_tip;
+    reg [3:0] spin_frac;
+    wire signed [6:0] tip_spin=spin+(last_tip > 0 ? TIP_ACCEL : last_tip < 0 ? -TIP_ACCEL : 6'sd0);
+    wire signed [5:0] next_tip_spin=tip_spin > MAX_SPIN ? MAX_SPIN : tip_spin < -MAX_SPIN ? -MAX_SPIN : tip_spin[5:0];
+    wire signed [7:0] spin_sum=$signed({1'b0,spin_frac})+(was_grounded ? next_tip_spin : spin);
+    // The wheels touching the ground decide grip and drive.
+    wire [3:0] contact_wheels=(wheels_down|wheels_up)==0 ? wheel_count :
+                              tilt_flipped(vehicle_tilt) ? wheels_up : wheels_down;
     reg [15:0] step_slope_product;
     reg signed [15:0] step_slope_force;
     reg [27:0] boost_timer; // 1.5 seconds at 100MHz is 150_000_000 cycles
@@ -56,6 +83,7 @@ module physics_engine (
     assign boost_active = is_boosting;
     reg sampled_boosting;
     reg [3:0] sampled_wheels, sampled_engines, sampled_balloons;
+    reg sampled_sided;
     reg sampled_engine_enabled, sampled_engine_reverse, sampled_jump;
     wire jump_now;
     assign jump_now = (game_state == `LP_RUN) && was_grounded &&
@@ -80,7 +108,7 @@ module physics_engine (
     wire [15:0] wheel_resistance;
     wire signed [16:0] vertical_sum;
     assign engine_magnitude = $signed({1'b0, sampled_engines}) * engine_force;
-    assign wheel_resistance = sampled_wheels * wheel_drag;
+    assign wheel_resistance = sampled_wheels != 0 ? sampled_wheels * wheel_drag : sampled_sided ? scrape_drag : 16'sd0;
     assign lift = $signed({1'b0, sampled_balloons}) * lift_per_balloon;
     assign vertical_sum = $signed({velocity_y[15], velocity_y}) +
                           17'sd32 - $signed({lift[15], lift});
@@ -136,6 +164,7 @@ module physics_engine (
             phase <= IDLE; init_ready <= 0; was_grounded <= 0; boost_timer <= 0;
             last_ground_slope <= 0; sampled_slope <= 0;
             previous_tilt <= 0; proposed_tilt <= 0; vehicle_tilt <= 0;
+            spin <= 0; spin_frac <= 0; last_tip <= 0;
             step_slope_product <= 0; step_slope_force <= 0;
             movement_committed <= 0;
             vehicle_x <= spawn_x; vehicle_y <= spawn_y;
@@ -150,7 +179,7 @@ module physics_engine (
             step_result_vx <= 0; step_momentum <= 0; step_free_momentum <= 0;
             step_vx_sum <= 0; step_x_sum <= 0; step_y_sum <= 0;
             divider_start <= 0; divider_input <= 0;
-            sampled_wheels <= 0; sampled_engines <= 0; sampled_balloons <= 0;
+            sampled_wheels <= 0; sampled_engines <= 0; sampled_balloons <= 0; sampled_sided <= 0;
             sampled_engine_enabled <= 0; sampled_engine_reverse <= 0; sampled_jump <= 0;
         end else begin
             movement_committed <= 0;
@@ -162,6 +191,7 @@ module physics_engine (
                 phase <= IDLE; init_ready <= 1; was_grounded <= 0;
                 last_ground_slope <= 0;
                 previous_tilt <= 0; proposed_tilt <= 0; vehicle_tilt <= 0;
+                spin <= 0; spin_frac <= 0; last_tip <= 0;
                 vehicle_x <= spawn_x; vehicle_y <= spawn_y;
                 previous_x <= spawn_x; previous_y <= spawn_y;
                 proposed_x <= spawn_x; proposed_y <= spawn_y;
@@ -171,24 +201,32 @@ module physics_engine (
             end else if (game_state != `LP_RUN) begin
                 phase <= IDLE;
                 last_ground_slope <= 0; was_grounded <= 0;
+                spin <= 0; spin_frac <= 0; last_tip <= 0;
             end else case (phase)
                 IDLE: if (step_start) begin
                     // Capture all properties once. Later input changes cannot
                     // change this update while arithmetic or collision is busy.
                     previous_x <= vehicle_x; previous_y <= vehicle_y;
                     previous_tilt <= vehicle_tilt;
-                    // Settle one angle step per update. Airborne motion keeps
-                    // its launch attitude; no artificial spin is introduced.
-                    if (was_grounded && !jump_now) begin
-                        if (desired_tilt > vehicle_tilt) proposed_tilt <= vehicle_tilt+1'b1;
-                        else if (desired_tilt < vehicle_tilt) proposed_tilt <= vehicle_tilt-1'b1;
+                    // A supported body tipping over an edge gains spin; otherwise it
+                    // settles one angle step per update onto the ground under it.
+                    // Airborne, the body keeps the spin it left the ground with.
+                    if (was_grounded && !jump_now && last_tip == 0) begin
+                        spin <= 0; spin_frac <= 0;
+                        if (settle_error > 0) proposed_tilt <= vehicle_tilt+1'b1;
+                        else if (settle_error < 0) proposed_tilt <= vehicle_tilt-1'b1;
                         else proposed_tilt <= vehicle_tilt;
-                    end else proposed_tilt <= vehicle_tilt;
+                    end else begin
+                        if (was_grounded && !jump_now) spin <= next_tip_spin;
+                        spin_frac <= spin_sum[3:0];
+                        proposed_tilt <= vehicle_tilt+(spin_sum >>> 4);
+                    end
                     step_x <= vehicle_x; step_y <= vehicle_y;
                     step_vx <= velocity_x; step_mass <= mass_units;
                     step_remainder <= remainder_x;
                     pending_remainder_x <= 0;
-                    sampled_wheels <= wheel_count; sampled_engines <= engine_count;
+                    sampled_wheels <= contact_wheels; sampled_engines <= engine_count;
+                    sampled_sided <= (wheels_down|wheels_up)!=0;
                     sampled_balloons <= balloon_count;
                     sampled_engine_enabled <= engine_enabled; sampled_engine_reverse <= engine_reverse;
                     sampled_jump <= jump_now;
@@ -200,7 +238,8 @@ module physics_engine (
                     // Part counting ends at the sampled registers above. Force
                     // multiplication/addition then has its own 100 MHz clock.
                     step_thrust <= 0;
-                    if (sampled_engine_enabled && sampled_engines != 0 && was_grounded) begin
+                    // With wheel sides reported, only wheels touching the ground drive.
+                    if (sampled_engine_enabled && sampled_engines != 0 && (sampled_wheels != 0 || !sampled_sided) && was_grounded) begin
                         if (sampled_boosting)
                             step_thrust <= sampled_engine_reverse ? -(engine_magnitude <<< 1) : (engine_magnitude <<< 1);
                         else
@@ -324,6 +363,9 @@ module physics_engine (
                 WAIT_RESPONSE: if (response_valid) begin
                     vehicle_x <= corrected_x; vehicle_y <= corrected_y;
                     vehicle_tilt <= sanitize_tilt(corrected_tilt);
+                    last_tip <= grounded ? tip_dir : 2'sd0;
+                    // A wall or roof that blocks an airborne turn stops the spin.
+                    if (!grounded && corrected_tilt != proposed_tilt) begin spin <= 0; spin_frac <= 0; end
                     velocity_x <= corrected_vx; velocity_y <= corrected_vy;
                     was_grounded <= grounded;
                     if (grounded && ground_slope >= -8'sd16 && ground_slope <= 8'sd16)

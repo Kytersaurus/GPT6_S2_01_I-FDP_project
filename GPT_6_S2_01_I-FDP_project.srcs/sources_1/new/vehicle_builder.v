@@ -38,6 +38,10 @@ module vehicle_builder #(
     output reg [3:0] feedback_cell,
     output reg pig_alive,
     output reg [3:0] wheel_count, engine_count, balloon_count,
+    // Intact wheels by the side they touch: a frame above hangs the wheel under
+    // the body (down); a frame below sets it on top (up). A middle-row wheel
+    // between two frames counts on both sides.
+    output reg [3:0] wheels_down, wheels_up,
     output reg [3:0] frames_left, pigs_left, wheels_left, engines_left, balloons_left,
     output reg [7:0] mass_units
 );
@@ -230,7 +234,7 @@ module vehicle_builder #(
         end
     end
     always @* begin
-        wheel_count = 0; engine_count = 0; balloon_count = 0;
+        wheel_count = 0; engine_count = 0; balloon_count = 0; wheels_down = 0; wheels_up = 0;
         rocket_count=0; fan_count=0; engine_balance=0;
         mass_units = 0; pig_alive = 0; part = 0;
         saved_frames = 0; saved_pigs = 0; saved_wheels = 0; saved_engines = 0; saved_balloons = 0; saved_rockets=0; saved_fans=0;
@@ -264,7 +268,11 @@ module vehicle_builder #(
             if (frame_intact_mask[index]) mass_units = mass_units + 2;
             if (intact_mask[index]) case (part)
                 `LP_PART_PIG: begin pig_alive = 1; mass_units = mass_units + 2; end
-                `LP_PART_WHEEL: begin wheel_count = wheel_count + 1; mass_units = mass_units + 1; end
+                `LP_PART_WHEEL: begin
+                    wheel_count = wheel_count + 1; mass_units = mass_units + 1;
+                    if (index >= 3 && build_frames[index-3]) wheels_down = wheels_down + 1;
+                    if (index < 6 && build_frames[index+3]) wheels_up = wheels_up + 1;
+                end
                 `LP_PART_ENGINE: begin
                     engine_count = engine_count + 1; mass_units = mass_units + 3;
                     engine_balance=engine_balance+(build_facing_left[index] ? -5'sd1 : 5'sd1);

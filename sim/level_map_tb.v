@@ -10,7 +10,7 @@ module level_map_tb;
     integer x, y, m;
     always #5 draw_clk = ~draw_clk;
     always #7 query_clk = ~query_clk;
-    level_map dut (.map_id(map_id), .draw_clk(draw_clk), .draw_x(draw_x), .draw_y(draw_y),
+    level_map #(.ARCH_SCALED(0)) dut (.map_id(map_id), .draw_clk(draw_clk), .draw_x(draw_x), .draw_y(draw_y),
         .draw_class(draw_class), .query_clk(query_clk), .query_x(query_x),
         .query_y(query_y), .query_class(query_class));
 

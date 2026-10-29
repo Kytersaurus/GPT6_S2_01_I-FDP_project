@@ -26,7 +26,7 @@ module right_renderer (
     input wire [8:0] frame_intact_mask,
     // 20-bit Q12.8 positions, ready for wider physics; today's 16-bit values are sign-extended.
     input wire signed [19:0] vehicle_x, vehicle_y,
-    input wire signed [3:0] vehicle_tilt,
+    input wire signed [`LP_TILT_BITS-1:0] vehicle_tilt,
     input wire signed [19:0] spawn_x, spawn_y,
     input wire [2:0] terrain_count,
     input wire [127:0] terrain_rects,
@@ -114,11 +114,11 @@ module right_renderer (
     reg [6:0] px, py;
     reg signed [11:0] fx, fy, wx, wy, tex_x, tex_y;
     reg zoomed_out_q, overview_q;
-    reg signed [3:0] tilt_q;
+    reg signed [`LP_TILT_BITS-1:0] tilt_q;
     always @(posedge clk) begin
         px <= sx; py <= sy; zoomed_out_q <= zoomed_out; overview_q <= overview;
         fx <= next_fx; fy <= next_fy; wx <= next_wx; wy <= next_wy; tex_x <= next_tx; tex_y <= next_ty;
-        tilt_q <= before_launch ? 4'sd0 : sanitize_tilt(vehicle_tilt);
+        tilt_q <= before_launch ? 0 : sanitize_tilt(vehicle_tilt);
     end
 
     // World position to screen-scale position for sprites.

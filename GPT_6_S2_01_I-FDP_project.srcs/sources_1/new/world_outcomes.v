@@ -10,7 +10,7 @@ module world_outcomes (
     output reg init_ready,
     input wire movement_committed,
     input wire signed [`LP_COORD_BITS-1:0] vehicle_x, vehicle_y,
-    input wire signed [3:0] vehicle_tilt,
+    input wire signed [`LP_TILT_BITS-1:0] vehicle_tilt,
     input wire [26:0] build_grid,
     input wire [8:0] intact_mask,
     input wire [31:0] goal_rect,
@@ -34,7 +34,7 @@ module world_outcomes (
     reg signed [20:0] goal_left, goal_top, goal_right, goal_bottom;
     reg [9:0] saved_width, saved_height;
     reg signed [14:0] body_extent;
-    reg signed [9:0] tilt_cos, tilt_sin, tilt_abs_sin;
+    reg signed [9:0] tilt_cos, tilt_sin, tilt_abs_sin, tilt_abs_cos;
     reg signed [4:0] pig_local_x, pig_local_y;
     reg pig_found;
     reg [63:0] saved_hazards;
@@ -92,7 +92,7 @@ module world_outcomes (
             vehicle_left<=0; vehicle_top<=0; vehicle_right<=0; vehicle_bottom<=0;
             goal_left<=0; goal_top<=0; goal_right<=0; goal_bottom<=0;
             saved_width<=0; saved_height<=0; body_extent<=0;
-            tilt_cos<=256; tilt_sin<=0; tilt_abs_sin<=0;
+            tilt_cos<=256; tilt_sin<=0; tilt_abs_sin<=0; tilt_abs_cos<=256;
             pig_local_x<=0; pig_local_y<=0; pig_found<=0;
             saved_hazards<=0; saved_hazard_count<=0; hazard_index<=0;
             hazard_aabb<=0; hazard_dx<=0; hazard_dy<=0; hazard_w<=0; hazard_h<=0;
@@ -115,6 +115,7 @@ module world_outcomes (
                         tilt_cos<=rotation_cos(vehicle_tilt);
                         tilt_sin<=rotation_sin(vehicle_tilt);
                         tilt_abs_sin<=rotation_sin(vehicle_tilt)<0 ? -rotation_sin(vehicle_tilt) : rotation_sin(vehicle_tilt);
+                        tilt_abs_cos<=rotation_cos(vehicle_tilt)<0 ? -rotation_cos(vehicle_tilt) : rotation_cos(vehicle_tilt);
                         pig_found<=candidate_pig_found;
                         pig_local_x<=candidate_pig_x; pig_local_y<=candidate_pig_y;
                         saved_width<=world_width; saved_height<=world_height;
@@ -161,7 +162,7 @@ module world_outcomes (
                     X_PRODUCTS: begin
                         product_a<=hazard_dx*tilt_cos;
                         product_b<=hazard_dy*tilt_sin;
-                        extent_product_a<=$signed({1'b0,hazard_w})*tilt_cos;
+                        extent_product_a<=$signed({1'b0,hazard_w})*tilt_abs_cos;
                         extent_product_b<=$signed({1'b0,hazard_h})*tilt_abs_sin;
                         phase<=X_SUM_Y_PRODUCTS;
                     end
@@ -172,7 +173,7 @@ module world_outcomes (
                         product_a<=hazard_dx*tilt_sin;
                         product_b<=hazard_dy*tilt_cos;
                         extent_product_a<=$signed({1'b0,hazard_w})*tilt_abs_sin;
-                        extent_product_b<=$signed({1'b0,hazard_h})*tilt_cos;
+                        extent_product_b<=$signed({1'b0,hazard_h})*tilt_abs_cos;
                         phase<=Y_SUM;
                     end
                     Y_SUM: begin

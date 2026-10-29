@@ -23,7 +23,7 @@ module tnt_controller (
     input wire signed [`LP_COORD_BITS-1:0] previous_y,
     input wire signed [`LP_COORD_BITS-1:0] vehicle_x,
     input wire signed [`LP_COORD_BITS-1:0] vehicle_y,
-    input wire signed [3:0] previous_tilt, vehicle_tilt,
+    input wire signed [`LP_TILT_BITS-1:0] previous_tilt, vehicle_tilt,
 
     input wire [2:0] tnt_count,
     input wire [`LP_TNT_BITS-1:0] tnt_positions,
@@ -46,7 +46,7 @@ module tnt_controller (
     reg [2:0] state;
     reg [`LP_MAX_TNT-1:0] pending_triggers;
     reg signed [`LP_COORD_BITS-1:0] saved_x, saved_y;
-    reg signed [3:0] saved_tilt;
+    reg signed [`LP_TILT_BITS-1:0] saved_tilt;
     reg [1:0] active_tnt;
     reg [7:0] active_x, active_y;
     reg [3:0] cell_index;

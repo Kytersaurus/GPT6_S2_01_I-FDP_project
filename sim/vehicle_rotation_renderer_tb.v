@@ -7,7 +7,7 @@ module vehicle_rotation_renderer_tb;
     reg [12:0] pixel=0;
     reg zoomed_out=1, overview=0;
     reg [2:0] state=`LP_RUN;
-    reg signed [3:0] tilt=0;
+    reg signed [`LP_TILT_BITS-1:0] tilt=0;
     reg [8:0] facing=9'b000001000;
     reg [8:0] intact=9'b101111101, frames=9'b000111000;
     wire [26:0] grid={`LP_PART_WHEEL, `LP_PART_EMPTY, `LP_PART_WHEEL,
@@ -19,6 +19,8 @@ module vehicle_rotation_renderer_tb;
     integer expected_tilt, cell_size;
     reg [15:0] expected;
     `include "part_sprites.vh"
+    // Quantized coefficients; flip_physics_tb checks all 32 against $cos/$sin.
+    `include "rotation_geometry.vh"
 
     right_renderer dut (
         .clk(clk), .pixel_index(pixel), .zoomed_out(zoomed_out), .overview(overview),
@@ -48,18 +50,7 @@ module vehicle_rotation_renderer_tb;
         begin
             origin_x=3*cell_size; origin_y=2*cell_size;
             local_x=sx-origin_x; local_y=sy-origin_y;
-            c=256; s=0;
-            case (angle)
-                 1: begin c=251; s=50; end
-                -1: begin c=251; s=-50; end
-                 4: begin c=181; s=181; end
-                -4: begin c=181; s=-181; end
-                 2: begin c=237; s=98; end
-                -2: begin c=237; s=-98; end
-                 3: begin c=213; s=142; end
-                -3: begin c=213; s=-142; end
-                default: begin c=256; s=0; end
-            endcase
+            c=rotation_cos(angle); s=rotation_sin(angle);
             dx=local_x+0.5-1.5*cell_size;
             dy=local_y+0.5-1.5*cell_size;
             source_x=(c*dx+s*dy)/256.0+1.5*cell_size;
@@ -135,8 +126,9 @@ module vehicle_rotation_renderer_tb;
             facing=9'b000001000; intact=9'b101111101; frames=9'b000111000;
             // Construction previews stay upright regardless of stale tilt.
             state=`LP_BUILD; tilt=4; check_raster(0); state=`LP_RUN;
-            tilt=4'sd7; check_raster(0);
-            tilt=4'bxxxx; check_raster(0);
+            // The full turn draws too: steep and upside down.
+            tilt=7; check_raster(7);
+            tilt=-16; check_raster(-16);
         end
         $display("PASS vehicle_rotation_renderer_tb: %0d rasters, %0d pixels; +/- tilt, zero identity, four zooms, facing, damage, build and invalid inputs",
                  raster_count,tested);

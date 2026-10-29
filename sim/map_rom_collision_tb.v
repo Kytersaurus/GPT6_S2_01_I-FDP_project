@@ -23,7 +23,7 @@ module map_rom_collision_tb;
         $readmemh("cave_arch_map.mem",arch);
         $readmemh("cave_flight_map.mem",flight);
     end
-    level_map rom (
+    level_map #(.ARCH_SCALED(0)) rom (
         .map_id(!map_id), .draw_clk(clk), .draw_x(11'sd104), .draw_y(11'sd50), .draw_class(draw_class),
         .query_clk(clk), .query_map_id(map_id), .query_x(qx), .query_y(qy), .query_class(), .query_solid(query_solid)
     );

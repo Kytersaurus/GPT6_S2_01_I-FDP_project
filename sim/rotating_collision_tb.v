@@ -7,17 +7,17 @@ module rotating_collision_tb;
     reg map_level=1, rotation_enabled=1;
     reg signed [19:0] px=0,py=0,nx=0,ny=0;
     reg signed [15:0] vx=0,vy=0;
-    reg signed [3:0] old_tilt=0,new_tilt=0;
+    reg signed [`LP_TILT_BITS-1:0] old_tilt=0,new_tilt=0;
     reg [9:0] width=192,height=192;
     reg [3:0] scene=0;
     reg [2:0] query_class=`LP_MAP_CAVE;
     wire signed [10:0] qx,qy;
     wire signed [19:0] cx,cy;
     wire signed [15:0] cvx,cvy;
-    wire signed [3:0] tilt;
+    wire signed [`LP_TILT_BITS-1:0] tilt;
     wire signed [7:0] slope;
     wire move_ready,response_valid,grounded;
-    reg [84:0] held;
+    reg [84+`LP_TILT_BITS-4:0] held;
     integer waited,max_latency=0,cases=0,index;
     integer floor_y,left_start,right_start,up_start,down_start,xx,yy;
     integer saved_y;
@@ -125,7 +125,7 @@ module rotating_collision_tb;
                 $fatal(1,"Rotated case%0d grounded without exact supporting terrain",cases);
             if(expected_ground>=0 && grounded!==expected_ground[0])
                 $fatal(1,"Rotated case%0d unexpected ground%0d, expected%0d",cases,grounded,expected_ground);
-            if(tilt!==expected_tilt[3:0])
+            if(tilt!==expected_tilt[`LP_TILT_BITS-1:0])
                 $fatal(1,"Rotated case%0d angle%0d, expected%0d",cases,tilt,expected_tilt);
             held={cx,cy,cvx,cvy,tilt,grounded,slope};
             move_valid=1;clocks(7);
