@@ -41,6 +41,15 @@ module tnt_controller_tb;
         begin repeat(n) @(negedge clk); end
     endtask
 
+    task wait_complete;
+        integer waited;
+        begin
+            waited=0;
+            while(!damage_complete && waited<8) begin clocks(1); waited=waited+1; end
+            if(!damage_complete) $fatal(1,"TNT completion did not arrive");
+        end
+    endtask
+
     task start_run;
         begin
             game_state=`LP_INIT_RUN;
@@ -115,7 +124,7 @@ module tnt_controller_tb;
         if (explosion_event || damage_valid)
             $fatal(1, "Triggered TNT fired more than once");
         movement_committed=0;
-        clocks(1);
+        wait_complete();
         if (!damage_complete) $fatal(1,"No-explosion movement did not complete");
 
         // Both TNT in the same sweep must be processed before releasing world checks.

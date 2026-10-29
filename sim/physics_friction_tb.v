@@ -33,7 +33,7 @@ module physics_friction_tb;
         .proposed_x(nx), .proposed_y(ny), .proposed_vx(nvx), .proposed_vy(nvy),
         .response_valid(response_valid), .response_ready(response_ready),
         .corrected_x(cx), .corrected_y(cy),
-        .corrected_vx(cvx), .corrected_vy(cvy), .grounded(grounded),
+        .corrected_vx(cvx), .corrected_vy(cvy), .ground_slope(8'sd0), .grounded(grounded),
         .movement_committed(committed), .vehicle_x(x), .vehicle_y(y)
     );
 

@@ -17,7 +17,7 @@ module physics_jump_tb;
         .proposed_x(nx),.proposed_y(ny),.proposed_vx(nvx),.proposed_vy(nvy),
         .response_valid(response),.response_ready(response_ready),.corrected_x(nx),
         .corrected_y(contact?20'sd8192:ny),.corrected_vx(nvx),.corrected_vy(contact?16'sd0:nvy),
-        .grounded(contact),.movement_committed(committed),.vehicle_x(x),.vehicle_y(y));
+        .ground_slope(8'sd0), .grounded(contact),.movement_committed(committed),.vehicle_x(x),.vehicle_y(y));
     task clocks;
         input integer count;
         begin repeat(count) @(negedge clk); end

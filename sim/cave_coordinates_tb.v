@@ -15,6 +15,7 @@ module cave_coordinates_tb;
     wire map_level;
     wire [9:0] world_width, world_height, flag_x, flag_y;
     wire move_valid, move_ready, response_valid, response_ready, grounded;
+    wire signed [7:0] ground_slope;
     wire committed, world_valid, goal_hit, hazard_hit, out_of_bounds;
     reg world_ready=0;
     reg [26:0] grid=0;
@@ -38,17 +39,18 @@ module cave_coordinates_tb;
         .previous_x(px), .previous_y(py), .proposed_x(nx), .proposed_y(ny),
         .proposed_vx(nvx), .proposed_vy(nvy), .response_valid(response_valid),
         .response_ready(response_ready), .corrected_x(cx), .corrected_y(cy),
-        .corrected_vx(cvx), .corrected_vy(cvy), .grounded(grounded),
+        .corrected_vx(cvx), .corrected_vy(cvy), .grounded(grounded), .ground_slope(ground_slope),
         .movement_committed(committed), .vehicle_x(x), .vehicle_y(y)
     );
     collision_engine collision (
+        .map_level(1'b0), .world_width(10'd96), .world_height(10'd64), .query_class(3'd0),
         .clk(clk), .reset(reset), .move_valid(move_valid), .move_ready(move_ready),
         .previous_x(px), .previous_y(py), .proposed_x(nx), .proposed_y(ny),
         .proposed_vx(nvx), .proposed_vy(nvy),
-        .terrain_count(terrain_count), .terrain_rects(terrain_rects),
+        .terrain_count(3'd1), .terrain_rects(level_index==2 ? {96'd0,8'd8,8'd32,8'd50,8'd97} : {96'd0,8'd8,8'd36,8'd202,8'd60}),
         .response_valid(response_valid), .response_ready(response_ready),
         .corrected_x(cx), .corrected_y(cy), .corrected_vx(cvx), .corrected_vy(cvy),
-        .grounded(grounded)
+        .grounded(grounded), .ground_slope(ground_slope)
     );
     world_outcomes world (
         .clk(clk), .reset(reset), .run_init(run_init), .game_state(game_state),
@@ -89,7 +91,7 @@ module cave_coordinates_tb;
     initial begin
         grid[4*3 +: 3]=`LP_PART_PIG;
         clocks(3); reset=0; clocks(1);
-        // Real cave spawns land on their existing placeholder platforms.
+        // Synthetic rectangle fixtures isolate coordinate range from ROM geometry.
         check_step(104*256,26*256,1,0,0);
         level_index=3;
         check_step(68*256,178*256,1,0,0);

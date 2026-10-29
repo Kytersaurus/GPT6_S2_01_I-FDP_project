@@ -23,7 +23,8 @@ module balloon_controls_tb;
     // Check renderer pixels directly without waiting for an entire OLED frame.
     left_renderer view (
         .build_facing_left(9'd0), .selected_left(1'b0), .inventory_page(1'b0), .rockets_left(4'd1), .fans_left(4'd1),
-        .pixel_index(pixel), .game_state(dut.game_state), .build_grid(dut.build_grid),
+        .pixel_index(pixel), .game_state(dut.game_state), .build_grid(dut.build_grid), .build_frames(dut.build_frames),
+        .run_seconds(8'd0), .anim_phase(1'b0), .level_index(dut.level_index), .fail_reason(dut.fail_reason), .boost_active(1'b0),
         .intact_mask(dut.intact_mask), .frame_intact_mask(dut.frame_intact_mask),
         .build_valid(dut.build_valid), .build_error(dut.build_error), .engine_enabled(1'b0),
         .feedback_code(dut.feedback_code), .feedback_cell(dut.feedback_cell),
@@ -159,26 +160,27 @@ module balloon_controls_tb;
         saved_grid=dut.build_grid; saved_frames=dut.build_frames;
 
         // A construction drag held across launch must not turn into a pop.
-        packet(12,12,1,0); start=1;clocks(1);start=0;wait_run(); packet(28,12,1,0); packet(28,12,0,0);
+        packet(12,12,1,0); start=1;clocks(1);start=0;wait_run(); packet(22,18,1,0); packet(22,18,0,0);
         if (dut.balloon_count!=2 || dut.pop_pending) $fatal(1,"Held launch click popped a balloon");
         left_click(48,59);
-        left_click(28,28); left_click(44,28); left_click(12,28); left_click(44,12);
+        left_click(22,30); left_click(34,30); left_click(10,30); left_click(34,18);
         left_click(74,48); left_click(52,12); left_click(12,52); left_click(4095,4095);
-        packet(12,12,0,1); packet(12,12,0,0);
-        packet(12,12,1,1); packet(12,12,1,0); packet(12,12,0,0);
-        packet(54,12,1,0); packet(12,12,1,0); packet(12,12,0,0);
+        packet(10,18,0,1); packet(10,18,0,0);
+        packet(10,18,1,1); packet(10,18,1,0); packet(10,18,0,0);
+        packet(54,12,1,0); packet(10,18,1,0); packet(10,18,0,0);
         if (dut.balloon_count!=2 || dut.pop_pending || applications!=0)
             $fatal(1,"Non-balloon, outside, right or held clicks caused a pop");
 
+        // RUN cell0 centre is (10,18); cell1 centre is (22,18).
         // A fresh press pops once; dragging while held cannot pop another cell.
-        packet(12,12,1,0);
-        if (dut.balloon_count!=1 || dut.mass_units!=14 || dut.intact_mask[0] || dut.balloons_left!=0)
+        packet(10,18,1,0);
+        if (dut.balloon_count!=1 || dut.mass_units!=14 || dut.intact_mask[0] || !dut.intact_mask[1] || dut.balloons_left!=0)
             $fatal(1,"Idle click did not pop one balloon without refund");
-        pixel=12*96+12; #1; if (colour!=16'hffff) $fatal(1,"RUN cursor missing");
-        pixel=10*96+11; #1; if (colour!=16'h0841) $fatal(1,"Popped balloon still drawn");
-        pixel=10*96+27; #1; if (colour!=16'hf81f) $fatal(1,"Other balloon disappeared");
+        pixel=18*96+10; #1; if (colour!=16'hffff) $fatal(1,"RUN cursor missing");
+        pixel=14*96+8; #1; if (colour!=16'h0841) $fatal(1,"Popped balloon still drawn");
+        pixel=14*96+20; #1; if (colour!=16'hf81f) $fatal(1,"Other balloon disappeared");
         clocks(1); previous_applications=applications;
-        packet(28,12,1,0); packet(28,12,1,0); packet(28,12,0,0); left_click(12,12);
+        packet(22,18,1,0); packet(22,18,1,0); packet(22,18,0,0); left_click(10,18);
         if (dut.balloon_count!=1 || applications!=previous_applications || dut.pop_pending)
             $fatal(1,"Held or already-popped balloon click repeated");
         if (dut.build_grid!==saved_grid || dut.build_frames!==saved_frames || dut.frame_intact_mask!==saved_frames)
@@ -188,10 +190,10 @@ module balloon_controls_tb;
         // Hold the world result while both balloons are clicked. Properties and
         // the current physics sample must stay unchanged until world completion.
         begin_update(); wait_movement();
-        packet(12,12,1,0); packet(28,12,1,0); packet(28,12,0,0);
+        packet(10,18,1,0); packet(22,18,1,0); packet(22,18,0,0);
         if (!dut.pop_pending || dut.u_balloons.pending_mask!=9'b000000001)
             $fatal(1,"Held drag queued more than the pressed balloon");
-        left_click(28,12); left_click(12,12); tick=1; clocks(4);
+        left_click(22,18); left_click(10,18); tick=1; clocks(4);
         if (dut.balloon_count!=2 || dut.mass_units!=15 || dut.u_physics.sampled_balloons!=2 || dut.pop_valid)
             $fatal(1,"Queued pop changed an active movement update");
         previous_applications=applications;
@@ -210,45 +212,45 @@ module balloon_controls_tb;
 
         // A request reaching the queue on the step-start edge belongs after that
         // update, not halfway through its property sampling.
-        packet(12,12,0,0);
+        packet(10,18,0,0);
         mouse_left=1; mouse_event=1; clocks(1); mouse_event=0; tick=1; clocks(1); tick=0;
         if (!dut.step_start || !dut.pop_pending || dut.pop_valid || dut.balloon_count!=2)
             $fatal(1,"Simultaneous step/pop was not deferred");
         clocks(1);
         if (dut.u_physics.sampled_balloons!=2) $fatal(1,"Step/pop edge changed sampled properties");
-        wait_movement(); finish_world(0,0); clocks(2); packet(12,12,0,0);
+        wait_movement(); finish_world(0,0); clocks(2); packet(10,18,0,0);
         if (dut.balloon_count!=1 || dut.pop_pending) $fatal(1,"Deferred boundary pop was lost");
         complete_and_retry();
 
         // A click on the world-completion edge still has priority over a new
         // physics tick once it reaches the pending queue.
         begin_update(); wait_movement();
-        mouse_x=12; mouse_y=12; mouse_left=1; mouse_event=1; world_result=1;
+        mouse_x=10; mouse_y=18; mouse_left=1; mouse_event=1; world_result=1;
         clocks(1); mouse_event=0; world_result=0; tick=1;
         clocks(1); tick=0;
         if (!dut.step_start || !dut.pop_pending || dut.balloon_count!=2)
             $fatal(1,"World-completion click was lost or changed the next step");
-        clocks(1); wait_movement(); finish_world(0,0); clocks(2); packet(12,12,0,0);
+        clocks(1); wait_movement(); finish_world(0,0); clocks(2); packet(10,18,0,0);
         if (dut.balloon_count!=1) $fatal(1,"World-completion click never applied");
         complete_and_retry();
 
         // Result states discard queued clicks; retry cannot replay them.
-        begin_update(); wait_movement(); left_click(12,12); finish_world(1,0); clocks(2);
+        begin_update(); wait_movement(); left_click(10,18); finish_world(1,0); clocks(2);
         if (dut.game_state!=`LP_SUCCESS || dut.pop_pending || dut.balloon_count!=2)
             $fatal(1,"Success applied or retained a queued pop");
-        left_click(28,12); launch_or_retry(); clocks(3);
+        left_click(22,18); launch_or_retry(); clocks(3);
         if (dut.balloon_count!=2 || dut.pop_pending) $fatal(1,"Result click leaked into retry");
-        begin_update(); wait_movement(); left_click(28,12); finish_world(0,1); clocks(2);
+        begin_update(); wait_movement(); left_click(22,18); finish_world(0,1); clocks(2);
         if (dut.game_state!=`LP_FAIL || dut.pop_pending || dut.balloon_count!=2)
             $fatal(1,"Failure applied or retained a queued pop");
-        launch_or_retry(); left_click(12,12);
+        launch_or_retry(); left_click(10,18);
         begin_update(); wait_movement(); finish_world(1,0); clocks(2);
         edit=1; clocks(1); edit=0; clocks(2);
         if (dut.game_state!=`LP_BUILD || dut.balloon_count!=2 || dut.balloons_left!=0)
             $fatal(1,"Return to construction did not restore popped balloons");
 
         // Reset while a click is waiting also discards it and clears construction.
-        launch_or_retry(); begin_update(); wait_movement(); left_click(28,12);
+        launch_or_retry(); begin_update(); wait_movement(); left_click(22,18);
         btnD=1; clocks(10); btnD=0; clocks(20);
         if (dut.game_state!=`LP_BUILD || dut.pop_pending || dut.balloon_count!=0 ||
             dut.balloons_left!=2 || dut.build_grid!==0 || dut.build_frames!==0 ||
