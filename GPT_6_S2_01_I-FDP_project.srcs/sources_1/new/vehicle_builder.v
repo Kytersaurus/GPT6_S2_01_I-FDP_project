@@ -84,7 +84,7 @@ module vehicle_builder #(
                     end
                     `LP_PART_PIG, `LP_PART_ENGINE: begin
                         if (build_grid[edit_cell*3 +: 3] == edit_part)
-                            edit_result = ((edit_part==`LP_PART_ENGINE || edit_part==`LP_PART_BOOSTER) &&
+                            edit_result = (edit_part==`LP_PART_ENGINE &&
                                            build_facing_left[edit_cell]!=edit_facing_left) ? `LP_FEEDBACK_PLACED : `LP_FEEDBACK_NONE;
                         else if (!build_frames[edit_cell]) edit_result = `LP_FEEDBACK_NEED_FRAME;
                         else if ((edit_part == `LP_PART_PIG && pigs_left == 0) ||
@@ -94,8 +94,7 @@ module vehicle_builder #(
                     end
                     `LP_PART_WHEEL: begin
                         if (build_grid[edit_cell*3 +: 3] == edit_part)
-                            edit_result = ((edit_part==`LP_PART_ENGINE || edit_part==`LP_PART_BOOSTER) &&
-                                           build_facing_left[edit_cell]!=edit_facing_left) ? `LP_FEEDBACK_PLACED : `LP_FEEDBACK_NONE;
+                            edit_result = `LP_FEEDBACK_NONE;
                         else if (build_frames[edit_cell]) edit_result = `LP_FEEDBACK_OCCUPIED;
                         else if (!wheel_support[edit_cell]) edit_result = `LP_FEEDBACK_FRAME_ABOVE;
                         else if (wheels_left == 0) edit_result = `LP_FEEDBACK_NO_STOCK;
@@ -103,8 +102,7 @@ module vehicle_builder #(
                     end
                     `LP_PART_BALLOON: begin
                         if (build_grid[edit_cell*3 +: 3] == edit_part)
-                            edit_result = ((edit_part==`LP_PART_ENGINE || edit_part==`LP_PART_BOOSTER) &&
-                                           build_facing_left[edit_cell]!=edit_facing_left) ? `LP_FEEDBACK_PLACED : `LP_FEEDBACK_NONE;
+                            edit_result = `LP_FEEDBACK_NONE;
                         else if (build_frames[edit_cell]) edit_result = `LP_FEEDBACK_OCCUPIED;
                         else if (edit_cell >= 6) edit_result = `LP_FEEDBACK_FRAME_BELOW;
                         else if (!build_frames[edit_cell+3]) edit_result = `LP_FEEDBACK_FRAME_BELOW;
@@ -113,7 +111,7 @@ module vehicle_builder #(
                     end
                     `LP_PART_BOOSTER, `LP_PART_FAN: begin
                         if (build_grid[edit_cell*3 +: 3] == edit_part)
-                            edit_result = ((edit_part==`LP_PART_ENGINE || edit_part==`LP_PART_BOOSTER) &&
+                            edit_result = (edit_part==`LP_PART_BOOSTER &&
                                            build_facing_left[edit_cell]!=edit_facing_left) ? `LP_FEEDBACK_PLACED : `LP_FEEDBACK_NONE;
                         else if (build_frames[edit_cell]) edit_result = `LP_FEEDBACK_OCCUPIED;
                         else if (!side_support[edit_cell]) edit_result = `LP_FEEDBACK_NEED_FRAME;

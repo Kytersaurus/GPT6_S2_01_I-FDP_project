@@ -37,10 +37,49 @@ module mouse_adapter (
     wire pop_grid_area = mouse_x >= 4 && mouse_x < 40 && mouse_y >= 12 && mouse_y < 48;
     wire in_grid = (game_state == `LP_BUILD) ? build_grid_area : pop_grid_area;
     wire in_inventory = mouse_x >= 56 && mouse_x < 92 && mouse_y >= 4 && mouse_y < 54;
-    // Used only when in_grid is true, for placement, removal and balloon clicks.
-    wire [3:0] hovered_cell = (game_state == `LP_BUILD) ?
-                              ((mouse_y-4)/16)*3 + (mouse_x-4)/16 :
-                              ((mouse_y-12)/12)*3 + (mouse_x-4)/12;
+    // Find grid rows and columns with fixed range checks instead of division.
+    wire building = game_state == `LP_BUILD;
+    wire [1:0] build_col = mouse_x < 20 ? 2'd0 : mouse_x < 36 ? 2'd1 : 2'd2;
+    wire [1:0] build_row = mouse_y < 20 ? 2'd0 : mouse_y < 36 ? 2'd1 : 2'd2;
+    wire [1:0] pop_col = mouse_x < 16 ? 2'd0 : mouse_x < 28 ? 2'd1 : 2'd2;
+    wire [1:0] pop_row = mouse_y < 24 ? 2'd0 : mouse_y < 36 ? 2'd1 : 2'd2;
+    wire [1:0] hovered_col = building ? build_col : pop_col;
+    wire [1:0] hovered_row = building ? build_row : pop_row;
+    reg [3:0] hovered_cell;
+    reg [2:0] hovered_part;
+    reg hovered_frame, hovered_facing_left;
+
+    // Explicit cases keep cell decoding and part lookup short and predictable.
+    always @* begin
+        case ({hovered_row, hovered_col})
+            4'b0000: hovered_cell = 0;
+            4'b0001: hovered_cell = 1;
+            4'b0010: hovered_cell = 2;
+            4'b0100: hovered_cell = 3;
+            4'b0101: hovered_cell = 4;
+            4'b0110: hovered_cell = 5;
+            4'b1000: hovered_cell = 6;
+            4'b1001: hovered_cell = 7;
+            4'b1010: hovered_cell = 8;
+            default: hovered_cell = 9;
+        endcase
+
+        hovered_part = `LP_PART_EMPTY;
+        hovered_frame = 0;
+        hovered_facing_left = 0;
+        case (hovered_cell)
+            0: begin hovered_part=build_grid[2:0];   hovered_frame=build_frames[0]; hovered_facing_left=build_facing_left[0]; end
+            1: begin hovered_part=build_grid[5:3];   hovered_frame=build_frames[1]; hovered_facing_left=build_facing_left[1]; end
+            2: begin hovered_part=build_grid[8:6];   hovered_frame=build_frames[2]; hovered_facing_left=build_facing_left[2]; end
+            3: begin hovered_part=build_grid[11:9];  hovered_frame=build_frames[3]; hovered_facing_left=build_facing_left[3]; end
+            4: begin hovered_part=build_grid[14:12]; hovered_frame=build_frames[4]; hovered_facing_left=build_facing_left[4]; end
+            5: begin hovered_part=build_grid[17:15]; hovered_frame=build_frames[5]; hovered_facing_left=build_facing_left[5]; end
+            6: begin hovered_part=build_grid[20:18]; hovered_frame=build_frames[6]; hovered_facing_left=build_facing_left[6]; end
+            7: begin hovered_part=build_grid[23:21]; hovered_frame=build_frames[7]; hovered_facing_left=build_facing_left[7]; end
+            8: begin hovered_part=build_grid[26:24]; hovered_frame=build_frames[8]; hovered_facing_left=build_facing_left[8]; end
+            default: begin end
+        endcase
+    end
 
     // Configure the supplied driver for the left OLED, then place the cursor over the grid.
     always @* begin
@@ -106,12 +145,12 @@ module mouse_adapter (
                             else if (mouse_y<44) selected_part<=`LP_PART_ENGINE;
                             else selected_part<=`LP_PART_BALLOON;
                         end else if (in_grid && !inventory_armed &&
-                                     (build_frames[hovered_cell] || build_grid[hovered_cell*3 +: 3] != `LP_PART_EMPTY)) begin
+                                     (hovered_frame || hovered_part != `LP_PART_EMPTY)) begin
                             // Existing parts are only transferred when a valid drop is accepted.
                             drag_from_grid <= 1; drag_source <= hovered_cell;
-                            if (build_grid[hovered_cell*3 +: 3] != `LP_PART_EMPTY) begin
-                                selected_part <= build_grid[hovered_cell*3 +: 3];
-                                selected_left <= build_facing_left[hovered_cell];
+                            if (hovered_part != `LP_PART_EMPTY) begin
+                                selected_part <= hovered_part;
+                                selected_left <= hovered_facing_left;
                             end else selected_part <= `LP_PART_FRAME;
                         end
                     end else if (!mouse_left && left_was_down) begin
