@@ -30,11 +30,17 @@ module module_contracts_tb;
     reg signed [15:0] nvx=0, nvy=512;
     wire signed [`LP_COORD_BITS-1:0] cx,cy;
     wire signed [15:0] cvx,cvy;
+    wire signed [10:0] qx, qy;
+    reg [2:0] query_class = 0;
+    always @(posedge clk) begin
+        query_class <= (qy >= 56 && qy < 64 && qx >= 0 && qx < 96) ? `LP_MAP_ROCK : `LP_MAP_SKY;
+    end
     collision_engine collision (
-        .map_level(1'b0), .world_width(10'd96), .world_height(10'd64), .query_class(3'd0),
+        .map_level(1'b1), .world_width(10'd96), .world_height(10'd64),
+        .query_x(qx), .query_y(qy), .query_class(query_class),
         .clk(clk),.reset(reset),.move_valid(move_valid),.move_ready(move_ready),
         .previous_x(px),.previous_y(py),.proposed_x(nx),.proposed_y(ny),.proposed_vx(nvx),.proposed_vy(nvy),
-        .terrain_count(3'd1),.terrain_rects({96'd0,8'd8,8'd96,8'd56,8'd0}),
+        .terrain_count(3'd0),.terrain_rects(128'd0),
         .response_valid(response_valid),.response_ready(response_ready),.corrected_x(cx),.corrected_y(cy),
         .corrected_vx(cvx),.corrected_vy(cvy),.grounded(grounded)
     );
@@ -90,6 +96,7 @@ module module_contracts_tb;
         input integer count;
         begin repeat(count) @(negedge clk); end
     endtask
+    integer waited;
     initial begin
         clocks(3); reset=0; clocks(2); build_test_vehicle();
         if (!valid || !pig_alive || wheels!=2 || engines!=1 || mass!=13) $fatal(1,"Initial properties incorrect");
@@ -111,12 +118,16 @@ module module_contracts_tb;
             frame_intact!=9'b000111000) $fatal(1,"Retry did not restore build");
         builder_init=0;
 
-        move_valid=1; clocks(1); move_valid=0; clocks(2);
+        move_valid=1; clocks(1); move_valid=0;
+        waited=0;
+        while (!response_valid && waited < 50000) begin clocks(1); waited=waited+1; end
         if (!response_valid || !grounded || cy!=8192 || cvy!=0) $fatal(1,"Platform crossing failed: valid=%b grounded=%b cy=%0d cvy=%0d",response_valid,grounded,cy,cvy);
         ny=12000; clocks(5);
         if (!response_valid || move_ready || cy!=8192) $fatal(1,"Collision response changed under backpressure");
-        response_ready=1; clocks(1); response_ready=0;
-        nx=24576; move_valid=1; clocks(1); move_valid=0; clocks(2);
+        response_ready=1; clocks(1); response_ready=0; clocks(1);
+        nx=24576; move_valid=1; clocks(1); move_valid=0;
+        waited=0;
+        while (!response_valid && waited < 50000) begin clocks(1); waited=waited+1; end
         if (grounded || cy!=12000) $fatal(1,"Non-overlapping vehicle landed on ground");
         response_ready=1; clocks(1);
 
@@ -133,5 +144,5 @@ module module_contracts_tb;
         $display("PASS module_contracts_tb: damage/retry, pixels, landing, backpressure, invalid launch, readiness, failure priority");
         $finish;
     end
-    initial begin #10000; $fatal(1,"Module contracts test timed out"); end
+    initial begin #1000000; $fatal(1,"Module contracts test timed out"); end
 endmodule
