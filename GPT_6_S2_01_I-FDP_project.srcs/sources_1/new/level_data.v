@@ -1,9 +1,10 @@
 // Owner: Role 4 - Marcus. Shared map, spawn, goal, TNT and hazard data.
 `timescale 1ns / 1ps
 `include "game_defs.vh"
-// Levels 1 and 2 are provisional rectangle layouts in a 96 by 64 world.
-// Levels 3 (Cave Arch) and 4 (Cave Flight) are block-RAM maps in level_map; map_level
-// selects drawing from the ROM and map_id picks which map.
+// Level 1 is a provisional rectangle layout in a 96 by 64 world.
+// Levels 2 (Cave Arch) and 3 (Cave Flight) are block-RAM maps in level_map; map_level
+// selects drawing from the ROM and map_id picks which map. No level has hazards now,
+// so synthesis removes the hazard checks; the hazard outputs stay for later levels.
 // Rectangles are {height, width, y, x} in whole pixels, rectangle 0 in the lowest bits.
 // TNT entries are {y, x} for an 8 by 8 block, entry 0 in the lowest bits.
 // Unused entries are zero and lie above the matching count.
@@ -25,7 +26,7 @@ module level_data (
     output reg [9:0] flag_x, flag_y
 );
     always @* begin
-        // Levels 1 and 2 start at x=4, y=32 so the 24 pixel vehicle rests on ground at y=56.
+        // Level 1 starts at x=4, y=32 so the 24 pixel vehicle rests on ground at y=56.
         spawn_x = 20'sd1024;
         spawn_y = 20'sd8192;
         goal_rect = {8'd24, 8'd16, 8'd32, 8'd80};
@@ -49,20 +50,8 @@ module level_data (
                 tnt_count = 3'd1;
                 tnt_positions = {48'd0, 8'd12, 8'd44};
             end
-            2'd1: begin
-                // Level 2: spiked pit narrower than the vehicle, TNT on the path and on a ledge.
-                terrain_count = 3'd4;
-                terrain_rects = {8'd4, 8'd24, 8'd22, 8'd20,   // Ledge
-                                 8'd2, 8'd16, 8'd62, 8'd36,   // Pit floor
-                                 8'd8, 8'd44, 8'd56, 8'd52,   // Right ground
-                                 8'd8, 8'd36, 8'd56, 8'd0};   // Left ground
-                tnt_count = 3'd2;
-                tnt_positions = {32'd0, 8'd14, 8'd28, 8'd48, 8'd60};
-                hazard_count = 2'd1;
-                hazard_rects = {32'd0, 8'd4, 8'd16, 8'd58, 8'd36}; // Spikes
-            end
-            2'd2: begin
-                // Level 3, Cave Arch, in world pixels: level_map shows the map twice as
+            `LP_LEVEL_ARCH: begin
+                // Level 2, Cave Arch, in world pixels: level_map shows the map twice as
                 // large (map pixel = world/2). Start on the flat plateau (map top y=50,
                 // x=98..128; world top y=100, x=196..257); the finish flag stands on the cave
                 // road (map top y=243 at x=300; world top y=486 at x=600).
@@ -79,7 +68,7 @@ module level_data (
                 flag_y = 10'd472;   // 14-pixel pole ends on the road at y=486
             end
             default: begin
-                // Level 4, Cave Flight: a flying level. Start on the ground at the bottom left
+                // Level 3, Cave Flight: a flying level. Start on the ground at the bottom left
                 // (surface y=202..205 for x=60..96); the flag stands on the grassy ledge at the
                 // top right (surface y=64). The car must fly up through the cave tunnels.
                 // Collision queries the terrain ROM, including cave walls and ceilings.

@@ -53,16 +53,19 @@ module level_selector_tb;
         btnC=1;clocks(12);btnC=0;clocks(12);
         if(dut.game_state!==`LP_LEVEL_SELECT || dut.run_init) $fatal(1,"Launch started inside menu");
         click(10,59);if(dut.game_state!==`LP_SETTINGS) $fatal(1,"Map Back did not return to settings");click(10,59);if(dut.game_state!==`LP_BUILD || dut.level_index!==0) $fatal(1,"Back changed level");
-        for(i=0;i<4;i=i+1) begin
+        for(i=0;i<`LP_LEVEL_COUNT;i=i+1) begin
             open_menu();click((i%2) ? 60 : 10,(i>=2) ? 42 : 20);
             if(dut.game_state!==`LP_BUILD || dut.level_index!==i) $fatal(1,"Wrong selected level %0d",i);
             preserved();
             if(dut.u_mouse_adapter.inventory_armed || dut.drag_active) $fatal(1,"Menu release armed a construction edit");
         end
-        open_menu();btnU=1;clocks(12);btnU=0;clocks(12);
-        if(dut.game_state!==`LP_SETTINGS || dut.level_index!==3) $fatal(1,"U did not cancel menu");click(10,59);
+        // The fourth tile is empty: clicking it selects nothing.
+        open_menu();click(60,42);
+        if(dut.game_state!==`LP_LEVEL_SELECT || dut.level_index!==`LP_LEVEL_FLIGHT) $fatal(1,"Empty fourth tile selected a level");
+        btnU=1;clocks(12);btnU=0;clocks(12);
+        if(dut.game_state!==`LP_SETTINGS || dut.level_index!==`LP_LEVEL_FLIGHT) $fatal(1,"U did not cancel menu");click(10,59);
         open_menu();force dut.builder_input_enabled=1'b0;
-        click(10,20);if(dut.game_state!==`LP_LEVEL_SELECT || dut.level_index!==3) $fatal(1,"Hidden menu accepted click");
+        click(10,20);if(dut.game_state!==`LP_LEVEL_SELECT || dut.level_index!==`LP_LEVEL_FLIGHT) $fatal(1,"Hidden menu accepted click");
         packet(10,20,1,0);release dut.builder_input_enabled;packet(10,20,1,0);
         if(dut.game_state!==`LP_LEVEL_SELECT) $fatal(1,"Hidden held press became fresh");
         packet(10,20,0,0);click(10,20);preserved();
@@ -70,7 +73,7 @@ module level_selector_tb;
         if(dut.draw_state!==`LP_LEVEL_SELECT || dut.draw_level!==0) $fatal(1,"Menu state lost in display snapshot");
         btnD=1;clocks(20);btnD=0;clocks(280);
         if(dut.game_state!==`LP_BUILD || dut.level_index!==0 || dut.build_grid!==0) $fatal(1,"Menu reset failed");
-        $display("PASS level_selector_tb: four maps, held/right/hidden clicks, gaps, launch guard, Back/U, snapshot, preserved build and inventory, reset");
+        $display("PASS level_selector_tb: three levels and an empty tile, held/right/hidden clicks, gaps, launch guard, Back/U, snapshot, preserved build and inventory, reset");
         $finish;
     end
     initial begin #200000;$fatal(1,"Level selector timed out");end

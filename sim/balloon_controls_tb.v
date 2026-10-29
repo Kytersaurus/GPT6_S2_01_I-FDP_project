@@ -106,7 +106,8 @@ module balloon_controls_tb;
     task wait_movement;
         begin
             cycles=0;
-            while (!dut.movement_committed && cycles<64) begin clocks(1); cycles=cycles+1; end
+            // Map levels scan terrain pixels; the next level after level 1 is Cave Arch.
+            while (!dut.movement_committed && cycles<200000) begin clocks(1); cycles=cycles+1; end
             if (!dut.movement_committed) $fatal(1,"Movement did not commit");
         end
     endtask
@@ -260,5 +261,5 @@ module balloon_controls_tb;
         $display("PASS balloon_controls_tb: fresh clicks, held/invalid input, RUN cursor, queued pops, step/world boundaries, counts/mass, inventory, retry, results and reset");
         $finish;
     end
-    initial begin #100000; $fatal(1,"Balloon controls test timed out"); end
+    initial begin #5000000; $fatal(1,"Balloon controls test timed out"); end
 endmodule

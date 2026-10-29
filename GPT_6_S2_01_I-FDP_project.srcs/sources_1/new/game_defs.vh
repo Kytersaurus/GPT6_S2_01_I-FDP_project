@@ -68,13 +68,17 @@
 `define LP_SOUND_SUCCESS    3'd6
 `define LP_SOUND_FAILURE    3'd7
 
-// Levels: Role 4 selects one in BUILD and holds it through the run.
-`define LP_LEVEL_COUNT   4
+// Levels: Role 4 selects one in BUILD and holds it through the run. Level 1 is the
+// rectangle track; levels 2 and 3 are the Cave Arch and Cave Flight maps. The former
+// level 2 (spiked TNT pit) was removed to free FPGA logic for the maps.
+`define LP_LEVEL_COUNT   3
 `define LP_LEVEL_BITS    2
+`define LP_LEVEL_ARCH    2'd1
+`define LP_LEVEL_FLIGHT  2'd2
 
 // Block-RAM maps in level_map: one 3-bit class per world pixel. Sky and cave background are
-// open; the other classes are solid. Map 0 is Cave Arch (level 3), address {y[8:0], x[8:0]};
-// map 1 is Cave Flight (level 4, a flying level), address {y[7:0], x[9:0]}.
+// open; the other classes are solid. Map 0 is Cave Arch (level 2), address {y[8:0], x[8:0]};
+// map 1 is Cave Flight (level 3, a flying level), address {y[7:0], x[9:0]}.
 `define LP_MAP_WIDTH     478
 `define LP_MAP_HEIGHT    291
 // Cave Arch world size once level_map shows it twice as large (map 478 by 291).

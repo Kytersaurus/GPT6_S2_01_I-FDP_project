@@ -55,8 +55,10 @@ module ui_controller (
                         end
                     end else if (game_state==`LP_LEVEL_SELECT) begin
                         if (mouse_x<28 && mouse_y>=55 && mouse_y<64) level_close_req<=1;
+                        // Three level tiles; the bottom-right one is empty.
                         else if (((mouse_x>=2 && mouse_x<46) || (mouse_x>=50 && mouse_x<94)) &&
-                                 ((mouse_y>=12 && mouse_y<32) || (mouse_y>=34 && mouse_y<54))) begin
+                                 ((mouse_y>=12 && mouse_y<32) || (mouse_y>=34 && mouse_y<54)) &&
+                                 !(mouse_y>=34 && mouse_x>=50)) begin
                             selected_level <= {mouse_y>=34, mouse_x>=50};
                             level_select_req<=1;
                         end

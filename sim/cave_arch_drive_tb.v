@@ -19,7 +19,7 @@ module cave_arch_drive_tb;
     wire map_level, map_id;
     wire [9:0] world_width, world_height, flag_x, flag_y;
     level_data u_level (
-        .level_index(2'd2), .spawn_x(spawn_x), .spawn_y(spawn_y), .terrain_count(), .terrain_rects(),
+        .level_index(`LP_LEVEL_ARCH), .spawn_x(spawn_x), .spawn_y(spawn_y), .terrain_count(), .terrain_rects(),
         .goal_rect(), .tnt_count(), .tnt_positions(), .hazard_count(), .hazard_rects(),
         .map_level(map_level), .map_id(map_id), .world_width(world_width), .world_height(world_height),
         .flag_x(flag_x), .flag_y(flag_y)
@@ -69,6 +69,8 @@ module cave_arch_drive_tb;
 
     integer steps, still_steps, max_x, last_x, last_y, waited, pig_x, pig_y;
     integer best_x, stalled, reversals;
+    reg trace;
+    initial trace=$test$plusargs("trace");
     reg goal, outside;
     task clocks;
         input integer n;
@@ -100,6 +102,9 @@ module cave_arch_drive_tb;
                 engine_reverse=!engine_reverse; best_x=vehicle_x; stalled=0; reversals=reversals+1;
                 $display("step %0d: reverse=%b at x=%0d y=%0d",steps,engine_reverse,vehicle_x/256,vehicle_y/256);
             end
+            // +trace logs every update, for measuring how smooth the motion is.
+            if (trace)
+                $display("T %0d %0d %0d %0d %b %0d",steps,vehicle_x,vehicle_y,vehicle_tilt,grounded,u_physics.display_y);
             if (steps%50==0)
                 $display("step %0d: x=%0d y=%0d vx=%0d vy=%0d tilt=%0d grounded=%b tip=%0d",steps,
                          vehicle_x/256,vehicle_y/256,u_physics.velocity_x,u_physics.velocity_y,vehicle_tilt,grounded,tip_dir);

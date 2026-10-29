@@ -4,7 +4,7 @@
 module cave_coordinates_tb;
     reg clk=0, reset=1, run_init=0, step_start=0;
     reg [2:0] game_state=`LP_BUILD;
-    reg [1:0] level_index=2;
+    reg [1:0] level_index=`LP_LEVEL_ARCH;
     reg custom_spawn=0;
     reg signed [19:0] test_x=0, test_y=0;
     wire signed [19:0] spawn_x, spawn_y, x, y, px, py, nx, ny, cx, cy;
@@ -47,7 +47,7 @@ module cave_coordinates_tb;
         .clk(clk), .reset(reset), .move_valid(move_valid), .move_ready(move_ready),
         .previous_x(px), .previous_y(py), .proposed_x(nx), .proposed_y(ny),
         .proposed_vx(nvx), .proposed_vy(nvy),
-        .terrain_count(3'd1), .terrain_rects(level_index==2 ? {96'd0,8'd8,8'd32,8'd100,8'd200} : {96'd0,8'd8,8'd36,8'd202,8'd60}),
+        .terrain_count(3'd1), .terrain_rects(level_index==`LP_LEVEL_ARCH ? {96'd0,8'd8,8'd32,8'd100,8'd200} : {96'd0,8'd8,8'd36,8'd202,8'd60}),
         .response_valid(response_valid), .response_ready(response_ready),
         .corrected_x(cx), .corrected_y(cy), .corrected_vx(cvx), .corrected_vy(cvy),
         .grounded(grounded), .ground_slope(ground_slope)
@@ -93,16 +93,16 @@ module cave_coordinates_tb;
         clocks(3); reset=0; clocks(1);
         // Synthetic rectangle fixtures isolate coordinate range from ROM geometry.
         check_step(208*256,76*256,1,0,0);
-        level_index=3;
+        level_index=`LP_LEVEL_FLIGHT;
         check_step(68*256,178*256,1,0,0);
         // Movement and collision preserve distant coordinates and remove old clamps.
         custom_spawn=1; test_x=769*256; test_y=40*256;
         check_step(769*256,40*256+32,0,1,0);
-        level_index=2; test_x=600*256; test_y=462*256;
+        level_index=`LP_LEVEL_ARCH; test_x=600*256; test_y=462*256;
         check_step(600*256,462*256+32,0,1,0);
         test_x=956*256; test_y=100*256;
         check_step(956*256,100*256+32,0,0,1);
-        level_index=3; test_x=890*256; test_y=100*256;
+        level_index=`LP_LEVEL_FLIGHT; test_x=890*256; test_y=100*256;
         check_step(890*256,100*256+32,0,0,1);
         // Signed positions still work above/left of the world.
         test_x=-25*256; test_y=-25*256;

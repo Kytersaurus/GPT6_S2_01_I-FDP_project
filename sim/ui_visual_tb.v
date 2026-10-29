@@ -65,13 +65,13 @@ module ui_visual_tb;
         state=`LP_GUIDE;frame("ui_diary_1");page=1;frame("ui_diary_2");page=2;frame("ui_diary_3");
         page=3;frame("ui_sound");
         state=`LP_SETTINGS;frame("ui_settings");state=`LP_LEVEL_SELECT;frame("ui_levels");
-        force dut.draw_level=2'd3;frame("ui_levels_l4");force dut.draw_level=2'd0;
+        force dut.draw_level=`LP_LEVEL_FLIGHT;frame("ui_levels_l3");force dut.draw_level=2'd0;
         state=`LP_RUN;frame("ui_run");
         force dut.draw_run_page=2'd1;grid[2:0]=`LP_PART_BALLOON;intact[0]=1;frame("ui_pop");grid[2:0]=0;intact[0]=0;
         force dut.draw_run_page=2'd2;frame("ui_run_sound");force dut.draw_run_page=2'd0;go=1;frame("ui_launch");go=0;
         state=`LP_FAIL;intact[4]=0;death=1;frame("ui_death_1");death=2;frame("ui_death_2");death=3;frame("ui_death_3");
         // The death effect uses world coordinates at either camera zoom.
-        force dut.draw_level=2'd2;
+        force dut.draw_level=`LP_LEVEL_ARCH;
         force dut.draw_x=16'sd26624;force dut.draw_y=16'sd6656;
         force dut.draw_death_x=16'sd30720;force dut.draw_death_y=16'sd10240;
         force dut.draw_free_look=1'b0;force dut.draw_zoomed_out=1'b0;
@@ -84,7 +84,7 @@ module ui_visual_tb;
         if(dut.right_pixel_data!==16'h04b4) $fatal(1,"Launch banner moved with the camera");
         // Half scale covers 192 x 128 world pixels and reuses the existing sprite samples.
         state=`LP_BUILD;go=0;death=0;
-        force dut.draw_level=2'd2;force dut.draw_overview=1'b1;force dut.draw_zoomed_out=1'b0;
+        force dut.draw_level=`LP_LEVEL_ARCH;force dut.draw_overview=1'b1;force dut.draw_zoomed_out=1'b0;
         force dut.draw_free_look=1'b1;force dut.draw_cursor_x=7'd0;force dut.draw_cursor_y=7'd0;
         pixel=0;#1;
         if(dut.map_draw_x!==0 || dut.map_draw_y!==0) $fatal(1,"Wide zoom camera did not clamp at origin");

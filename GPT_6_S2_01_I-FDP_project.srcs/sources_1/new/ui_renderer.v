@@ -42,9 +42,8 @@ module ui_renderer (
                 0: case (row)
                     0: case (level_index)
                         0: line="DIARY L1 1/3    ";
-                        1: line="DIARY L2 1/3    ";
-                        2: line="DIARY L3 1/3    ";
-                        default: line="DIARY L4 1/3    ";
+                        `LP_LEVEL_ARCH: line="DIARY L2 1/3    ";
+                        default: line="DIARY L3 1/3    ";
                     endcase
                     1: line="GET PIG TO FLAG ";
                     2: line="DRAG PARTS IN   ";
@@ -62,10 +61,10 @@ module ui_renderer (
                 endcase
                 2: case (row)
                     0: line="LEVEL HINT 3/3  ";
-                    1: line=(level_index>=2) ? "MAP TEST ONLY   " : level_index ? "PROTECT ENGINE  " : "TRY MIDDLE ROW  ";
-                    2: line=(level_index>=2) ? "PHYSICS PENDING " : level_index ? "TNT BREAKS PARTS" : "PIG IN CENTRE   ";
-                    3: line=(level_index>=2) ? "WHEEL ZOOM      " : "ENGINE AT REAR  ";
-                    4: line=(level_index>=2) ? "SW4 LOOK AROUND " : level_index ? "KEEP PIG SAFE   " : "WHEELS AT EDGES ";
+                    1: line=(level_index==`LP_LEVEL_FLIGHT) ? "MAP TEST ONLY   " : level_index ? "WHEELS UP+DOWN  " : "TRY MIDDLE ROW  ";
+                    2: line=(level_index==`LP_LEVEL_FLIGHT) ? "PHYSICS PENDING " : level_index ? "FLIPPED DRIVES  " : "PIG IN CENTRE   ";
+                    3: line=(level_index==`LP_LEVEL_FLIGHT) ? "WHEEL ZOOM      " : level_index ? "SW2 REVERSES    " : "ENGINE AT REAR  ";
+                    4: line=level_index ? "SW4 LOOK AROUND " : "WHEELS AT EDGES ";
                     5: line="RETRY RESTORES  ";
                 endcase
                 default: case (row)
@@ -173,9 +172,10 @@ module ui_renderer (
         if (game_state==`LP_LEVEL_SELECT) begin
             pixel_data=16'h0841;
             if (text_on("SELECT LEVEL    ",12,2,x,y)) pixel_data=16'h07ff;
-            // Two columns, two rows. The selected map has a green outline.
+            // Two columns, two rows; the fourth tile is empty. The selected level has a
+            // green outline and map levels an orange one.
             if (((x>=2 && x<46) || (x>=50 && x<94)) &&
-                ((y>=12 && y<32) || (y>=34 && y<54))) begin
+                ((y>=12 && y<32) || (y>=34 && y<54)) && !(y>=34 && x>=50)) begin
                 tile={y>=34,x>=50};
                 button_left=tile[0] ? 50 : 2; button_right=button_left+43;
                 text_top=tile[1] ? 34 : 12;
@@ -183,21 +183,19 @@ module ui_renderer (
                            cursor_y>=text_top && cursor_y<text_top+20;
                 pixel_data=tile_hover ? 16'h0351 : 16'h18e5;
                 if (x==button_left || x==button_right || y==text_top || y==text_top+19)
-                    pixel_data=(tile==level_index) ? 16'h07e0 : (tile>=2 ? 16'hfd20 : 16'h04b4);
+                    pixel_data=(tile==level_index) ? 16'h07e0 : (tile!=0 ? 16'hfd20 : 16'h04b4);
                 case (tile)
                     0: line="TRACK           ";
-                    1: line="TNT PIT         ";
-                    2: line="ARCH            ";
-                    3: line="FLIGHT          ";
+                    `LP_LEVEL_ARCH: line="ARCH            ";
+                    default: line="FLIGHT          ";
                 endcase
                 if (text_on(line,button_left+1,text_top+2,x,y)) pixel_data=16'hffff;
                 case (tile)
                     0: line="1               ";
-                    1: line="2               ";
-                    2: line="3 WIP           ";
-                    3: line="4 WIP           ";
+                    `LP_LEVEL_ARCH: line="2               ";
+                    default: line="3 WIP           ";
                 endcase
-                if (text_on(line,button_left+1,text_top+11,x,y)) pixel_data=tile>=2 ? 16'hfd20 : 16'h07ff;
+                if (text_on(line,button_left+1,text_top+11,x,y)) pixel_data=tile!=0 ? 16'hfd20 : 16'h07ff;
             end
             if (y>=55) begin
                 if (x<28) begin

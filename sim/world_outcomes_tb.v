@@ -122,7 +122,7 @@ module world_outcomes_tb;
         // Exercise actual cave metadata, distant goals, and exact world edges.
         hazard_count=0;
         goal_rect=0;
-        level_index=2; clocks(1);
+        level_index=`LP_LEVEL_ARCH; clocks(1);
         // Cave Arch is in 2x world pixels: flag (600,472), world 956 by 582.
         check_pose(208*256,76*256,0,0,0);
         check_pose(600*256,462*256,1,0,0);
@@ -143,7 +143,7 @@ module world_outcomes_tb;
         check_pose(-24*256,100*256,0,0,1);
         check_pose(100*256,-24*256+1,0,0,0);
         check_pose(100*256,-24*256,0,0,1);
-        level_index=3; clocks(1);
+        level_index=`LP_LEVEL_FLIGHT; clocks(1);
         check_pose(68*256,178*256,0,0,0);
         check_pose(769*256,40*256,1,0,0);
         check_pose(757*256-1,40*256,0,0,0);

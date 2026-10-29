@@ -1,10 +1,9 @@
-// Owner: Role 4 - Marcus. Recorded solutions: the test vehicle clears both levels.
+// Owner: Role 4 - Marcus. Recorded solution: the test vehicle clears the rectangle level.
 `timescale 1ns / 1ps
 `include "game_defs.vh"
-// Solution for both levels: the test build (frames in cells 3-5, pig in 4, engine in 3,
+// Solution for level 1: the test build (frames in cells 3-5, pig in 4, engine in 3,
 // wheels in 6 and 8) with SW0 on. It drives right along y=56 into the goal at x=80.
-// On level 2 the 24-pixel vehicle spans the 16-pixel spiked pit without dropping.
-// On level 2 the front wheel/frame are sacrificed to TNT; the rear engine survives.
+// The Cave Arch route is covered by cave_arch_drive_tb.
 module role4_level_solutions_tb;
     reg clk=0, btnC=0, btnU=0, btnD=1;
     reg [15:0] sw=2'b01;
@@ -58,20 +57,16 @@ module role4_level_solutions_tb;
                        level+1,dut.game_state,dut.fail_reason,dut.vehicle_x,dut.vehicle_y);
             if (lowest_y !== 16'sd8192) $fatal(1,"Level %0d: vehicle left the ground line (y=%0d)",level+1,lowest_y);
             if (dut.vehicle_x < 16'sd14336) $fatal(1,"Level %0d: success before the goal",level+1);
-            if (level && (dut.tnt_intact[0] || dut.intact_mask[8] || dut.frame_intact_mask[5] ||
-                          !dut.intact_mask[3] || !dut.pig_alive))
-                $fatal(1,"Level 2 did not apply the expected TNT damage");
         end
     endtask
     initial begin
         clocks(20); btnD=0; clocks(280); build_test_vehicle();
         if (!dut.build_valid) $fatal(1,"Test build invalid");
         play_level(1'b0);
-        press_u();                              // Next level after success.
-        play_level(1'b1);
-        press_u();                              // Next level is the Cave Arch map (level 3).
-        if (dut.game_state !== `LP_BUILD || dut.level_index !== 2) $fatal(1,"Level 2 success did not advance to level 3");
-        $display("PASS role4_level_solutions_tb: test vehicle clears level 1 and level 2, BTNU advances to level 3");
+        press_u();                              // Next level is the Cave Arch map (level 2).
+        if (dut.game_state !== `LP_BUILD || dut.level_index !== `LP_LEVEL_ARCH)
+            $fatal(1,"Level 1 success did not advance to Cave Arch");
+        $display("PASS role4_level_solutions_tb: test vehicle clears level 1, BTNU advances to Cave Arch (level 2)");
         $finish;
     end
     initial begin #2000000; $fatal(1,"Level solution test timed out"); end
