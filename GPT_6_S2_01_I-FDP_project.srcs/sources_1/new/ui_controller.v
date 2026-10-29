@@ -33,7 +33,7 @@ module ui_controller (
             level_close_req<=0; level_select_req<=0;
             boost_req<=0;
             if (run_init) begin engine_on<=1; fan_on<=0; run_page<=0; end
-            else if (engine_switch_changed) engine_on<=!engine_on;
+            // SW0 does not change the on-screen engine setting; engine is toggled via on-screen DRIVE button.
             if (!fan_available || game_state!=`LP_RUN) fan_on<=0;
             if (game_state!=`LP_RUN) launch_ticks<=0;
             else if (launch_event) launch_ticks<=8;
