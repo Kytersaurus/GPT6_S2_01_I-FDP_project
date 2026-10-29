@@ -8,6 +8,7 @@ module world_outcomes_tb;
     wire init_ready;
     reg movement_committed=0;
     reg signed [`LP_COORD_BITS-1:0] vehicle_x=0, vehicle_y=0;
+    reg signed [`LP_TILT_BITS-1:0] vehicle_tilt=0;
     reg [26:0] build_grid=0;
     reg [8:0] intact_mask=0;
     reg [31:0] goal_rect=0;
@@ -17,12 +18,14 @@ module world_outcomes_tb;
     reg world_ready=0;
     integer waited;
     reg [1:0] level_index=0;
-    wire map_level;
-    wire [9:0] world_width, world_height, flag_x, flag_y;
+    wire level_map_level;
+    wire [9:0] level_world_width, level_world_height, level_flag_x, level_flag_y;
+    reg map_level=0;
+    reg [9:0] world_width=96, world_height=64, flag_x=0, flag_y=0;
     level_data level (
-        .level_index(level_index), .map_level(map_level),
-        .world_width(world_width), .world_height(world_height),
-        .flag_x(flag_x), .flag_y(flag_y)
+        .level_index(level_index), .map_level(level_map_level),
+        .world_width(level_world_width), .world_height(level_world_height),
+        .flag_x(level_flag_x), .flag_y(level_flag_y)
     );
 
     always #5 clk=~clk;
@@ -30,8 +33,8 @@ module world_outcomes_tb;
     world_outcomes dut(
         .clk(clk), .reset(reset), .run_init(run_init), .game_state(game_state),
         .init_ready(init_ready), .movement_committed(movement_committed),
-        .vehicle_x(vehicle_x), .vehicle_y(vehicle_y), .build_grid(build_grid),
-        .intact_mask(intact_mask), .goal_rect(goal_rect),
+        .vehicle_x(vehicle_x), .vehicle_y(vehicle_y), .vehicle_tilt(vehicle_tilt),
+        .build_grid(build_grid), .intact_mask(intact_mask), .goal_rect(goal_rect),
         .map_level(map_level), .world_width(world_width), .world_height(world_height),
         .flag_x(flag_x), .flag_y(flag_y),
         .hazard_count(hazard_count), .hazard_rects(hazard_rects),
@@ -101,6 +104,9 @@ module world_outcomes_tb;
         // Level 2 spike pit: x=36..52, y=58..62.
         hazard_count=1;
         hazard_rects={32'd0,8'd4,8'd16,8'd58,8'd36};
+        map_level=0;
+        world_width=96;
+        world_height=64;
 
         clocks(3);
         reset=0;
@@ -122,7 +128,12 @@ module world_outcomes_tb;
         // Exercise actual cave metadata, distant goals, and exact world edges.
         hazard_count=0;
         goal_rect=0;
-        level_index=2; clocks(1);
+        level_index=0; clocks(1);
+        map_level=level_map_level;
+        world_width=level_world_width;
+        world_height=level_world_height;
+        flag_x=level_flag_x;
+        flag_y=level_flag_y;
         // Cave Arch is in 2x world pixels: flag (600,472), world 956 by 582.
         check_pose(208*256,76*256,0,0,0);
         check_pose(600*256,462*256,1,0,0);
@@ -143,7 +154,12 @@ module world_outcomes_tb;
         check_pose(-24*256,100*256,0,0,1);
         check_pose(100*256,-24*256+1,0,0,0);
         check_pose(100*256,-24*256,0,0,1);
-        level_index=3; clocks(1);
+        level_index=1; clocks(1);
+        map_level=level_map_level;
+        world_width=level_world_width;
+        world_height=level_world_height;
+        flag_x=level_flag_x;
+        flag_y=level_flag_y;
         check_pose(68*256,178*256,0,0,0);
         check_pose(769*256,40*256,1,0,0);
         check_pose(757*256-1,40*256,0,0,0);
@@ -157,7 +173,9 @@ module world_outcomes_tb;
         check_pose(890*256,100*256,0,0,1);
         check_pose(100*256,213*256-1,0,0,0);
         check_pose(100*256,213*256,0,0,1);
-        level_index=0; clocks(1);
+        map_level=0;
+        world_width=96;
+        world_height=64;
         check_pose(96*256,32*256,0,0,1);
 
         $display("PASS world_outcomes_tb: goal, hazard and bounds checks with valid/ready response");
