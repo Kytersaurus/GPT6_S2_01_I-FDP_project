@@ -51,7 +51,7 @@ module slope_map_integration_tb;
         .corrected_x(cx), .corrected_y(cy), .corrected_vx(cvx), .corrected_vy(cvy),
         .grounded(grounded), .ground_slope(slope)
     );
-    level_map rom (
+    level_map #(.ARCH_SCALED(0)) rom (
         .map_id(!map_id), .draw_clk(clk), .draw_x(11'sd0), .draw_y(11'sd0), .draw_class(),
         .query_clk(clk), .query_map_id(map_id), .query_x(qx), .query_y(qy),
         .query_class(), .query_solid(query_solid)

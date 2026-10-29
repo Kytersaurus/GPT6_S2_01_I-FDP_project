@@ -9,7 +9,7 @@ module rotation_map_integration_tb;
     reg [3:0] engines=0, balloons=0;
     reg [7:0] mass=11;
     reg jump=0;
-    wire signed [3:0] old_tilt, wanted_tilt, tilt, result_tilt;
+    wire signed [`LP_TILT_BITS-1:0] old_tilt, wanted_tilt, tilt, result_tilt;
     reg signed [`LP_COORD_BITS-1:0] spawn_x=150*256, spawn_y=44*256;
     wire initialized, move_valid, move_ready, response_valid, response_ready, grounded, committed;
     wire signed [`LP_COORD_BITS-1:0] px, py, nx, ny, cx, cy, x, y;
@@ -54,7 +54,7 @@ module rotation_map_integration_tb;
         .corrected_x(cx), .corrected_y(cy), .corrected_vx(cvx), .corrected_vy(cvy),
         .grounded(grounded), .ground_slope(slope), .corrected_tilt(result_tilt)
     );
-    level_map rom (
+    level_map #(.ARCH_SCALED(0)) rom (
         .map_id(!map_id), .draw_clk(clk), .draw_x(11'sd0), .draw_y(11'sd0), .draw_class(),
         .query_clk(clk), .query_map_id(map_id), .query_x(qx), .query_y(qy),
         .query_class(), .query_solid(query_solid)

@@ -9,7 +9,7 @@ module grid_moves_tb;
     reg [26:0] saved_grid;
     reg [8:0] saved_frames;
     always #5 clk=~clk;
-    My_Top_Module #(.ENABLE_BGM(0)) dut (
+    My_Top_Module #(.ENABLE_BGM(0),.WHEEL_LIMIT(2)) dut (
         .clk(clk),.btnC(1'b0),.btnU(1'b0),.btnR(1'b0),.btnL(1'b0),.btnD(btnD),.sw(16'd0),
         .PS2Clk(PS2Clk),.PS2Data(PS2Data),.JA(),.JB(),.JXADC(),.led()
     );

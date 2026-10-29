@@ -25,8 +25,12 @@ module My_Top_Module #(
     parameter integer BGM_UNIT_CYCLES = 15625000,
     parameter integer FRAME_LIMIT = 5,
     parameter integer PIG_LIMIT = 1,
-    parameter integer WHEEL_LIMIT = 2,
+    parameter integer WHEEL_LIMIT = 4,
     parameter integer ENGINE_LIMIT = 1,
+    // Ground thrust per engine. 320 lets one engine pull a 15-unit cart (three
+    // frames, pig, engine, four wheels) up about 40 degrees, as a motor cart in
+    // Bad Piggies climbs a hill; 96 managed only about 12 degrees.
+    parameter integer ENGINE_FORCE = 320,
     parameter integer BALLOON_LIMIT = 2,
     parameter integer ROCKET_LIMIT = 1, FAN_LIMIT = 1,
     parameter integer FEEDBACK_CYCLES = 100000000
@@ -65,7 +69,8 @@ module My_Top_Module #(
     wire [26:0] build_grid;
     wire [8:0] build_frames, intact_mask, frame_intact_mask;
     wire build_valid, pig_alive, damage_ready;
-    wire [3:0] build_error, wheel_count, engine_count, balloon_count;
+    wire [3:0] build_error, wheel_count, engine_count, balloon_count, wheels_down, wheels_up;
+    wire signed [1:0] tip_dir;
     wire [2:0] feedback_code;
     wire [3:0] feedback_cell;
     wire [3:0] frames_left, pigs_left, wheels_left, engines_left, balloons_left;
@@ -132,7 +137,7 @@ module My_Top_Module #(
     wire [8:0] tnt_damage_mask, tnt_frame_mask;
     wire move_valid, move_ready, response_valid, response_ready, grounded;
     wire signed [7:0] ground_slope;
-    wire signed [3:0] previous_tilt, proposed_tilt, corrected_tilt, vehicle_tilt;
+    wire signed [`LP_TILT_BITS-1:0] previous_tilt, proposed_tilt, corrected_tilt, vehicle_tilt;
     wire signed [`LP_COORD_BITS-1:0] previous_x, previous_y, proposed_x, proposed_y;
     wire signed [15:0] proposed_vx, proposed_vy;
     wire signed [`LP_COORD_BITS-1:0] corrected_x, corrected_y;
@@ -253,7 +258,7 @@ module My_Top_Module #(
         .damage_frame_mask(tnt_damage_valid ? tnt_frame_mask : 9'd0),
         .build_grid(build_grid), .build_frames(build_frames),
         .intact_mask(intact_mask), .frame_intact_mask(frame_intact_mask), .build_valid(build_valid),
-        .build_error(build_error), .pig_alive(pig_alive), .wheel_count(wheel_count),
+        .build_error(build_error), .pig_alive(pig_alive), .wheel_count(wheel_count), .wheels_down(wheels_down), .wheels_up(wheels_up),
         .feedback_code(feedback_code), .feedback_cell(feedback_cell),
         .engine_count(engine_count), .balloon_count(balloon_count), .mass_units(mass_units),
         .frames_left(frames_left), .pigs_left(pigs_left), .wheels_left(wheels_left),
@@ -284,10 +289,11 @@ module My_Top_Module #(
         .clk(clk), .reset(reset), .run_init(run_init), .physics_tick(physics_tick),
         .tnt_intact(tnt_intact), .blast_phase(blast_phase)
     );
-    physics_engine u_physics (
+    physics_engine #(.ENGINE_FORCE(ENGINE_FORCE)) u_physics (
         .clk(clk), .reset(reset), .game_state(game_state), .run_init(run_init), .init_ready(init_ready[1]),
         .spawn_x(spawn_x), .spawn_y(spawn_y), .step_start(step_start), .update_release(update_release),
-        .wheel_count(wheel_count), .engine_count(drive_engines), .balloon_count(balloon_count),
+        .wheel_count(wheel_count), .wheels_down(wheels_down), .wheels_up(wheels_up), .tip_dir(tip_dir),
+        .engine_count(drive_engines), .balloon_count(balloon_count),
         .mass_units(mass_units), .engine_enabled(engine_enabled), .engine_reverse(engine_reverse), .jump_press(jump_press), .boost_req(boost_req), .boost_active(boost_active),
         .move_valid(move_valid), .move_ready(move_ready),
         .previous_x(previous_x), .previous_y(previous_y), .proposed_x(proposed_x), .proposed_y(proposed_y),
@@ -306,7 +312,7 @@ module My_Top_Module #(
         .query_x(collision_query_x), .query_y(collision_query_y), .query_class(collision_query_class),
         .response_valid(response_valid), .response_ready(response_ready), .corrected_x(corrected_x),
         .corrected_y(corrected_y), .corrected_vx(corrected_vx), .corrected_vy(corrected_vy), .grounded(grounded),
-        .ground_slope(ground_slope), .corrected_tilt(corrected_tilt)
+        .ground_slope(ground_slope), .corrected_tilt(corrected_tilt), .tip_dir(tip_dir)
     );
     // Finish TNT damage before checking the pig and goal for this movement.
     // Physics holds its committed pose until the world result is accepted.
@@ -330,7 +336,7 @@ module My_Top_Module #(
         .world_ready(world_ready), .goal_hit(goal_hit), .hazard_hit(hazard_hit), .out_of_bounds(out_of_bounds)
     );
 
-    localparam SNAPSHOT_WIDTH = 243 + 4*(`LP_COORD_BITS-16);
+    localparam SNAPSHOT_WIDTH = 243 + 4*(`LP_COORD_BITS-16) + (`LP_TILT_BITS-4);
     wire [SNAPSHOT_WIDTH-1:0] snapshot_in = {vehicle_tilt, audio_muted, run_page, selected_left, inventory_page, build_facing_left, rockets_left, fans_left, master_volume, diary_page, guide_return_state, death_phase, death_x, death_y, launch_flash, boost_active, drag_from_grid, drag_source, drag_contents,
                               game_state, build_grid, intact_mask, frame_intact_mask, build_valid, build_error,
                               vehicle_x, vehicle_y, engine_enabled, frames_left, pigs_left, wheels_left,
@@ -339,7 +345,7 @@ module My_Top_Module #(
                               build_frames, run_seconds, blast_phase};
     wire [SNAPSHOT_WIDTH-1:0] snapshot_out;
     wire draw_audio_muted;
-    wire signed [3:0] draw_tilt;
+    wire signed [`LP_TILT_BITS-1:0] draw_tilt;
     wire [1:0] draw_diary_page, draw_death_phase;
     wire [2:0] draw_guide_return;
     wire signed [`LP_COORD_BITS-1:0] draw_death_x, draw_death_y;

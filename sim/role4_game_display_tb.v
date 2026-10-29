@@ -197,9 +197,9 @@ module role4_game_display_tb;
         if (map_level) $fatal(1,"Level 2 drawn from the map ROM");
         // Level 3, Cave Arch: map-drawn, spawn on the flat start plateau, flag on the cave road.
         level=2; #1;
-        if (!map_level || world_width != `LP_MAP_WIDTH || world_height != `LP_MAP_HEIGHT)
+        if (!map_level || world_width != `LP_MAP_WORLD_WIDTH || world_height != `LP_MAP_WORLD_HEIGHT)
             $fatal(1,"Level 3 is not the Cave Arch map");
-        if (spawn_x !== 16'sd26624 || spawn_y !== 16'sd6656 || flag_x != 300 || flag_y != 229)
+        if (spawn_x !== 20'sd53248 || spawn_y !== 20'sd19456 || flag_x != 600 || flag_y != 472)
             $fatal(1,"Level 3 spawn or flag moved");
         if (tnt_count != 0 || hazard_count != 0 || map_id) $fatal(1,"Level 3 has unexpected objects or map");
         // Level 4, Cave Flight: the second map, start at the bottom left, flag on the top-right ledge.
@@ -383,14 +383,15 @@ module role4_game_display_tb;
         expect_right(7, 34, 16'ha285, "1.5x frame");
         expect_right(50, 60, 16'h8320, "1.5x ground");
         // Level 3: night sky above the start plateau and grass along its top edge (map ROM).
+        // At 2x the spawn view starts lower, in the sky's second band.
         level=2;
-        expect_right(0, 0, 16'h322d, "map sky");
+        expect_right(0, 0, 16'h4af1, "map sky");
         expect_right(39, 51, 16'h2bc3, "plateau grass");
         // The camera follows the vehicle across the map, here to the finish flag.
-        view_state=`LP_RUN; vehicle_x=270*256; vehicle_y=219*256;
+        view_state=`LP_RUN; vehicle_x=570*256; vehicle_y=457*256;
         expect_right(76, 38, 16'hec05, "flag pole");
-        expect_right(78, 30, 16'hffff, "flag white square");
-        expect_right(81, 30, 16'h0000, "flag black square");
+        expect_right(78, 38, 16'hffff, "flag white square");
+        expect_right(81, 38, 16'h0000, "flag black square");
         // Free look: the cursor, not the vehicle, picks the camera; the corners reach the map edges.
         free_look=1; look_x=0; look_y=0;
         expect_right(0, 0, 16'h322d, "free look top-left sky");

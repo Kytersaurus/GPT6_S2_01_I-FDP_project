@@ -5,7 +5,7 @@ module rotating_map_collision_engine (
     input wire clk, reset, move_valid,
     output wire move_ready,
     input wire signed [`LP_COORD_BITS-1:0] previous_x, previous_y, proposed_x, proposed_y,
-    input wire signed [3:0] previous_tilt, proposed_tilt,
+    input wire signed [`LP_TILT_BITS-1:0] previous_tilt, proposed_tilt,
     input tri1 [8:0] collision_mask,
     input wire signed [15:0] proposed_vx, proposed_vy,
     input wire [9:0] world_width, world_height,
@@ -15,9 +15,13 @@ module rotating_map_collision_engine (
     input wire response_ready,
     output reg signed [`LP_COORD_BITS-1:0] corrected_x, corrected_y,
     output reg signed [15:0] corrected_vx, corrected_vy,
-    output reg signed [3:0] corrected_tilt,
+    output reg signed [`LP_TILT_BITS-1:0] corrected_tilt,
     output reg grounded,
-    output reg signed [7:0] ground_slope
+    output reg signed [7:0] ground_slope,
+    // Grounded at an edge (no even ground both sides of the contact) with every
+    // support contact on one side of the body centre: the body tips toward the
+    // unsupported side (+1 clockwise, -1 anticlockwise).
+    output reg signed [1:0] tip_dir
 );
     `include "rotation_geometry.vh"
     localparam IDLE=0, OLD_BODY=1, OLD_RESULT=2, OLD_SUPPORT=3, OLD_SUPPORT_RESULT=4,
@@ -26,15 +30,18 @@ module rotating_map_collision_engine (
         FINAL_SUPPORT=15, FINAL_SUPPORT_RESULT=16, SNAP=17, SNAP_RESULT=18,
         REFINE=19, REFINE_SCAN=20, REFINE_RESULT=21,
         SLOPE_LEFT=22, SLOPE_LEFT_RESULT=23, SLOPE_RIGHT=24, SLOPE_RIGHT_RESULT=25,
-        RESPOND=26, ISSUE=27, SAMPLE=28, PROJECT=29, MASK=30;
+        RESPOND=26, ISSUE=27, SAMPLE=28, PROJECT=29, MASK=30, SPAN=31, SPAN_RESULT=32;
     localparam signed [21:0] PIXEL=256, HALF=3072;
-    reg [4:0] phase, scan_return, refine_return;
+    reg [5:0] phase, scan_return, refine_return;
     reg signed [21:0] work_x, work_y, target_x, target_y, delta_y, turn_y;
     reg signed [21:0] candidate_x, candidate_y, safe_pos, blocked_pos, midpoint;
-    reg signed [3:0] work_tilt, wanted_tilt, old_tilt;
+    reg signed [`LP_TILT_BITS-1:0] work_tilt, wanted_tilt, old_tilt;
     reg signed [15:0] result_vx, result_vy;
     reg signed [7:0] result_slope;
     reg moving_up, allow_snap, result_ground, refine_vertical;
+    reg signed [1:0] result_tip;
+    // Ground found on both sides of the contact: an even slope or floor, not an edge.
+    reg slope_ok;
     reg [2:0] attempts, snap_attempt;
     // Turning changes the support point as well as height. Compensate for
     // that bounded corner displacement in addition to ordinary 3px following.
@@ -49,9 +56,13 @@ module rotating_map_collision_engine (
     reg signed [12:0] scan_left, scan_right, scan_bottom, scan_x, scan_y, hit_x, hit_y;
     reg signed [21:0] scan_pose_x, scan_pose_y;
     reg scan_body_mode, scan_mask, scan_hit;
+    // scan_all keeps scanning after a hit and records the hits' horizontal span.
+    reg scan_all;
+    reg signed [12:0] hit_min_x, hit_max_x;
     wire signed [9:0] cosine=rotation_cos(work_tilt), sine=rotation_sin(work_tilt);
     wire signed [9:0] abs_sine=sine < 0 ? -sine : sine;
-    wire signed [10:0] span=cosine+abs_sine;
+    wire signed [9:0] abs_cosine=cosine < 0 ? -cosine : cosine;
+    wire signed [10:0] span=abs_cosine+abs_sine;
     // Match the inverse-raster hull, including non-unit coefficient rounding.
     wire signed [21:0] extent=rotation_extent(work_tilt);
     wire signed [22:0] scan_dx=($signed(scan_x)*256)+128-$signed(scan_pose_x)-HALF;
@@ -97,16 +108,16 @@ module rotating_map_collision_engine (
 
     task scan_region;
         input signed [12:0] left_edge, right_edge, top_edge, bottom_edge;
-        input [4:0] return_to;
+        input [5:0] return_to;
         begin
             scan_left<=left_edge; scan_right<=right_edge; scan_bottom<=bottom_edge;
             scan_x<=left_edge; scan_y<=top_edge; scan_hit<=0; scan_return<=return_to;
-            scan_body_mode<=0; phase<=ISSUE;
+            scan_body_mode<=0; scan_all<=0; phase<=ISSUE;
         end
     endtask
     task scan_body;
         input signed [21:0] x, y;
-        input [4:0] return_to;
+        input [5:0] return_to;
         begin
             scan_region((x+HALF-extent)>>>8, (x+HALF+extent-1)>>>8,
                         (y+HALF-extent)>>>8, (y+HALF+extent-1)>>>8, return_to);
@@ -116,7 +127,7 @@ module rotating_map_collision_engine (
     task refine_axis;
         input vertical;
         input signed [21:0] clear_position, hit_position;
-        input [4:0] return_to;
+        input [5:0] return_to;
         begin
             refine_vertical<=vertical; safe_pos<=clear_position; blocked_pos<=hit_position;
             refine_return<=return_to; phase<=REFINE;
@@ -125,7 +136,8 @@ module rotating_map_collision_engine (
 
     always @(posedge clk) begin
         if (reset) begin
-            phase<=IDLE; response_valid<=0; grounded<=0; ground_slope<=0; corrected_tilt<=0;
+            phase<=IDLE; response_valid<=0; grounded<=0; ground_slope<=0; corrected_tilt<=0; tip_dir<=0;
+            result_tip<=0; scan_all<=0; hit_min_x<=0; hit_max_x<=0; slope_ok<=0;
             corrected_x<=0; corrected_y<=0; corrected_vx<=0; corrected_vy<=0;
             work_x<=0; work_y<=0; target_x<=0; target_y<=0; delta_y<=0; turn_y<=0;
             candidate_x<=0; candidate_y<=0; safe_pos<=0; blocked_pos<=0; midpoint<=0;
@@ -153,7 +165,7 @@ module rotating_map_collision_engine (
                     moving_up<=proposed_vy<0 || proposed_y<previous_y;
                     saved_width<=world_width; saved_height<=world_height;
                     saved_collision_mask<=collision_mask;
-                    result_ground<=0; result_slope<=0; attempts<=0; phase<=OLD_BODY;
+                    result_ground<=0; result_slope<=0; result_tip<=0; slope_ok<=0; attempts<=0; phase<=OLD_BODY;
                 end
                 OLD_BODY: scan_body(work_x,work_y,OLD_RESULT);
                 OLD_RESULT: begin
@@ -192,7 +204,9 @@ module rotating_map_collision_engine (
                 H_SCAN: scan_body(candidate_x,candidate_y,H_RESULT);
                 H_RESULT: begin
                     if (!scan_hit) begin work_x<=candidate_x; work_y<=candidate_y; phase<=H_NEXT; end
-                    else if (allow_snap && attempts<3) begin
+                    // A grounded body steps up to 6 pixels: Cave Arch is shown at 2x,
+                    // so this is the 3 map pixels the original allowance covered.
+                    else if (allow_snap && attempts<6) begin
                         candidate_y<=candidate_y-PIXEL; attempts<=attempts+1'b1; phase<=H_SCAN;
                     end else begin
                         result_vx<=0; refine_axis(0,work_x,candidate_x,V_SETUP);
@@ -234,7 +248,7 @@ module rotating_map_collision_engine (
                 end
                 FINAL_SUPPORT_RESULT: begin
                     if (scan_hit) begin
-                        result_ground<=1; result_vy<=0; support_x<=hit_x; support_y<=hit_y; phase<=SLOPE_LEFT;
+                        result_ground<=1; result_vy<=0; support_x<=hit_x; support_y<=hit_y; phase<=SPAN;
                     end else if (allow_snap) begin
                         snap_attempt<=1; safe_pos<=work_y; candidate_y<=work_y+PIXEL+1; phase<=SNAP;
                     end else phase<=RESPOND;
@@ -250,6 +264,15 @@ module rotating_map_collision_engine (
                         snap_attempt<=snap_attempt+1'b1; phase<=SNAP;
                     end else phase<=RESPOND;
                 end
+                SPAN: begin scan_body(work_x,work_y+1,SPAN_RESULT); scan_all<=1; end
+                SPAN_RESULT: begin
+                    // A one pixel margin either side of the centre keeps a level,
+                    // evenly supported body from rocking.
+                    if (!scan_hit) result_tip<=0;
+                    else if (($signed(hit_max_x)+2)*256 <= work_x+HALF) result_tip<=1;
+                    else if (($signed(hit_min_x)-1)*256 >= work_x+HALF) result_tip<=-1;
+                    phase<=SLOPE_LEFT;
+                end
                 SLOPE_LEFT: begin
                     if (support_x<4 || support_x+4>=$signed({1'b0,saved_width}) || support_y<8 ||
                         support_y+8>=$signed({1'b0,saved_height})) phase<=RESPOND;
@@ -261,13 +284,14 @@ module rotating_map_collision_engine (
                 end
                 SLOPE_RIGHT: scan_region(support_x+4,support_x+4,support_y-8,support_y+8,SLOPE_RIGHT_RESULT);
                 SLOPE_RIGHT_RESULT: begin
-                    if (scan_hit && hit_y>support_y-8 && rise>=-8 && rise<=8 && midpoint_error>=-2 && midpoint_error<=2)
-                        result_slope<=rise*2;
+                    if (scan_hit && hit_y>support_y-8 && rise>=-8 && rise<=8 && midpoint_error>=-2 && midpoint_error<=2) begin
+                        result_slope<=rise*2; slope_ok<=1;
+                    end
                     phase<=RESPOND;
                 end
                 RESPOND: begin
                     corrected_x<=work_x; corrected_y<=work_y; corrected_vx<=result_vx; corrected_vy<=result_vy;
-                    corrected_tilt<=work_tilt; grounded<=result_ground; ground_slope<=result_slope;
+                    corrected_tilt<=work_tilt; grounded<=result_ground; ground_slope<=result_slope; tip_dir<=slope_ok ? 2'sd0 : result_tip;
                     response_valid<=1; phase<=IDLE;
                 end
                 ISSUE: begin
@@ -317,10 +341,22 @@ module rotating_map_collision_engine (
                     end
                 end
                 SAMPLE: begin
-                    if (scan_inside && scan_mask && solid) begin
+                    if (scan_inside && scan_mask && solid && !scan_all) begin
                         scan_hit<=1; hit_x<=scan_x; hit_y<=scan_y; phase<=scan_return;
-                    end else if (scan_x==scan_right && scan_y==scan_bottom) phase<=scan_return;
+                    end else if (scan_x==scan_right && scan_y==scan_bottom) begin
+                        if (scan_inside && scan_mask && solid) begin
+                            scan_hit<=1;
+                            if (!scan_hit || scan_x<hit_min_x) hit_min_x<=scan_x;
+                            if (!scan_hit || scan_x>hit_max_x) hit_max_x<=scan_x;
+                        end
+                        phase<=scan_return;
+                    end
                     else begin
+                        if (scan_inside && scan_mask && solid) begin
+                            scan_hit<=1;
+                            if (!scan_hit || scan_x<hit_min_x) hit_min_x<=scan_x;
+                            if (!scan_hit || scan_x>hit_max_x) hit_max_x<=scan_x;
+                        end
                         if (scan_x==scan_right) begin scan_x<=scan_left; scan_y<=scan_y+1'b1; end
                         else scan_x<=scan_x+1'b1;
                         phase<=ISSUE;

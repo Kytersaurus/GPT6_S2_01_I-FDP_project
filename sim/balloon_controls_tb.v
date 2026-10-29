@@ -16,7 +16,7 @@ module balloon_controls_tb;
     integer cycles, applications=0, previous_applications;
     always #5 clk=~clk;
 
-    My_Top_Module #(.BUTTON_DEBOUNCE_CYCLES(2), .BUTTON_RELEASE_CYCLES(2)) dut (
+    My_Top_Module #(.BUTTON_DEBOUNCE_CYCLES(2), .BUTTON_RELEASE_CYCLES(2), .WHEEL_LIMIT(2)) dut (
         .clk(clk), .btnC(1'b0), .btnU(1'b0), .btnR(1'b0), .btnL(1'b0),.btnD(btnD), .sw(16'd0),
         .PS2Clk(PS2Clk), .PS2Data(PS2Data), .led(led), .JA(JA), .JB(JB)
     );

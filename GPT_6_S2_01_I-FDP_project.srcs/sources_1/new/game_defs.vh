@@ -15,6 +15,8 @@
 `define LP_CELL_PIXELS   8
 `define LP_COORD_BITS    20
 `define LP_FRAC_BITS     8
+// Vehicle tilt: signed 11.25 degree steps, -16..15 covers the full turn (-16 is upside down).
+`define LP_TILT_BITS     5
 `define LP_MAX_TERRAIN   4
 `define LP_RECT_BITS     32
 
@@ -75,6 +77,9 @@
 // map 1 is Cave Flight (level 4, a flying level), address {y[7:0], x[9:0]}.
 `define LP_MAP_WIDTH     478
 `define LP_MAP_HEIGHT    291
+// Cave Arch world size once level_map shows it twice as large (map 478 by 291).
+`define LP_MAP_WORLD_WIDTH  956
+`define LP_MAP_WORLD_HEIGHT 582
 `define LP_FLIGHT_WIDTH  890
 `define LP_FLIGHT_HEIGHT 213
 `define LP_MAP_SKY       3'd0

@@ -47,5 +47,12 @@
         "source_commit":  "b79d73a + uncommitted role4 changes",
         "description":  "Latest (role4 test build): 1.5x map view with 12x12 sprites, red/white/black TNT, Cave Arch view only, SW3/wheel zoom, SW4 free look",
         "sha256":  "568373372d3f3acfcf6d915ba64c669cafbbf7e8ca113f9784db48395691bdc8"
+    },
+    {
+        "path":  "2026-10-29/221420_cave-arch-loop-physics.bit",
+        "built":  "2026-10-29T22:14:20",
+        "source_commit":  "cdac53e",
+        "description":  "Role 4 test build (role4): Cave Arch drivable end to end at 2x, full-turn rotation, wheel sides, edge tipping, ENGINE_FORCE 320, 6 px step-up, decorative grass open. 51 simulations passed; 100 MHz timing misses by 0.021 ns on one rectangle-collision path",
+        "sha256":  "06c91e69213fa557c7d8209b58a0478abe521607ebeeaca29fc202ca3bc4a0b8"
     }
 ]

@@ -5,7 +5,7 @@ module rotation_interactions_tb;
     reg clk=0, reset=1, run_init=0, committed=0;
     reg [2:0] state=`LP_BUILD;
     reg signed [19:0] x=40*256, y=40*256;
-    reg signed [3:0] tilt=0, previous_tilt=0;
+    reg signed [`LP_TILT_BITS-1:0] tilt=0, previous_tilt=0;
     reg [26:0] grid=0;
     reg [8:0] intact=9'h1ff;
     reg [31:0] goal=0;
@@ -73,7 +73,7 @@ module rotation_interactions_tb;
         end
     endtask
     task check_tnt;
-        input signed [3:0] angle;
+        input signed [`LP_TILT_BITS-1:0] angle;
         input [8:0] expected_mask;
         begin
             x=40*256; y=40*256; tilt=angle; previous_tilt=angle;
@@ -115,9 +115,11 @@ module rotation_interactions_tb;
         tilt=4; check_world(0,0,0);
         x=96*256; check_world(0,0,0);
         x=101*256; check_world(0,0,1);
-        // Disconnected legacy/invalid tilt inputs retain the level behavior.
-        tilt=4'bzzzz; x=40*256; goal={8'd1,8'd1,8'd44,8'd60}; check_world(1,0,0);
-        tilt=7; check_world(1,0,0);
+        // Every 5-bit tilt is a real angle, no longer clamped level: upside down
+        // or steep, the off-centre pig rotates off the one-pixel goal.
+        tilt=-16; x=40*256; goal={8'd1,8'd1,8'd44,8'd60}; check_world(0,0,0);
+        tilt=7; check_world(0,0,0);
+        tilt=0; check_world(1,0,0);
 
         x=40*256; y=40*256; tilt=4; start_run;
         pig_alive=0; clocks(1);

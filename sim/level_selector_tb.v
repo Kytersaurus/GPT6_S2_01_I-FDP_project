@@ -10,7 +10,7 @@ module level_selector_tb;
     reg [8:0] saved_frames;
     integer i;
     always #5 clk=~clk;
-    My_Top_Module #(.ENABLE_BGM(0),.BUTTON_DEBOUNCE_CYCLES(2),.BUTTON_RELEASE_CYCLES(2)) dut (
+    My_Top_Module #(.ENABLE_BGM(0),.BUTTON_DEBOUNCE_CYCLES(2),.BUTTON_RELEASE_CYCLES(2),.WHEEL_LIMIT(2)) dut (
         .clk(clk),.btnD(btnD),.btnC(btnC),.btnU(btnU),.btnL(1'b0),.btnR(1'b0),.sw(16'd0),
         .PS2Clk(PS2Clk),.PS2Data(PS2Data),.JA(),.JB(),.led(),.JXADC(),.seg(),.an(),.dp());
     initial begin

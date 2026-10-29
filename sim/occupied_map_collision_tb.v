@@ -6,7 +6,7 @@ module occupied_map_collision_tb;
     always #5 clk=~clk;
     reg signed [19:0] px=0,py=0,nx=0,ny=0;
     reg signed [15:0] vx=0,vy=0;
-    reg signed [3:0] old_tilt=0,new_tilt=0;
+    reg signed [`LP_TILT_BITS-1:0] old_tilt=0,new_tilt=0;
     reg [8:0] collision_mask=9'h1ff;
     reg [9:0] width=478,height=291;
     reg [2:0] scene=0,synthetic_class=`LP_MAP_CAVE;
@@ -15,14 +15,17 @@ module occupied_map_collision_tb;
     wire [2:0] query_class=scene==0 ? (rom_solid ? `LP_MAP_ROCK : `LP_MAP_CAVE) : synthetic_class;
     wire signed [19:0] cx,cy;
     wire signed [15:0] cvx,cvy;
-    wire signed [3:0] tilt;
+    wire signed [`LP_TILT_BITS-1:0] tilt;
     wire signed [7:0] slope;
     wire move_ready,response_valid,grounded;
-    reg [84:0] held;
+    reg [84+`LP_TILT_BITS-4:0] held;
     reg [2:0] arch[0:512*`LP_MAP_HEIGHT-1];
     integer waited,max_latency=0,cases=0,angle,corner;
     localparam [8:0] CAR=9'b101111000, CENTRE=9'b000010000;
     initial $readmemh("cave_arch_map.mem",arch);
+    // Collision uses the solid ROM, which leaves decorative grass open.
+    reg [0:0] arch_solid[0:512*`LP_MAP_HEIGHT-1];
+    initial $readmemh("cave_arch_solid.mem",arch_solid);
 
     function solid_pixel;
         input integer x,y;
@@ -30,8 +33,7 @@ module occupied_map_collision_tb;
         begin
             solid_pixel=0;value=0;
             if(scene==0) begin
-                if(x>=0 && x<`LP_MAP_WIDTH && y>=0 && y<`LP_MAP_HEIGHT) value=arch[y*512+x];
-                solid_pixel=value>=`LP_MAP_ROCK && value<=`LP_MAP_DARK;
+                if(x>=0 && x<`LP_MAP_WIDTH && y>=0 && y<`LP_MAP_HEIGHT) solid_pixel=arch_solid[y*512+x];
             end else if(x>=0 && x<192 && y>=0 && y<192) begin
                 case(scene)
                     1: solid_pixel=0;
@@ -44,7 +46,7 @@ module occupied_map_collision_tb;
         end
     endfunction
     always @(posedge clk) synthetic_class<=solid_pixel($signed(qx),$signed(qy)) ? `LP_MAP_ROCK : `LP_MAP_CAVE;
-    level_map rom (
+    level_map #(.ARCH_SCALED(0)) rom (
         .map_id(1'b1),.draw_clk(clk),.draw_x(11'sd0),.draw_y(11'sd0),.draw_class(),
         .query_clk(clk),.query_map_id(1'b0),.query_x(qx),.query_y(qy),.query_class(),.query_solid(rom_solid)
     );
@@ -134,7 +136,7 @@ module occupied_map_collision_tb;
                 $fatal(1,"Occupied case%0d manufactured support in an empty cell",cases);
             if(expected_ground>=0 && grounded!==expected_ground[0])
                 $fatal(1,"Occupied case%0d ground%b expected%0d",cases,grounded,expected_ground);
-            if(tilt!==rotation[3:0]) $fatal(1,"Occupied case%0d changed unchanged angle",cases);
+            if(tilt!==rotation[`LP_TILT_BITS-1:0]) $fatal(1,"Occupied case%0d changed unchanged angle",cases);
             held={cx,cy,cvx,cvy,tilt,grounded,slope};move_valid=1;collision_mask=9'h1ff;clocks(7);
             if(move_ready || !response_valid || {cx,cy,cvx,cvy,tilt,grounded,slope}!==held)
                 $fatal(1,"Occupied response changed under backpressure");
@@ -146,11 +148,12 @@ module occupied_map_collision_tb;
 
     initial begin
         clocks(3);reset=0;clocks(1);
-        // The exact photographed valley: the retained green patch remains a
-        // solid obstacle, and the road still supports the full hull.
+        // The exact photographed valley: the retained green lip is real ground,
+        // low enough for the 6-pixel grounded step-up, and the road still
+        // supports the full hull past it.
         scene=0;
         move(201*256,93*256,202*256,93*256+32,256,32,0,1,9'h1ff);
-        if(cx!==201*256 || cvx!==0) $fatal(1,"Retained green patch did not stop travel");
+        if(cx!==202*256 || cvx!==256 || !grounded) $fatal(1,"Retained green lip was not climbed onto the road");
         // This pose overlaps real roof only in the empty top construction row.
         if(!overlap_terrain(215*256,96*256,0,9'h1ff) || overlap_terrain(215*256,96*256,0,CAR))
             $fatal(1,"Photographed empty-roof fixture lost its geometry");

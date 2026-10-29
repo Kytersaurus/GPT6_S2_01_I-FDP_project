@@ -76,6 +76,8 @@ Audio scheduling and gameplay input belong to Role 1; Role 3 TNT events now driv
 | `sim/display_snapshot_tb.v` | Role 4 - Marcus | Snapshot transfer and frame-boundary checks |
 | `sim/role4_game_display_tb.v` | Role 4 - Marcus | Level data, level select/next level, fail reasons, timer, explosions, level button and renderer pixels |
 | `sim/role4_level_solutions_tb.v` | Role 4 - Marcus | Recorded solution: an explicitly prepared test vehicle clears both levels through the full top |
+| `sim/flip_physics_tb.v` | Role 4 - Marcus; shared integration | 32-angle rotation tables, flipped drive on top wheels, wheel-less scraping, level rest, settling and edge tipping |
+| `sim/cave_arch_drive_tb.v` | Role 4 - Marcus; shared integration | A two-sided wheeled cart driven from the Cave Arch spawn to the finish flag through the real map, physics and collision |
 | `sim/collision_engine_tb.v` | Role 3 - Yap Ting; shared integration | Captured collision proposals, four-platform selection, signed edges, backpressure and reset |
 | `sim/module_contracts_tb.v` | Shared - Roles 1, 3 and 4 | Builder, collision, controller and drawing checks |
 | `sim/game_baseline_tb.v` | Shared - all roles | Connected starter game-loop checks |
