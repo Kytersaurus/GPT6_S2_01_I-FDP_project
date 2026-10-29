@@ -58,6 +58,21 @@ function signed [15:0] rotation_sin;
     end
 endfunction
 
+// Squared Q8 basis length. Used to test individual inverse-raster cells
+// without division; the rounded sine/cosine are not exactly unit length.
+function signed [17:0] rotation_norm_squared;
+    input signed [3:0] tilt;
+    begin
+        case (sanitize_tilt(tilt))
+            -4'sd1,4'sd1: rotation_norm_squared=18'sd65501;
+            -4'sd2,4'sd2: rotation_norm_squared=18'sd65773;
+            -4'sd3,4'sd3: rotation_norm_squared=18'sd65533;
+            -4'sd4,4'sd4: rotation_norm_squared=18'sd65522;
+            default: rotation_norm_squared=18'sd65536;
+        endcase
+    end
+endfunction
+
 function signed [3:0] slope_to_tilt;
     input signed [7:0] slope;
     reg [7:0] magnitude;

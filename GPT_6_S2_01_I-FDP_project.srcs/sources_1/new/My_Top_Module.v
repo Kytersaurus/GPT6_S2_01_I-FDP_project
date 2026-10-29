@@ -297,6 +297,7 @@ module My_Top_Module #(
         .movement_committed(movement_committed), .vehicle_x(vehicle_x), .vehicle_y(vehicle_y)
     );
     collision_engine #(.ROTATION_ONLY(1)) u_collision (
+        .collision_mask(intact_mask | frame_intact_mask),
         .clk(clk), .reset(reset || run_init || game_state != `LP_RUN), .move_valid(move_valid), .move_ready(move_ready),
         .previous_x(previous_x), .previous_y(previous_y), .proposed_x(proposed_x), .proposed_y(proposed_y),
         .proposed_vx(proposed_vx), .proposed_vy(proposed_vy), .terrain_count(terrain_count), .terrain_rects(terrain_rects),

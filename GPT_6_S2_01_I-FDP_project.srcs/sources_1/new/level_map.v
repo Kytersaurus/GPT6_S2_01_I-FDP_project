@@ -19,20 +19,15 @@ module level_map (
 );
     (* rom_style = "block" *) reg [2:0] arch_cells [0:512*`LP_MAP_HEIGHT-1];
     (* rom_style = "block" *) reg [2:0] flight_cells [0:1024*`LP_FLIGHT_HEIGHT-1];
-    // Collision needs only solidity. Derive its one-bit ROMs from the same
-    // class files at elaboration, avoiding a second colour ROM on the board.
-    // query_class remains available to clients needing exact classes; unused
-    // full-class query reads are optimized away in the hardware top.
-    (* rom_style = "block" *) reg arch_solid [0:512*`LP_MAP_HEIGHT-1];
-    (* rom_style = "block" *) reg flight_solid [0:1024*`LP_FLIGHT_HEIGHT-1];
-    integer cell_index;
+    // Explicit one-bit files avoid synthesis-dependent initial-loop conversion
+    // from the colour ROM. Both assets are generated from the same map classes.
+    (* rom_style = "block" *) reg [0:0] arch_solid [0:512*`LP_MAP_HEIGHT-1];
+    (* rom_style = "block" *) reg [0:0] flight_solid [0:1024*`LP_FLIGHT_HEIGHT-1];
     initial begin
         $readmemh("cave_arch_map.mem", arch_cells);
         $readmemh("cave_flight_map.mem", flight_cells);
-        for (cell_index=0; cell_index<512*`LP_MAP_HEIGHT; cell_index=cell_index+1)
-            arch_solid[cell_index] = arch_cells[cell_index] >= `LP_MAP_ROCK && arch_cells[cell_index] <= `LP_MAP_DARK;
-        for (cell_index=0; cell_index<1024*`LP_FLIGHT_HEIGHT; cell_index=cell_index+1)
-            flight_solid[cell_index] = flight_cells[cell_index] >= `LP_MAP_ROCK && flight_cells[cell_index] <= `LP_MAP_DARK;
+        $readmemh("cave_arch_solid.mem", arch_solid);
+        $readmemh("cave_flight_solid.mem", flight_solid);
     end
 
     function in_map;

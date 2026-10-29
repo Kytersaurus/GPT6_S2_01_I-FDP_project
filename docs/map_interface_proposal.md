@@ -1,6 +1,8 @@
 # Proposal: physics and collision for the Cave Arch and Cave Flight maps
 
-Implementation status (28 October 2026): 20-bit positions, map-sized bounds, flag-derived goals and ROM terrain collision are connected. Collision supports an upright 24 by 24 swept footprint, three-pixel steps/snaps, walls and ceilings. The cave placeholder rectangles are removed. Slope gravity, uphill resistance and wheel friction are connected. Terrain-following rotation was added on 29 October 2026; passage clearance remains pending; the Cave Arch goal passage cannot currently fit the full footprint. The proposal below records the original plan; see `interfaces.md` for the current contract.
+Implementation status (29 October 2026): 20-bit positions, map-sized bounds, flag-derived goals and ROM terrain collision are connected. The live cave checker sweeps surviving occupied 8 by 8 cells, supports three-pixel steps/snaps, walls and ceilings, and rotates through all nine tilt indices (-4..4). The top supplies `collision_mask = intact_mask | frame_intact_mask`, captured with each request. Rotation keeps the fixed grid-centre pivot at (x+12,y+12), including after damage. Rectangle-level collision, hazards and world bounds retain their outer vehicle envelopes. The cave placeholder rectangles are removed; slope gravity, uphill resistance and wheel friction are connected. Earlier full-hull analysis found the Arch finish passage could not fit the complete 24 by 24 footprint; occupied-cell collision addresses that empty-cell limitation for sparse builds. Complete playable cave solutions remain unvalidated. The proposal below records the original plan; see `interfaces.md` for the current contract.
+
+The photographed green obstruction in Arch's first valley is removed by replacing only the isolated 53 GRASS pixels at x=225..231, y=92..100 with open CAVE background. Real ground grass below is preserved. Both map generators write explicit `*_solid.mem` files alongside the colour maps, preserving open dark green cave background and solid terrain after synthesis. All 49 simulation benches pass. `occupied_map_collision_tb` passes 25 cases including the actual valley, nearby rock-roof clearance with a sparse car, every tilt angle, all four corner cells at both 45-degree angles, floor/wall/ceiling contact and captured masks. The longest request is 410,151 clocks (4.102 ms at 100 MHz), including a 40-pixel stress sweep beyond the normal movement cap; the initial 17 normal fixtures peak at 136,364 clocks (1.364 ms). The connected rotation test's idle-fixture race was repaired and it still requires natural 45-degree settling and coherent display transfer. An audit confirmed the user's 15:10:47 bitstream already contains the collision-ROM repair; a fresh hardware build and board validation are still required for the bush and occupied-cell changes.
 
 Owner: Role 4 - Marcus, for review by Role 2 (physics) and Role 3 (collision, TNT and world checks). Nothing here has been changed in Role 2 or Role 3 files; this lists what the new map needs from them.
 
@@ -13,9 +15,9 @@ Owner: Role 4 - Marcus, for review by Role 2 (physics) and Role 3 (collision, TN
 - `level_data` outputs for level 3: spawn (104, 26) on the flat start plateau (`spawn_x=26624`, `spawn_y=6656`), `map_level=1`, `world_width=478`, `world_height=291`, and the finish flag's top-left (300, 229). The flag stands on the cave road, whose surface is at y=243.
 - Levels 1 and 2 are unchanged and stay as simple test maps. In the 1.5x view the camera already scrolls across them.
 
-## What does not work yet on level 3
+## Original limitations on level 3
 
-Running level 3 today fails immediately, by design, until the items below are agreed. Collision still reads rectangles; level 3 has one placeholder platform under the spawn (x=97..128, y=50), and `world_outcomes` reports out of bounds outside 96 by 64.
+At proposal time, running level 3 failed immediately until the items below were agreed. Collision read rectangles; level 3 had one placeholder platform under the spawn (x=97..128, y=50), and `world_outcomes` reported out of bounds outside 96 by 64. These limitations have been replaced by the current implementation described above.
 
 ## Proposed changes
 
@@ -30,8 +32,8 @@ Running level 3 today fails immediately, by design, until the items below are ag
 4. **TNT and hazards (Role 3/4).** Their `{y[7:0], x[7:0]}` packing tops out at 255. If the Cave Arch level gets TNT or hazards later, widen the fields to 10 bits together with item 1.
 5. **Spawn (Role 2).** Level 3's spawn already fits in 16 bits; after item 1, sign-extend it as the top does for the renderer.
 
-Once these land, Role 4 will remove the placeholder platform, connect the query port and record a level 3 solution in `role4_level_solutions_tb`.
+The placeholder platform is now removed and the query port connected. Recording a complete playable level 3 solution in `role4_level_solutions_tb` remains outstanding; teleported goal-wiring fixtures do not establish one.
 
 ## Regenerating the map
 
-`scripts/build_cave_arch_map.ps1` rebuilds `cave_arch_map.mem` and the class preview from the two reference screenshots. Its helpers are in `scripts/map_tools/`. Edit the screenshots, or the clean-up steps in the script, to change the terrain; keep `LP_MAP_WIDTH`/`LP_MAP_HEIGHT` in step with the printed size. After adding new files, re-run `scripts/add_team_sources.tcl` in Vivado so the `.mem` file is part of the project.
+`scripts/build_cave_arch_map.ps1` rebuilds `cave_arch_map.mem`, `cave_arch_solid.mem` and the class preview from the two reference screenshots. Its helpers are in `scripts/map_tools/`. Edit the screenshots, or the clean-up steps in the script, to change the terrain; keep `LP_MAP_WIDTH`/`LP_MAP_HEIGHT` in step with the printed size. After adding new files, re-run `scripts/add_team_sources.tcl` in Vivado so the colour and collision `.mem` files are part of the project. Run `scripts/check_map_solidity.ps1` after regeneration to verify the synthesized collision ROM against every map class pixel.

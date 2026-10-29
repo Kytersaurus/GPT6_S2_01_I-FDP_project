@@ -6,6 +6,7 @@ module rotating_map_collision_engine (
     output wire move_ready,
     input wire signed [`LP_COORD_BITS-1:0] previous_x, previous_y, proposed_x, proposed_y,
     input wire signed [3:0] previous_tilt, proposed_tilt,
+    input tri1 [8:0] collision_mask,
     input wire signed [15:0] proposed_vx, proposed_vy,
     input wire [9:0] world_width, world_height,
     output wire signed [10:0] query_x, query_y,
@@ -39,11 +40,12 @@ module rotating_map_collision_engine (
     // that bounded corner displacement in addition to ordinary 3px following.
     wire [2:0] snap_limit=work_tilt!=old_tilt ? 3'd6 : 3'd3;
     reg [9:0] saved_width, saved_height;
+    reg [8:0] saved_collision_mask;
 
-    // Query every pixel intersecting the rotated square. Separating-axis
+    // Query every pixel intersecting the occupied, rotated 8px cells. Separating-axis
     // tests include the pixel's area, rather than only its centre, so thin
-    // walls cannot leak through tilted edges. ISSUE registers the mask next
-    // to the synchronous terrain read; SAMPLE consumes both together.
+    // walls cannot leak through tilted edges. Hold the terrain address through
+    // projection/mask evaluation; SAMPLE consumes the matching terrain read.
     reg signed [12:0] scan_left, scan_right, scan_bottom, scan_x, scan_y, hit_x, hit_y;
     reg signed [21:0] scan_pose_x, scan_pose_y;
     reg scan_body_mode, scan_mask, scan_hit;
@@ -58,6 +60,25 @@ module rotating_map_collision_engine (
     // Register subtraction, projection and comparison separately at 100 MHz.
     reg signed [15:0] scan_dx_q, scan_dy_q;
     reg signed [27:0] local_u_q, local_v_q;
+    reg signed [34:0] pixel_x_numerator, pixel_y_numerator;
+    reg signed [34:0] cell_dx_numerator, cell_dy_numerator;
+    reg signed [34:0] cell_world_max_q, cell_world_min_q;
+    reg signed [27:0] cell_u_min_q, cell_u_max_q, cell_v_min_q, cell_v_max_q;
+    reg [3:0] mask_cell;
+    reg [1:0] mask_stage;
+    wire signed [17:0] basis_norm=rotation_norm_squared(work_tilt);
+    wire signed [34:0] cell_world_limit=($signed(span) <<< 18)+($signed(basis_norm) <<< 7);
+    // Cell centres are -8,0,+8 local pixels. The common factor 8*65536
+    // becomes a shift, so only two shared extra projection products are used.
+    wire signed [10:0] centre_u_cos=mask_cell%3==0 ? -cosine : mask_cell%3==2 ? cosine : 11'sd0;
+    wire signed [10:0] centre_u_sin=mask_cell%3==0 ? -sine : mask_cell%3==2 ? sine : 11'sd0;
+    wire signed [10:0] centre_v_cos=mask_cell<3 ? -cosine : mask_cell>=6 ? cosine : 11'sd0;
+    wire signed [10:0] centre_v_sin=mask_cell<3 ? -sine : mask_cell>=6 ? sine : 11'sd0;
+    wire signed [11:0] cell_centre_x=centre_u_cos-centre_v_sin;
+    wire signed [11:0] cell_centre_y=centre_u_sin+centre_v_cos;
+    wire signed [27:0] pixel_radius=$signed(span)*128;
+    wire signed [27:0] cell_u_min=mask_cell%3==0 ? -28'sd786432 : mask_cell%3==1 ? -28'sd262144 : 28'sd262144;
+    wire signed [27:0] cell_v_min=mask_cell<3 ? -28'sd786432 : mask_cell<6 ? -28'sd262144 : 28'sd262144;
     wire signed [27:0] projection_limit=28'sd786432+span*128;
     wire occupied=local_u_q < projection_limit && local_u_q > -projection_limit &&
                   local_v_q < projection_limit && local_v_q > -projection_limit &&
@@ -115,6 +136,10 @@ module rotating_map_collision_engine (
             hit_x<=0; hit_y<=0; scan_pose_x<=0; scan_pose_y<=0;
             scan_body_mode<=0; scan_mask<=0; scan_hit<=0; scan_return<=IDLE; refine_return<=IDLE;
             scan_dx_q<=0; scan_dy_q<=0; local_u_q<=0; local_v_q<=0;
+            saved_collision_mask<=9'h1ff; pixel_x_numerator<=0; pixel_y_numerator<=0;
+            cell_dx_numerator<=0; cell_dy_numerator<=0; mask_cell<=0; mask_stage<=0;
+            cell_world_max_q<=0; cell_world_min_q<=0;
+            cell_u_min_q<=0; cell_u_max_q<=0; cell_v_min_q<=0; cell_v_max_q<=0;
             support_x<=0; support_y<=0; left_floor<=0;
         end else begin
             if (response_valid && response_ready) response_valid<=0;
@@ -127,6 +152,7 @@ module rotating_map_collision_engine (
                     result_vx<=proposed_vx; result_vy<=proposed_vy;
                     moving_up<=proposed_vy<0 || proposed_y<previous_y;
                     saved_width<=world_width; saved_height<=world_height;
+                    saved_collision_mask<=collision_mask;
                     result_ground<=0; result_slope<=0; attempts<=0; phase<=OLD_BODY;
                 end
                 OLD_BODY: scan_body(work_x,work_y,OLD_RESULT);
@@ -251,9 +277,45 @@ module rotating_map_collision_engine (
                 PROJECT: begin
                     local_u_q<=scan_dx_q*cosine+scan_dy_q*sine;
                     local_v_q<=-scan_dx_q*sine+scan_dy_q*cosine;
+                    pixel_x_numerator<=scan_dx_q*basis_norm;
+                    pixel_y_numerator<=scan_dy_q*basis_norm;
+                    cell_world_max_q<=cell_world_limit; cell_world_min_q<=-cell_world_limit;
+                    mask_cell<=0; mask_stage<=0; scan_mask<=0;
                     phase<=MASK;
                 end
-                MASK: begin scan_mask<=occupied; phase<=SAMPLE; end
+                MASK: begin
+                    if (mask_stage==0) begin
+                        if (saved_collision_mask==9'h1ff) begin scan_mask<=occupied; phase<=SAMPLE; end
+                        else if (!occupied || saved_collision_mask==0) phase<=SAMPLE;
+                        else mask_stage<=1;
+                    end else if (mask_stage==1) begin
+                        if (saved_collision_mask[mask_cell]) begin
+                            // Register cell bounds separately from comparisons:
+                            // a long overlap test must not drive a DSP enable.
+                            cell_u_min_q<=cell_u_min-pixel_radius;
+                            cell_u_max_q<=cell_u_min+28'sd524288+pixel_radius;
+                            cell_v_min_q<=cell_v_min-pixel_radius;
+                            cell_v_max_q<=cell_v_min+28'sd524288+pixel_radius;
+                            cell_dx_numerator<=pixel_x_numerator-($signed(cell_centre_x) <<< 19);
+                            cell_dy_numerator<=pixel_y_numerator-($signed(cell_centre_y) <<< 19);
+                            mask_stage<=2;
+                        end else if (mask_cell==8) phase<=SAMPLE;
+                        else mask_cell<=mask_cell+1'b1;
+                    end else begin
+                        // Four SAT axes for the actual occupied 8x8 cell.
+                        // Empty grid cells never stop motion or create support.
+                        if (local_u_q>cell_u_min_q && local_u_q<cell_u_max_q &&
+                            local_v_q>cell_v_min_q && local_v_q<cell_v_max_q &&
+                            cell_dx_numerator<cell_world_max_q && cell_dx_numerator>cell_world_min_q &&
+                            cell_dy_numerator<cell_world_max_q && cell_dy_numerator>cell_world_min_q) begin
+                            scan_mask<=1; phase<=SAMPLE;
+                        end else begin
+                            mask_stage<=1;
+                            if (mask_cell==8) phase<=SAMPLE;
+                            else mask_cell<=mask_cell+1'b1;
+                        end
+                    end
+                end
                 SAMPLE: begin
                     if (scan_inside && scan_mask && solid) begin
                         scan_hit<=1; hit_x<=scan_x; hit_y<=scan_y; phase<=scan_return;

@@ -34,3 +34,26 @@ for ($y = 0; $y -lt $mh; $y++) { for ($x = 0; $x -lt 1024; $x++) { [void]$sb.App
 [IO.File]::WriteAllText((Join-Path $root 'GPT_6_S2_01_I-FDP_project.srcs\sources_1\new\cave_flight_map.mem'), $sb.ToString())
 [MapTool]::Save((Join-Path $root 'docs\maps\cave_flight_classes.png'), [MapTool]::Crop([Classify]::Colour($m), $mw, 0, 0, $mw, $mh, 2), $mw*2, $mh*2)
 "Map ${mw} x $mh written"
+
+# Write the synthesis-safe one-bit collision ROM alongside the colour map.
+$solid = New-Object System.Text.StringBuilder
+[void]$solid.AppendLine('// Explicit collision ROM: 0=open sky/cave background; 1=solid terrain.')
+for ($y = 0; $y -lt $mh; $y++) { for ($x = 0; $x -lt 1024; $x++) {
+    $isSolid = $x -lt $mw -and $m[$y*$mw+$x] -ge [Classify]::ROCK -and $m[$y*$mw+$x] -le [Classify]::DARK
+    [void]$solid.AppendLine($(if ($isSolid) { '1' } else { '0' }))
+} }
+[IO.File]::WriteAllText((Join-Path $root 'GPT_6_S2_01_I-FDP_project.srcs\sources_1\new\cave_flight_solid.mem'), $solid.ToString())
+
+# Keep each colour ROM within one 32768-word Artix-7 BRAM depth. Explicit
+# banks avoid synthesis-dependent hard-cascade address wiring in the large ROM.
+for ($bank = 0; $bank -lt 7; $bank++) {
+    $bankWords = New-Object System.Text.StringBuilder
+    [void]$bankWords.AppendLine("// Cave Flight colour bank $bank, 32768 words, unused rows padded with sky.")
+    for ($offset = 0; $offset -lt 32768; $offset++) {
+        $bankY = $bank * 32 + ($offset -shr 10)
+        $bankX = $offset -band 1023
+        $bankClass = if ($bankY -lt $mh -and $bankX -lt $mw) { $m[$bankY*$mw+$bankX] } else { 0 }
+        [void]$bankWords.AppendLine($bankClass)
+    }
+    [IO.File]::WriteAllText((Join-Path $root "GPT_6_S2_01_I-FDP_project.srcs\sources_1\new\cave_flight_colour_$bank.mem"), $bankWords.ToString())
+}
