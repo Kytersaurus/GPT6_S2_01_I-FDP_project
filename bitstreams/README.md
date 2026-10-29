@@ -1,11 +1,12 @@
 # Basys3 bitstream archive
 
-Latest published integrated build: **[2026-10-25/000034_all-role-merge.bit](2026-10-25/000034_all-role-merge.bit)**, built from source commit `0e960d4`. All four roles are merged; TNT damage, collision fixes, audio and retry are integrated. All 26 simulations passed and the constrained 100 MHz timing checks passed before generation.
+Latest published integrated build: **[2026-10-30/012541_two_cave_levels_stripped_rects.bit](2026-10-30/012541_two_cave_levels_stripped_rects.bit)**, built from source commit `e64b434`. Stripped legacy rectangle placeholder maps and unused rectangle collision logic; features Cave Arch (2x scale) and Cave Flight with full 360° flip physics. All 51 simulations passed.
 
 Open Vivado **Hardware Manager > Program Device > Browse** and select this file. `LATEST.txt` identifies the newest archived file. Times below are Singapore local time.
 
 | Build time | File | Contents |
 | --- | --- | --- |
+| 2026-10-30 01:25:41 | [2026-10-30/012541_two_cave_levels_stripped_rects.bit](2026-10-30/012541_two_cave_levels_stripped_rects.bit) | Official 2-cave levels build (commit `e64b434`): Stripped placeholder maps & rectangle collisions, Cave Arch 2x scale & Cave Flight, 360° flip physics. 51 simulations passed; 0 hold violations. |
 | 2026-10-29 22:14:20 | [2026-10-29/221420_cave-arch-loop-physics.bit](2026-10-29/221420_cave-arch-loop-physics.bit) | Role 4 test build (`role4`, commit `cdac53e`): Cave Arch drivable end to end at 2x, full-turn rotation, wheels on both sides, edge tipping, stronger engine. 51 simulations passed; 100 MHz timing misses by 0.021 ns on one rectangle-collision path |
 | 2026-10-25 18:01:42 | [2026-10-25/180142_map-view-12px.bit](2026-10-25/180142_map-view-12px.bit) | Latest Role 4 test build (`role4`): 1.5x map view with 12x12 sprites, red/white/black TNT, Cave Arch level 3 (view only), SW3/wheel zoom, SW4 free look. 26 simulations and 100 MHz timing passed |
 | 2026-10-25 17:30:35 | [2026-10-25/173035_cave-arch-camera.bit](2026-10-25/173035_cave-arch-camera.bit) | Role 4 test build (uncommitted changes on `role4`): 16x16 sprites, Cave Arch level 3 (view only), following camera, SW3/wheel zoom, SW4 free look. 26 simulations and 100 MHz timing passed |
