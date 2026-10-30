@@ -37,7 +37,12 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96) (
     input tri0 signed [1:0] tip_dir,
     output reg signed [`LP_TILT_BITS-1:0] previous_tilt, proposed_tilt, vehicle_tilt,
     output reg movement_committed,
-    output reg signed [`LP_COORD_BITS-1:0] vehicle_x, vehicle_y
+    output reg signed [`LP_COORD_BITS-1:0] vehicle_x, vehicle_y,
+    // Drawing height: an alpha-beta filter of vehicle_y (a quarter of the error to the
+    // position, a sixteenth to its speed), so the 2-pixel steps of a map shown at 2x glide
+    // instead of jumping, without lagging on a steady slope. Collision and outcomes use
+    // vehicle_y.
+    output reg signed [`LP_COORD_BITS-1:0] display_y
 );
     `include "rotation_geometry.vh"
     localparam IDLE = 0, MOMENTUM = 1, FREE_MOMENTUM = 2,
@@ -67,10 +72,24 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96) (
     wire signed [`LP_TILT_BITS-1:0] desired_tilt=tilt_flipped(vehicle_tilt) ? slope_tilt+5'b10000 : slope_tilt;
     // Shortest way round: the 5-bit difference wraps to -16..15.
     wire signed [`LP_TILT_BITS-1:0] settle_error=desired_tilt-vehicle_tilt;
+    // The body only settles toward a target held for three grounded updates in a row.
+    // One-update slope readings at stair edges (or a failed probe reporting level)
+    // would otherwise rock the body back and forth.
+    reg signed [`LP_TILT_BITS-1:0] held_target;
+    reg [1:0] held_count;
+    wire target_steady=desired_tilt==held_target && held_count==2'd2;
+    reg signed [15:0] display_vy;
+    wire signed [`LP_COORD_BITS+1:0] display_guess=$signed(display_y)+$signed(display_vy);
+    wire signed [`LP_COORD_BITS+1:0] display_error=$signed(corrected_y)-display_guess;
     reg signed [5:0] spin;
     reg signed [1:0] last_tip;
     reg [3:0] spin_frac;
-    wire signed [6:0] tip_spin=spin+(last_tip > 0 ? TIP_ACCEL : last_tip < 0 ? -TIP_ACCEL : 6'sd0);
+    // A grounded body already three steps past the ground's angle in the tip direction rests
+    // on its corner: it stops tipping and settles back (a tip reported on a steep slope's
+    // stairs must not roll the body over while it sits on the slope).
+    wire tip_overdone=(last_tip > 0 && settle_error <= -3) || (last_tip < 0 && settle_error >= 3);
+    wire signed [1:0] active_tip=tip_overdone ? 2'sd0 : last_tip;
+    wire signed [6:0] tip_spin=spin+(active_tip > 0 ? TIP_ACCEL : active_tip < 0 ? -TIP_ACCEL : 6'sd0);
     wire signed [5:0] next_tip_spin=tip_spin > MAX_SPIN ? MAX_SPIN : tip_spin < -MAX_SPIN ? -MAX_SPIN : tip_spin[5:0];
     wire signed [7:0] spin_sum=$signed({1'b0,spin_frac})+(was_grounded ? next_tip_spin : spin);
     // The wheels touching the ground decide grip and drive.
@@ -164,10 +183,10 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96) (
             phase <= IDLE; init_ready <= 0; was_grounded <= 0; boost_timer <= 0;
             last_ground_slope <= 0; sampled_slope <= 0;
             previous_tilt <= 0; proposed_tilt <= 0; vehicle_tilt <= 0;
-            spin <= 0; spin_frac <= 0; last_tip <= 0;
+            spin <= 0; spin_frac <= 0; last_tip <= 0; held_target <= 0; held_count <= 0;
             step_slope_product <= 0; step_slope_force <= 0;
             movement_committed <= 0;
-            vehicle_x <= spawn_x; vehicle_y <= spawn_y;
+            vehicle_x <= spawn_x; vehicle_y <= spawn_y; display_y <= spawn_y; display_vy <= 0;
             previous_x <= spawn_x; previous_y <= spawn_y;
             proposed_x <= spawn_x; proposed_y <= spawn_y;
             proposed_vx <= 0; proposed_vy <= 0; velocity_x <= 0; velocity_y <= 0;
@@ -191,8 +210,8 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96) (
                 phase <= IDLE; init_ready <= 1; was_grounded <= 0;
                 last_ground_slope <= 0;
                 previous_tilt <= 0; proposed_tilt <= 0; vehicle_tilt <= 0;
-                spin <= 0; spin_frac <= 0; last_tip <= 0;
-                vehicle_x <= spawn_x; vehicle_y <= spawn_y;
+                spin <= 0; spin_frac <= 0; last_tip <= 0; held_target <= 0; held_count <= 0;
+                vehicle_x <= spawn_x; vehicle_y <= spawn_y; display_y <= spawn_y; display_vy <= 0;
                 previous_x <= spawn_x; previous_y <= spawn_y;
                 proposed_x <= spawn_x; proposed_y <= spawn_y;
                 proposed_vx <= 0; proposed_vy <= 0; velocity_x <= 0; velocity_y <= 0;
@@ -201,7 +220,8 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96) (
             end else if (game_state != `LP_RUN) begin
                 phase <= IDLE;
                 last_ground_slope <= 0; was_grounded <= 0;
-                spin <= 0; spin_frac <= 0; last_tip <= 0;
+                spin <= 0; spin_frac <= 0; last_tip <= 0; held_target <= 0; held_count <= 0;
+                display_y <= vehicle_y; display_vy <= 0;
             end else case (phase)
                 IDLE: if (step_start) begin
                     // Capture all properties once. Later input changes cannot
@@ -211,12 +231,15 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96) (
                     // A supported body tipping over an edge gains spin; otherwise it
                     // settles one angle step per update onto the ground under it.
                     // Airborne, the body keeps the spin it left the ground with.
-                    if (was_grounded && !jump_now && last_tip == 0) begin
+                    if (was_grounded && !jump_now && active_tip == 0) begin
                         spin <= 0; spin_frac <= 0;
-                        if (settle_error > 0) proposed_tilt <= vehicle_tilt+1'b1;
-                        else if (settle_error < 0) proposed_tilt <= vehicle_tilt-1'b1;
+                        if (desired_tilt != held_target) begin held_target <= desired_tilt; held_count <= 0; end
+                        else if (held_count != 2'd2) held_count <= held_count+1'b1;
+                        if (target_steady && settle_error > 0) proposed_tilt <= vehicle_tilt+1'b1;
+                        else if (target_steady && settle_error < 0) proposed_tilt <= vehicle_tilt-1'b1;
                         else proposed_tilt <= vehicle_tilt;
                     end else begin
+                        held_count <= 0;
                         if (was_grounded && !jump_now) spin <= next_tip_spin;
                         spin_frac <= spin_sum[3:0];
                         proposed_tilt <= vehicle_tilt+(spin_sum >>> 4);
@@ -362,6 +385,13 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96) (
                 SEND: if (move_ready) phase <= WAIT_RESPONSE;
                 WAIT_RESPONSE: if (response_valid) begin
                     vehicle_x <= corrected_x; vehicle_y <= corrected_y;
+                    // An error of more than 12 pixels (none in normal motion) is not smoothed.
+                    if (display_error > 22'sd3072 || display_error < -22'sd3072) begin
+                        display_y <= corrected_y; display_vy <= 0;
+                    end else begin
+                        display_y <= display_guess + (display_error >>> 2);
+                        display_vy <= display_vy + (display_error >>> 4);
+                    end
                     vehicle_tilt <= sanitize_tilt(corrected_tilt);
                     last_tip <= grounded ? tip_dir : 2'sd0;
                     // A wall or roof that blocks an airborne turn stops the spin.

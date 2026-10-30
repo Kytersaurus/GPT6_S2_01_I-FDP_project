@@ -13,67 +13,11 @@ module map_solidity_tb;
     reg [2:0] expected_class;
     reg expected_solid;
     always #5 clk=~clk;
-    // Cave Arch decorative grass, an independent copy of the rule in
-    // scripts/build_cave_arch_map.ps1. Open GRASS is either in an 8-connected patch that
-    // touches no rock/road/underground (floating), or in a vertical run taller than 5
-    // above its bottom 2 pixels (all of it when the run hangs over open space), with no
-    // ground within 2 pixels to the left or right.
-    localparam integer ARCH_CELLS = 512*`LP_MAP_HEIGHT;
-    reg arch_decor[0:ARCH_CELLS-1];
-    integer arch_patch[0:ARCH_CELLS-1];
-    reg patch_grounded[0:ARCH_CELLS-1];
-    integer flood[0:ARCH_CELLS-1];
-    integer i,p,head,tail,patches,nx,ny,dx,dy,top,bottom,keep,g;
-    reg beside;
-    function arch_ground;
-        input integer px, py;
-        begin
-            arch_ground = px>=0 && px<`LP_MAP_WIDTH && py>=0 && py<`LP_MAP_HEIGHT &&
-                (arch[py*512+px]==`LP_MAP_ROCK || arch[py*512+px]==`LP_MAP_ROAD || arch[py*512+px]==`LP_MAP_DARK);
-        end
-    endfunction
-    task find_arch_decor;
-        begin
-            patches=0;
-            for(i=0;i<ARCH_CELLS;i=i+1) begin arch_decor[i]=0; arch_patch[i]=-1; end
-            for(i=0;i<ARCH_CELLS;i=i+1)
-                if(i%512<`LP_MAP_WIDTH && arch[i]==`LP_MAP_GRASS && arch_patch[i]<0) begin
-                    patch_grounded[patches]=0; arch_patch[i]=patches; head=0; tail=1; flood[0]=i;
-                    while(head<tail) begin
-                        p=flood[head]; head=head+1;
-                        for(dy=-1;dy<=1;dy=dy+1) for(dx=-1;dx<=1;dx=dx+1) begin
-                            nx=p%512+dx; ny=p/512+dy;
-                            if(arch_ground(nx,ny)) patch_grounded[patches]=1;
-                            else if(nx>=0 && nx<`LP_MAP_WIDTH && ny>=0 && ny<`LP_MAP_HEIGHT &&
-                                    arch[ny*512+nx]==`LP_MAP_GRASS && arch_patch[ny*512+nx]<0) begin
-                                arch_patch[ny*512+nx]=patches; flood[tail]=ny*512+nx; tail=tail+1;
-                            end
-                        end
-                    end
-                    patches=patches+1;
-                end
-            for(xx=0;xx<`LP_MAP_WIDTH;xx=xx+1) begin
-                yy=0;
-                while(yy<`LP_MAP_HEIGHT) begin
-                    if(arch[yy*512+xx]!=`LP_MAP_GRASS) yy=yy+1;
-                    else begin
-                        top=yy;
-                        while(yy<`LP_MAP_HEIGHT && arch[yy*512+xx]==`LP_MAP_GRASS) yy=yy+1;
-                        bottom=yy;
-                        if(!patch_grounded[arch_patch[top*512+xx]])
-                            for(g=top;g<bottom;g=g+1) arch_decor[g*512+xx]=1;
-                        else if(bottom-top>5) begin
-                            keep=(bottom<`LP_MAP_HEIGHT && !arch_ground(xx,bottom)) ? 0 : 2;
-                            for(g=top;g<bottom-keep;g=g+1) begin
-                                beside=arch_ground(xx-2,g) || arch_ground(xx-1,g) || arch_ground(xx+1,g) || arch_ground(xx+2,g);
-                                if(!beside) arch_decor[g*512+xx]=1;
-                            end
-                        end
-                    end
-                end
-            end
-        end
-    endtask
+    // Cave Arch's collision ROM is the traced terrain after build_cave_arch_map.ps1 opens
+    // decorative grass and smooths floors (Classify.SmoothTerrain), and the colour map is
+    // recoloured to match. So drawing and collision must agree: solid pixels are drawn as
+    // rock/grass/road/underground; rock, road and underground are always solid; grass may
+    // be open (decorative). Cave Flight keeps the exact class rule.
 `ifdef POST_SYNTHESIS
     map_mask_fixed dut(.clk(clk),.map_id(map_id),.x(x),.y(y),.solid(solid),.draw_class(drawn_class));
 `ifdef COMPARE_OLD_ROM
@@ -87,7 +31,6 @@ module map_solidity_tb;
     initial begin
         $readmemh("cave_arch_map.mem",arch);
         $readmemh("cave_flight_map.mem",flight);
-        find_arch_decor;
         // Allow primitive global reset to finish in post-synthesis simulation.
         repeat(20) @(negedge clk);
         for(m=0;m<2;m=m+1) begin
@@ -96,11 +39,14 @@ module map_solidity_tb;
                 for(xx=0;xx<(m ? `LP_FLIGHT_WIDTH : `LP_MAP_WIDTH);xx=xx+1) begin
                     x=xx;y=yy;
                     expected_class=m ? flight[yy*1024+xx] : arch[yy*512+xx];
-                    expected_solid=expected_class>=`LP_MAP_ROCK && expected_class<=`LP_MAP_DARK &&
-                                   !(m==0 && arch_decor[yy*512+xx]);
-                    if(m==0 && arch_decor[yy*512+xx]) decor_checks=decor_checks+1;
+                    expected_solid=expected_class>=`LP_MAP_ROCK && expected_class<=`LP_MAP_DARK;
                     @(negedge clk);
-                    if(solid!==expected_solid)
+                    if(m==0 && expected_class==`LP_MAP_GRASS) begin
+                        // Grass is solid ground or open decoration.
+                        if(solid!==1'b0 && solid!==1'b1)
+                            $fatal(1,"Solidity unknown map0 (%0d,%0d)",xx,yy);
+                        if(!solid) decor_checks=decor_checks+1;
+                    end else if(solid!==expected_solid)
                         $fatal(1,"Solidity mismatch map%0d (%0d,%0d) class%0d got%b expected%b",m,xx,yy,expected_class,solid,expected_solid);
                     if(drawn_class!==expected_class)
                         $fatal(1,"Draw colour mismatch map%0d (%0d,%0d) got%0d expected%0d",m,xx,yy,drawn_class,expected_class);

@@ -70,6 +70,8 @@
 
 // Levels: Role 4 selects one in BUILD and holds it through the run.
 `define LP_LEVEL_COUNT   2
+`define LP_LEVEL_ARCH    2'd0
+`define LP_LEVEL_FLIGHT  2'd1
 `define LP_LEVEL_BITS    2
 
 // Block-RAM maps in level_map: one 3-bit class per world pixel. Sky and cave background are

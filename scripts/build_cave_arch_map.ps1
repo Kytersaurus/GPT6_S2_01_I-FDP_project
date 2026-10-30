@@ -34,13 +34,6 @@ for ($y = 153; $y -le 167; $y++) {
     for ($x = 205; $x -lt $edge; $x++) { if ($m[$y*$mw+$x] -eq [Classify]::ROCK) { $m[$y*$mw+$x] = [Classify]::SKY } }
 }
 
-$sb = New-Object System.Text.StringBuilder
-[void]$sb.AppendLine("// Cave Arch map: 512 entries per row (x $mw..511 unused), $mh rows. Classes: 0 sky, 1 cave, 2 rock, 3 grass, 4 road, 5 underground.")
-for ($y = 0; $y -lt $mh; $y++) { for ($x = 0; $x -lt 512; $x++) { [void]$sb.AppendLine($(if ($x -lt $mw) { $m[$y*$mw+$x] } else { 0 })) } }
-[IO.File]::WriteAllText((Join-Path $root 'GPT_6_S2_01_I-FDP_project.srcs\sources_1\new\cave_arch_map.mem'), $sb.ToString())
-[MapTool]::Save((Join-Path $root 'docs\maps\cave_arch_classes.png'), [MapTool]::Crop([Classify]::Colour($m), $mw, 0, 0, $mw, $mh, 2), $mw*2, $mh*2)
-"Map ${mw} x $mh written"
-
 # Decorative grass (bushes, tufts, floating or hanging blobs) is drawn but must not block
 # the cart. The same rule applies to every pixel; no area of the map is special-cased.
 #  1. A grass patch (8-connected) that touches no rock, road or underground is floating
@@ -94,11 +87,23 @@ for ($x = 0; $x -lt $mw; $x++) {
     }
 }
 
+# Smooth the traced terrain (Classify.SmoothTerrain): floor lumps and dips up to 4 pixels
+# wide are levelled, notches filled and spikes removed, everywhere on the map. Pixels
+# whose solidity changes are recoloured, so the drawn map matches what the cart drives on.
+$terrain = [Classify]::SmoothTerrain($m, $decor, $mw, $mh)
+
+$sb = New-Object System.Text.StringBuilder
+[void]$sb.AppendLine("// Cave Arch map: 512 entries per row (x $mw..511 unused), $mh rows. Classes: 0 sky, 1 cave, 2 rock, 3 grass, 4 road, 5 underground.")
+for ($y = 0; $y -lt $mh; $y++) { for ($x = 0; $x -lt 512; $x++) { [void]$sb.AppendLine($(if ($x -lt $mw) { $m[$y*$mw+$x] } else { 0 })) } }
+[IO.File]::WriteAllText((Join-Path $root 'GPT_6_S2_01_I-FDP_project.srcs\sources_1\new\cave_arch_map.mem'), $sb.ToString())
+[MapTool]::Save((Join-Path $root 'docs\maps\cave_arch_classes.png'), [MapTool]::Crop([Classify]::Colour($m), $mw, 0, 0, $mw, $mh, 2), $mw*2, $mh*2)
+"Map ${mw} x $mh written"
+
 # Write the synthesis-safe one-bit collision ROM alongside the colour map.
 $solid = New-Object System.Text.StringBuilder
 [void]$solid.AppendLine('// Explicit collision ROM: 0=open sky/cave background or decorative grass; 1=solid terrain.')
 for ($y = 0; $y -lt $mh; $y++) { for ($x = 0; $x -lt 512; $x++) {
-    $isSolid = $x -lt $mw -and $m[$y*$mw+$x] -ge [Classify]::ROCK -and $m[$y*$mw+$x] -le [Classify]::DARK -and -not $decor[$y*$mw+$x]
+    $isSolid = $x -lt $mw -and $terrain[$y*$mw+$x]
     [void]$solid.AppendLine($(if ($isSolid) { '1' } else { '0' }))
 } }
 [IO.File]::WriteAllText((Join-Path $root 'GPT_6_S2_01_I-FDP_project.srcs\sources_1\new\cave_arch_solid.mem'), $solid.ToString())

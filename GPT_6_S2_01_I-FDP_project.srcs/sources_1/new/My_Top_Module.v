@@ -106,7 +106,7 @@ module My_Top_Module #(
     wire [3:0] pop_cell;
     wire [8:0] pop_mask;
     wire [7:0] mass_units;
-    wire signed [`LP_COORD_BITS-1:0] spawn_x, spawn_y, vehicle_x, vehicle_y;
+    wire signed [`LP_COORD_BITS-1:0] spawn_x, spawn_y, vehicle_x, vehicle_y, display_y;
     // Preserve the full Q12.8 spawn throughout movement and display.
     wire signed [19:0] level_spawn_x, level_spawn_y;
     assign spawn_x = level_spawn_x;
@@ -301,7 +301,7 @@ module My_Top_Module #(
         .response_ready(response_ready), .corrected_x(corrected_x), .corrected_y(corrected_y),
         .corrected_vx(corrected_vx), .corrected_vy(corrected_vy), .grounded(grounded), .ground_slope(ground_slope),
         .previous_tilt(previous_tilt), .proposed_tilt(proposed_tilt), .corrected_tilt(corrected_tilt), .vehicle_tilt(vehicle_tilt),
-        .movement_committed(movement_committed), .vehicle_x(vehicle_x), .vehicle_y(vehicle_y)
+        .movement_committed(movement_committed), .vehicle_x(vehicle_x), .vehicle_y(vehicle_y), .display_y(display_y)
     );
     collision_engine #(.ROTATION_ONLY(1)) u_collision (
         .collision_mask(intact_mask | frame_intact_mask),
@@ -339,7 +339,7 @@ module My_Top_Module #(
     localparam SNAPSHOT_WIDTH = 243 + 4*(`LP_COORD_BITS-16) + (`LP_TILT_BITS-4);
     wire [SNAPSHOT_WIDTH-1:0] snapshot_in = {vehicle_tilt, audio_muted, run_page, selected_left, inventory_page, build_facing_left, rockets_left, fans_left, master_volume, diary_page, guide_return_state, death_phase, death_x, death_y, launch_flash, boost_active, drag_from_grid, drag_source, drag_contents,
                               game_state, build_grid, intact_mask, frame_intact_mask, build_valid, build_error,
-                              vehicle_x, vehicle_y, engine_enabled, frames_left, pigs_left, wheels_left,
+                              vehicle_x, display_y, engine_enabled, frames_left, pigs_left, wheels_left,
                               engines_left, balloons_left, cursor_x, cursor_y, selected_part, drag_active,
                               feedback_code, feedback_cell, level_index, fail_reason, tnt_intact,
                               build_frames, run_seconds, blast_phase};

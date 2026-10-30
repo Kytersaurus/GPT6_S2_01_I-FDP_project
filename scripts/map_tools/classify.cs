@@ -164,6 +164,105 @@ public static class Classify {
         }
     }
 
+    // Smooth the traced terrain so the vehicle rolls instead of bumping. Returns the solid
+    // mask (decorative grass stays open) and recolours every pixel whose solidity changed
+    // from its original neighbours, so drawing and collision keep the same shape.
+    //  1. Twice, each floor top (solid with at least 4 solid pixels below, open above)
+    //     moves to the median height of the floor tops within 4 columns either side
+    //     (nearest top within 3 rows); floor ends with fewer than 5 tops are left alone.
+    //     This removes lumps and dips up to 4 columns wide but keeps real steps and slopes.
+    //  2. Closing with a radius-3 disk fills notches; opening with a radius-2 disk removes
+    //     spikes and crumbs. Outside the map is open, except below its bottom edge.
+    public static bool[] SmoothTerrain(int[] c, bool[] decor, int w, int h) {
+        var solid = new bool[w * h];
+        for (int i = 0; i < w * h; i++) solid[i] = c[i] >= ROCK && c[i] <= DARK && !decor[i];
+        var m = solid;
+        for (int pass = 0; pass < 2; pass++) m = FloorMedian(m, w, h, 4, 4, 3);
+        m = Dilate(Erode(Erode(Dilate(m, w, h, 3), w, h, 3), w, h, 2), w, h, 2);
+        for (int i = 0; i < w * h; i++) if (decor[i]) m[i] = false;
+        var original = (int[])c.Clone();
+        var n = new int[6];
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++) {
+                int p = y * w + x;
+                if (m[p] == solid[p]) continue;
+                Array.Clear(n, 0, 6);
+                for (int j = Math.Max(0, y - 2); j <= Math.Min(h - 1, y + 2); j++)
+                    for (int i = Math.Max(0, x - 2); i <= Math.Min(w - 1, x + 2); i++)
+                        if (solid[j * w + i] == m[p] && !decor[j * w + i]) n[original[j * w + i]]++;
+                int best = m[p] ? ROCK : CAVE;
+                for (int k = 0; k < 6; k++) if (n[k] > n[best]) best = k;
+                c[p] = best;
+            }
+        return m;
+    }
+
+    static bool[] FloorMedian(bool[] m, int w, int h, int half, int depth, int rows) {
+        var o = (bool[])m.Clone();
+        var floor = new bool[w * h];
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++) {
+                int p = y * w + x;
+                if (!m[p] || (y > 0 && m[p - w])) continue;
+                bool below = true;
+                for (int k = 1; k <= depth && below; k++) below = y + k >= h || m[p + k * w];
+                floor[p] = below;
+            }
+        var hs = new List<int>();
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++) {
+                if (!floor[y * w + x]) continue;
+                hs.Clear();
+                for (int d = -half; d <= half; d++) {
+                    int cx = x + d, best = -1;
+                    if (cx < 0 || cx >= w) continue;
+                    for (int j = Math.Max(0, y - rows); j <= Math.Min(h - 1, y + rows); j++)
+                        if (floor[j * w + cx] && (best < 0 || Math.Abs(j - y) < Math.Abs(best - y))) best = j;
+                    if (best >= 0) hs.Add(best);
+                }
+                if (hs.Count < half + 1) continue;
+                hs.Sort();
+                int t = hs.Count % 2 == 1 ? hs[hs.Count / 2] : (hs[hs.Count / 2 - 1] + hs[hs.Count / 2]) / 2;
+                for (int j = t; j < y; j++) o[j * w + x] = true;
+                for (int j = y; j < t; j++) o[j * w + x] = false;
+            }
+        return o;
+    }
+
+    static bool InDisk(int dx, int dy, int r) { return dx * dx + dy * dy <= r * r + r; }
+
+    static bool[] Dilate(bool[] m, int w, int h, int r) {
+        var o = new bool[w * h];
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++) {
+                bool v = false;
+                for (int dy = -r; dy <= r && !v; dy++)
+                    for (int dx = -r; dx <= r && !v; dx++) {
+                        int j = y + dy, i = x + dx;
+                        v = InDisk(dx, dy, r) && j >= 0 && j < h && i >= 0 && i < w && m[j * w + i];
+                    }
+                o[y * w + x] = v;
+            }
+        return o;
+    }
+
+    static bool[] Erode(bool[] m, int w, int h, int r) {
+        var o = new bool[w * h];
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++) {
+                bool v = true;
+                for (int dy = -r; dy <= r && v; dy++)
+                    for (int dx = -r; dx <= r && v; dx++) {
+                        if (!InDisk(dx, dy, r)) continue;
+                        int j = y + dy, i = x + dx;
+                        bool s = j >= h || (j >= 0 && i >= 0 && i < w && m[j * w + i]);
+                        v = s;
+                    }
+                o[y * w + x] = v;
+            }
+        return o;
+    }
+
     public static int[] Colour(int[] c) {
         var o = new int[c.Length];
         for (int i = 0; i < c.Length; i++) o[i] = unchecked((int)0xFF000000) | Preview[c[i]];
