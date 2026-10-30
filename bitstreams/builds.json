@@ -1,4 +1,4 @@
-﻿[
+[
     {
         "path":  "2026-10-19/192905_oled-test.bit",
         "built":  "2026-10-19T19:29:05",
@@ -54,5 +54,13 @@
         "source_commit":  "cdac53e",
         "description":  "Role 4 test build (role4): Cave Arch drivable end to end at 2x, full-turn rotation, wheel sides, edge tipping, ENGINE_FORCE 320, 6 px step-up, decorative grass open. 51 simulations passed; 100 MHz timing misses by 0.021 ns on one rectangle-collision path",
         "sha256":  "06c91e69213fa557c7d8209b58a0478abe521607ebeeaca29fc202ca3bc4a0b8"
+    },
+    {
+        "path":  "2026-10-30/124152_My_Top_Module.bit",
+        "built":  "2026-10-30T12:41:52",
+        "source_commit":  "64c496f",
+        "description":  "Integrated build: 2-cave levels with smoothed Cave Arch terrain, display_y alpha-beta camera filter, 3-update tilt hold, steep-slope tip guard, and pruned rectangle collisions. All simulations passed; 100 MHz timing cleanly met with +0.154 ns WNS and 82.00% LUTs.",
+        "sha256":  "bd8c33ab1c57b048ece5e65a6899ec102ce87b2550c095b43ab4a6d3db19ccfc"
+    }
     }
 ]
