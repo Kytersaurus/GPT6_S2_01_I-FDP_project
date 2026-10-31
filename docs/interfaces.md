@@ -239,3 +239,309 @@ Steep slopes and tipping (30 October 2026): the rotating collision engine's slop
 Occupied-cell validation: all 49 simulation benches pass across the pipelined regression and isolated reruns. `occupied_map_collision_tb` passes 25 cases: actual-ROM movement through the removed bush at (201,93) to (202,93), roof clearance from (215,96) to (216,96) with a sparse car mask, independent four-axis occupied-cell geometry at all nine tilts, all four corner cells at both 45-degree angles, full-mask legacy contact, zero-mask falling, occupied floor/wall/ceiling contact, request capture and response backpressure. Its longest request is 410,151 clocks (4.102 ms at 100 MHz), including a 40-pixel stress sweep beyond the normal movement cap. The initial 17 normal fixtures peak at 136,364 clocks (1.364 ms). Earlier synthesis and bitstream figures above describe the earlier design; a fresh hardware build and board validation remain pending for this geometry change.
 
 `vehicle_rotation_top_tb` previously waited 32 clocks after seeing physics idle before writing its slope pose. An update could capture the old spawn during that gap and later overwrite the fixture, causing the short cycle budget to expire with tilt and slope zero. The display wait now precedes the idle wait, and the fixture is written immediately while idle. Settling is bounded by 40 completed movement updates plus a global watchdog; the exact 45-degree, coherent pose/angle transfer, renderer and reset assertions are retained. The diagnostic trace reaches slope 16 then tilt 0, 1, 2, 3, 4 in five completed fixture updates; the actual bench passes at 8,727,540 ns. Logs: `tmp/occupied_pipelined_regression.log`, `tmp/occupied_pipelined_regression_remaining.log` and `tmp/rotation_top_latency/final_actual.log`.
+
+
+## Fan, rocket and spring physics (2026-10-31)
+
+The existing fan and rocket build items now drive physics through signed five-bit
+`fan_balance` and `rocket_balance`: surviving right-facing parts minus surviving
+left-facing parts. The builder computes them alongside `engine_balance`; damage
+removes their contributions and retry restores saved directions. Opposing parts
+cancel. Frame damage alone follows the existing independent content-mask rules.
+
+`physics_engine.fan_enabled` connects to the existing runtime FAN ON/OFF control.
+Each enabled intact fan supplies horizontal force 64, even airborne and without
+wheels, with its legacy facing balance negated to correct the fan direction.
+The game now supplies rocket force 1024 (`ROCKET_FORCE_SHIFT=10`); the standalone
+physics default remains 512 (`ROCKET_FORCE_SHIFT=9`) for the legacy arithmetic
+benches. The selected rocket axes are body-relative. Constant shifts and bounded serial additions
+produce these forces, which are staged into the existing force/friction/mass
+pipeline. They share the serial mass divider and existing velocity limits.
+Rocket thrust rotates with the body: world `Fx = cos*Fx_body - sin*Fy_body`,
+`Fy = sin*Fx_body + cos*Fy_body`. The accepted tilt is sampled once per movement.
+A side-mounted rocket therefore produces vertical force when its sprite points
+up or down, even while the future vertical-placement inputs are zero. Fan thrust
+and wheel drive retain their existing world-horizontal convention.
+`rocket_balance` supplies the horizontal signed rocket count (right minus left).
+The new signed five-bit `rocket_vertical_balance` supplies down minus up, with
+positive Y downward. It defaults to zero when unconnected. The current editor,
+builder and top-level placement wiring are unchanged by this follow-up: future
+placement logic must connect this input and exclude vertical rockets from the
+horizontal balance. `rocket_count` must count intact rockets on both axes.
+Vertical force uses a second transaction through the same serial mass divider,
+then adds the acceleration to gravity/balloon lift or the spring launch velocity.
+A separate vertical force remainder retains fractional acceleration. Collision
+correction, mass changes, and velocity saturation discard inappropriate carry.
+The existing vertical speed limit remains +/-512. Both axes share the existing
+90-update rocket burn, readiness, sampling and retry behavior.
+
+`rocket_req` captures the existing ROCKET FIRE pulse between movement updates.
+`rocket_ready` requires RUN, an intact rocket and an unused burn. A request starts
+a shared 90-update burn (about 1.5 seconds at the default 60 Hz). A request on the
+same edge as `step_start` takes effect on the following update. Seven-bit
+`rocket_fuel` decreases once per accepted step start; idle clocks, stalled requests
+and delayed responses do not consume extra fuel. The final tick still contributes
+thrust. Requests during or after the burn cannot refill it; reset, retry or leaving
+RUN clears it. `rocket_active` also requires a surviving rocket. Counts/balances
+are sampled once per movement, so damage takes effect on the next movement.
+FAN availability/on and ROCKET availability/readiness cross the coherent OLED
+snapshot, enabling the prepared runtime controls and labels.
+
+As requested, the existing `jump_press` port and button are retained as the spring
+trigger until a spring item is added. On confirmed ground contact, the queued
+trigger sets vertical velocity to `-SPRING_IMPULSE` (512 in Q8.8, two pixels per
+update upward). This uses the previous jump impulse logic, with no Hooke-law
+calculation. A one-bit `spring_fired` latch blocks another impulse throughout the
+same continuous ground contact; an accepted airborne response rearms it. Airborne
+presses are ignored; late grounded presses are queued for the next update.
+Reset/retry clears pending triggers and the latch. There is no spring part ID,
+contacting-cell decoder, wall bounce, or new spring-contact port yet; the future
+item can supply this trigger once its contact detection exists.
+
+`air_propulsion_tb` covers signed forces, sampling/backpressure, trigger capture,
+full fuel duration, expiry, damage, retry and combined engine/fan/rocket force.
+`physics_jump_tb` also checks spring contact lockout and rearming.
+
+
+Initial horizontal-thrust synthesis validation (before the vertical-input follow-up)
+for `xc7a35tcpg236-1`, using the same Vivado 2025.2 flow
+on a saved pre-change source snapshot and the updated sources:
+
+| Resource | Before | After | Change |
+| --- | ---: | ---: | ---: |
+| Slice LUTs | 17,177 (82.58%) | 17,433 (83.81%) | +256 |
+| Registers | 3,605 | 3,651 | +46 |
+| DSPs | 23 | 23 | 0 |
+| Block RAM tiles | 48.5 | 48.5 | 0 |
+
+These are synthesized counts, before implementation optimizations, so compare
+them to each other rather than a previous placed/routed utilization number.
+No unresolved black boxes remain. All design Verilog sources also compile with
+`xvlog` without `--sv`. Pre-route setup slack is -1.040 ns (before: -1.266 ns);
+this check does not establish 100 MHz timing closure. Full placement/routing and
+board testing are still required before hardware sign-off. Reports are in
+`tmp/thrust_before/` and `tmp/thrust_after/`.
+
+
+Initial horizontal-thrust regression result: 51 of 52 benches pass, including the added `air_propulsion_tb`
+and extended spring/direction/damage checks. `occupied_map_collision_tb` fails
+at its roof-fixture assertion (line 159): "Photographed empty-roof
+fixture lost its geometry". The identical failure at 255770 ns was reproduced
+using the saved, untouched pre-change collision/map sources and ROMs. The test
+checks terrain geometry independently of physics. No map or collision changes
+were made to mask this existing failure. Logs: `tmp/thrust_regression.log`,
+`tmp/thrust_remaining.log`, and `tmp/thrust_fixture_baseline/baseline.log`.
+
+
+The physics-only directional follow-up passes eight regression benches:
+`air_propulsion_tb`, `physics_engine_tb`, `physics_friction_tb`,
+`physics_slope_tb`, `physics_jump_tb`, `team_controls_tb`,
+`directional_parts_tb` and `rotation_map_integration_tb`.
+The extended propulsion bench tests corrected fan force, upward/downward rockets,
+simultaneous axes, vertical mass division, retained fractional acceleration and
+vertical saturation. Verilog compilation also passes without `--sv`.
+Follow-up logs: `tmp/direction_physics.log` and
+`tmp/directional_physics_synthesis/`.
+
+Standalone synthesis of the follow-up physics engine, with both force axes live,
+uses 1,063 LUTs and 779 flip-flops, zero block RAM, and the same two existing DSP
+blocks. There is one `signed_divider16` instance, shared between both axes.
+This standalone count is not a whole-game utilization figure. Pre-route setup
+slack is -1.184 ns; 100 MHz timing closure is still outstanding.
+
+
+## Rigid-body moments (2026-10-31)
+
+`My_Top_Module.ENABLE_MOMENTS` defaults to 1. It enables the new
+`vehicle_moments` calculation in physics; 0 retains the previous turning model.
+This is read-only use of the saved grid and survivor masks. Construction rules,
+mouse editing, sprites and inventory are unchanged.
+
+Frames and surviving contents are point masses at cell centres, with the same
+mass values as `vehicle_builder`. Relative to the grid centre, the three rows
+and columns have coordinates -8, 0 and +8 pixels. The mass centre is
+`COM = sum(mass * position) / sum(mass)`, represented in quarter pixels and
+rounded toward zero. A serial divider calculates both coordinates. Reset/retry
+cancels an unfinished calculation; every movement snapshots its part geometry,
+orientation, active actuators and survivor masks once, so later damage affects
+the following movement.
+
+For each enabled, surviving fan/rocket, the force starts at its own cell centre.
+Moment arms subtract the calculated COM. Fan/wheel arms rotate through the
+accepted vehicle tilt using the existing Q8 sine/cosine table. Rocket force and
+its arm rotate together, so their torque is calculated directly in body
+coordinates using the invariant cross product. The calculation is
+`torque = rx*Fy - ry*Fx`, with positive torque clockwise because screen Y points
+down. Fans keep the corrected facing sign. Rockets share the existing burn and
+readiness; horizontal and vertical rocket axes are now body-relative and their net force
+is rotated into world coordinates for translation. Two opposing forces can produce a couple even when their net
+translational force is zero. Force through COM produces no moment.
+
+Engine drive and wheel resistance act at grounded wheel contacts, not at engine
+cells. Only the currently supporting wheel side receives traction. Eligibility uses the
+existing frame-attachment side and body-grounded convention, rather than a
+separate terrain query for each tyre. Total drive
+plus wheel drag is divided equally among those wheels, distributing any integer
+remainder across contacts so no force is lost. The contact is four pixels beyond
+the wheel's cell centre on its ground-facing side. Airborne wheels have no
+traction. The game now sets `WHEEL_TORQUE_SHIFT=2`, applying one quarter of the
+raw wheel-to-body torque as a conservative approximation of unresolved tyre and
+ground reactions. Linear drive/braking force is unchanged. This tuning is not a
+claim of exact suspension dynamics; 0 restores the unscaled wheel moment. With moments enabled, engine drive also requires contacting wheels;
+legacy arithmetic mode retains its former fallback for old benches.
+
+Torque uses Q10 (Q8 force times quarter-pixel arm). Angular acceleration in Q8
+spin units is `torque_q10 / (8 * body_mass)`, a deliberately conservative,
+fixed mass-scaled rotational-inertia approximation, rather than an inertia tensor
+recomputed from every part. One spin unit is 1/16 of an 11.25-degree tilt step;
+the gain corresponds approximately to inertia `163 * mass` in pixel-squared
+units. The signed fractional angular velocity is integrated into a signed angle
+remainder, so small positive and negative moments accumulate symmetrically.
+Angular speed is limited to 11.25 degrees per movement update. The wheel footprint
+also supplies a bounded normal-reaction moment. Contact locations are rotated
+into world coordinates; a four-pixel contact half-width defines the support
+interval about COM. If that interval brackets COM, weight times the available
+horizontal support arm bounds the counter-moment. In the same angular units its
+capacity is `arm_q2 * (32-24*balloons) / 8`, implemented as shifts for zero
+balloons, identity for one, and zero for net upward lift. Stable ordinary drive
+can therefore be balanced by ground reactions, while boost or off-centre thrust
+can exceed that limit. Edge tipping and a spring launch bypass this static
+support approximation. Grounded spin loses a quarter of its angular velocity each update even while a
+motor is driving, and the moments-mode terrain-tip acceleration is one spin unit
+per grounded update rather than three. Quiet grounded bodies settle onto terrain;
+airborne angular velocity persists without torque.
+Collision-blocked turns clear angular velocity, and existing terrain-edge tipping
+is retained. This is not suspension, per-wheel deformation, detached debris, or
+a complete rigid-body/contact solver. Balloon lift and gravity keep their
+existing aggregate treatment; balloon-specific moments are not introduced.
+
+A rotation also shifts the grid origin by `R(old)*COM - R(new)*COM`. This keeps
+the mass centre on its translated trajectory while the existing renderer and
+collision engine continue using their fixed grid-centre geometry. It prevents
+rotation of an asymmetric build from adding unintended COM translation.
+
+All work is sequential: one additional serial divider and one shared shift/add
+multiplier handle the COM, wheel force sharing, rotated moment arms, acceleration
+and pivot correction. Fan/rocket magnitude products are constant shifts. There
+are no division/modulo operators, wide parallel variable multipliers, new DSP
+instances, extra block RAMs, or independent-body physics in the new module.
+The movement handshake waits for moments before publishing its request.
+Future vertical-rocket building logic must supply both signed
+`rocket_vertical_balance` and the per-cell `rocket_vertical_mask`. For a vertical
+rocket, saved facing 0 means up and 1 means down. Current top-level vertical
+placement wiring remains zero, as requested in the preceding physics-only work.
+
+`vehicle_moments_tb` checks 22 analytic cases: COM/mass, centred and offset forces,
+couples, vertical rockets, inertia scaling, wheel origins, exact force sharing,
+reverse, rotated arms, COM pivot correction, ground reaction limits, balloon
+weight relief, damage, snapshots and backpressure.
+`physics_moments_tb` checks the connected integrator: visible spin, balanced
+thrust, angular momentum, vertical rockets, wheel traction, COM motion,
+collision-blocked turns and retry. Reports are in `tmp/moments_before/`,
+`tmp/moments_after/` and `tmp/moments_all/`.
+
+
+### Initial moments verification and budget (before rocket/wheel tuning)
+
+The same Vivado 2025.2 synthesis flow on the saved pre-moments sources and the
+final ground-supported model, for `xc7a35tcpg236-1`, reports:
+
+| Resource | Before moments | Moments enabled | Difference |
+| --- | ---: | ---: | ---: |
+| Slice LUTs | 17,418 (83.74%) | 18,515 (89.01%) | +1,097 |
+| Registers | 3,652 | 4,401 | +749 |
+| DSPs | 23 | 23 | 0 |
+| Block RAM tiles | 48.5 | 48.5 | 0 |
+
+There are 2,285 LUTs left. The feature fits but consumes a significant 5.27
+percentage points of device LUT capacity. Keeping it optional is recommended;
+a full suspension, separate bodies or a more detailed contact solver would be
+poor choices with this remaining budget. The fixed-point moment/inertia model
+is explainable with weighted averages, force times distance, and angular
+integration, though its serial FSM implementation is more involved than the
+previous count-based forces.
+
+The final model synthesizes successfully with no added DSP or memory blocks.
+Pre-route setup slack is -1.297 ns (before: -1.040 ns); this is not timing closure
+or board validation. The updated production modules also compile as Verilog
+without `--sv` in the clean `tmp/moments_verilog2001` library. The maximum observed
+request latency in `physics_moments_tb` was 335 clocks, or 3.35 microseconds at
+100 MHz, well inside a 60 Hz update interval; this is the test's measured maximum,
+not an exhaustive worst-case timing bound.
+
+The regression run reports 53/54 passing. The only failure is the unchanged
+`occupied_map_collision_tb` roof-fixture assertion at line 159, already reproduced
+on the untouched pre-change sources. Additional final-model checks pass for the
+22 analytic moment cases, spin/support/boost/fuel/pivot integration, game baseline,
+board controls, connected rotation, balloons, audio, cave integration and level
+solutions. The Cave Arch driving bench with `ENABLE_MOMENTS=1` reaches the flag
+in 1,748 updates with two reversals (about 29 seconds at 60 Hz). Default
+`cave_arch_drive_tb.ENABLE_MOMENTS=0` retains its legacy comparison; use an
+elaboration override to run the moments version. Logs are
+`tmp/moments_all_summary.log`, `tmp/moments_final_checks.log`,
+`tmp/moments_support.log`, `tmp/moments_latency/latency.log` and
+`tmp/moments_drive/drive.log`. The helper definition lives in the already-registered `physics_engine.v`, so an
+open Vivado project's older source list can resolve it without adding a separate
+`vehicle_moments.v` file. The simulation runner discovers both moment benches.
+
+
+### Synthesis source-list repair
+
+The saved/open project had omitted the new standalone helper file, causing
+`Synth 8-439: module vehicle_moments not found`. The earlier all-files synthesis
+check included it automatically and therefore did not catch that project-list
+gap. The unchanged `vehicle_moments` module definition is now appended to
+`physics_engine.v`, an existing registered design source. The separate helper
+file is removed, avoiding duplicate definitions in flows that scan all `.v` files.
+No force, torque, inertia or timing logic was altered by this packaging fix.
+RTL elaboration using the exact 50-source saved-XPR list succeeds without helper
+registration. Both moment benches also pass in a fresh Verilog-mode compilation
+using only `physics_engine.v` and `signed_divider16.v` as design sources.
+Verification logs: `tmp/moments_source_fix/`.
+
+
+## Rocket direction and wheel stability follow-up
+
+The prior rocket force was fixed to world X/Y while the sprite rotated with the
+vehicle. It could rotate the cart without producing the expected vertical thrust.
+Rocket force now follows body orientation, using the same sampled angle as the
+moment geometry. Repeated per-rocket additions of the sine/cosine-based unit
+vector avoid variable multipliers. Body-frame torque prevents a mismatch between
+rotated force and rotated moment arm. The game preset is 1024 force units as
+requested, enough to lift a 19-unit cart when pointed straight up; at 512, a
+vehicle of mass 16 or more cannot overcome gravity without balloon assistance.
+Both force and torque share `ROCKET_FORCE_SHIFT` so they cannot silently use
+different rocket strengths. Fuel duration remains 90 accepted movement updates.
+This does not add top/bottom placement or alter building controls.
+
+Wheel stability uses quarter-strength wheel moment coupling, 25% grounded
+angular damping on every grounded update (including powered drive), and gentler
+terrain-tip acceleration. Fan and rocket moment magnitudes remain unscaled.
+Linear wheel force, engine power, mass division, slope force and speed limits
+are unchanged. Contact eligibility still uses the existing body-grounded and
+frame-side convention, not an independent per-wheel terrain solver.
+
+The one-wheel regression measures peak angular velocity of 642 Q8 spin units
+with raw wheel moments versus 169 with the game's stability gain: 73.7% lower,
+while horizontal drive velocities match at every step. `rocket_orientation_tb`
+checks all 32 angles, both facings and both body axes (128 force-vector cases),
+as well as body-frame torque invariance. `rocket_game_integration_tb` confirms
+that the real top-level wiring, with vertical-placement inputs still zero,
+supplies upward force -1024 and initial vertical velocity -21 to a valid 19-unit
+cart with its side rocket rotated upward. The helper has 23 analytic cases.
+Eleven focused benches pass in `tmp/rocket_wheel_checks.log`; production sources
+also compile in Verilog mode without `--sv` in `tmp/rocket_wheel_verilog2001/`.
+
+
+The updated complete design passes synthesis using the saved project's source
+list: 18,762 LUTs (90.20%), 4,490 registers, 23 DSPs and 48.5 block-RAM tiles.
+That is 247 more LUTs than the preceding 18,515-LUT moments build, leaving 2,038
+LUTs free. No DSP or block RAM was added. Pre-route setup slack remains -1.297 ns;
+100 MHz timing closure is still outstanding. Reports are under
+`tmp/rocket_wheel_synthesis/`.
+
+
+The final real-terrain check with moments enabled and `WHEEL_TORQUE_SHIFT=2`
+completes Cave Arch in 1,730 updates with two automatic reversals. This confirms
+the gentler turning response still traverses the course. Full trace:
+`tmp/rocket_wheel_drive/drive.log`.

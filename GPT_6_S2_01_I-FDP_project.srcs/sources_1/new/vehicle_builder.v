@@ -28,7 +28,7 @@ module vehicle_builder #(
     output reg [26:0] build_grid,
     output reg [8:0] build_frames,
     output reg [8:0] build_facing_left,
-    output reg signed [4:0] engine_balance,
+    output reg signed [4:0] engine_balance, fan_balance, rocket_balance,
     output reg [3:0] rocket_count, fan_count, rockets_left, fans_left,
     output wire [8:0] intact_mask,
     output wire [8:0] frame_intact_mask,
@@ -236,7 +236,7 @@ module vehicle_builder #(
     end
     always @* begin
         wheel_count = 0; engine_count = 0; balloon_count = 0; wheels_down = 0; wheels_up = 0;
-        rocket_count=0; fan_count=0; engine_balance=0;
+        rocket_count=0; fan_count=0; engine_balance=0; fan_balance=0; rocket_balance=0;
         mass_units = 0; pig_alive = 0; part = 0;
         saved_frames = 0; saved_pigs = 0; saved_wheels = 0; saved_engines = 0; saved_balloons = 0; saved_rockets=0; saved_fans=0;
         placement_valid = 1;
@@ -278,8 +278,14 @@ module vehicle_builder #(
                     engine_count = engine_count + 1; mass_units = mass_units + 3;
                     engine_balance=engine_balance+(build_facing_left[index] ? -5'sd1 : 5'sd1);
                 end
-                `LP_PART_BOOSTER: begin rocket_count=rocket_count+1; mass_units=mass_units+2; end
-                `LP_PART_FAN: begin fan_count=fan_count+1; mass_units=mass_units+2; end
+                `LP_PART_BOOSTER: begin
+                    rocket_count=rocket_count+1; mass_units=mass_units+2;
+                    rocket_balance=rocket_balance+(build_facing_left[index] ? -5'sd1 : 5'sd1);
+                end
+                `LP_PART_FAN: begin
+                    fan_count=fan_count+1; mass_units=mass_units+2;
+                    fan_balance=fan_balance+(build_facing_left[index] ? -5'sd1 : 5'sd1);
+                end
                 `LP_PART_BALLOON: begin balloon_count = balloon_count + 1; mass_units = mass_units + 1; end
                 default: begin end
             endcase

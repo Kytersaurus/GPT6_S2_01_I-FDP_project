@@ -7,6 +7,10 @@ module ui_controller (
     input wire [2:0] game_state,
     input wire [11:0] mouse_x, mouse_y,
     input wire mouse_left, mouse_right, mouse_event, next_press, engine_switch_changed,
+    // Availability follows surviving parts; physics supplies one-shot rocket readiness.
+    input wire fan_available, rocket_available, rocket_ready,
+    output reg launch_req, edit_req, guide_open_req, guide_close_req,
+    output reg level_close_req, level_select_req,
     input wire engine_switch, engine_toggle_req, fan_toggle_req,
     input wire fan_available, rocket_available, rocket_ready, balloon_available,
     output reg launch_req, edit_req, end_try_req, guide_open_req, guide_close_req,

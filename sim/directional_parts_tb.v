@@ -9,7 +9,7 @@ module directional_parts_tb;
     reg [8:0] mask=0;
     wire [26:0] grid;
     wire [8:0] frames,direction,intact;
-    wire signed [4:0] balance;
+    wire signed [4:0] balance, fan_balance, rocket_balance;
     wire [3:0] engines,rockets,fans;
     wire [2:0] feedback;
     always #5 clk=~clk;
@@ -17,7 +17,7 @@ module directional_parts_tb;
         .clk(clk),.reset(reset),.game_state(state),.run_init(init),.init_ready(),
         .edit_valid(edit),.edit_op(op),.edit_cell(cell_id),.edit_source(source),.edit_part(part),.edit_facing_left(left),
         .damage_valid(damage),.damage_ready(),.damage_mask(mask),.damage_frame_mask(9'd0),
-        .build_grid(grid),.build_frames(frames),.build_facing_left(direction),.engine_balance(balance),
+        .build_grid(grid),.build_frames(frames),.build_facing_left(direction),.engine_balance(balance),.fan_balance(fan_balance),.rocket_balance(rocket_balance),
         .intact_mask(intact),.frame_intact_mask(),.engine_count(engines),.rockets_left(rockets),.fans_left(fans),
         .feedback_code(feedback));
     task clocks;input integer n;begin repeat(n) @(negedge clk);end endtask
@@ -35,11 +35,16 @@ module directional_parts_tb;
         if(engines!=2 || balance!=0 || !direction[3] || direction[4]) $fatal(1,"Opposing engines failed to cancel");
         put(5,`LP_PART_BOOSTER,1);put(0,`LP_PART_BOOSTER,0);
         if(rockets!=0 || grid[2:0]!=0 || !direction[5]) $fatal(1,"Rocket stock/direction or unsupported placement failed");
+        put(1,`LP_PART_FAN,0);
+        if(fan_balance!=1 || rocket_balance!=-1) $fatal(1,"Air part directions incorrect");
         state=`LP_INIT_RUN;init=1;clocks(2);init=0;state=`LP_RUN;clocks(2);
         mask=9'b000010000;damage=1;clocks(1);damage=0;clocks(2);
         if(engines!=1 || balance!=-1 || !direction[3] || grid[14:12]!=`LP_PART_ENGINE)
             $fatal(1,"Damage changed saved direction or engine balance did not update");
+        mask=9'b000100010;damage=1;clocks(1);damage=0;clocks(2);
+        if(fan_balance!=0 || rocket_balance!=0) $fatal(1,"Destroyed air parts still produced thrust");
         state=`LP_INIT_RUN;init=1;clocks(2);init=0;state=`LP_RUN;clocks(2);
+        if(fan_balance!=1 || rocket_balance!=-1) $fatal(1,"Retry did not restore air directions");
         if(engines!=2 || balance!=0 || !direction[3] || !direction[5]) $fatal(1,"Retry lost directional construction");
         state=`LP_BUILD;clocks(2);
         source=3;cell_id=6;part=`LP_PART_FRAME;op=`LP_EDIT_MOVE;edit=1;clocks(1);edit=0;clocks(2);

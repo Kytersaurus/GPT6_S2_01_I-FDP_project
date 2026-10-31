@@ -19,7 +19,7 @@ One OLED is enough for the complete game: connect it to JA. SW15 down shows the 
 | Mouse left-click during RUN | Pop the surviving balloon in that cell on the left grid; release before clicking another balloon |
 | SW0 | Enable ground-engine thrust |
 | SW2 | Reverse engine thrust; SW1 remains audio mute |
-| BTNL | Jump once when grounded; release before another jump |
+| BTNL | Spring impulse using the former jump control; once per ground contact |
 | SW15 | Down: builder on JA and map on JB. Up: map on JA for one-OLED play |
 | SW1 | Audio mute: one mutes and cancels the current sound; zero enables audio |
 | BTNC | Launch from BUILD; retry from SUCCESS/FAIL |
@@ -150,3 +150,33 @@ Cave collision now uses the actual terrain ROM with independent draw/query map s
 The photographed green obstruction in Cave Arch's first valley has been removed: exactly 53 isolated GRASS pixels at x=225..231, y=92..100 become open CAVE background. The actual grass road below is preserved. The former whole-grid collision body also blocked empty cells against nearby rock, which could appear to be background collision. Occupied-cell collision removes that limitation for sparse builds. Earlier analysis found the Arch goal passage impossible for the full 24 by 24 hull; that is a historical limitation of the full hull, and a complete playable route with the current collision has not yet been validated. The Flight goal has a clear supported full-hull pose at vehicle origin (757,32). An audit confirmed the user's 15:10:47 bitstream already contains the collision-ROM repair; these new bush and occupied-cell changes still require a fresh bitstream.
 
 `map_collision_tb` covers synthetic geometry, registered ROM latency, step/snap limits, jumping, fast thin-obstacle crossings, reset and response backpressure. `map_rom_collision_tb` validates real-map spawns, movement and a Flight goal ledge against independent ROM copies while draw/query select different maps. `occupied_map_collision_tb` passes 25 cases covering the actual valley obstruction and roof clearance, all nine tilt angles against independent occupied-cell geometry, all four corner cells at both 45-degree angles, real floor/wall/ceiling contact, an empty mask, request capture and response backpressure. Its longest request is 410,151 clocks (4.102 ms at 100 MHz), including a 40-pixel stress sweep beyond the normal movement cap; the initial 17 normal fixtures peak at 136,364 clocks (1.364 ms). `world_outcomes_tb`, `cave_coordinates_tb` and `cave_map_integration_tb` retain bounds/goals, coordinate, result-wiring and display-transfer checks. Teleported goal fixtures are not recorded gameplay solutions. A fresh hardware build and board validation remain pending for the occupied-cell changes.
+
+
+Fan and rocket physics are connected to the existing runtime DRIVE page controls.
+FAN ON supplies continuous horizontal force 64 per surviving fan; ROCKET FIRE
+starts one 90-update burn per run at force 1024 per surviving rocket. Fan force
+uses the corrected sign relative to its legacy facing balance. Rocket thrust follows body rotation, so a tilted side rocket also supplies
+vertical force. Physics also accepts a signed `rocket_vertical_balance` (down minus up) for future placement
+logic; the editor and placement wiring are unchanged. Retry restores rocket fuel. Both work airborne using
+the existing mass divider. BTNL now serves as the spring trigger through the
+existing `jump_press` input: a grounded upward impulse of 512, rearmed after
+contact releases. The spring item will be added separately. See
+[the physics interface notes](docs/interfaces.md#fan-rocket-and-spring-physics-2026-10-31).
+
+
+Rigid-body moments are enabled by `ENABLE_MOMENTS=1`. Surviving part masses
+set a quarter-pixel centre of mass. Fans/rockets turn the vehicle according to
+force times perpendicular distance; engine drive and wheel drag act at grounded
+tyre contacts. Fractional angular velocity accumulates, with a bounded spin rate
+and COM-preserving origin correction during rotation. The implementation uses
+serial arithmetic and an approximate mass-scaled rotational inertia. Set
+`ENABLE_MOMENTS=0` for the earlier turning model. See
+[the moments interface notes](docs/interfaces.md#rigid-body-moments-2026-10-31)
+for equations, assumptions and checks.
+
+
+For steadier driving, the game uses `WHEEL_TORQUE_SHIFT=2` (quarter-strength
+wheel-to-body turning response), 25% grounded spin damping, and gentler edge
+tipping. Linear engine/wheel force is preserved. Rocket force and torque share
+`ROCKET_FORCE_SHIFT=10` (1024); set 9 for the older 512 strength. Rocket direction
+now rotates with the vehicle, matching the visible sprite and moment calculation.

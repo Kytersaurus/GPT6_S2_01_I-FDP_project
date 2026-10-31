@@ -25,9 +25,9 @@
 `define LP_PART_PIG      3'd2
 `define LP_PART_WHEEL    3'd3
 `define LP_PART_ENGINE   3'd4
-`define LP_PART_BOOSTER  3'd5  // Side-mounted rocket; thrust integration belongs to Role 2.
+`define LP_PART_BOOSTER  3'd5  // Side-mounted rocket; finite horizontal burn.
 `define LP_PART_BALLOON  3'd6
-`define LP_PART_FAN      3'd7  // Fan; thrust integration belongs to Role 2.
+`define LP_PART_FAN      3'd7  // Fan; continuous horizontal thrust.
 
 `define LP_BUILD         3'd0
 `define LP_INIT_RUN      3'd1
