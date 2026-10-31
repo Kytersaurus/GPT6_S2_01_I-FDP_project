@@ -14,6 +14,8 @@
 module right_renderer (
     input wire clk,
     input wire [12:0] pixel_index,
+    input wire [6:0] in_x,
+    input wire [5:0] in_y,
     input wire zoomed_out,
     input wire overview,
     // Free look: the camera follows the mouse cursor (0..95, 0..63) across the whole world.
@@ -45,6 +47,8 @@ module right_renderer (
     input wire map_id,  // 0 Cave Arch (has the moon), 1 Cave Flight
     input wire [9:0] world_width, world_height,
     input wire [9:0] flag_x, flag_y,
+    input wire [9:0] star_box_x, star_box_y,
+    input wire star_box_collected,
     output reg signed [10:0] map_x, map_y,
     input wire [2:0] map_class,
     output reg [15:0] pixel_data
@@ -52,6 +56,8 @@ module right_renderer (
     `include "part_sprites.vh"
     `include "ui_font.vh"
     `include "rotation_geometry.vh"
+    wire [6:0] x = (pixel_index != 13'd0) ? (pixel_index % 96) : (in_x === 7'bzzzzzzz ? 7'd0 : in_x);
+    wire [5:0] y = (pixel_index != 13'd0) ? (pixel_index / 96) : (in_y === 6'bzzzzzz ? 6'd0 : in_y);
 
     wire before_launch = (game_state == `LP_BUILD || game_state == `LP_GUIDE);
     // Vehicle (or spawn) top-left in whole world pixels.
@@ -64,8 +70,7 @@ module right_renderer (
     integer sx, sy, view_w, view_h, cam_x, cam_y, max_x, max_y;
     integer next_fx, next_fy, next_wx, next_wy, next_tx, next_ty;
     always @* begin
-        sx = pixel_index % 96;
-        sy = pixel_index / 96;
+        sx = x; sy = y;
         view_w = (overview && !zoomed_out) ? 192 : overview ? 128 : (zoomed_out ? 96 : 64);
         view_h = (overview && !zoomed_out) ? 128 : overview ? 86 : (zoomed_out ? 64 : 43);
         // Signed limits: a camera left of or above the world must clamp to zero, not wrap.
@@ -227,6 +232,13 @@ module right_renderer (
                 if (dx == 3 || dx == 22 || dy == 1 || dy == 16) pixel_data = 16'h3186;
                 else pixel_data = ((((dx-3) >>> 2) ^ ((dy-1) >>> 2)) & 1) ? 16'h0000 : 16'hffff;
             end
+            if (!star_box_collected) begin
+                dx = tex_x - 2*star_box_x; dy = tex_y - 2*star_box_y;
+                if (dx >= 0 && dx < 32 && dy >= 0 && dy < 32) begin
+                    if (dx < 2 || dx >= 30 || dy < 2 || dy >= 30) pixel_data = 16'hffe0;
+                    else pixel_data = 16'hf800;
+                end
+            end
         end
         // TNT: 12 by 12 close, 8 by 8 normal/overview (overview naturally samples it smaller).
         for (index = 0; index < `LP_MAX_TNT; index = index + 1) begin
@@ -305,3 +317,6 @@ module right_renderer (
         end
     end
 endmodule
+
+
+
