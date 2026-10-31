@@ -266,12 +266,13 @@ module My_Top_Module #(
         .mouse_x(mouse_x), .mouse_y(mouse_y), .mouse_left(mouse_left), .mouse_right(mouse_right),
         .mouse_event(mouse_event), .next_press(start_press), .engine_switch_changed(engine_switch_changed),
         .fan_available(has_intact_fan), .rocket_available(has_intact_rocket), .rocket_ready(has_intact_rocket && !boost_active), .balloon_available(has_intact_balloon),
+        .build_grid(build_grid), .intact_mask(intact_mask),
         .launch_req(ui_launch), .edit_req(ui_edit), .guide_open_req(ui_guide_open), .guide_close_req(ui_guide_close),
         .level_open_req(ui_level_open_req), .level_close_req(level_close_req), .level_select_req(level_select_req), .selected_level(selected_level),
-        .run_page(run_page), .boost_req(ui_boost_req), .pop_req(ui_pop_req), .diary_page(diary_page), .master_volume(master_volume), .mouse_speed(mouse_speed), .engine_on(ui_engine_on), .fan_on(ui_fan_on), .rocket_req(ui_rocket_req), .sound_muted(ui_sound_muted), .launch_flash(launch_flash)
+        .run_page(run_page), .boost_req(ui_boost_req), .pop_req(ui_pop_req), .pop_cell(mouse_pop_cell), .diary_page(diary_page), .master_volume(master_volume), .mouse_speed(mouse_speed), .engine_on(ui_engine_on), .fan_on(ui_fan_on), .rocket_req(ui_rocket_req), .sound_muted(ui_sound_muted), .launch_flash(launch_flash)
     );
     wire [7:0] par_time;
-    seven_seg_timer u_board_timer (.clk(clk), .reset(reset), .seconds(run_seconds), .seg(seg), .an(an), .dp(dp));
+    seven_seg_timer #(.COUNTDOWN(1), .TIME_LIMIT(20)) u_board_timer (.clk(clk), .reset(reset), .seconds(run_seconds), .seg(seg), .an(an), .dp(dp));
     pig_death_effect u_pig_death (
         .clk(clk), .reset(reset), .run_init(run_init), .physics_tick(physics_tick), .pig_alive(pig_alive),
         .game_state(game_state), .build_grid(build_grid), .vehicle_x(vehicle_x), .vehicle_y(vehicle_y), .vehicle_tilt(vehicle_tilt),
@@ -286,7 +287,8 @@ module My_Top_Module #(
     );
     sound_generator #(
         .TONE_HALF_CYCLES(AUDIO_TONE_HALF_CYCLES), .BEEP_CYCLES(AUDIO_BEEP_CYCLES),
-        .NOTE_CYCLES(AUDIO_NOTE_CYCLES), .FADE_CYCLES(AUDIO_FADE_CYCLES)
+        .NOTE_CYCLES(AUDIO_NOTE_CYCLES), .FADE_CYCLES(AUDIO_FADE_CYCLES),
+        .GAIN_SHIFT(2)
     ) u_audio (
         .clk(clk), .reset(reset), .start(sound_start), .sound_id(sound_id),
         .mute(audio_muted), .cancel(audio_cancel), .busy(audio_busy),
@@ -485,6 +487,16 @@ module My_Top_Module #(
             draw_feedback_code, draw_feedback_cell, draw_level, draw_fail_reason, draw_tnt_intact,
             draw_saved_frames, draw_seconds, draw_blast} = snapshot_out;
 
+    wire draw_has_engine = (draw_intact[0] && draw_grid[2:0] == `LP_PART_ENGINE) ||
+                           (draw_intact[1] && draw_grid[5:3] == `LP_PART_ENGINE) ||
+                           (draw_intact[2] && draw_grid[8:6] == `LP_PART_ENGINE) ||
+                           (draw_intact[3] && draw_grid[11:9] == `LP_PART_ENGINE) ||
+                           (draw_intact[4] && draw_grid[14:12] == `LP_PART_ENGINE) ||
+                           (draw_intact[5] && draw_grid[17:15] == `LP_PART_ENGINE) ||
+                           (draw_intact[6] && draw_grid[20:18] == `LP_PART_ENGINE) ||
+                           (draw_intact[7] && draw_grid[23:21] == `LP_PART_ENGINE) ||
+                           (draw_intact[8] && draw_grid[26:24] == `LP_PART_ENGINE);
+
     wire draw_has_fan = (draw_intact[0] && draw_grid[2:0] == `LP_PART_FAN) ||
                         (draw_intact[1] && draw_grid[5:3] == `LP_PART_FAN) ||
                         (draw_intact[2] && draw_grid[8:6] == `LP_PART_FAN) ||
@@ -530,19 +542,23 @@ module My_Top_Module #(
     reg zoom_meta_display, zoom_sync_display, draw_zoomed_out;
     reg overview_meta_display, overview_sync_display, draw_overview;
     reg look_meta_display, look_sync_display, draw_free_look;
+    reg sw0_meta_display, sw0_sync_display, draw_sw0;
     always @(posedge oled_clk) begin
         if (oled_reset) begin
             zoom_meta_display <= 0; zoom_sync_display <= 0; draw_zoomed_out <= 0;
             overview_meta_display <= 0; overview_sync_display <= 0; draw_overview <= 0;
             look_meta_display <= 0; look_sync_display <= 0; draw_free_look <= 0;
+            sw0_meta_display <= 0; sw0_sync_display <= 0; draw_sw0 <= 0;
         end else begin
             zoom_meta_display <= zoomed_out; zoom_sync_display <= zoom_meta_display;
             overview_meta_display <= overview; overview_sync_display <= overview_meta_display;
             look_meta_display <= sw[4]; look_sync_display <= look_meta_display;
+            sw0_meta_display <= sw[0]; sw0_sync_display <= sw0_meta_display;
             if (left_frame) begin
                 draw_zoomed_out <= zoom_sync_display;
                 draw_overview <= overview_sync_display;
                 draw_free_look <= look_sync_display;
+                draw_sw0 <= sw0_sync_display;
             end
         end
     end
@@ -577,8 +593,8 @@ module My_Top_Module #(
     // display may still hold the previous frame snapshot.
     // When Start Screen is active, Left OLED borrows the idle map port to draw the scrolling cave!
     wire signed [10:0] right_map_x, right_map_y;
-    wire signed [10:0] map_draw_x = draw_start_screen_active ? $signed({1'b0, left_x} + {1'b0, start_scroll_x}) : right_map_x;
-    wire signed [10:0] map_draw_y = draw_start_screen_active ? $signed({1'b0, left_y} + 11'sd110) : right_map_y;
+    wire signed [10:0] map_draw_x = right_map_x;
+    wire signed [10:0] map_draw_y = right_map_y;
     wire [2:0] map_draw_class;
 
     level_map u_level_map (
@@ -614,11 +630,18 @@ module My_Top_Module #(
         .master_volume(draw_master_volume), .mouse_speed(draw_mouse_speed),
         .level_index(draw_level),
         .build_valid(draw_valid), .engine_enabled(draw_engine), .boost_active(draw_boost_active),
+        .engine_available(draw_has_engine),
         .fan_available(draw_has_fan), .fan_on(draw_fan_on),
         .rocket_available(draw_has_rocket), .rocket_ready(draw_has_rocket && !draw_boost_active),
         .balloon_available(draw_has_balloon),
         .anim_phase(anim_phase),
-        .cursor_x(draw_cursor_x), .cursor_y(draw_cursor_y), .pixel_data(left_pixel_data)
+        .cursor_x(draw_cursor_x), .cursor_y(draw_cursor_y),
+        .build_grid(draw_grid),
+        .intact_mask(draw_intact),
+        .frame_intact_mask(draw_frames),
+        .build_facing_left(draw_facing_left),
+        .sw0_engine(draw_sw0),
+        .pixel_data(left_pixel_data)
     );
     right_renderer u_right_renderer (
         .clk(oled_clk), .zoomed_out(draw_zoomed_out), .overview(draw_overview),
@@ -637,7 +660,7 @@ module My_Top_Module #(
         .map_x(right_map_x), .map_y(right_map_y), .map_class(map_draw_class),
         .pixel_data(right_pixel_data)
     );
-    wire right_oled_on = !draw_start_screen_active && (draw_state != `LP_LEVEL_SELECT);
+    wire right_oled_on = (draw_state != `LP_LEVEL_SELECT);
     Oled_Display u_left_oled (
         .clk(oled_clk), .reset(oled_reset), .frame_begin(left_frame), .sending_pixels(), .sample_pixel(left_sample),
         .pixel_index(left_pixel_index), .pixel_data(show_map ? right_pixel_data : left_pixel_data), .cs(JA[0]), .sdin(JA[1]), .sclk(JA[3]),
@@ -655,7 +678,7 @@ module My_Top_Module #(
     assign JXADC[1] = 1'b1; // High selects the lower, 6 dB gain.
     assign JXADC[2] = 1'b0; // AMP2 pin 3 is not connected.
     assign JXADC[3] = !reset && !audio_muted;
-    assign led = {intact_mask, engine_enabled, build_valid, pig_alive, world_valid, game_state};
+    assign led = sw;
 endmodule
 
 

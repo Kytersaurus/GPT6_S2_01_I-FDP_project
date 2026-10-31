@@ -220,6 +220,8 @@ module left_renderer #(parameter EDITOR_CELL_PIXELS = 16) (
             if (seconds_pixel || (run_seconds >= 10 && seconds_tens_pixel)) pixel_data = 16'h07ff;
             if (text_on("S               ", 7'd82, 6'd19, x, y)) pixel_data = 16'h07ff;
             if (in_result) begin
+                if (seconds_pixel || (run_seconds >= 10 && seconds_tens_pixel)) pixel_data = 16'h07ff;
+                if (text_on("S               ", 7'd82, 6'd19, x, y)) pixel_data = 16'h07ff;
                 stars = 1 + (star_box_collected ? 1 : 0) + ((run_seconds <= 30 && remaining_parts >= 2) ? 1 : 0);
                   if (game_state == `LP_SUCCESS) begin
                       if (stars >= 1 && ((x>=57 && x<=61 && y==24) || (x==59 && y>=22 && y<=26) || ((x==58||x==60)&&(y==23||y==25)))) pixel_data = 16'hffe0;

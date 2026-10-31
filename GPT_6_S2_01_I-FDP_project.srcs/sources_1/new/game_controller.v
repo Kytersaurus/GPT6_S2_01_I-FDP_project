@@ -9,7 +9,7 @@ module game_controller #(
     parameter integer ENABLE_START_SCREEN = 0
 ) (
     input wire clk, reset, launch_req, retry_req, edit_req, guide_open_req, guide_close_req,
-    input wire level_next_req, level_open_req, level_close_req, level_select_req,
+    input wire level_next_req, level_open_req, level_close_req, level_select_req, end_try_req,
     input wire [`LP_LEVEL_BITS-1:0] selected_level,
     input wire build_valid, pig_alive,
     input wire [2:0] init_ready,
@@ -110,6 +110,11 @@ module game_controller #(
                     `LP_RUN: begin
                         if (edit_req) begin game_state <= `LP_BUILD; step_busy <= 0; fail_reason <= `LP_FAIL_NONE; end
                         else if (retry_req) begin game_state <= `LP_INIT_RUN; step_busy <= 0; end
+                        else if (end_try_req) begin
+                            step_busy <= 0;
+                            if (goal_hit) begin game_state <= `LP_SUCCESS; success_event <= 1; end
+                            else begin game_state <= `LP_FAIL; fail_reason <= `LP_FAIL_NONE; failure_event <= 1; end
+                        end
                         else if (level_open_req) begin settings_from_start <= 1'b0; settings_return_state <= `LP_RUN; game_state <= `LP_SETTINGS; end
                         else begin
                     // Whole seconds of RUN, held at 4:15; results freeze the final time.

@@ -28,18 +28,20 @@ module mouse_adapter (
     output reg [2:0] edit_part,
     output reg pop_req,
     output reg [3:0] pop_cell,
-    output reg boost_req
+    output reg boost_req,
+    output reg engine_toggle_req,
+    output reg fan_toggle_req
 );
     reg [1:0] setup_step;
-
-
 
     reg left_was_down, right_was_down;
     reg place_pending, inventory_armed;
     assign drag_active = place_pending && game_state == `LP_BUILD && input_enabled;
     wire build_grid_area = mouse_x >= 4 && mouse_x < 52 && mouse_y >= 4 && mouse_y < 52;
     wire pop_grid_area = mouse_x >= 4 && mouse_x < 40 && mouse_y >= 12 && mouse_y < 48;
-    wire in_grid = (game_state == `LP_BUILD) ? build_grid_area : pop_grid_area;
+    wire run_grid_big = mouse_x >= 24 && mouse_x < 72 && mouse_y >= 2 && mouse_y < 50;
+
+    wire in_grid = (game_state == `LP_BUILD) ? build_grid_area : (run_grid_big || pop_grid_area);
     wire in_inventory = mouse_x >= 56 && mouse_x < 92 && mouse_y >= 4 && mouse_y < 54;
     // Find grid rows and columns with fixed range checks instead of division.
     wire building = game_state == `LP_BUILD;
@@ -47,8 +49,11 @@ module mouse_adapter (
     wire [1:0] build_row = mouse_y < 20 ? 2'd0 : mouse_y < 36 ? 2'd1 : 2'd2;
     wire [1:0] pop_col = mouse_x < 16 ? 2'd0 : mouse_x < 28 ? 2'd1 : 2'd2;
     wire [1:0] pop_row = mouse_y < 24 ? 2'd0 : mouse_y < 36 ? 2'd1 : 2'd2;
-    wire [1:0] hovered_col = building ? build_col : pop_col;
-    wire [1:0] hovered_row = building ? build_row : pop_row;
+    wire [1:0] run_col_big = mouse_x < 40 ? 2'd0 : mouse_x < 56 ? 2'd1 : 2'd2;
+    wire [1:0] run_row_big = mouse_y < 18 ? 2'd0 : mouse_y < 34 ? 2'd1 : 2'd2;
+
+    wire [1:0] hovered_col = building ? build_col : (run_grid_big ? run_col_big : pop_col);
+    wire [1:0] hovered_row = building ? build_row : (run_grid_big ? run_row_big : pop_row);
     reg [3:0] hovered_cell;
     reg [2:0] hovered_part;
     reg hovered_frame, hovered_facing_left;
@@ -96,26 +101,64 @@ module mouse_adapter (
         endcase
     end
 
+    reg [11:0] prev_mouse_x, prev_mouse_y;
+    reg signed [12:0] internal_x, internal_y;
+    wire signed [12:0] raw_dx = $signed({1'b0, mouse_x}) - $signed({1'b0, prev_mouse_x});
+    wire signed [12:0] raw_dy = $signed({1'b0, mouse_y}) - $signed({1'b0, prev_mouse_y});
+    wire is_teleport = (raw_dx > 15 || raw_dx < -15 || raw_dy > 15 || raw_dy < -15);
+    wire [1:0] safe_speed = (mouse_speed === 2'bzz || mouse_speed === 2'bxx) ? 2'd1 : mouse_speed;
+
+    reg signed [12:0] scaled_dx, scaled_dy;
+    reg signed [12:0] nxt_x, nxt_y;
+
     always @(posedge clk) begin
         if (reset) begin
             setup_step <= 0; left_was_down <= 0; right_was_down <= 0;
             place_pending <= 0;
             inventory_armed <= 0; drag_from_grid <= 0; drag_source <= 9; drag_contents <= 0;
             cursor_x <= 24; cursor_y <= 24; selected_part <= `LP_PART_FRAME;
+            prev_mouse_x <= 24; prev_mouse_y <= 24; internal_x <= 24; internal_y <= 24;
             selected_left<=0; inventory_page<=0; edit_facing_left<=0;
             edit_valid <= 0; edit_op <= `LP_EDIT_PLACE; edit_cell <= 0; edit_source <= 9; edit_part <= `LP_PART_FRAME;
             pop_req <= 0; pop_cell <= 0; boost_req <= 0;
+            engine_toggle_req <= 0; fan_toggle_req <= 0;
         end else begin
             edit_valid <= 0; pop_req <= 0; boost_req <= 0;
+            engine_toggle_req <= 0; fan_toggle_req <= 0;
             // Leaving construction cancels a drag, even if no mouse packet arrives.
             if (game_state != `LP_BUILD || !input_enabled) begin
                 place_pending <= 0; inventory_armed <= 0; drag_from_grid <= 0;
             end
-            if (setup_step != 3) setup_step <= setup_step + 1'b1;
-            else if (mouse_event) begin
-                // Read buttons only after a complete packet, when its position is ready.
-                cursor_x <= (mouse_x > 95) ? 7'd95 : mouse_x[6:0];
-                cursor_y <= (mouse_y > 63) ? 7'd63 : mouse_y[6:0];
+            if (setup_step != 3) begin
+                setup_step <= setup_step + 1'b1;
+                prev_mouse_x <= 24; prev_mouse_y <= 24;
+                internal_x <= 24; internal_y <= 24;
+            end else if (mouse_event) begin
+                prev_mouse_x <= mouse_x;
+                prev_mouse_y <= mouse_y;
+                if (is_teleport || safe_speed == 2'd1) begin
+                    internal_x <= (mouse_x > 95) ? 13'sd95 : $signed({1'b0, mouse_x});
+                    internal_y <= (mouse_y > 63) ? 13'sd63 : $signed({1'b0, mouse_y});
+                    cursor_x <= (mouse_x > 95) ? 7'd95 : mouse_x[6:0];
+                    cursor_y <= (mouse_y > 63) ? 7'd63 : mouse_y[6:0];
+                end else begin
+                    if (safe_speed == 2'd0) begin
+                        scaled_dx = raw_dx >>> 1;
+                        scaled_dy = raw_dy >>> 1;
+                    end else begin
+                        scaled_dx = (raw_dx <<< 1) + (raw_dx >>> 1);
+                        scaled_dy = (raw_dy <<< 1) + (raw_dy >>> 1);
+                    end
+                    nxt_x = internal_x + scaled_dx;
+                    nxt_y = internal_y + scaled_dy;
+                    if (nxt_x < 0) nxt_x = 0; else if (nxt_x > 95) nxt_x = 95;
+                    if (nxt_y < 0) nxt_y = 0; else if (nxt_y > 63) nxt_y = 63;
+                    internal_x <= nxt_x;
+                    internal_y <= nxt_y;
+                    cursor_x <= nxt_x[6:0];
+                    cursor_y <= nxt_y[5:0];
+                end
+
                 left_was_down <= mouse_left; right_was_down <= mouse_right;
                 if (game_state == `LP_BUILD && input_enabled) begin
                     if (mouse_right) begin
@@ -185,7 +228,19 @@ module mouse_adapter (
                 end else if (input_enabled && game_state == `LP_RUN && mouse_left && !left_was_down &&
                              !mouse_right) begin
                     // Gameplay uses one fresh press, rather than construction's drop.
-                    if (in_grid) begin pop_req <= 1; pop_cell <= hovered_cell; end
+                    if (in_grid) begin
+                        if (hovered_part == `LP_PART_BALLOON) begin
+                            pop_req <= 1; pop_cell <= hovered_cell;
+                        end else if (hovered_part == `LP_PART_ENGINE) begin
+                            engine_toggle_req <= 1;
+                        end else if (hovered_part == `LP_PART_FAN) begin
+                            fan_toggle_req <= 1;
+                        end else if (hovered_part == `LP_PART_BOOSTER) begin
+                            boost_req <= 1;
+                        end else begin
+                            pop_req <= 1; pop_cell <= hovered_cell;
+                        end
+                    end
                     // DRIVE boost comes from ui_controller.
                 end
             end

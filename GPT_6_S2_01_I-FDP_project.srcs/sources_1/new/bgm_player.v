@@ -53,6 +53,7 @@ module bgm_player #(
     reg bass_high;
     reg [1:0] bass_volume;
     reg [31:0] bass_half_cycles;
+    wire [31:0] effective_bass_half = (effective_mode == 2'b01) ? (bass_half_cycles >> 1) : bass_half_cycles;
     wire [1:0] bass_max = master_volume<2 ? 0 : master_volume==4 ? 2 : 1;
     wire music_enabled = enabled && !pause && !reset;
     wire signed [3:0] melody_sample = !playing ? 4'sd0 :
@@ -73,7 +74,7 @@ module bgm_player #(
             if (note_count==0 && !song_unit[0]) begin
                 bass_count<=0; bass_high<=0; bass_volume<=0; bass_fade_count<=0;
             end else begin
-                if (bass_count>=bass_half_cycles-1) begin bass_count<=0; bass_high<=!bass_high; end
+                if (bass_count>=effective_bass_half-1) begin bass_count<=0; bass_high<=!bass_high; end
                 else bass_count<=bass_count+1'b1;
                 if (bass_fade_count==FADE_CYCLES-1) begin
                     bass_fade_count<=0;
