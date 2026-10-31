@@ -69,19 +69,13 @@ module ui_renderer (
                     3'd2: glyph = {5'b01111, 5'b10000, 5'b10000, 5'b10111, 5'b10001, 5'b10001, 5'b01111}; // G
                     3'd3: glyph = {5'b10001, 5'b10001, 5'b01010, 5'b00100, 5'b00100, 5'b00100, 5'b00100}; // Y
                     3'd4: glyph = {5'b11110, 5'b11111, 5'b11111, 5'b11110, 5'b10000, 5'b10000, 5'b10000}; // P (snout loop filled)
-                    3'd5: glyph = {5'b11111, 5'b00100, 5'b00100, 5'b00100, 5'b00100, 5'b00100, 5'b11111}; // I
+                    3'd5: glyph = {5'b11111, 5'b01110, 5'b01110, 5'b01110, 5'b01110, 5'b01110, 5'b11111}; // I
                     3'd6: glyph = {5'b11111, 5'b10000, 5'b10000, 5'b11110, 5'b10000, 5'b10000, 5'b11111}; // E
                     3'd7: glyph = {5'b01111, 5'b10000, 5'b10000, 5'b01110, 5'b00001, 5'b00001, 5'b11110}; // S
                 endcase
                 is_title_char = glyph[((6 - frow) << 2) + (6 - frow) + (4 - fcol)];
             end else begin
-                // Cute pig ears atop both 'I's in "PIGGIES"
-                if ((py == 16 || py == 17) &&
-                    ((px >= 20 && px <= 22) || (px >= 25 && px <= 27) ||
-                     (px >= 56 && px <= 58) || (px >= 61 && px <= 63)))
-                    is_title_char = 1'b1;
-                else
-                    is_title_char = 1'b0;
+                is_title_char = 1'b0;
             end
         end
     endfunction
@@ -105,17 +99,16 @@ module ui_renderer (
             is_body = (r2 <= 25);
             is_hub = (r2 <= 4);
             is_hole = (r2 <= 1);
-            is_border = (!is_hub && !is_hole && (r2 >= 20 || (is_tooth && (r2 >= 36 || dx == -1 || dx == 1 || dx == 4 || dx == 6 || dx == -4 || dx == -6))));
+            is_border = (!is_hub && !is_hole && ((r2 >= 20 && r2 <= 25) || (is_tooth && (r2 >= 36 || dx == -1 || dx == 1 || dx == 4 || dx == 6 || dx == -4 || dx == -6))));
             is_sparkle = ((dx == -2 && dy == -3) || (dx == 3 && dy == 2));
 
-            if (is_sparkle) cartoon_gear = 16'hffff; // White glint
+            if (!is_body && !is_tooth) cartoon_gear = bg;
+            else if (is_sparkle) cartoon_gear = 16'hffff; // White glint
             else if (is_hole) cartoon_gear = 16'h6210; // Purple center hole
             else if (is_hub) cartoon_gear = 16'hfed0; // Golden yellow hub
             else if (is_border) cartoon_gear = 16'h6210; // Dark purple border
-            else if (is_body || is_tooth) begin
-                if (r2 >= 9 && r2 <= 15) cartoon_gear = 16'h8a95; // Accent ring
-                else cartoon_gear = 16'hbdf7; // Soft lavender body
-            end else cartoon_gear = bg;
+            else if (r2 >= 9 && r2 <= 15) cartoon_gear = 16'h8a95; // Accent ring
+            else cartoon_gear = 16'hbdf7; // Soft lavender body
         end
     endfunction
 
@@ -167,21 +160,21 @@ module ui_renderer (
                 pixel_data = 16'h0200; // Bold 1px dark green comic border
             end
 
-            // 3. Centered Circular Play Button at (48, 43), Radius 9
-            if ((x-7'd48)*(x-7'd48) + (y-6'd43)*(y-6'd43) <= 81) begin
-                if ((x-7'd48)*(x-7'd48) + (y-6'd43)*(y-6'd43) >= 64) begin
+            // 3. Centered Circular Play Button at (48, 40), Radius 9
+            if ((x-7'd48)*(x-7'd48) + (y-6'd40)*(y-6'd40) <= 81) begin
+                if ((x-7'd48)*(x-7'd48) + (y-6'd40)*(y-6'd40) >= 64) begin
                     pixel_data = 16'h0280; // Dark rim
                 end else begin
-                    // White play triangle pointing right inside circle
-                    if (x >= 45 && x <= 53 &&
-                        y >= (39 + ((x - 45) >> 1)) &&
-                        y <= (47 - ((x - 45) >> 1))) begin
+                    // White symmetric play triangle pointing right inside circle
+                    if (x >= 44 && x <= 52 &&
+                        y >= (36 + ((x - 44) >> 1)) &&
+                        y <= (44 - ((x - 44) >> 1))) begin
                         pixel_data = 16'hffff; // White triangle
                     end else begin
-                        if (cursor_x >= 38 && cursor_x <= 58 && cursor_y >= 33 && cursor_y <= 53)
+                        if (cursor_x >= 38 && cursor_x <= 58 && cursor_y >= 30 && cursor_y <= 50)
                             pixel_data = 16'h0360; // Hover pulse
-                        else if (y < 41 && x < 48)
-                            pixel_data = 16'h7fe0; // Specular crescent
+                        else if ((y - 6'd40) < -2 && ((x-7'd48)*(x-7'd48) + (y-6'd40)*(y-6'd40)) < 49)
+                            pixel_data = 16'h7fe0; // Specular shine
                         else
                             pixel_data = 16'h4fe0; // Vibrant lime green
                     end
@@ -347,18 +340,18 @@ module ui_renderer (
             case (diary_page)
                 0: begin
                     if (text_on("CONTROLS     1/3", 2, 2, x, y)) pixel_data = 16'h07ff;
-                    if (text_on("DRAG: PLACE PART", 2, 12, x, y)) pixel_data = 16'hffff;
-                    if (text_on("R-CLK: REMOVE   ", 2, 22, x, y)) pixel_data = 16'hffff;
-                    if (text_on("L-CLK: ROTATE   ", 2, 32, x, y)) pixel_data = 16'hffff;
-                    if (text_on("SW0: MOTOR DRIVE", 2, 42, x, y)) pixel_data = 16'h07e0;
+                    if (text_on("L-DRAG: PLACE   ", 4, 12, x, y)) pixel_data = 16'hffff;
+                    if (text_on("R-CLK:  DELETE  ", 4, 22, x, y)) pixel_data = 16'hffe0;
+                    if (text_on("SW0:    MOTOR   ", 4, 32, x, y)) pixel_data = 16'h07e0;
+                    if (text_on("SW1:    REVERSE ", 4, 42, x, y)) pixel_data = 16'h07ff;
                 end
                 1: begin
                     if (text_on("BLUEPRINT    2/3", 2, 2, x, y)) pixel_data = 16'h07ff;
                     if (text_on("MOTOR CART      ", 44, 12, x, y)) pixel_data = 16'h07e0;
-                    if (text_on("1 PIG           ", 44, 21, x, y)) pixel_data = 16'hffff;
-                    if (text_on("1 MOTOR         ", 44, 29, x, y)) pixel_data = 16'hffff;
-                    if (text_on("2 WHEELS        ", 44, 37, x, y)) pixel_data = 16'hffff;
-                    if (text_on("3 FRAMES        ", 44, 45, x, y)) pixel_data = 16'h7bef;
+                    if (text_on("ROW1: EMPTY     ", 44, 21, x, y)) pixel_data = 16'h7bef;
+                    if (text_on("ROW2: ENG+PIG   ", 44, 29, x, y)) pixel_data = 16'hffff;
+                    if (text_on("ROW3: 2X WHEELS ", 44, 37, x, y)) pixel_data = 16'hffe0;
+                    if (text_on("SW0: DRIVE GO   ", 44, 45, x, y)) pixel_data = 16'h07e0;
                     if (x >= 4 && x < 40 && y >= 12 && y < 48) begin
                         if (x < 16) begin example_col = 0; example_local_x = x - 4; end
                         else if (x < 28) begin example_col = 1; example_local_x = x - 16; end
@@ -368,7 +361,7 @@ module ui_renderer (
                         else begin example_row = 2; example_local_y = y - 36; end
                         pixel_data = 16'h0841;
                         if (example_local_x == 0 || example_local_y == 0 ||
-                            example_local_x == 11 || example_local_y == 11) pixel_data = 16'h7bef;
+                            example_local_x == 11 || example_local_y == 11) pixel_data = (example_row == 0) ? 16'h2945 : 16'h7bef;
                         if (example_row == 1)
                             pixel_data = part_sprite12(`LP_PART_FRAME, example_local_x, example_local_y, 1'b0, pixel_data);
                         if (example_row == 1 && example_col == 0)
@@ -512,26 +505,15 @@ module ui_renderer (
 
             // 1. Left Panel (x: 0..23, y: 0..50): Engine SW0 Status Banner
             if (x < 24 && y <= 50) begin
-                if (engine_available) begin
-                    if (!sw0_engine) begin
-                        // Warning Box: Engine OFF by SW0
-                        if (x >= 1 && x <= 22 && y >= 10 && y <= 42) begin
-                            if (x == 1 || x == 22 || y == 10 || y == 42) pixel_data = 16'hf800;
-                            else pixel_data = 16'h3000;
-                        end
-                        if (text_on("ENG             ", 3, 13, x, y)) pixel_data = 16'hf800;
-                        if (text_on("OFF             ", 3, 23, x, y)) pixel_data = 16'hffe0;
-                        if (text_on("SW0             ", 3, 33, x, y)) pixel_data = 16'hffff;
-                    end else begin
-                        // Active Box: Engine ON by SW0
-                        if (x >= 1 && x <= 22 && y >= 10 && y <= 42) begin
-                            if (x == 1 || x == 22 || y == 10 || y == 42) pixel_data = 16'h07e0;
-                            else pixel_data = 16'h0200;
-                        end
-                        if (text_on("ENG             ", 3, 13, x, y)) pixel_data = 16'h07e0;
-                        if (text_on(" ON             ", 3, 23, x, y)) pixel_data = 16'h07e0;
-                        if (text_on("SW0             ", 3, 33, x, y)) pixel_data = 16'h7bef;
+                if (engine_available && !sw0_engine) begin
+                    // Warning Box: Engine OFF by SW0
+                    if (x >= 1 && x <= 22 && y >= 10 && y <= 42) begin
+                        if (x == 1 || x == 22 || y == 10 || y == 42) pixel_data = 16'hf800;
+                        else pixel_data = 16'h3000;
                     end
+                    if (text_on("ENG             ", 3, 13, x, y)) pixel_data = 16'hf800;
+                    if (text_on("OFF             ", 3, 23, x, y)) pixel_data = 16'hffe0;
+                    if (text_on("SW0             ", 3, 33, x, y)) pixel_data = 16'hffff;
                 end
             end
 
