@@ -1,5 +1,12 @@
 [
   {
+    "path": "2026-10-31/142236_My_Top_Module.bit",
+    "built": "2026-10-31T14:22:36",
+    "source_commit": "98fd28f",
+    "description": "LATEST & RECOMMENDED: Bulletproof dividers (7-seg subtractive comparator, combinational OLED coordinate translation, 16-cycle restoring physics divider), animated moving cave Start Screen with fanfare BGM, blanked Right OLED during Title, centered run damage diagram, squarish action buttons, and rocket booster. All 51 simulations passed; 100 MHz timing met with +0.253 ns WNS, 79.87% LUTs, 48/50 BRAM tiles (0 extra BRAM).",
+    "sha256": "052d894ea113e1079c69c144eb37fc20ac6e953902d3aeab7bd2a09e80913b86"
+  },
+  {
     "path": "2026-10-30/124152_My_Top_Module.bit",
     "built": "2026-10-30T12:41:52",
     "source_commit": "64c496f",

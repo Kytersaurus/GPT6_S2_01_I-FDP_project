@@ -8,14 +8,14 @@ This directory organizes all verified programming bitstreams generated for the B
 
 | Property | Value |
 | :--- | :--- |
-| **Bitstream File** | **[`2026-10-30/124152_My_Top_Module.bit`](2026-10-30/124152_My_Top_Module.bit)** |
+| **Bitstream File** | **[`2026-10-31/142236_My_Top_Module.bit`](2026-10-31/142236_My_Top_Module.bit)** |
 | **Pointer File** | [`LATEST.txt`](LATEST.txt) |
-| **Source Commit** | `64c496f` (integrated on `main` and `role1-builder`) |
-| **Build Timestamp**| 2026-10-30 12:41:52 (SGT) |
-| **Timing Slack** | **WNS = +0.154 ns**, **TNS = 0.000 ns** (Timing cleanly MET at 100 MHz) |
-| **Resource Utilization** | **82.00% LUTs** (17,055 / 20,800), **97.00% BRAM** (48.5 / 50), **46.67% DSPs** (42 / 90) |
+| **Source Commit** | `98fd28f` (integrated on `feature-polish`) |
+| **Build Timestamp**| 2026-10-31 14:22:36 (SGT) |
+| **Timing Slack** | **WNS = +0.253 ns**, **WHS = +0.018 ns**, **TNS = 0.000 ns** (Timing cleanly MET at 100 MHz) |
+| **Resource Utilization** | **79.87% LUTs** (16,613 / 20,800), **96.00% BRAM** (48.0 / 50), **18.89% DSPs** (17 / 90) |
 | **Simulation Suite** | **51 / 51 testbenches passing (100%)** |
-| **Key Features** | • Clean 2-cave levels architecture (Level 0: Cave Arch 2x, Level 1: Cave Flight)<br>• Morphologically smoothed Cave Arch road & terrain (`Classify.SmoothTerrain`)<br>• Alpha-beta camera & vertical position filter (`display_y`) eliminating stair jitter<br>• 3-update tilt hold filter & steep-slope rollover guard (`tip_overdone`)<br>• 360-degree flip/loop physics with inverted driving and wheel-less scraping<br>• Pruned legacy rectangle collision engine, resolving previous timing failure<br>• Pmod AMP2 audio on JXADC (Scott Joplin's "The Entertainer" BGM + priority SFX)<br>• In-run menu controls: DRIVE tab, interactive POP tab, and SOUND tab |
+| **Key Features** | • **Bulletproof Dividers**: 7-seg timer subtractive comparator (100% match across all 256s), combinational OLED coordinate translation (0-latency phase-safe), and 16-cycle restoring physics divider.<br>• **Animated Start Screen**: Moving cave background on Left OLED with upbeat fanfare BGM and Settings button.<br>• **Right OLED Blanking**: Right OLED completely blanks (`16'h0000`) on Title Screen and Level Select.<br>• **Run Screen Redesign**: Centered 12px vehicle damage diagram with direct balloon popping, top header buttons (`[RETRY]`, `[GEAR]`, `[EDIT]`), and bottom squarish action buttons (`ENG`, `FAN`, `RCKT`, `BOOST`).<br>• **Zero Extra BRAM**: Strictly 48 / 50 tiles (96.00%), preserving all budget for level map art.<br>• **Clean 2-cave levels architecture**: Level 0: Cave Arch 2x, Level 1: Cave Flight with smoothed terrain and camera tracking. |
 
 ### How Teammates Can Test on the Hardware:
 1. Connect your **Basys3 board** via USB and power it on.
@@ -25,7 +25,7 @@ This directory organizes all verified programming bitstreams generated for the B
 3. Connect your **PS/2 Mouse** to the USB-HID port via adapter.
 4. Connect the **Pmod AMP2 speaker** to **JXADC** (pins 1–6).
 5. Open **Vivado > Hardware Manager > Open Target > Program Device**.
-6. Select **`bitstreams/2026-10-30/124152_My_Top_Module.bit`** and click **Program**.
+6. Select **`bitstreams/2026-10-31/142236_My_Top_Module.bit`** and click **Program**.
 
 ---
 
@@ -33,7 +33,8 @@ This directory organizes all verified programming bitstreams generated for the B
 
 | Build Date & Time (SGT) | File Link | Source Commit | Description & Milestone |
 | :--- | :--- | :--- | :--- |
-| **2026-10-30 12:41:52** | [2026-10-30/124152_My_Top_Module.bit](2026-10-30/124152_My_Top_Module.bit) | `64c496f` | **LATEST ACTIVE BUILD**: Smoothed Cave Arch terrain, display_y camera smoothing, tilt hold, steep-slope tip guard, 2 cave levels. WNS +0.154 ns, 82.00% LUTs. |
+| **2026-10-31 14:22:36** | [2026-10-31/142236_My_Top_Module.bit](2026-10-31/142236_My_Top_Module.bit) | `98fd28f` | **LATEST ACTIVE BUILD**: Bulletproof dividers, animated moving cave Start Screen, blanked Right OLED during Title, centered run damage diagram, squarish action buttons. WNS +0.253 ns, 79.87% LUTs, 48 BRAMs. |
+| **2026-10-30 12:41:52** | [2026-10-30/124152_My_Top_Module.bit](2026-10-30/124152_My_Top_Module.bit) | `64c496f` | Smoothed Cave Arch terrain, display_y camera smoothing, tilt hold, steep-slope tip guard, 2 cave levels. WNS +0.154 ns, 82.00% LUTs. |
 | **2026-10-30 01:25:41** | [2026-10-30/012541_two_cave_levels_stripped_rects.bit](2026-10-30/012541_two_cave_levels_stripped_rects.bit) | `99bd13c` | **2-Cave Levels Milestone**: Stripped placeholder maps & rectangle collision engine. Cave Arch 2x scale & Cave Flight. |
 | **2026-10-29 22:14:20** | [2026-10-29/221420_cave-arch-loop-physics.bit](2026-10-29/221420_cave-arch-loop-physics.bit) | `cdac53e` | **Role 4 Test Build (Marcus)**: Cave Arch drivable end to end at 2x, 360-degree rotation, dual-sided wheel support, edge tipping. |
 | **2026-10-29 15:10:47** | [2026-10-29/151047_My_Top_Module.bit](2026-10-29/151047_My_Top_Module.bit) | `4f1912b` | **Rotation Geometry (Kyle)**: 32-angle tables, separating-axis occupancy collision, and synthesized collision ROM repair. |
@@ -48,13 +49,3 @@ This directory organizes all verified programming bitstreams generated for the B
 | **2026-10-24 22:59:54** | [2026-10-24/225954_engine-boost-audio.bit](2026-10-24/225954_engine-boost-audio.bit) | `9fd5776` | **Engine Boost & Audio**: Multi-note audio events and engine boost controls. |
 | **2026-10-24 20:08:20** | [2026-10-24/200820_vivado-build.bit](2026-10-24/200820_vivado-build.bit) | Baseline | Earlier Vivado baseline build before audio events. |
 | **2026-10-21 19:11:39** | [2026-10-21/191139_balloon-test.bit](2026-10-21/191139_balloon-test.bit) | Baseline | Interactive balloon popping test build. |
-| **2026-10-19 19:29:05** | [2026-10-19/192905_oled-test.bit](2026-10-19/192905_oled-test.bit) | Baseline | Dual-layer OLED construction and mouse interaction test build. |
-
----
-
-## 🛠️ Automated Archiving Support
-
-The project includes `scripts/archive_bitstream.tcl` which is configured as a `tcl.post` hook after Vivado's `write_bitstream` step. When run, it:
-1. Copies the freshly generated `.bit` to `bitstreams/YYYY-MM-DD/HHMMSS_My_Top_Module.bit`.
-2. Updates `bitstreams/LATEST.txt` to point to the newest file.
-3. Records metadata in `bitstreams/builds.json`.
