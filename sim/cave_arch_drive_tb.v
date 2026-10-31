@@ -11,7 +11,7 @@
 // world_outcomes' map goal: the pig (centre cell) inside the box from the flag pole.
 // Each update must commit; the run fails if the vehicle leaves the world or stops
 // moving for 10 seconds of updates.
-module cave_arch_drive_tb;
+module cave_arch_drive_tb #(parameter ENABLE_MOMENTS=0, parameter WHEEL_TORQUE_SHIFT=2);
     reg clk=0, reset=1, run_init=0, step_start=0, update_release=0, engine_reverse=0;
     reg [2:0] game_state=`LP_BUILD;
     always #5 clk=~clk;
@@ -40,7 +40,13 @@ module cave_arch_drive_tb;
     // The game feeds collision the solid mask as ROCK/SKY, as My_Top_Module does.
     assign query_class = query_solid ? `LP_MAP_ROCK : `LP_MAP_SKY;
     // The game's engine strength (My_Top_Module ENGINE_FORCE).
-    physics_engine #(.ENGINE_FORCE(320)) u_physics (
+    physics_engine #(.ENGINE_FORCE(320),.WHEEL_TORQUE_SHIFT(WHEEL_TORQUE_SHIFT),.ROCKET_FORCE_SHIFT(10)) u_physics (
+        .moments_enabled(ENABLE_MOMENTS != 0),
+        .build_grid({`LP_PART_WHEEL,`LP_PART_EMPTY,`LP_PART_WHEEL,
+                     `LP_PART_EMPTY,`LP_PART_PIG,`LP_PART_ENGINE,
+                     `LP_PART_WHEEL,`LP_PART_EMPTY,`LP_PART_WHEEL}),
+        .build_frames(9'b000111000),.frame_intact_mask(9'b000111000),
+        .intact_mask(9'b101011101),.build_facing_left(9'd0),.rocket_vertical_mask(9'd0),
         .clk(clk), .reset(reset), .game_state(game_state), .run_init(run_init), .init_ready(init_ready),
         .spawn_x(spawn_x), .spawn_y(spawn_y), .step_start(step_start), .update_release(update_release),
         .wheel_count(4'd4), .wheels_down(4'd2), .wheels_up(4'd2), .tip_dir(tip_dir),
