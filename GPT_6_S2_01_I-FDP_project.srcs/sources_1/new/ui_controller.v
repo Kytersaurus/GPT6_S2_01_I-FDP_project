@@ -153,20 +153,20 @@ module ui_controller (
                         end else if (run_page==2 && mouse_y>=46 && mouse_y<54) begin
                             sound_muted <= !sound_muted;
                         end
-                        // Legacy action icon slots outside the vehicle grid (x <= 23):
+                        // Legacy action icon slots and horizontal rows:
                         else if ((mouse_x>=2 && mouse_x<=18 && mouse_y>=49 && mouse_y<=63) ||
-                                 (run_page==0 && mouse_x>=4 && mouse_x<=23 && mouse_y>=12 && mouse_y<22))
+                                 (run_page==0 && mouse_x>=4 && mouse_x<92 && mouse_y>=12 && mouse_y<22))
                             engine_on <= !engine_on;
                         else if (((mouse_x>=21 && mouse_x<=37 && mouse_y>=49 && mouse_y<=63) ||
-                                  (run_page==0 && mouse_x>=4 && mouse_x<=23 && mouse_y>=23 && mouse_y<33)) && fan_available)
+                                  (run_page==0 && mouse_x>=4 && mouse_x<92 && mouse_y>=23 && mouse_y<33)) && fan_available)
                             fan_on <= !fan_on;
                         else if (((mouse_x>=40 && mouse_x<=56 && mouse_y>=49 && mouse_y<=63) ||
-                                  (run_page==0 && mouse_x>=4 && mouse_x<=23 && mouse_y>=45 && mouse_y<54)) && rocket_available && rocket_ready) begin
+                                  (run_page==0 && mouse_x>=4 && mouse_x<92 && mouse_y>=45 && mouse_y<54)) && rocket_available && rocket_ready) begin
                             rocket_req <= 1;
                             boost_req <= 1;
                         end
                         else if ((mouse_x>=78 && mouse_x<=93 && mouse_y>=49 && mouse_y<=63) ||
-                                 (run_page==0 && mouse_x>=4 && mouse_x<=23 && mouse_y>=34 && mouse_y<44))
+                                 (run_page==0 && mouse_x>=4 && mouse_x<92 && mouse_y>=34 && mouse_y<44))
                             boost_req <= 1;
 
                         // Run page tab tracking for legacy testbench compatibility
