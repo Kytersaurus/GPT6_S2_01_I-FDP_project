@@ -9,9 +9,10 @@ module mouse_adapter (
     input wire [1:0] run_page,
     input wire [11:0] mouse_x, mouse_y,
     input wire mouse_left, mouse_right, mouse_event,
+    input wire [1:0] mouse_speed,
     output reg [11:0] mouse_value,
     output reg setx, sety, setmax_x, setmax_y,
-    output reg [6:0] cursor_x, cursor_y,
+    output wire [6:0] cursor_x, cursor_y,
     output reg [2:0] selected_part,
     output reg selected_left,
     output reg [1:0] inventory_page,
@@ -27,24 +28,69 @@ module mouse_adapter (
     output reg [2:0] edit_part,
     output reg pop_req,
     output reg [3:0] pop_cell,
-    output reg boost_req
+    output reg boost_req,
+    output reg engine_toggle_req,
+    output reg fan_toggle_req
 );
-    reg [1:0] setup_step;
+    localparam SETUP_SETMAX_X = 3'd0;
+    localparam SETUP_SETMAX_Y = 3'd1;
+    localparam SETUP_SET_XY   = 3'd2;
+    localparam SETUP_IDLE     = 3'd3;
+    localparam RECONFIG_MAX_X = 3'd4;
+    localparam RECONFIG_MAX_Y = 3'd5;
+    localparam RECONFIG_POS_X = 3'd6;
+    localparam RECONFIG_POS_Y = 3'd7;
+
+    reg [2:0] setup_state;
+    reg [1:0] last_speed;
+    reg [11:0] init_x_pos, init_y_pos;
+
     reg left_was_down, right_was_down;
     reg place_pending, inventory_armed;
     assign drag_active = place_pending && game_state == `LP_BUILD && input_enabled;
-    wire build_grid_area = mouse_x >= 4 && mouse_x < 52 && mouse_y >= 4 && mouse_y < 52;
-    wire pop_grid_area = mouse_x >= 4 && mouse_x < 40 && mouse_y >= 12 && mouse_y < 48;
-    wire in_grid = (game_state == `LP_BUILD) ? build_grid_area : pop_grid_area;
-    wire in_inventory = mouse_x >= 56 && mouse_x < 92 && mouse_y >= 4 && mouse_y < 54;
+
+    wire [1:0] safe_speed = (mouse_speed === 2'bzz || mouse_speed === 2'bxx) ? 2'd1 : mouse_speed;
+
+    // Zero-latency dynamic scaling for left OLED (96x64):
+    // Speed 0 (Slow, 0.5x): MouseCtl ranges 0..191, 0..127 -> shift right 1 bit = 0..95, 0..63
+    // Speed 1 (Norm, 1.0x): MouseCtl ranges 0..95, 0..63   -> 1:1 direct mapping = 0..95, 0..63
+    // Speed 2 (Fast, 2.0x): MouseCtl ranges 0..47, 0..31   -> shift left 1 bit  = 0..95, 0..63
+    wire [6:0] scaled_x = 
+        (safe_speed == 2'd0) ? ((mouse_x >= 12'd191) ? 7'd95 : mouse_x[7:1]) :
+        (safe_speed == 2'd2) ? ((mouse_x >= 12'd47)  ? 7'd95 : {mouse_x[5:0], 1'b0}) :
+                               ((mouse_x >= 12'd95)  ? 7'd95 : mouse_x[6:0]);
+
+    wire [6:0] scaled_y = 
+        (safe_speed == 2'd0) ? ((mouse_y >= 12'd127) ? 7'd63 : mouse_y[6:1]) :
+        (safe_speed == 2'd2) ? ((mouse_y >= 12'd31)  ? 7'd63 : {mouse_y[4:0], 1'b0}) :
+                               ((mouse_y >= 12'd63)  ? 7'd63 : mouse_y[5:0]);
+
+    reg has_moved;
+    assign cursor_x = (has_moved || mouse_event) ? scaled_x : 7'd24;
+    assign cursor_y = (has_moved || mouse_event) ? scaled_y : 7'd24;
+
+    wire [11:0] cur_x = {5'd0, cursor_x};
+    wire [11:0] cur_y = {5'd0, cursor_y};
+
+    wire build_grid_area = cur_x >= 4 && cur_x < 52 && cur_y >= 4 && cur_y < 52;
+    wire pop_grid_area = cur_x >= 4 && cur_x < 40 && cur_y >= 12 && cur_y < 48;
+    wire run_grid_big = cur_x >= 24 && cur_x < 72 && cur_y >= 2 && cur_y < 50;
+
+    wire in_grid = (game_state == `LP_BUILD) ? build_grid_area :
+                   (run_page == 2'd1) ? pop_grid_area :
+                   (run_page == 2'd0) ? run_grid_big : 1'b0;
+    wire in_inventory = cur_x >= 56 && cur_x < 92 && cur_y >= 4 && cur_y < 54;
     // Find grid rows and columns with fixed range checks instead of division.
     wire building = game_state == `LP_BUILD;
-    wire [1:0] build_col = mouse_x < 20 ? 2'd0 : mouse_x < 36 ? 2'd1 : 2'd2;
-    wire [1:0] build_row = mouse_y < 20 ? 2'd0 : mouse_y < 36 ? 2'd1 : 2'd2;
-    wire [1:0] pop_col = mouse_x < 16 ? 2'd0 : mouse_x < 28 ? 2'd1 : 2'd2;
-    wire [1:0] pop_row = mouse_y < 24 ? 2'd0 : mouse_y < 36 ? 2'd1 : 2'd2;
-    wire [1:0] hovered_col = building ? build_col : pop_col;
-    wire [1:0] hovered_row = building ? build_row : pop_row;
+    wire [1:0] build_col = cur_x < 20 ? 2'd0 : cur_x < 36 ? 2'd1 : 2'd2;
+    wire [1:0] build_row = cur_y < 20 ? 2'd0 : cur_y < 36 ? 2'd1 : 2'd2;
+    wire [1:0] pop_col = cur_x < 16 ? 2'd0 : cur_x < 28 ? 2'd1 : 2'd2;
+    wire [1:0] pop_row = cur_y < 24 ? 2'd0 : cur_y < 36 ? 2'd1 : 2'd2;
+    wire [1:0] run_col_big = cur_x < 40 ? 2'd0 : cur_x < 56 ? 2'd1 : 2'd2;
+    wire [1:0] run_row_big = cur_y < 18 ? 2'd0 : cur_y < 34 ? 2'd1 : 2'd2;
+
+    wire [1:0] hovered_col = building ? build_col : (run_page == 2'd1 ? pop_col : run_col_big);
+    wire [1:0] hovered_row = building ? build_row : (run_page == 2'd1 ? pop_row : run_row_big);
     reg [3:0] hovered_cell;
     reg [2:0] hovered_part;
     reg hovered_frame, hovered_facing_left;
@@ -81,37 +127,95 @@ module mouse_adapter (
         endcase
     end
 
-    // Configure the supplied driver for the left OLED, then place the cursor over the grid.
+    // Configure the MouseCtl bounds and initial position based on selected speed
+    wire [11:0] target_max_x = (safe_speed == 2'd0) ? 12'd191 :
+                               (safe_speed == 2'd2) ? 12'd47  : 12'd95;
+    wire [11:0] target_max_y = (safe_speed == 2'd0) ? 12'd127 :
+                               (safe_speed == 2'd2) ? 12'd31  : 12'd63;
+
     always @* begin
-        mouse_value = 0; setx = 0; sety = 0; setmax_x = 0; setmax_y = 0;
-        case (setup_step)
-            0: begin mouse_value = 95; setmax_x = 1; end
-            1: begin mouse_value = 63; setmax_y = 1; end
-            2: begin mouse_value = 24; setx = 1; sety = 1; end
+        mouse_value = 12'd0;
+        setx = 1'b0;
+        sety = 1'b0;
+        setmax_x = 1'b0;
+        setmax_y = 1'b0;
+        case (setup_state)
+            SETUP_SETMAX_X: begin mouse_value = 12'd95; setmax_x = 1'b1; end
+            SETUP_SETMAX_Y: begin mouse_value = 12'd63; setmax_y = 1'b1; end
+            SETUP_SET_XY:   begin mouse_value = 12'd24; setx = 1'b1; sety = 1'b1; end
+            RECONFIG_MAX_X: begin mouse_value = target_max_x; setmax_x = 1'b1; end
+            RECONFIG_MAX_Y: begin mouse_value = target_max_y; setmax_y = 1'b1; end
+            RECONFIG_POS_X: begin mouse_value = init_x_pos;   setx = 1'b1; end
+            RECONFIG_POS_Y: begin mouse_value = init_y_pos;   sety = 1'b1; end
             default: begin end
         endcase
     end
 
     always @(posedge clk) begin
         if (reset) begin
-            setup_step <= 0; left_was_down <= 0; right_was_down <= 0;
+            has_moved <= 1'b0;
+            setup_state <= SETUP_SETMAX_X;
+            last_speed <= safe_speed;
+            init_x_pos <= 12'd24;
+            init_y_pos <= 12'd24;
+            left_was_down <= 0;
+            right_was_down <= 0;
             place_pending <= 0;
-            inventory_armed <= 0; drag_from_grid <= 0; drag_source <= 9; drag_contents <= 0;
-            cursor_x <= 24; cursor_y <= 24; selected_part <= `LP_PART_FRAME;
-            selected_left<=0; inventory_page<=0; edit_facing_left<=0;
-            edit_valid <= 0; edit_op <= `LP_EDIT_PLACE; edit_cell <= 0; edit_source <= 9; edit_part <= `LP_PART_FRAME;
-            pop_req <= 0; pop_cell <= 0; boost_req <= 0;
+            inventory_armed <= 0;
+            drag_from_grid <= 0;
+            drag_source <= 9;
+            drag_contents <= 0;
+            selected_part <= `LP_PART_FRAME;
+            selected_left <= 0;
+            inventory_page <= 0;
+            edit_facing_left <= 0;
+            edit_valid <= 0;
+            edit_op <= `LP_EDIT_PLACE;
+            edit_cell <= 0;
+            edit_source <= 9;
+            edit_part <= `LP_PART_FRAME;
+            pop_req <= 0;
+            pop_cell <= 0;
+            boost_req <= 0;
+            engine_toggle_req <= 0;
+            fan_toggle_req <= 0;
         end else begin
-            edit_valid <= 0; pop_req <= 0; boost_req <= 0;
+            edit_valid <= 0;
+            pop_req <= 0;
+            boost_req <= 0;
+            engine_toggle_req <= 0;
+            fan_toggle_req <= 0;
+
+            case (setup_state)
+                SETUP_SETMAX_X: setup_state <= SETUP_SETMAX_Y;
+                SETUP_SETMAX_Y: setup_state <= SETUP_SET_XY;
+                SETUP_SET_XY:   setup_state <= SETUP_IDLE;
+                SETUP_IDLE: begin
+                    if (safe_speed != last_speed) begin
+                        last_speed <= safe_speed;
+                        init_x_pos <= (safe_speed == 2'd0) ? {4'd0, cursor_x, 1'b0} :
+                                      (safe_speed == 2'd2) ? {6'd0, cursor_x[6:1]} :
+                                                             {5'd0, cursor_x};
+                        init_y_pos <= (safe_speed == 2'd0) ? {5'd0, cursor_y, 1'b0} :
+                                      (safe_speed == 2'd2) ? {7'd0, cursor_y[5:1]} :
+                                                             {6'd0, cursor_y};
+                        setup_state <= RECONFIG_MAX_X;
+                    end
+                end
+                RECONFIG_MAX_X: setup_state <= RECONFIG_MAX_Y;
+                RECONFIG_MAX_Y: setup_state <= RECONFIG_POS_X;
+                RECONFIG_POS_X: setup_state <= RECONFIG_POS_Y;
+                RECONFIG_POS_Y: setup_state <= SETUP_IDLE;
+                default: setup_state <= SETUP_IDLE;
+            endcase
+
             // Leaving construction cancels a drag, even if no mouse packet arrives.
             if (game_state != `LP_BUILD || !input_enabled) begin
                 place_pending <= 0; inventory_armed <= 0; drag_from_grid <= 0;
             end
-            if (setup_step != 3) setup_step <= setup_step + 1'b1;
-            else if (mouse_event) begin
-                // Read buttons only after a complete packet, when its position is ready.
-                cursor_x <= (mouse_x > 95) ? 95 : mouse_x[6:0];
-                cursor_y <= (mouse_y > 63) ? 63 : mouse_y[6:0];
+
+            if (mouse_event) begin
+                has_moved <= 1'b1;
                 left_was_down <= mouse_left; right_was_down <= mouse_right;
                 if (game_state == `LP_BUILD && input_enabled) begin
                     if (mouse_right) begin
@@ -127,23 +231,23 @@ module mouse_adapter (
                         place_pending <= in_inventory || in_grid;
                         drag_from_grid <= 0; drag_source <= 9; drag_contents <= 0;
                         // Select only on the initial press, not while dragging past rows.
-                        if (mouse_y>=55 && mouse_y<64) begin
+                        if (cur_y>=55 && cur_y<64) begin
                             place_pending<=0;
-                            if (mouse_x>=20 && mouse_x<62) begin
-                                inventory_page <= mouse_x<41 ? 0 : 1;
+                            if (cur_x>=20 && cur_x<62) begin
+                                inventory_page <= cur_x<41 ? 0 : 1;
                                 inventory_armed<=0;
                             end
                         end else if (in_inventory) begin
                             inventory_armed <= 1;
                             // Basic parts use five rows; page two splits the panel between two parts.
                             if (inventory_page!=0) begin
-                                if (mouse_y<28) selected_part<=`LP_PART_BOOSTER;
-                                else if (mouse_y>28) selected_part<=`LP_PART_FAN;
+                                if (cur_y<28) selected_part<=`LP_PART_BOOSTER;
+                                else if (cur_y>28) selected_part<=`LP_PART_FAN;
                                 else begin place_pending<=0; inventory_armed<=0; end
-                            end else if (mouse_y<14) selected_part<=`LP_PART_FRAME;
-                            else if (mouse_y<24) selected_part<=`LP_PART_PIG;
-                            else if (mouse_y<34) selected_part<=`LP_PART_WHEEL;
-                            else if (mouse_y<44) selected_part<=`LP_PART_ENGINE;
+                            end else if (cur_y<14) selected_part<=`LP_PART_FRAME;
+                            else if (cur_y<24) selected_part<=`LP_PART_PIG;
+                            else if (cur_y<34) selected_part<=`LP_PART_WHEEL;
+                            else if (cur_y<44) selected_part<=`LP_PART_ENGINE;
                             else selected_part<=`LP_PART_BALLOON;
                         end else if (in_grid && !inventory_armed &&
                                      (hovered_frame || hovered_part != `LP_PART_EMPTY)) begin
@@ -181,8 +285,19 @@ module mouse_adapter (
                 end else if (input_enabled && game_state == `LP_RUN && mouse_left && !left_was_down &&
                              !mouse_right) begin
                     // Gameplay uses one fresh press, rather than construction's drop.
-                    if (run_page==1 && in_grid) begin pop_req <= 1; pop_cell <= hovered_cell; end
-                    // DRIVE boost comes from ui_controller.
+                    if (in_grid) begin
+                        if (hovered_part == `LP_PART_BALLOON) begin
+                            pop_req <= 1; pop_cell <= hovered_cell;
+                        end else if (run_page == 2'd0) begin
+                            if (hovered_part == `LP_PART_ENGINE) begin
+                                engine_toggle_req <= 1;
+                            end else if (hovered_part == `LP_PART_FAN) begin
+                                fan_toggle_req <= 1;
+                            end else if (hovered_part == `LP_PART_BOOSTER) begin
+                                boost_req <= 1;
+                            end
+                        end
+                    end
                 end
             end
         end

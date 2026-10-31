@@ -17,12 +17,14 @@ module world_outcomes (
     input wire map_level,
     input wire [9:0] world_width, world_height,
     input wire [9:0] flag_x, flag_y,
+    input wire [9:0] star_box_x, star_box_y,
     input wire [1:0] hazard_count,
     input wire [63:0] hazard_rects,
     output reg world_valid,
     input wire world_ready,
     output reg goal_hit,
     output reg hazard_hit,
+    output reg star_box_hit,
     output reg out_of_bounds
 );
     `include "rotation_geometry.vh"
@@ -87,7 +89,7 @@ module world_outcomes (
     always @(posedge clk) begin
         if(reset) begin
             phase<=IDLE; init_ready<=0; world_valid<=0;
-            goal_hit<=0; hazard_hit<=0; out_of_bounds<=0;
+            goal_hit<=0; hazard_hit<=0; out_of_bounds<=0; star_box_hit<=0;
             centre_x<=0; centre_y<=0; pig_x<=0; pig_y<=0;
             vehicle_left<=0; vehicle_top<=0; vehicle_right<=0; vehicle_bottom<=0;
             goal_left<=0; goal_top<=0; goal_right<=0; goal_bottom<=0;
@@ -102,7 +104,7 @@ module world_outcomes (
             if(!run_init) init_ready<=0;
             if(run_init && !init_ready) begin
                 init_ready<=1; phase<=IDLE; world_valid<=0;
-                goal_hit<=0; hazard_hit<=0; out_of_bounds<=0;
+                goal_hit<=0; hazard_hit<=0; out_of_bounds<=0; star_box_hit<=0;
             end else begin
                 if(world_valid && world_ready) world_valid<=0;
                 if(game_state!=`LP_RUN) phase<=IDLE;
@@ -142,6 +144,7 @@ module world_outcomes (
                     GOAL: begin
                         goal_hit<=pig_found && pig_x>=goal_left && pig_x<goal_right &&
                                   pig_y>=goal_top && pig_y<goal_bottom;
+                        star_box_hit <= (vehicle_right >= $signed({1'b0,star_box_x,8'b0}) && vehicle_left < $signed({1'b0,star_box_x,8'b0})+21'sd4096) && (vehicle_bottom >= $signed({1'b0,star_box_y,8'b0}) && vehicle_top < $signed({1'b0,star_box_y,8'b0})+21'sd4096);
                         out_of_bounds<=vehicle_left>=$signed({1'b0,saved_width,8'b0}) || vehicle_right<=0 ||
                                        vehicle_top>=$signed({1'b0,saved_height,8'b0}) || vehicle_bottom<=0;
                         phase<=HAZARD_SETUP;
@@ -194,3 +197,6 @@ module world_outcomes (
         end
     end
 endmodule
+
+
+

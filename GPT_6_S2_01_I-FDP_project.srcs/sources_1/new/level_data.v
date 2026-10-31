@@ -13,13 +13,15 @@ module level_data (
     output reg [31:0] goal_rect,
     output reg [2:0] tnt_count,
     output reg [`LP_TNT_BITS-1:0] tnt_positions,
+    output reg [7:0] par_time,
     output reg [1:0] hazard_count,
     output reg [`LP_HAZARD_BITS-1:0] hazard_rects,
     // Drawing: world size for the camera, and the finish flag's top-left on map levels.
     output reg map_level,
     output reg map_id,
     output reg [9:0] world_width, world_height,
-    output reg [9:0] flag_x, flag_y
+    output reg [9:0] flag_x, flag_y,
+    output reg [9:0] star_box_x, star_box_y
 );
     always @* begin
         // Defaults: rectangle elements cleared; all levels are map levels.
@@ -31,6 +33,7 @@ module level_data (
         hazard_count = 2'd0;
         hazard_rects = 0;
         map_level = 1'b1;
+        par_time = 8'd25;
         case (level_index)
             2'd0: begin
                 // Level 1, Cave Arch, in world pixels: level_map shows the map twice as
@@ -41,9 +44,11 @@ module level_data (
                 spawn_x = 20'sd53248;   // x=208
                 spawn_y = 20'sd19456;   // y=76: the 24-pixel vehicle rests on y=100
                 map_id = 1'b0;
+                par_time = 8'd30;
                 world_width = `LP_MAP_WORLD_WIDTH;
                 world_height = `LP_MAP_WORLD_HEIGHT;
                 flag_x = 10'd600;
+                star_box_x = 10'd400; star_box_y = 10'd300;
                 flag_y = 10'd472;   // 14-pixel pole ends on the road at y=486
             end
             default: begin
@@ -54,11 +59,14 @@ module level_data (
                 spawn_x = 20'sd17408;   // x=68
                 spawn_y = 20'sd45568;   // y=178
                 map_id = 1'b1;
+                par_time = 8'd45;
                 world_width = `LP_FLIGHT_WIDTH;
                 world_height = `LP_FLIGHT_HEIGHT;
                 flag_x = 10'd769;
+                star_box_x = 10'd400; star_box_y = 10'd150;
                 flag_y = 10'd50;    // 14-pixel pole ends on the ledge at y=64
             end
         endcase
     end
 endmodule
+

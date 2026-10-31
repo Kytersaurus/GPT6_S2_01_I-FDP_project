@@ -5,7 +5,8 @@ module sound_generator #(
     parameter integer TONE_HALF_CYCLES = 50000, // BTNR test: 1 kHz at 100 MHz.
     parameter integer BEEP_CYCLES = 20000000,
     parameter integer NOTE_CYCLES = 8000000,    // Base game note: 80 ms.
-    parameter integer FADE_CYCLES = 50000      // Eight 0.5 ms volume steps.
+    parameter integer FADE_CYCLES = 50000,      // Eight 0.5 ms volume steps.
+    parameter integer GAIN_SHIFT = 0
 ) (
     input wire clk, reset, mute, cancel, start,
     input wire [2:0] sound_id, master_volume,
@@ -23,9 +24,11 @@ module sound_generator #(
     reg [7:0] pwm_count, pwm_level;
     reg [31:0] half_cycles, note_cycles;
     reg [1:0] last_note;
-    wire signed [8:0] music_level = 9'sd128 + bgm_sample;
+    wire signed [9:0] bgm_effective = (GAIN_SHIFT > 0) ? (bgm_sample <<< GAIN_SHIFT) : bgm_sample;
+    wire signed [9:0] music_level = 10'sd128 + bgm_effective;
+    wire [7:0] sfx_effective = (GAIN_SHIFT > 0) ? (volume << GAIN_SHIFT) : volume;
     wire [7:0] requested_level = (mute || reset || cancel) ? 8'd128 :
-                                busy ? (tone_high ? 8'd128+volume : 8'd128-volume) : music_level[7:0];
+                                busy ? (tone_high ? (8'd128 + sfx_effective) : (8'd128 - sfx_effective)) : music_level[7:0];
     assign audio_pwm = (pwm_count < pwm_level);
 
     // Each row describes a sound using ordinary counters and a short case table.
