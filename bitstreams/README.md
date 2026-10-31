@@ -10,12 +10,12 @@ This directory organizes all verified programming bitstreams generated for the B
 | :--- | :--- |
 | **Bitstream File** | **[`2026-10-31/165601_My_Top_Module.bit`](2026-10-31/165601_My_Top_Module.bit)** |
 | **Pointer File** | [`LATEST.txt`](LATEST.txt) |
-| **Source Commit** | `98ca1e1` (integrated on `feature-polish`) |
+| **Source Commit** | `94dba9c` (integrated on `main`) |
 | **Build Timestamp**| 2026-10-31 16:56:01 (SGT) |
 | **Timing Slack** | **WNS = +0.142 ns**, **WHS = +0.042 ns**, **TNS = 0.000 ns** (Timing cleanly MET at 100 MHz) |
-| **Resource Utilization** | **79.87% LUTs** (16,613 / 20,800), **96.00% BRAM** (48.0 / 50), **18.89% DSPs** (17 / 90) |
+| **Resource Utilization** | **90.89% LUTs** (18,905 / 20,800), **97.00% BRAM** (48.5 / 50), **25.56% DSPs** (23 / 90) |
 | **Simulation Suite** | **51 / 51 testbenches passing (100%)** |
-| **Key Features** | • **Bulletproof Dividers**: 7-seg timer subtractive comparator (100% match across all 256s), combinational OLED coordinate translation (0-latency phase-safe), and 16-cycle restoring physics divider.<br>• **Animated Start Screen**: Moving cave background on Left OLED with upbeat fanfare BGM and Settings button.<br>• **Right OLED Blanking**: Right OLED completely blanks (`16'h0000`) on Title Screen and Level Select.<br>• **Run Screen Redesign**: Centered 12px vehicle damage diagram with direct balloon popping, top header buttons (`[RETRY]`, `[GEAR]`, `[EDIT]`), and bottom squarish action buttons (`ENG`, `FAN`, `RCKT`, `BOOST`).<br>• **Zero Extra BRAM**: Strictly 48 / 50 tiles (96.00%), preserving all budget for level map art.<br>• **Clean 2-cave levels architecture**: Level 0: Cave Arch 2x, Level 1: Cave Flight with smoothed terrain and camera tracking. |
+| **Key Features** | • **Option B Start Screen**: Bubble font `"LAGGY PIGGIES"` with snout nostrils, circular Play button, animated cartoon gear, tropical sky/beach, zero-extra-BRAM moving cave background.<br>• **Right OLED Blanking**: Right OLED completely blanks (`16'h0000`) on Start Screen and Level Select.<br>• **20-Second Countdown Timer**: Active-low `M.SS` timer counts down from 20s (`0.20` $\to$ `0.00`) and displays negative overtime (`-0.01`, etc.) exclusively on 4-digit 7-segment display (removed from OLED).<br>• **Run Screen Interactive Grid**: Enlarged 16×16 vehicle grid with in-grid part toggling (click to toggle engine/fan, burst rocket, pop balloon).<br>• **End Try Option**: Dedicated `[ END ]` button on bottom navigation bar (`[ RTRY ]`, `[ END ]`, `[ EDIT ]`, `[ GEAR ]`).<br>• **Engine Startup & Balloon Buoyancy**: Engine begins OFF at startup unless SW0 is active; balloons provide passive buoyancy immediately.<br>• **Settings Redesign**: 3 centered icon boxes (Sound, Map, Mouse), widened volume layout, `"MUTED VIA SW1"` display, louder audio (`GAIN_SHIFT=2`), dynamic mouse sensitivity.<br>• **Basys 3 LEDs**: Active switches light up corresponding LEDs (`led = sw`). |
 
 ### How Teammates Can Test on the Hardware:
 1. Connect your **Basys3 board** via USB and power it on.
