@@ -8,6 +8,8 @@ module bgm_player #(
     parameter integer FADE_CYCLES = 50000
 ) (
     input wire clk, reset, enabled, pause, fast,
+    input wire [1:0] bgm_mode,
+    // 0: BUILD (The Entertainer), 1: RUN (Bad Piggies Fast), 2: TITLE (Start Screen)
     input wire [2:0] master_volume,
     output wire signed [3:0] audio_sample
 );
@@ -19,22 +21,31 @@ module bgm_player #(
     reg [31:0] half_cycles;
     reg [3:0] units;
     reg last_fast;
+    reg [1:0] last_mode;
+
+    wire [1:0] effective_mode = (bgm_mode === 2'd2) ? 2'd2 :
+                                (bgm_mode === 2'd1 || fast) ? 2'd1 : 2'd0;
+    wire is_run = (effective_mode == 2'd1);
+    wire is_title = (effective_mode == 2'd2);
 
     localparam integer FAST_UNIT_CYCLES = UNIT_CYCLES*96/155; // Main theme: 155 BPM.
+    localparam integer TITLE_UNIT_CYCLES = UNIT_CYCLES*96/135; // Title theme: 135 BPM.
     localparam integer SLOW_SOUND_CYCLES = UNIT_CYCLES-UNIT_CYCLES/8;
     localparam integer FAST_SOUND_CYCLES = FAST_UNIT_CYCLES-FAST_UNIT_CYCLES/8;
-    wire [31:0] unit_cycles = fast ? FAST_UNIT_CYCLES : UNIT_CYCLES;
-    wire [31:0] unit_last = fast ? FAST_UNIT_CYCLES-1 : UNIT_CYCLES-1;
-    wire [31:0] sound_end = fast ? FAST_SOUND_CYCLES : SLOW_SOUND_CYCLES;
-    wire [31:0] fade_start = fast ? FAST_SOUND_CYCLES-4*FADE_CYCLES-1 : SLOW_SOUND_CYCLES-4*FADE_CYCLES-1;
+    localparam integer TITLE_SOUND_CYCLES = TITLE_UNIT_CYCLES-TITLE_UNIT_CYCLES/8;
+
+    wire [31:0] unit_cycles = is_run ? FAST_UNIT_CYCLES : is_title ? TITLE_UNIT_CYCLES : UNIT_CYCLES;
+    wire [31:0] unit_last = unit_cycles - 1;
+    wire [31:0] sound_end = is_run ? FAST_SOUND_CYCLES : is_title ? TITLE_SOUND_CYCLES : SLOW_SOUND_CYCLES;
+    wire [31:0] fade_start = sound_end - 4*FADE_CYCLES - 1;
     wire last_unit = (unit_index+4'd1 >= units);
     wire note_finished = last_unit && note_count >= unit_last;
     wire playing = enabled && !pause && !reset && half_cycles != 0 && !(last_unit && note_count >= sound_end);
 
-    wire [2:0] max_volume = fast ? ((master_volume+1'b1)>>1) : master_volume; // Softer in RUN so game SFX stand out!
+    wire [2:0] max_volume = is_run ? ((master_volume+1'b1)>>1) : master_volume; // Softer in RUN so game SFX stand out!
 
-    wire [8:0] loop_limit = fast ? 9'd258 : 9'd106;
-    wire [8:0] loop_start = fast ? 9'd0 : 9'd2; // The Entertainer loops back to the main theme after intro
+    wire [8:0] loop_limit = is_run ? 9'd258 : is_title ? 9'd31 : 9'd106;
+    wire [8:0] loop_start = is_run ? 9'd0 : is_title ? 9'd0 : 9'd2;
 
     // Two small square-wave voices share one signed sample; no recorded audio RAM.
     reg [8:0] song_unit;
@@ -53,7 +64,7 @@ module bgm_player #(
     // A bass note spans two sixteenth-note units and follows the song's beat.
     // Pause freezes both voices together; each note has a short attack/release.
     always @(posedge clk) begin
-        if (reset || !enabled || fast!=last_fast) begin
+        if (reset || !enabled || effective_mode!=last_mode || fast!=last_fast) begin
             song_unit<=0; bass_count<=0; bass_fade_count<=0; bass_high<=0; bass_volume<=0;
         end else if (pause) begin bass_volume<=0; bass_fade_count<=0; end
         else begin
@@ -77,7 +88,16 @@ module bgm_player #(
 
     always @* begin
         bass_half_cycles=382226; // C3
-        if (fast) begin
+        if (is_title) begin
+            case (song_unit[4:1])
+                0, 2, 4, 6: bass_half_cycles = 382226; // C3
+                1, 3, 5, 7: bass_half_cycles = 510204; // G2
+                8, 10:      bass_half_cycles = 286346; // F3
+                9, 11:      bass_half_cycles = 382226; // C3
+                12, 14:     bass_half_cycles = 340524; // D3
+                default:    bass_half_cycles = 510204; // G2
+            endcase
+        end else if (is_run) begin
             // Single bass voice from the same main-theme MIDI accompaniment.
             case (song_unit[8:1])
                 0: bass_half_cycles = 382226;
@@ -369,7 +389,44 @@ module bgm_player #(
 
     always @* begin
         half_cycles = C5; units = 1;
-        if (!fast) begin
+        if (is_title) begin
+            // TITLE MODE: Bad Piggies Title Fanfare
+            case (note_index)
+                0:  begin half_cycles = G4; units = 2; end
+                1:  begin half_cycles = G4; units = 1; end
+                2:  begin half_cycles = A4; units = 1; end
+                3:  begin half_cycles = B4; units = 2; end
+                4:  begin half_cycles = C5; units = 4; end
+                5:  begin half_cycles = E5; units = 2; end
+                6:  begin half_cycles = D5; units = 2; end
+                7:  begin half_cycles = C5; units = 4; end
+                8:  begin half_cycles = B4; units = 2; end
+                9:  begin half_cycles = A4; units = 2; end
+                10: begin half_cycles = G4; units = 4; end
+                11: begin half_cycles = E4; units = 2; end
+                12: begin half_cycles = G4; units = 2; end
+                13: begin half_cycles = A4; units = 4; end
+                14: begin half_cycles = G4; units = 4; end
+                15: begin half_cycles = G4; units = 1; end
+                16: begin half_cycles = A4; units = 1; end
+                17: begin half_cycles = B4; units = 2; end
+                18: begin half_cycles = C5; units = 2; end
+                19: begin half_cycles = D5; units = 2; end
+                20: begin half_cycles = E5; units = 2; end
+                21: begin half_cycles = G5; units = 4; end
+                22: begin half_cycles = E5; units = 2; end
+                23: begin half_cycles = D5; units = 2; end
+                24: begin half_cycles = C5; units = 4; end
+                25: begin half_cycles = A4; units = 2; end
+                26: begin half_cycles = B4; units = 2; end
+                27: begin half_cycles = C5; units = 4; end
+                28: begin half_cycles = D5; units = 2; end
+                29: begin half_cycles = C5; units = 2; end
+                30: begin half_cycles = B4; units = 2; end
+                31: begin half_cycles = C5; units = 6; end
+                default: begin half_cycles = C5; units = 1; end
+            endcase
+        end else if (!is_run) begin
             // BUILD MODE: The Entertainer (Scott Joplin) - Extended melody
             case (note_index)
                 // Intro / Pickup
@@ -760,9 +817,10 @@ module bgm_player #(
     always @(posedge clk) begin
         if (reset || !enabled) begin
             note_index <= 0; unit_index <= 0; note_count <= 0; tone_count <= 0;
-            fade_count <= 0; tone_high <= 0; volume <= 0; last_fast <= fast;
-        end else if (fast != last_fast) begin
-            // Mode switch between BUILD and RUN starts the new song from note 0
+            fade_count <= 0; tone_high <= 0; volume <= 0; last_fast <= fast; last_mode <= effective_mode;
+        end else if (effective_mode != last_mode || fast != last_fast) begin
+            // Mode switch between BUILD, RUN and TITLE starts the new song from note 0
+            last_mode <= effective_mode;
             last_fast <= fast;
             note_index <= 0; unit_index <= 0; note_count <= 0; tone_count <= 0;
             fade_count <= 0; tone_high <= 0; volume <= 0;

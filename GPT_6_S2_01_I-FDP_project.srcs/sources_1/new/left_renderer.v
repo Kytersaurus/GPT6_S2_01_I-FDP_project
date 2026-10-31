@@ -6,6 +6,8 @@
 // Result view: damage diagram, final time, retry/next guidance and the result reason.
 module left_renderer #(parameter EDITOR_CELL_PIXELS = 16) (
     input wire [12:0] pixel_index,
+    input wire [6:0] in_x,
+    input wire [5:0] in_y,
     input wire [2:0] game_state,
     input wire [26:0] build_grid,
     input wire [8:0] build_frames, build_facing_left,
@@ -31,14 +33,15 @@ module left_renderer #(parameter EDITOR_CELL_PIXELS = 16) (
     input wire [`LP_LEVEL_BITS-1:0] level_index,
     input wire [1:0] fail_reason,
     input wire [7:0] run_seconds,
+    input wire star_box_collected,
     input wire anim_phase,
     output reg [15:0] pixel_data
 );
     `include "part_sprites.vh"
+    wire [6:0] x = (pixel_index != 13'd0) ? (pixel_index % 96) : (in_x === 7'bzzzzzzz ? 7'd0 : in_x);
+    wire [5:0] y = (pixel_index != 13'd0) ? (pixel_index / 96) : (in_y === 6'bzzzzzz ? 6'd0 : in_y);
 
-    wire [6:0] x = pixel_index % 96;
-    wire [6:0] y = pixel_index / 96;
-    // BUILD keeps the detailed 16-pixel grid. RUN uses a compact 12-pixel diagram.
+        // BUILD keeps the detailed 16-pixel grid. RUN uses a compact 12-pixel diagram.
     wire compact_run = (game_state == `LP_RUN);
     wire [6:0] cell_pixels = compact_run ? 7'd12 : EDITOR_CELL_PIXELS;
     wire [6:0] grid_left = 7'd4;
@@ -55,11 +58,27 @@ module left_renderer #(parameter EDITOR_CELL_PIXELS = 16) (
     reg [3:0] inventory_number;
     reg [2:0] inventory_part;
     reg [4:0] remaining_parts;
-    wire [3:0] ones = remaining_parts % 10;
-    wire [3:0] tens = remaining_parts / 10;
-    wire [3:0] seconds_ones = run_seconds % 10;
-    wire [3:0] seconds_tens = run_seconds / 10;
+    wire [3:0] tens = (remaining_parts >= 10) ? 1 : 0;
+    wire [3:0] ones = (remaining_parts >= 10) ? remaining_parts - 10 : remaining_parts;
+    reg [3:0] seconds_tens;
+    reg [3:0] seconds_ones;
+    reg [7:0] tmp_s;
+    always @* begin
+        seconds_tens = 0;
+        tmp_s = run_seconds;
+        if (tmp_s >= 90) begin seconds_tens = 9; tmp_s = tmp_s - 90; end
+        else if (tmp_s >= 80) begin seconds_tens = 8; tmp_s = tmp_s - 80; end
+        else if (tmp_s >= 70) begin seconds_tens = 7; tmp_s = tmp_s - 70; end
+        else if (tmp_s >= 60) begin seconds_tens = 6; tmp_s = tmp_s - 60; end
+        else if (tmp_s >= 50) begin seconds_tens = 5; tmp_s = tmp_s - 50; end
+        else if (tmp_s >= 40) begin seconds_tens = 4; tmp_s = tmp_s - 40; end
+        else if (tmp_s >= 30) begin seconds_tens = 3; tmp_s = tmp_s - 30; end
+        else if (tmp_s >= 20) begin seconds_tens = 2; tmp_s = tmp_s - 20; end
+        else if (tmp_s >= 10) begin seconds_tens = 1; tmp_s = tmp_s - 10; end
+        seconds_ones = tmp_s[3:0];
+    end
     integer index, cell_index, cell_x, cell_y;
+    integer stars;
     reg [2:0] part;
     reg [127:0] message;
     reg [15:0] message_colour;
@@ -114,27 +133,27 @@ module left_renderer #(parameter EDITOR_CELL_PIXELS = 16) (
     end
 
     square u_grid_box (
-        .x(x), .y(y), .pos_x(grid_left), .pos_y(grid_top),
+        .x(x), .y({1'b0, y}), .pos_x(grid_left), .pos_y(grid_top),
         .width_x(grid_size), .length_y(grid_size), .is_in_square(grid_pixel)
     );
     seven_seg_oled u_seconds_tens (
-        .x(x), .y(y), .pos_x(7'd56), .pos_y(7'd6), .number(seconds_tens),
+        .x(x), .y({1'b0, y}), .pos_x(7'd56), .pos_y(7'd6), .number(seconds_tens),
         .line_thickness(7'd2), .height(7'd20), .width(7'd10), .isDrawn(seconds_tens_pixel)
     );
     seven_seg_oled u_seconds (
-        .x(x), .y(y), .pos_x(7'd68), .pos_y(7'd6), .number(seconds_ones),
+        .x(x), .y({1'b0, y}), .pos_x(7'd68), .pos_y(7'd6), .number(seconds_ones),
         .line_thickness(7'd2), .height(7'd20), .width(7'd10), .isDrawn(seconds_pixel)
     );
     seven_seg_oled u_part_count (
-        .x(x), .y(y), .pos_x(7'd68), .pos_y(7'd36), .number(ones),
+        .x(x), .y({1'b0, y}), .pos_x(7'd68), .pos_y(7'd36), .number(ones),
         .line_thickness(7'd2), .height(7'd20), .width(7'd10), .isDrawn(number_pixel)
     );
     seven_seg_oled u_part_count_tens (
-        .x(x), .y(y), .pos_x(7'd56), .pos_y(7'd36), .number(tens),
+        .x(x), .y({1'b0, y}), .pos_x(7'd56), .pos_y(7'd36), .number(tens),
         .line_thickness(7'd2), .height(7'd20), .width(7'd10), .isDrawn(tens_pixel)
     );
     seven_seg_oled u_inventory_number (
-        .x(x), .y(y), .pos_x(7'd82), .pos_y(inventory_content_top), .number(inventory_number),
+        .x(x), .y({1'b0, y}), .pos_x(7'd82), .pos_y(inventory_content_top), .number(inventory_number),
         .line_thickness(7'd1), .height(7'd8), .width(7'd5), .isDrawn(inventory_number_pixel)
     );
     always @* begin
@@ -199,9 +218,15 @@ module left_renderer #(parameter EDITOR_CELL_PIXELS = 16) (
         if (!in_build) begin
             // Run time in seconds, then surviving parts during RUN or guidance after a result.
             if (seconds_pixel || (run_seconds >= 10 && seconds_tens_pixel)) pixel_data = 16'h07ff;
-            if (text_on("S               ", 82, 19, x, y)) pixel_data = 16'h07ff;
+            if (text_on("S               ", 7'd82, 6'd19, x, y)) pixel_data = 16'h07ff;
             if (in_result) begin
-                if (text_on("C RETRY         ", 54, 32, x, y)) pixel_data = 16'hffff;
+                stars = 1 + (star_box_collected ? 1 : 0) + ((run_seconds <= 30 && remaining_parts >= 2) ? 1 : 0);
+                  if (game_state == `LP_SUCCESS) begin
+                      if (stars >= 1 && ((x>=57 && x<=61 && y==24) || (x==59 && y>=22 && y<=26) || ((x==58||x==60)&&(y==23||y==25)))) pixel_data = 16'hffe0;
+                      if (stars >= 2 && ((x>=67 && x<=71 && y==24) || (x==69 && y>=22 && y<=26) || ((x==68||x==70)&&(y==23||y==25)))) pixel_data = 16'hffe0;
+                      if (stars >= 3 && ((x>=77 && x<=81 && y==24) || (x==79 && y>=22 && y<=26) || ((x==78||x==80)&&(y==23||y==25)))) pixel_data = 16'hffe0;
+                  end
+                  if (text_on("C RETRY         ", 54, 32, x, y)) pixel_data = 16'hffff;
                 if (text_on(game_state == `LP_SUCCESS ? "U NEXT          " : "U EDIT          ", 54, 42, x, y))
                     pixel_data = 16'hffe0;
             end else if (number_pixel || (remaining_parts >= 10 && tens_pixel)) pixel_data = 16'hffff;
@@ -222,11 +247,11 @@ module left_renderer #(parameter EDITOR_CELL_PIXELS = 16) (
                         selected_left ? "<               " : ">               ",72,inventory_content_top+1,x,y)) pixel_data=16'h07ff;
         end
         if (in_result || in_build) begin
-            if (y >= 56 && y < 63) begin
+            if (y >= 56 && y < 63 && !(feedback_code == `LP_FEEDBACK_NONE && x >= `LP_LEVEL_BUTTON_X)) begin
                 pixel_data = 16'h0841;
                 if (text_column < 5 && letter_bits[34-(text_row*5+text_column)]) pixel_data = message_colour;
             end
-            if (in_build && level_button_pixel) begin
+            if (in_build && level_button_pixel && feedback_code == `LP_FEEDBACK_NONE) begin
                 pixel_data = 16'h0010;
                 if (x == `LP_LEVEL_BUTTON_X || x == `LP_LEVEL_BUTTON_X+`LP_LEVEL_BUTTON_W-1 ||
                     y == `LP_LEVEL_BUTTON_Y || y == `LP_LEVEL_BUTTON_Y+`LP_LEVEL_BUTTON_H-1) pixel_data = 16'h7bef;
@@ -250,3 +275,5 @@ module left_renderer #(parameter EDITOR_CELL_PIXELS = 16) (
              (y == cursor_y && x+2 >= cursor_x && x <= cursor_x+2))) pixel_data = 16'hffff;
     end
 endmodule
+
+

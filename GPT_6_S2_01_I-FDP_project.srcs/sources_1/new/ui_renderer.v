@@ -2,318 +2,435 @@
 `timescale 1ns / 1ps
 `include "game_defs.vh"
 module ui_renderer (
-    input wire [12:0] pixel_index,
+    input wire [6:0] x,
+    input wire [5:0] y,
     input wire [15:0] base_pixel,
     input wire [2:0] game_state, feedback_code,
+    input wire start_screen_active,
+    input wire [2:0] map_draw_class,
     input wire [1:0] diary_page, run_page,
     input wire [1:0] inventory_page,
     input wire selected_left, audio_muted,
     input wire [2:0] selected_part,
-    input wire [2:0] master_volume,
+    input wire [2:0] master_volume, input wire [1:0] mouse_speed,
     input wire [`LP_LEVEL_BITS-1:0] level_index,
     input wire build_valid, engine_enabled, boost_active,
-    input wire fan_available, fan_on, rocket_available, rocket_ready,
+    input wire fan_available, fan_on, rocket_available, rocket_ready, balloon_available,
+    input wire anim_phase,
     input wire [6:0] cursor_x, cursor_y,
     output reg [15:0] pixel_data
 );
     `include "ui_font.vh"
     `include "part_sprites.vh"
-    wire [6:0] x=pixel_index%96, y=pixel_index/96;
-    reg [127:0] line;
-    integer text_left, text_top, row, button_left, button_right;
-    integer example_local_x, example_local_y, example_row, example_col;
-    reg [1:0] tile;
-    reg tile_hover;
-    reg text_visible, button, enabled;
-    reg [15:0] ink;
-    always @* begin
-        pixel_data=base_pixel; line="                ";
-        text_left=0; text_top=0; row=0; button_left=0; button_right=0;
-        text_visible=0; button=0; enabled=1; ink=16'hffff; tile=0; tile_hover=0;
-        example_local_x=0; example_local_y=0; example_row=0; example_col=0;
-        if (game_state==`LP_GUIDE) begin
-            pixel_data=16'h0841;
-            text_visible=1; text_left=2;
-            if (y<9) begin row=0; text_top=1; ink=16'h07ff; end
-            else if (y<18) begin row=1; text_top=10; end
-            else if (y<27) begin row=2; text_top=19; end
-            else if (y<36) begin row=3; text_top=28; end
-            else if (y<45) begin row=4; text_top=37; end
-            else begin row=5; text_top=46; end
-            case (diary_page)
-                0: case (row)
-                    0: case (level_index)
-                        0: line="DIARY L1 1/3    ";
-                        1: line="DIARY L2 1/3    ";
-                        2: line="DIARY L3 1/3    ";
-                        default: line="DIARY L4 1/3    ";
-                    endcase
-                    1: line="GET PIG TO FLAG ";
-                    2: line="DRAG PARTS IN   ";
-                    3: line="CLICK SAME FLIPS";
-                    4: line="DRIVE TAB POWERS";
-                    5: line="U BACK C NEXT   ";
-                endcase
-                1: case (row)
-                    0: begin line="VALID BUILD 2/3 "; ink=16'h07ff; end
-                    default: line="                ";
-                endcase
-                2: case (row)
-                    0: line="LEVEL HINT 3/3  ";
-                    1: line=(level_index>=2) ? "MAP TEST ONLY   " : level_index ? "PROTECT ENGINE  " : "TRY MIDDLE ROW  ";
-                    2: line=(level_index>=2) ? "PHYSICS PENDING " : level_index ? "TNT BREAKS PARTS" : "PIG IN CENTRE   ";
-                    3: line=(level_index>=2) ? "WHEEL ZOOM      " : "ENGINE AT REAR  ";
-                    4: line=(level_index>=2) ? "SW4 LOOK AROUND " : level_index ? "KEEP PIG SAFE   " : "WHEELS AT EDGES ";
-                    5: line="RETRY RESTORES  ";
-                endcase
-                default: case (row)
-                    0: line="AUDIO SETTINGS  ";
-                    1: line="MASTER VOLUME   ";
-                    2: case (master_volume)
-                        0: line="     OFF        ";
-                        1: line="     1/3        ";
-                        2: line="     2/4        ";
-                        3: line="     3/4        ";
-                        default: line="     4/4        ";
-                    endcase
-                    3: line="                ";
-                    4: line="                ";
-                    5: line=audio_muted ? "MUTED BY SW1    " : "SW1 MUTES ALL   ";
-                endcase
-            endcase
-        end
-        // Compact BUILD toolbar keeps the full 48 by 48 construction grid.
-        if (game_state==`LP_BUILD && y>=55) begin
-            pixel_data=16'h0841; text_visible=1; text_top=56;
-            if (x<18) begin
-                button=1; button_left=0; button_right=17; text_left=2;
-                line="GO              "; enabled=build_valid;
-            end else if (x>=64 && x<80) begin
-                button=1; button_left=64; button_right=79; text_left=69; line="?               ";
-            end else if (x>=20 && x<62) begin
-                button=1; button_left=x<41 ? 20 : 41;
-                button_right=button_left+20; text_left=button_left+8;
-                line=x<41 ? "1               " : "2               ";
-                if (inventory_page==(x<41 ? 0 : 1)) ink=16'hffe0;
-            end else begin pixel_data=base_pixel; text_visible=0; end
-        end
-        if ((game_state==`LP_GUIDE || game_state==`LP_SUCCESS || game_state==`LP_FAIL) && y>=55) begin
-            pixel_data=16'h0841; text_visible=0; text_top=56;
-            if (x<28) begin
-                button=1; button_left=0; button_right=27; text_left=2;
-                line=game_state==`LP_GUIDE ? "BACK            " : "TRY             ";
-            end else if (x>=32 && x<60) begin
-                button=1; button_left=32; button_right=59; text_left=34;
-                line=game_state==`LP_GUIDE ? "1               " : (game_state==`LP_SUCCESS ? "NEXT            " : "EDIT            ");
-                enabled=game_state!=`LP_GUIDE || diary_page>0;
-            end else if (x>=64) begin
-                button=1; button_left=64; button_right=95; text_left=65;
-                line=game_state==`LP_GUIDE ? "NEXT            " : "DIARY           ";
-                enabled=game_state!=`LP_GUIDE || diary_page<3;
-            end
-        end
-        if (game_state==`LP_GUIDE && y>=55 && x>=32) begin
-            button=diary_page!=3; text_visible=0; pixel_data=16'h0841;
-            if (diary_page!=3 && x<95) begin
-                button_left=x<53 ? 32 : x<74 ? 53 : 74; button_right=button_left+20;
-                text_left=button_left+8; text_top=56;
-                line=x<53 ? "1               " : x<74 ? "2               " : "3               ";
-                enabled=1; if (diary_page==(x<53 ? 0 : x<74 ? 1 : 2)) ink=16'hffe0;
-            end
-        end
-        if (game_state==`LP_GUIDE && diary_page==3 && y>=28 && y<44) begin
-            if ((x>=8 && x<36) || (x>=60 && x<88)) begin
-                button=1; button_left=x<48 ? 8 : 60; button_right=button_left+27;
-                text_left=button_left+11; text_top=32;
-                line=x<48 ? "-               " : "+               ";
-                enabled=x<48 ? master_volume>0 : master_volume<4;
-            end
-        end
-        if (button) begin
-            pixel_data=enabled ? 16'h18e5 : 16'h18c3;
-            if (enabled && cursor_x>=button_left && cursor_x<=button_right &&
-                cursor_y>=text_top-3 && cursor_y<text_top+11) pixel_data=16'h0351;
-            if (x==button_left || x==button_right || (text_top==32 ? (y==28 || y==43) : (y==text_top-1 || y==text_top+7)))
-                pixel_data=enabled ? 16'h04b4 : 16'h4208;
-            if (!enabled) ink=16'h7bef;
-            text_visible=1;
-        end
-        if (text_visible && text_on(line,text_left,text_top,x,y)) pixel_data=ink;
-        // A passing sample build: pig in a framed centre cell with supported wheels.
-        if (game_state==`LP_GUIDE && diary_page==1) begin
-            if (text_on("VALID",48,14,x,y)) pixel_data=16'h07e0;
-            if (text_on("1 PIG",48,24,x,y)) pixel_data=16'hffff;
-            if (text_on("3 FRAMES",48,34,x,y)) pixel_data=16'hffff;
-            if (text_on("2 WHEELS",48,44,x,y)) pixel_data=16'hffff;
-            if (x>=4 && x<40 && y>=12 && y<48) begin
-                if (x<16) begin example_col=0; example_local_x=x-4; end
-                else if (x<28) begin example_col=1; example_local_x=x-16; end
-                else begin example_col=2; example_local_x=x-28; end
-                if (y<24) begin example_row=0; example_local_y=y-12; end
-                else if (y<36) begin example_row=1; example_local_y=y-24; end
-                else begin example_row=2; example_local_y=y-36; end
-                pixel_data=16'h0841;
-                if (example_local_x==0 || example_local_y==0 ||
-                    example_local_x==11 || example_local_y==11) pixel_data=16'h7bef;
-                if (example_row==1)
-                    pixel_data=part_sprite12(`LP_PART_FRAME,example_local_x,example_local_y,1'b0,pixel_data);
-                if (example_row==1 && example_col==1)
-                    pixel_data=part_sprite12(`LP_PART_PIG,example_local_x,example_local_y,1'b0,pixel_data);
-                if (example_row==2 && (example_col==0 || example_col==2))
-                    pixel_data=part_sprite12(`LP_PART_WHEEL,example_local_x,example_local_y,1'b0,pixel_data);
-            end
-        end
-        // Book cover with a question mark, and a compact gear for settings.
-        if (game_state==`LP_BUILD && y>=55 && x>=64) begin
-            pixel_data=16'h18e5;
-            if (x<80) begin
-                if (x==65 || x==78 || y==55 || y==63 || x==67) pixel_data=16'h04b4;
-                if (text_on("?               ",70,56,x,y)) pixel_data=16'hffff;
-            end else begin
-                if (((x>=86 && x<=89) && y>=56 && y<=62) ||
-                    ((x==85 || x==90) && y>=57 && y<=61) ||
-                    (((x>=83 && x<=84) || (x>=91 && x<=92)) && y>=58 && y<=60) ||
-                    ((x==87 || x==88) && (y==55 || y==63))) begin
-                    if (!(x>=87 && x<=88 && y>=58 && y<=60)) pixel_data=16'hffff;
-                end
-            end
-        end
-        // Transient placement feedback temporarily uses the toolbar's full width.
-        if (game_state==`LP_BUILD && feedback_code!=`LP_FEEDBACK_NONE && y>=55)
-            pixel_data=base_pixel;
-        if (game_state==`LP_SETTINGS) begin
-            pixel_data=16'h0841;
-            if (text_on("SETTINGS        ",24,2,x,y)) pixel_data=16'h07ff;
-            if (x>=8 && x<88 && ((y>=12 && y<26) || (y>=30 && y<44))) begin
-                pixel_data=16'h18e5;
-                if (x==8 || x==87 || y==12 || y==25 || y==30 || y==43) pixel_data=16'h04b4;
-                if (text_on(y<26 ? "AUDIO           " : "MAP SELECTION   ",10,y<26 ? 16 : 34,x,y)) pixel_data=16'hffff;
-            end
-            if (x<28 && y>=55) begin
-                pixel_data=16'h18e5;
-                if (text_on("BACK            ",2,56,x,y)) pixel_data=16'hffff;
-            end
-        end
-        if (game_state==`LP_LEVEL_SELECT) begin
-            pixel_data=16'h0841;
-            if (text_on("SELECT LEVEL    ",12,2,x,y)) pixel_data=16'h07ff;
-            // Two columns, two rows. The selected map has a green outline.
-            if (x>=4 && x<92 &&
-                ((y>=12 && y<32) || (y>=34 && y<54))) begin
-                tile=(y>=34) ? 2'd1 : 2'd0;
-                button_left=4; button_right=91;
-                text_top=tile[0] ? 34 : 12;
-                tile_hover=cursor_x>=button_left && cursor_x<=button_right &&
-                           cursor_y>=text_top && cursor_y<text_top+20;
-                pixel_data=tile_hover ? 16'h0351 : 16'h18e5;
-                if (x==button_left || x==button_right || y==text_top || y==text_top+19)
-                    pixel_data=(tile==level_index) ? 16'h07e0 : 16'h04b4;
-                case (tile)
-                    0: line="CAVE ARCH       ";
-                    1: line="CAVE FLIGHT     ";
-                    default: line="                ";
 
-                endcase
-                if (text_on(line,button_left+6,text_top+2,x,y)) pixel_data=16'hffff;
-                case (tile)
-                    0: line="LEVEL 1         ";
-                    1: line="LEVEL 2         ";
-                    default: line="                ";
-                endcase
-                if (text_on(line,button_left+6,text_top+11,x,y)) pixel_data=16'h07ff;
+    integer example_local_x, example_local_y, example_row, example_col;
+
+    always @* begin
+        pixel_data = base_pixel;
+
+        if (start_screen_active) begin
+            // 1. Moving cave background from map_draw_class
+            case (map_draw_class)
+                3'd0: pixel_data = 16'h0825; // Dark indigo cave air
+                3'd1: pixel_data = 16'h4a49; // Stone wall
+                3'd2: pixel_data = 16'h8281; // Dirt
+                3'd3: pixel_data = 16'h2945; // Dark rock
+                3'd4: pixel_data = 16'h6201; // Mud
+                3'd5: pixel_data = 16'hc980; // TNT block
+                default: pixel_data = 16'h0825;
+            endcase
+
+            // 2. Title Banner: "BAD PIGGIES"
+            if (x >= 6 && x <= 89 && y >= 3 && y <= 13) begin
+                if (x == 6 || x == 89 || y == 3 || y == 13) pixel_data = 16'hffe0;
+                else pixel_data = 16'h0000;
             end
-            if (y>=55) begin
-                if (x<28) begin
-                    pixel_data=16'h18e5;
-                    if (x==0 || x==27 || y==55 || y==63) pixel_data=16'h04b4;
-                    if (text_on("BACK            ",2,56,x,y)) pixel_data=16'hffff;
-                end else if (text_on("PICK A MAP      ",32,56,x,y)) pixel_data=16'h7bef;
+            if (text_on("  BAD PIGGIES   ", 6, 5, x, y)) pixel_data = 16'h07e0;
+
+            // 3. Centered Pig face (16x16)
+            if (x >= 40 && x <= 55 && y >= 16 && y <= 31) begin
+                pixel_data = part_sprite16(`LP_PART_PIG, x-40, y-16, 1'b0, pixel_data);
             end
-        end
-        // RUN uses three large menu pages; only POP retains the vehicle diagram.
-        if (game_state==`LP_RUN) begin
-            pixel_data=(run_page==1 && x<54 && y<55) ? base_pixel : 16'h0841;
-            button=0; text_visible=0; enabled=1; ink=16'hffff; text_left=2; text_top=1;
-            if (run_page==1) begin
-                if (text_on("POP             ",2,1,x,y)) pixel_data=16'h07ff;
-                if (x>=56 && x<84 && y>=14 && y<24) begin
-                    button=1; button_left=56; button_right=83; text_top=15; text_left=58; line="EDIT            ";
+
+            // 4. Pulsating [ PLAY ] button
+            if (x >= 24 && x <= 71 && y >= 36 && y <= 48) begin
+                if (x == 24 || x == 71 || y == 36 || y == 48)
+                    pixel_data = anim_phase ? 16'hffe0 : 16'h07e0;
+                else if (cursor_x >= 24 && cursor_x <= 71 && cursor_y >= 36 && cursor_y <= 48)
+                    pixel_data = 16'h0360;
+                else
+                    pixel_data = 16'h01e0;
+            end
+            if (text_on("    PLAY        ", 24, 39, x, y)) pixel_data = 16'hffff;
+
+            // 5. Settings [ GEAR ] in top-right corner
+            if (x >= 82 && x <= 94 && y >= 2 && y <= 14) begin
+                if (x == 82 || x == 94 || y == 2 || y == 14) pixel_data = 16'h7bef;
+                else if (cursor_x >= 82 && cursor_x <= 94 && cursor_y >= 2 && cursor_y <= 14)
+                    pixel_data = 16'h0351;
+                else
+                    pixel_data = 16'h18e5;
+                // Gear teeth
+                if ((x >= 87 && x <= 89 && y >= 6 && y <= 10) ||
+                    (x == 86 && y >= 7 && y <= 9) ||
+                    (x == 90 && y >= 7 && y <= 9) ||
+                    (x == 88 && (y == 5 || y == 11)) ||
+                    ((x == 85 || x == 91) && y == 8)) begin
+                    if (x == 88 && y == 8) pixel_data = 16'h18e5;
+                    else pixel_data = 16'hffff;
+                end
+            end
+        end else if (game_state == `LP_LEVEL_SELECT) begin
+            pixel_data = 16'h0841;
+            if (text_on("SELECT MAP      ", 18, 2, x, y)) pixel_data = 16'h07ff;
+
+            // Map 1: Cave Arch
+            if (x >= 4 && x <= 91 && y >= 12 && y <= 30) begin
+                if (x == 4 || x == 91 || y == 12 || y == 30)
+                    pixel_data = (level_index == 0) ? 16'h07e0 : 16'h04b4;
+                else if (cursor_x >= 4 && cursor_x <= 91 && cursor_y >= 12 && cursor_y <= 30)
+                    pixel_data = 16'h0351;
+                else
+                    pixel_data = 16'h18e5;
+            end
+            if (text_on("CAVE ARCH       ", 10, 14, x, y)) pixel_data = 16'hffff;
+            if (text_on("MAP 1           ", 10, 22, x, y)) pixel_data = 16'h07ff;
+
+            // Map 2: Cave Flight
+            if (x >= 4 && x <= 91 && y >= 34 && y <= 52) begin
+                if (x == 4 || x == 91 || y == 34 || y == 52)
+                    pixel_data = (level_index == 1) ? 16'h07e0 : 16'h04b4;
+                else if (cursor_x >= 4 && cursor_x <= 91 && cursor_y >= 34 && cursor_y <= 52)
+                    pixel_data = 16'h0351;
+                else
+                    pixel_data = 16'h18e5;
+            end
+            if (text_on("CAVE FLIGHT     ", 10, 36, x, y)) pixel_data = 16'hffff;
+            if (text_on("MAP 2           ", 10, 44, x, y)) pixel_data = 16'h07ff;
+
+            // Bottom toolbar: [ BACK ]
+            if (y >= 55) begin
+                if (x <= 27) begin
+                    if (x == 0 || x == 27 || y == 55 || y == 63) pixel_data = 16'h04b4;
+                    else pixel_data = 16'h18e5;
+                    if (text_on("BACK            ", 2, 56, x, y)) pixel_data = 16'hffff;
+                end else if (text_on("PICK A MAP      ", 32, 56, x, y)) pixel_data = 16'h7bef;
+            end
+        end else if (game_state == `LP_SETTINGS) begin
+            pixel_data = 16'h0841;
+            if (text_on("SETTINGS        ", 24, 2, x, y)) pixel_data = 16'h07ff;
+
+            // Row 1: Sound Settings button (opens diary_page=3 sound page)
+            if (x >= 8 && x <= 87 && y >= 12 && y <= 24) begin
+                if (x == 8 || x == 87 || y == 12 || y == 24) pixel_data = 16'h04b4;
+                else if (cursor_x >= 8 && cursor_x <= 87 && cursor_y >= 12 && cursor_y <= 24) pixel_data = 16'h0351;
+                else pixel_data = 16'h18e5;
+            end
+            if (text_on("SOUND SETTINGS >", 10, 15, x, y)) pixel_data = 16'hffff;
+
+            // Row 2: Map Selector button
+            if (x >= 8 && x <= 87 && y >= 30 && y <= 43) begin
+                if (x == 8 || x == 87 || y == 30 || y == 43) pixel_data = 16'h04b4;
+                else if (cursor_x >= 8 && cursor_x <= 87 && cursor_y >= 30 && cursor_y <= 43) pixel_data = 16'h0351;
+                else pixel_data = 16'h18e5;
+            end
+            if (text_on("MAP SELECTOR    ", 12, 34, x, y)) pixel_data = 16'hffff;
+
+            // Row 3: Navigation: [ BACK ] and [ SPEED ]
+            if (y >= 53) begin
+                // [ BACK ]
+                if (x >= 2 && x <= 32) begin
+                    if (x == 2 || x == 32 || y == 53 || y == 63) pixel_data = 16'h04b4;
+                    else pixel_data = 16'h18e5;
+                    if (text_on("BACK            ", 4, 55, x, y)) pixel_data = 16'hffff;
+                end
+                // [ SPEED ]
+                if (x >= 38 && x <= 92) begin
+                    if (x == 38 || x == 92 || y == 53 || y == 63) pixel_data = 16'h04b4;
+                    else pixel_data = 16'h18e5;
+                    case (mouse_speed)
+                        0: if (text_on("SPD: SLOW       ", 40, 55, x, y)) pixel_data = 16'hffe0;
+                        1: if (text_on("SPD: NORM       ", 40, 55, x, y)) pixel_data = 16'hffe0;
+                        default: if (text_on("SPD: FAST       ", 40, 55, x, y)) pixel_data = 16'hffe0;
+                    endcase
+                end
+            end
+        end else if (game_state == `LP_GUIDE) begin
+            pixel_data = 16'h0841;
+            case (diary_page)
+                0: begin
+                    if (text_on("HOW TO PLAY 1/3 ", 2, 2, x, y)) pixel_data = 16'h07ff;
+                    if (text_on("DRAG: ADD PART  ", 2, 11, x, y)) pixel_data = 16'hffff;
+                    if (text_on("R-CLICK: REMOVE ", 2, 20, x, y)) pixel_data = 16'hffff;
+                    if (text_on("CLICK: ROTATE   ", 2, 29, x, y)) pixel_data = 16'hffff;
+                    if (text_on("SW0/ENG: DRIVE  ", 2, 38, x, y)) pixel_data = 16'hffff;
+                    if (text_on("FLAG = LEVEL WIN", 2, 47, x, y)) pixel_data = 16'h07e0;
+                end
+                1: begin
+                    if (text_on("LEGAL BUILD 2/3 ", 2, 2, x, y)) pixel_data = 16'h07ff;
+                    if (text_on("VALID           ", 48, 14, x, y)) pixel_data = 16'h07e0;
+                    if (text_on("1 PIG           ", 48, 24, x, y)) pixel_data = 16'hffff;
+                    if (text_on("3 FRAMES        ", 48, 34, x, y)) pixel_data = 16'hffff;
+                    if (text_on("2 WHEELS        ", 48, 44, x, y)) pixel_data = 16'hffff;
+                    if (x >= 4 && x < 40 && y >= 12 && y < 48) begin
+                        if (x < 16) begin example_col = 0; example_local_x = x - 4; end
+                        else if (x < 28) begin example_col = 1; example_local_x = x - 16; end
+                        else begin example_col = 2; example_local_x = x - 28; end
+                        if (y < 24) begin example_row = 0; example_local_y = y - 12; end
+                        else if (y < 36) begin example_row = 1; example_local_y = y - 24; end
+                        else begin example_row = 2; example_local_y = y - 36; end
+                        pixel_data = 16'h0841;
+                        if (example_local_x == 0 || example_local_y == 0 ||
+                            example_local_x == 11 || example_local_y == 11) pixel_data = 16'h7bef;
+                        if (example_row == 1)
+                            pixel_data = part_sprite12(`LP_PART_FRAME, example_local_x, example_local_y, 1'b0, pixel_data);
+                        if (example_row == 1 && example_col == 1)
+                            pixel_data = part_sprite12(`LP_PART_PIG, example_local_x, example_local_y, 1'b0, pixel_data);
+                        if (example_row == 2 && (example_col == 0 || example_col == 2))
+                            pixel_data = part_sprite12(`LP_PART_WHEEL, example_local_x, example_local_y, 1'b0, pixel_data);
+                    end
+                end
+                2: begin
+                    if (text_on("MISSION TIPS 3/3", 2, 2, x, y)) pixel_data = 16'h07ff;
+                    if (text_on("PROTECT THE PIG ", 2, 11, x, y)) pixel_data = 16'hffff;
+                    if (text_on("TNT BREAKS PARTS", 2, 20, x, y)) pixel_data = 16'hffff;
+                    if (text_on("WHEELS GIVE GRIP", 2, 29, x, y)) pixel_data = 16'hffff;
+                    if (text_on("STAR BOX = BONUS", 2, 38, x, y)) pixel_data = 16'hffe0;
+                    if (text_on("SURVIVE TO WIN  ", 2, 47, x, y)) pixel_data = 16'h07e0;
+                end
+                default: begin
+                    if (text_on("SOUND SETTINGS  ", 6, 2, x, y)) pixel_data = 16'h07ff;
+                    if (text_on("MASTER VOLUME   ", 6, 14, x, y)) pixel_data = 16'hffff;
+                    // Button [-]: x: 8..35, y: 28..43
+                    if (x >= 8 && x <= 35 && y >= 28 && y <= 43) begin
+                        if (x == 8 || x == 35 || y == 28 || y == 43) pixel_data = 16'h04b4;
+                        else if (cursor_x >= 8 && cursor_x <= 35 && cursor_y >= 28 && cursor_y <= 43) pixel_data = 16'h0351;
+                        else pixel_data = 16'h18e5;
+                    end
+                    if (text_on(" -              ", 14, 33, x, y)) pixel_data = 16'hffff;
+                    // Volume readout: x: 42..54, y: 33
+                    case (master_volume)
+                        0: if (text_on("0/4             ", 42, 33, x, y)) pixel_data = 16'h07ff;
+                        1: if (text_on("1/4             ", 42, 33, x, y)) pixel_data = 16'h07ff;
+                        2: if (text_on("2/4             ", 42, 33, x, y)) pixel_data = 16'h07ff;
+                        3: if (text_on("3/4             ", 42, 33, x, y)) pixel_data = 16'h07ff;
+                        default: if (text_on("4/4             ", 42, 33, x, y)) pixel_data = 16'h07ff;
+                    endcase
+                    // Button [+]: x: 60..87, y: 28..43
+                    if (x >= 60 && x <= 87 && y >= 28 && y <= 43) begin
+                        if (x == 60 || x == 87 || y == 28 || y == 43) pixel_data = 16'h04b4;
+                        else if (cursor_x >= 60 && cursor_x <= 87 && cursor_y >= 28 && cursor_y <= 43) pixel_data = 16'h0351;
+                        else pixel_data = 16'h18e5;
+                    end
+                    if (text_on(" +              ", 66, 33, x, y)) pixel_data = 16'hffff;
+                end
+            endcase
+
+            // Bottom toolbar: [BACK] [ 1 ] [ 2 ] [ 3 ]
+            if (y >= 55) begin
+                if (x <= 27) begin
+                    if (x == 0 || x == 27 || y == 55 || y == 63) pixel_data = 16'h04b4;
+                    else pixel_data = 16'h18e5;
+                    if (text_on("BACK            ", 2, 56, x, y)) pixel_data = 16'hffff;
+                end else if (diary_page != 3) begin
+                    if (x >= 32 && x <= 51) begin
+                        if (x == 32 || x == 51 || y == 55 || y == 63)
+                            pixel_data = (diary_page == 0) ? 16'hffe0 : 16'h04b4;
+                        else pixel_data = 16'h18e5;
+                        if (text_on("1               ", 40, 56, x, y)) pixel_data = (diary_page == 0) ? 16'hffe0 : 16'hffff;
+                    end else if (x >= 53 && x <= 72) begin
+                        if (x == 53 || x == 72 || y == 55 || y == 63)
+                            pixel_data = (diary_page == 1) ? 16'hffe0 : 16'h04b4;
+                        else pixel_data = 16'h18e5;
+                        if (text_on("2               ", 61, 56, x, y)) pixel_data = (diary_page == 1) ? 16'hffe0 : 16'hffff;
+                    end else if (x >= 74 && x <= 93) begin
+                        if (x == 74 || x == 93 || y == 55 || y == 63)
+                            pixel_data = (diary_page == 2) ? 16'hffe0 : 16'h04b4;
+                        else pixel_data = 16'h18e5;
+                        if (text_on("3               ", 82, 56, x, y)) pixel_data = (diary_page == 2) ? 16'hffe0 : 16'hffff;
+                    end
+                end
+            end
+        end else if (game_state == `LP_BUILD) begin
+            // Upper area uses base_pixel
+            if (y >= 55 && feedback_code == `LP_FEEDBACK_NONE) begin
+                pixel_data = 16'h0841;
+                // GO button
+                if (x < 18) begin
+                    if (x == 0 || x == 17 || y == 55 || y == 63)
+                        pixel_data = build_valid ? 16'h07e0 : 16'h4208;
+                    else pixel_data = build_valid ? 16'h18e5 : 16'h18c3;
+                    if (text_on("GO              ", 2, 56, x, y)) pixel_data = build_valid ? 16'hffff : 16'h7bef;
+                end
+                // Inventory 1/2 buttons
+                else if (x >= 20 && x < 62) begin
+                    if (x == 20 || x == 40 || x == 41 || x == 61 || y == 55 || y == 63) pixel_data = 16'h04b4;
+                    else pixel_data = 16'h18e5;
+                    if (text_on("1               ", 28, 56, x, y)) pixel_data = (inventory_page == 0) ? 16'hffe0 : 16'hffff;
+                    if (text_on("2               ", 49, 56, x, y)) pixel_data = (inventory_page == 1) ? 16'hffe0 : 16'hffff;
+                end
+                // Diary button (Book icon)
+                else if (x >= 64 && x < 80) begin
+                    if (x == 64 || x == 79 || y == 55 || y == 63) pixel_data = 16'h04b4;
+                    else pixel_data = 16'h18e5;
+                    if (x >= 68 && x <= 75 && y >= 57 && y <= 61) begin
+                        if (y == 57 || y == 61 || x == 68 || x == 75 || x == 71) pixel_data = 16'hffff;
+                        else pixel_data = 16'ha145;
+                    end
+                end
+                // Settings button (Gear icon)
+                else if (x >= 80 && x < 96) begin
+                    if (x == 80 || x == 95 || y == 55 || y == 63) pixel_data = 16'h04b4;
+                    else pixel_data = 16'h18e5;
+                    if ((x >= 86 && x <= 89 && y >= 57 && y <= 61) ||
+                        (x == 85 && (y == 58 || y == 59 || y == 60)) ||
+                        (x == 90 && (y == 58 || y == 59 || y == 60)) ||
+                        ((x == 87 || x == 88) && (y == 56 || y == 62)) ||
+                        ((x == 84 || x == 91) && y == 59)) begin
+                        if (x >= 87 && x <= 88 && y >= 58 && y <= 60) pixel_data = 16'h18e5;
+                        else pixel_data = 16'hffff;
+                    end
+                end
+            end
+        end else if (game_state == `LP_RUN) begin
+            if (y < 48) begin
+                // Left & Center (x < 70) retains base_pixel: timer & centered vehicle!
+                if (x >= 70) begin
+                    pixel_data = 16'h0841;
+                    // [ EDIT ] button (x: 70..94, y: 2..12)
+                    if (y >= 2 && y <= 12 && x <= 94) begin
+                        if (x == 70 || x == 94 || y == 2 || y == 12) pixel_data = 16'h04b4;
+                        else if (cursor_x >= 70 && cursor_x <= 94 && cursor_y >= 2 && cursor_y <= 12) pixel_data = 16'h0351;
+                        else pixel_data = 16'h18e5;
+                        if (text_on("RETRY           ", 71, 4, x, y)) pixel_data = 16'hffff;
+                    end
+                    // [ GEAR ] Settings button (x: 76..88, y: 16..28)
+                    if (x >= 76 && x <= 88 && y >= 16 && y <= 28) begin
+                        if (x == 76 || x == 88 || y == 16 || y == 28) pixel_data = 16'h04b4;
+                        else if (cursor_x >= 76 && cursor_x <= 88 && cursor_y >= 16 && cursor_y <= 28) pixel_data = 16'h0351;
+                        else pixel_data = 16'h18e5;
+                        // Gear glyph
+                        if ((x >= 81 && x <= 83 && y >= 20 && y <= 24) ||
+                            (x == 80 && y >= 21 && y <= 23) ||
+                            (x == 84 && y >= 21 && y <= 23) ||
+                            (x == 82 && (y == 19 || y == 25)) ||
+                            ((x == 79 || x == 85) && y == 22)) begin
+                            if (x == 82 && y == 22) pixel_data = 16'h18e5;
+                            else pixel_data = 16'hffff;
+                        end
+                    end
+                    // [ RETRY ] button (x: 70..94, y: 32..42)
+                    if (y >= 32 && y <= 42 && x <= 94) begin
+                        if (x == 70 || x == 94 || y == 32 || y == 42) pixel_data = 16'h04b4;
+                        else if (cursor_x >= 70 && cursor_x <= 94 && cursor_y >= 32 && cursor_y <= 42) pixel_data = 16'h0351;
+                        else pixel_data = 16'h18e5;
+                        if (text_on("EDIT            ", 73, 34, x, y)) pixel_data = 16'hffff;
+                    end
                 end
             end else begin
-                if (text_on(run_page==0 ? "DRIVE           " : "SOUND           ",2,1,x,y)) pixel_data=16'h07ff;
-                if (x>=40 && x<66 && y<10) begin
-                    button=1; button_left=40; button_right=65; text_top=1; text_left=42; line="EDIT            ";
+                // Bottom Action Bar (y: 48..63)
+                pixel_data = 16'h0841;
+                if (y == 54) pixel_data = 16'h04b4; // dividing separator line
+
+                // Slot 0: ENGINE (x: 2..18, y: 55..63)
+                if (x >= 2 && x <= 18 && y >= 55) begin
+                    if (x == 2 || x == 18 || y == 55 || y == 63)
+                        pixel_data = engine_enabled ? 16'h07e0 : 16'h4208;
+                    else if (cursor_x >= 2 && cursor_x <= 18 && cursor_y >= 55 && cursor_y <= 63)
+                        pixel_data = 16'h0351;
+                    else
+                        pixel_data = engine_enabled ? 16'h03e0 : 16'h18c3;
+                    if (text_on("ENG             ", 4, 56, x, y))
+                        pixel_data = engine_enabled ? 16'hffff : 16'h7bef;
+                end
+
+                // Slot 1: FAN (x: 21..37, y: 55..63)
+                if (x >= 21 && x <= 37 && y >= 55) begin
+                    if (fan_available) begin
+                        if (x == 21 || x == 37 || y == 55 || y == 63)
+                            pixel_data = fan_on ? 16'h07ff : 16'h4208;
+                        else if (cursor_x >= 21 && cursor_x <= 37 && cursor_y >= 55 && cursor_y <= 63)
+                            pixel_data = 16'h0351;
+                        else
+                            pixel_data = fan_on ? 16'h02ef : 16'h18c3;
+                        if (text_on("FAN             ", 23, 56, x, y))
+                            pixel_data = fan_on ? 16'hffff : 16'h7bef;
+                    end else begin
+                        pixel_data = 16'h0421;
+                    end
+                end
+
+                // Slot 2: ROCKET (x: 40..56, y: 55..63)
+                if (x >= 40 && x <= 56 && y >= 55) begin
+                    if (rocket_available) begin
+                        if (x == 40 || x == 56 || y == 55 || y == 63)
+                            pixel_data = rocket_ready ? 16'hffe0 : 16'h4208;
+                        else if (cursor_x >= 40 && cursor_x <= 56 && cursor_y >= 55 && cursor_y <= 63)
+                            pixel_data = 16'h0351;
+                        else
+                            pixel_data = rocket_ready ? 16'hfc00 : 16'h18c3;
+                        if (text_on("RKT             ", 42, 56, x, y))
+                            pixel_data = rocket_ready ? 16'h0000 : 16'h7bef;
+                    end else begin
+                        pixel_data = 16'h0421;
+                    end
+                end
+
+                // Slot 3: BALLOON (x: 59..75, y: 55..63)
+                if (x >= 59 && x <= 75 && y >= 55) begin
+                    if (balloon_available) begin
+                        if (x == 59 || x == 75 || y == 55 || y == 63)
+                            pixel_data = 16'h7bef;
+                        else if (cursor_x >= 59 && cursor_x <= 75 && cursor_y >= 55 && cursor_y <= 63)
+                            pixel_data = 16'h0351;
+                        else
+                            pixel_data = 16'h2945;
+                        if (text_on("POP             ", 61, 56, x, y))
+                            pixel_data = 16'hffff;
+                    end else begin
+                        pixel_data = 16'h0421;
+                    end
+                end
+
+                // Slot 4: BOOST / JUMP (x: 78..93, y: 55..63)
+                if (x >= 78 && x <= 93 && y >= 55) begin
+                    if (x == 78 || x == 93 || y == 55 || y == 63)
+                        pixel_data = boost_active ? 16'hffff : 16'h780f;
+                    else if (cursor_x >= 78 && cursor_x <= 93 && cursor_y >= 55 && cursor_y <= 63)
+                        pixel_data = 16'h0351;
+                    else
+                        pixel_data = boost_active ? 16'hf81f : 16'h3010;
+                    if (text_on("BST             ", 80, 56, x, y))
+                        pixel_data = 16'hffff;
                 end
             end
-            if (run_page==0 && x>=4 && x<92 && y>=12 && y<54) begin
-                button_left=4; button_right=91; text_left=8;
-                if (y<22) begin button=1; text_top=13; line=engine_enabled ? "ENGINE ON       " : "ENGINE OFF      "; end
-                else if (y>=23 && y<33) begin
-                    button=1; text_top=24; enabled=fan_available;
-                    line=fan_available ? (fan_on ? "FAN ON          " : "FAN OFF         ") : "FAN WAIT        ";
-                end else if (y>=34 && y<44) begin
-                    button=1; text_top=35; line=boost_active ? "BOOST ON        " : "BOOST           ";
-                end else if (y>=45) begin
-                    button=1; text_top=46; enabled=rocket_available && rocket_ready;
-                    line=enabled ? "ROCKET FIRE     " : "ROCKET WAIT     ";
+        end else if (game_state == `LP_SUCCESS || game_state == `LP_FAIL) begin
+            if (y >= 55) begin
+                pixel_data = 16'h0841;
+                // TRY button
+                if (x < 28) begin
+                    if (x == 0 || x == 27 || y == 55 || y == 63) pixel_data = 16'h04b4;
+                    else pixel_data = 16'h18e5;
+                    if (text_on("TRY             ", 2, 56, x, y)) pixel_data = 16'hffff;
                 end
-            end
-            if (run_page==2) begin
-                if (text_on("MASTER VOLUME   ",2,10,x,y)) pixel_data=16'hffff;
-                if (y>=19 && y<26) begin
-                    case (master_volume)
-                        0: line="     OFF        "; 1: line="     1/3        ";
-                        2: line="     2/4        "; 3: line="     3/4        "; default: line="     4/4        ";
-                    endcase
-                    if (text_on(line,2,19,x,y)) pixel_data=16'hffff;
+                // NEXT / EDIT button
+                else if (x >= 32 && x < 60) begin
+                    if (x == 32 || x == 59 || y == 55 || y == 63) pixel_data = 16'h04b4;
+                    else pixel_data = 16'h18e5;
+                    if (text_on(game_state == `LP_SUCCESS ? "NEXT            " : "EDIT            ", 34, 56, x, y)) pixel_data = 16'hffff;
                 end
-                if (y>=46 && y<54) begin
-                    button=1; button_left=4; button_right=91; text_top=47; text_left=34;
-                    line=audio_muted ? "MUTED           " : "MUTE            ";
+                // DIARY button
+                else if (x >= 64) begin
+                    if (x == 64 || x == 95 || y == 55 || y == 63) pixel_data = 16'h04b4;
+                    else pixel_data = 16'h18e5;
+                    if (text_on("DIARY           ", 65, 56, x, y)) pixel_data = 16'hffff;
                 end
-                if (y>=28 && y<44 && ((x>=8 && x<36) || (x>=60 && x<88))) begin
-                    button=1; button_left=x<48 ? 8 : 60; button_right=button_left+27;
-                    text_top=32; text_left=button_left+11; line=x<48 ? "-               " : "+               ";
-                    enabled=x<48 ? master_volume>0 : master_volume<4;
-                end
-            end
-            if (y>=55) begin
-                button=1; button_left=x<32 ? 0 : x<64 ? 32 : 64; button_right=button_left+31;
-                text_top=56; text_visible=0;
-            end
-            if (button) begin
-                pixel_data=enabled ? 16'h18e5 : 16'h18c3;
-                if (enabled && cursor_x>=button_left && cursor_x<=button_right &&
-                    cursor_y>=text_top-1 && cursor_y<text_top+8) pixel_data=16'h0351;
-                if (x==button_left || x==button_right || (text_top==32 ? (y==28 || y==43) : (y==text_top-1 || y==text_top+7)))
-                    pixel_data=enabled ? 16'h04b4 : 16'h4208;
-                if (text_on(line,text_left,text_top,x,y)) pixel_data=enabled ? ink : 16'h7bef;
-            end
-            // A labelled retry button is visible on every RUN page.
-            if (x>=66 && x<96 && y<10) begin
-                pixel_data=16'h18e5;
-                if (x==66 || x==95 || y==0 || y==9) pixel_data=16'h04b4;
-                if (text_on("RETRY           ",68,1,x,y)) pixel_data=16'hffff;
-            end
-            // Icon-only page tabs: engine for DRIVE, balloon for POP and speaker for SOUND.
-            if (y>=55) begin
-                pixel_data=16'h18e5;
-                if (x==0 || x==31 || x==32 || x==63 || x==64 || x==95 || y==55 || y==63) pixel_data=16'h04b4;
-                if ((run_page==0 && x<32) || (run_page==1 && x>=32 && x<64) || (run_page==2 && x>=64)) begin
-                    if (y==56 || y==62) pixel_data=16'hffe0;
-                end
-                // Engine: body, nose and small exhaust.
-                if (x>=10 && x<=20 && y>=57 && y<=61 && (x<=18 || y==59)) pixel_data=(run_page==0) ? 16'hffe0 : 16'hffff;
-                if (x==8 && y>=58 && y<=60) pixel_data=(run_page==0) ? 16'hffe0 : 16'hffff;
-                // Balloon: round top with a string.
-                if (x>=43 && x<=53 && y>=56 && y<=61 && ((x-48)*(x-48)+(y-58)*(y-58)<=16)) pixel_data=(run_page==1) ? 16'hffe0 : 16'hffff;
-                if (x==48 && y==62) pixel_data=(run_page==1) ? 16'hffe0 : 16'hffff;
-                // Speaker: cone and two sound marks.
-                if ((x>=74 && x<=78 && y>=58 && y<=60) || (x==79 && y==57) || (x==79 && y==61) || (x==80 && y>=56 && y<=62) || (x==82 && (y==57 || y==61))) pixel_data=(run_page==2) ? 16'hffe0 : 16'hffff;
             end
         end
-        // The pointer is also visible on diary/result controls.
-        if ((x==cursor_x && y+2>=cursor_y && y<=cursor_y+2) ||
-            (y==cursor_y && x+2>=cursor_x && x<=cursor_x+2)) pixel_data=16'hffff;
+
+        // Mouse pointer overlay (topmost layer)
+        if ((x == cursor_x && y+2 >= cursor_y && y <= cursor_y+2) ||
+            (y == cursor_y && x+2 >= cursor_x && x <= cursor_x+2))
+            pixel_data = 16'hffff;
     end
 endmodule

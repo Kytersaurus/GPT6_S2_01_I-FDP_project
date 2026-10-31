@@ -155,9 +155,9 @@ module occupied_map_collision_tb;
         move(201*256,93*256,202*256,93*256+32,256,32,0,1,9'h1ff);
         if(cx!==202*256 || cvx!==256 || !grounded) $fatal(1,"Retained green lip was not climbed onto the road");
         // This pose overlaps real roof only in the empty top construction row.
-        if(!overlap_terrain(215*256,96*256,0,9'h1ff) || overlap_terrain(215*256,96*256,0,CAR))
+        if(!overlap_terrain(215*256,95*256,0,9'h1ff) || overlap_terrain(215*256,95*256,0,CAR))
             $fatal(1,"Photographed empty-roof fixture lost its geometry");
-        move(215*256,96*256,216*256,96*256+32,256,32,0,1,CAR);
+        move(215*256,95*256,216*256,95*256+32,256,32,0,1,CAR);
         if(cx!==216*256 || cvx!==256) $fatal(1,"Empty top row still stopped cave travel");
 
         scene=2;

@@ -9,6 +9,7 @@ module mouse_adapter (
     input wire [1:0] run_page,
     input wire [11:0] mouse_x, mouse_y,
     input wire mouse_left, mouse_right, mouse_event,
+    input wire [1:0] mouse_speed,
     output reg [11:0] mouse_value,
     output reg setx, sety, setmax_x, setmax_y,
     output reg [6:0] cursor_x, cursor_y,
@@ -30,6 +31,9 @@ module mouse_adapter (
     output reg boost_req
 );
     reg [1:0] setup_step;
+
+
+
     reg left_was_down, right_was_down;
     reg place_pending, inventory_armed;
     assign drag_active = place_pending && game_state == `LP_BUILD && input_enabled;
@@ -110,8 +114,8 @@ module mouse_adapter (
             if (setup_step != 3) setup_step <= setup_step + 1'b1;
             else if (mouse_event) begin
                 // Read buttons only after a complete packet, when its position is ready.
-                cursor_x <= (mouse_x > 95) ? 95 : mouse_x[6:0];
-                cursor_y <= (mouse_y > 63) ? 63 : mouse_y[6:0];
+                cursor_x <= (mouse_x > 95) ? 7'd95 : mouse_x[6:0];
+                cursor_y <= (mouse_y > 63) ? 7'd63 : mouse_y[6:0];
                 left_was_down <= mouse_left; right_was_down <= mouse_right;
                 if (game_state == `LP_BUILD && input_enabled) begin
                     if (mouse_right) begin
@@ -181,7 +185,7 @@ module mouse_adapter (
                 end else if (input_enabled && game_state == `LP_RUN && mouse_left && !left_was_down &&
                              !mouse_right) begin
                     // Gameplay uses one fresh press, rather than construction's drop.
-                    if (run_page==1 && in_grid) begin pop_req <= 1; pop_cell <= hovered_cell; end
+                    if (in_grid) begin pop_req <= 1; pop_cell <= hovered_cell; end
                     // DRIVE boost comes from ui_controller.
                 end
             end

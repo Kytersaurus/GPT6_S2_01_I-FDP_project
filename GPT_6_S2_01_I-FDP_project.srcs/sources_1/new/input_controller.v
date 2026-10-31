@@ -5,8 +5,8 @@ module input_controller #(
     parameter integer DEBOUNCE_CYCLES = 20000000,
     parameter integer RELEASE_CYCLES = 2000000
 ) (
-    input wire clk, reset, btnC, btnU, btnL, engine_switch, mute_switch, reverse_switch,
-    output wire start_press, edit_press, audio_muted, engine_reverse, jump_press,
+    input wire clk, reset, btnC, btnU, btnL, btnR, engine_switch, mute_switch, reverse_switch,
+    output wire start_press, edit_press, right_press, audio_muted, engine_reverse, jump_press,
     output reg engine_switch_changed
 );
     reg engine_meta, engine_sync;
@@ -25,6 +25,10 @@ module input_controller #(
     button_debouncer #(.RELEASE_CYCLES(RELEASE_CYCLES)) u_left (
         .CLOCK(clk), .reset(reset), .btn(btnL),
         .freq_count(DEBOUNCE_CYCLES-1), .btn_pressed(jump_press)
+    );
+    button_debouncer #(.RELEASE_CYCLES(RELEASE_CYCLES)) u_right (
+        .CLOCK(clk), .reset(reset), .btn(btnR),
+        .freq_count(DEBOUNCE_CYCLES-1), .btn_pressed(right_press)
     );
     always @(posedge clk) begin
         if (reset) begin
