@@ -31,6 +31,61 @@ module ui_renderer (
 
     integer example_local_x, example_local_y, example_row, example_col;
 
+    // Helper function to evaluate 2x comic bubble title font ("LAGGY PIGGIES")
+    // Glyphs: 0:L, 1:A, 2:G, 3:Y, 4:P, 5:I, 6:E, 7:S
+    function is_title_char;
+        input [6:0] px;
+        input [5:0] py;
+        reg [2:0] gid;
+        reg [3:0] lx, ly;
+        reg in_char;
+        reg [2:0] fcol, frow;
+        reg [34:0] glyph;
+        begin
+            gid = 0; lx = 0; ly = 0; in_char = 0; glyph = 0;
+            if (py >= 3 && py <= 16) begin
+                ly = py - 6'd3;
+                if (px >= 18 && px <= 27)      begin gid = 3'd0; lx = px - 7'd18; in_char = 1; end
+                else if (px >= 30 && px <= 39) begin gid = 3'd1; lx = px - 7'd30; in_char = 1; end
+                else if (px >= 42 && px <= 51) begin gid = 3'd2; lx = px - 7'd42; in_char = 1; end
+                else if (px >= 54 && px <= 63) begin gid = 3'd2; lx = px - 7'd54; in_char = 1; end
+                else if (px >= 66 && px <= 75) begin gid = 3'd3; lx = px - 7'd66; in_char = 1; end
+            end else if (py >= 18 && py <= 31) begin
+                ly = py - 6'd18;
+                if (px >= 7 && px <= 16)       begin gid = 3'd4; lx = px - 7'd7;  in_char = 1; end
+                else if (px >= 19 && px <= 28) begin gid = 3'd5; lx = px - 7'd19; in_char = 1; end
+                else if (px >= 31 && px <= 40) begin gid = 3'd2; lx = px - 7'd31; in_char = 1; end
+                else if (px >= 43 && px <= 52) begin gid = 3'd2; lx = px - 7'd43; in_char = 1; end
+                else if (px >= 55 && px <= 64) begin gid = 3'd5; lx = px - 7'd55; in_char = 1; end
+                else if (px >= 67 && px <= 76) begin gid = 3'd6; lx = px - 7'd67; in_char = 1; end
+                else if (px >= 79 && px <= 88) begin gid = 3'd7; lx = px - 7'd79; in_char = 1; end
+            end
+            if (in_char) begin
+                fcol = lx >> 1;
+                frow = ly >> 1;
+                case (gid)
+                    3'd0: glyph = {5'b10000, 5'b10000, 5'b10000, 5'b10000, 5'b10000, 5'b10000, 5'b11111}; // L
+                    3'd1: glyph = {5'b01110, 5'b10001, 5'b10001, 5'b11111, 5'b10001, 5'b10001, 5'b10001}; // A
+                    3'd2: glyph = {5'b01111, 5'b10000, 5'b10000, 5'b10111, 5'b10001, 5'b10001, 5'b01111}; // G
+                    3'd3: glyph = {5'b10001, 5'b10001, 5'b01010, 5'b00100, 5'b00100, 5'b00100, 5'b00100}; // Y
+                    3'd4: glyph = {5'b11110, 5'b11111, 5'b11111, 5'b11110, 5'b10000, 5'b10000, 5'b10000}; // P (snout loop filled)
+                    3'd5: glyph = {5'b11111, 5'b00100, 5'b00100, 5'b00100, 5'b00100, 5'b00100, 5'b11111}; // I
+                    3'd6: glyph = {5'b11111, 5'b10000, 5'b10000, 5'b11110, 5'b10000, 5'b10000, 5'b11111}; // E
+                    3'd7: glyph = {5'b01111, 5'b10000, 5'b10000, 5'b01110, 5'b00001, 5'b00001, 5'b11110}; // S
+                endcase
+                is_title_char = glyph[((6 - frow) << 2) + (6 - frow) + (4 - fcol)];
+            end else begin
+                // Cute pig ears atop both 'I's in "PIGGIES"
+                if ((py == 16 || py == 17) &&
+                    ((px >= 20 && px <= 22) || (px >= 25 && px <= 27) ||
+                     (px >= 56 && px <= 58) || (px >= 61 && px <= 63)))
+                    is_title_char = 1'b1;
+                else
+                    is_title_char = 1'b0;
+            end
+        end
+    endfunction
+
     // Helper function to draw cartoon settings gear matching reference artwork
     function [15:0] cartoon_gear;
         input signed [6:0] center_x, center_y, px, py;
@@ -72,6 +127,14 @@ module ui_renderer (
     wire [3:0] run_cell_y = (y - 6'd2) & 4'd15;
     reg [2:0] run_part;
     reg [15:0] run_spr;
+    wire title_lit = is_title_char(x, y);
+    wire title_outline = !title_lit && (
+        is_title_char(x + 7'd1, y) ||
+        (x > 0 && is_title_char(x - 7'd1, y)) ||
+        is_title_char(x, y + 6'd1) ||
+        (y > 0 && is_title_char(x, y - 6'd1))
+    );
+
 
     always @* begin
         pixel_data = base_pixel;
@@ -91,52 +154,33 @@ module ui_renderer (
                 pixel_data = 16'h1c76; // Turquoise ocean wave
             end
 
-            // 2. Title Bubble Font: "LAGGY PIGGIES"
-            // Row 1: "LAGGY" centered at y: 4..13, x: 23..65 (5 letters x 8px)
-            // Row 2: "PIGGIES" centered at y: 16..25, x: 16..77 (7 letters x 8px)
-            if (y >= 4 && y <= 13 && x >= 23 && x <= 65) begin
-                // Draw bold lime-green letters with dark green outline
-                if (text_on("LAGGY           ", 24, 5, x, y) ||
-                    text_on("LAGGY           ", 23, 5, x, y) ||
-                    text_on("LAGGY           ", 24, 6, x, y)) begin
-                    pixel_data = (y == 5 || y == 6) ? 16'ha7e0 : 16'h5fe0; // Lime green with top highlight
-                end else if (text_on("LAGGY           ", 24, 4, x, y) ||
-                             text_on("LAGGY           ", 24, 7, x, y) ||
-                             text_on("LAGGY           ", 22, 5, x, y) ||
-                             text_on("LAGGY           ", 25, 5, x, y)) begin
-                    pixel_data = 16'h0200; // Dark green outline
+            // 2. Title Bubble Font: "LAGGY PIGGIES" with Snout & Ears
+            if (title_lit) begin
+                // Nostrils inside the loop of 'P'
+                if (y == 22 && (x == 11 || x == 14)) begin
+                    pixel_data = 16'h0200; // Dark green nostril holes
+                end else begin
+                    // Lime green letters with specular highlight on upper rows
+                    pixel_data = (y == 4 || y == 5 || y == 19 || y == 20) ? 16'ha7e0 : 16'h5fe0;
                 end
-            end else if (y >= 16 && y <= 25 && x >= 16 && x <= 77) begin
-                if (text_on("PIGGIES         ", 17, 17, x, y) ||
-                    text_on("PIGGIES         ", 16, 17, x, y) ||
-                    text_on("PIGGIES         ", 17, 18, x, y)) begin
-                    // Snout nostrils in P and G loops
-                    if ((x == 19 && y == 19) || (x == 37 && y == 19) || (x == 46 && y == 19))
-                        pixel_data = 16'h0200;
-                    else
-                        pixel_data = (y == 17 || y == 18) ? 16'ha7e0 : 16'h5fe0;
-                end else if (text_on("PIGGIES         ", 17, 16, x, y) ||
-                             text_on("PIGGIES         ", 17, 19, x, y) ||
-                             text_on("PIGGIES         ", 15, 17, x, y) ||
-                             text_on("PIGGIES         ", 18, 17, x, y)) begin
-                    pixel_data = 16'h0200; // Dark green outline
-                end
+            end else if (title_outline) begin
+                pixel_data = 16'h0200; // Bold 1px dark green comic border
             end
 
-            // 3. Centered Circular Play Button at (48, 38), Radius 9
-            if ((x-7'd48)*(x-7'd48) + (y-6'd38)*(y-6'd38) <= 81) begin
-                if ((x-7'd48)*(x-7'd48) + (y-6'd38)*(y-6'd38) >= 64) begin
+            // 3. Centered Circular Play Button at (48, 43), Radius 9
+            if ((x-7'd48)*(x-7'd48) + (y-6'd43)*(y-6'd43) <= 81) begin
+                if ((x-7'd48)*(x-7'd48) + (y-6'd43)*(y-6'd43) >= 64) begin
                     pixel_data = 16'h0280; // Dark rim
                 end else begin
                     // White play triangle pointing right inside circle
-                    if (x >= 45 && x <= 52 &&
-                        y >= (34 + (x - 45)) &&
-                        y <= (42 - (x - 45))) begin
+                    if (x >= 45 && x <= 53 &&
+                        y >= (39 + ((x - 45) >> 1)) &&
+                        y <= (47 - ((x - 45) >> 1))) begin
                         pixel_data = 16'hffff; // White triangle
                     end else begin
-                        if (cursor_x >= 38 && cursor_x <= 58 && cursor_y >= 28 && cursor_y <= 48)
+                        if (cursor_x >= 38 && cursor_x <= 58 && cursor_y >= 33 && cursor_y <= 53)
                             pixel_data = 16'h0360; // Hover pulse
-                        else if (y < 36 && x < 48)
+                        else if (y < 41 && x < 48)
                             pixel_data = 16'h7fe0; // Specular crescent
                         else
                             pixel_data = 16'h4fe0; // Vibrant lime green

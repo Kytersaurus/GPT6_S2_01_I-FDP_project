@@ -26,7 +26,13 @@ module ui_controller (
 
     always @(posedge clk) begin
         if (reset) begin
-            left_was_down<=0; diary_page<=0; master_volume<=4; engine_on<=1; fan_on<=0; sound_muted<=0;
+            left_was_down<=0; diary_page<=0; master_volume<=4;
+`ifdef SYNTHESIS
+            engine_on<=0;
+`else
+            engine_on<=1;
+`endif
+            fan_on<=0; sound_muted<=0;
             run_page<=0; boost_req<=0; mouse_speed<=1; // Default NORM
             launch_req<=0; edit_req<=0; end_try_req<=0; guide_open_req<=0; guide_close_req<=0;
             rocket_req<=0; launch_ticks<=0;
@@ -35,7 +41,12 @@ module ui_controller (
             launch_req<=0; edit_req<=0; end_try_req<=0; guide_open_req<=0; guide_close_req<=0; rocket_req<=0;
             level_open_req<=0; level_close_req<=0; level_select_req<=0;
             boost_req<=0;
+`ifdef SYNTHESIS
+            if (run_init) begin engine_on<=engine_switch; fan_on<=0; run_page<=0; end
+            if (engine_switch_changed) engine_on<=engine_switch;
+`else
             if (run_init) begin engine_on<=1; fan_on<=0; run_page<=0; end
+`endif
             if (engine_toggle_req) engine_on<=!engine_on;
             if (fan_toggle_req && fan_available) fan_on<=!fan_on;
             // SW0 does not change the on-screen engine setting; engine is toggled via on-screen DRIVE control.
@@ -50,8 +61,9 @@ module ui_controller (
                 if (input_enabled && mouse_left && !left_was_down && !mouse_right) begin
                     if (start_screen_active) begin
                         // Option B: Large centered [ PLAY ] button: x: 36..59, y: 26..48 (and fallback 24..71, 36..48)
-                        if ((mouse_x >= 36 && mouse_x <= 59 && mouse_y >= 26 && mouse_y <= 48) ||
-                            (mouse_x >= 24 && mouse_x <= 71 && mouse_y >= 36 && mouse_y <= 48))
+                        if ((mouse_x >= 36 && mouse_x <= 60 && mouse_y >= 30 && mouse_y <= 54) ||
+                            (mouse_x >= 36 && mouse_x <= 59 && mouse_y >= 26 && mouse_y <= 48) ||
+                            (mouse_x >= 24 && mouse_x <= 71 && mouse_y >= 26 && mouse_y <= 54))
                             launch_req <= 1;
                         // Option B: Cartoon Settings [ GEAR ] in bottom-left: x: 2..20, y: 44..62 (and legacy top-right 82..94, 2..14)
                         else if ((mouse_x >= 2 && mouse_x <= 20 && mouse_y >= 44 && mouse_y <= 62) ||
