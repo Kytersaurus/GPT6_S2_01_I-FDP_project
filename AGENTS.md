@@ -1,52 +1,71 @@
-# AGENTS.md — Developer & AI Agent Guide
+# AGENTS.md — Team & AI Agent Guide
 
-Welcome to the **Bad Piggies FPGA** codebase! This document provides complete architectural, operational, and development context for AI coding assistants and human developers working on this project.
+Welcome to the **Bad Piggies FPGA** codebase!  
+This document serves as the single source of truth for **all human teammates (Kaushal, Kyle, Yap Ting, Marcus)** and **AI coding agents**. It outlines the core architectural rules, coding standards, hardware constraints, and verification procedures to ensure seamless pair programming and zero regressions.
 
 ---
 
-## 1. Project Overview & Identity
+## 1. Project Overview & Team Ownership
 
 * **Project:** Hardware-accelerated clone of *Bad Piggies* running on the **Digilent Basys 3** FPGA (Xilinx Artix-7 `XC7A35T-1CPG236C`).
-* **Hardware Features:**
-  - Rigid body physics engine with continuous 360° vehicle rotation and terrain-following dynamics.
-  - Separating Axis Theorem (SAT) raster collision scanner against dual-port terrain Block RAM.
-  - Swept-AABB TNT explosions, dynamic damage masks, and balloon buoyancy/popping.
-  - Dual 96×64 RGB OLED displays (SSD1331 via SPI on PMOD JA and JB) with camera zoom and free look.
-  - PS/2 mouse interface with drag-and-drop building, pan/zoom, and in-game balloon popping.
-  - Dual-voice background music synthesis (The Entertainer, Bad Piggies Theme, Title Fanfare) and prioritized PWM sound effects (Pmod AMP2 on JXADC).
-  - Basys 3 active-low 4-digit 7-segment display driver for M.SS run timer.
-* **Team Roles & Ownership:**
-  - **Role 1 (Kaushal):** Vehicle Builder, Inventory/Stock Validation, Mouse Input, Audio Pipeline (BGM + SFX), 7-Segment Timer, UI Layouts.
-  - **Role 2 (Kyle):** Physics Engine, Newtonian Kinematics, Fixed-Point Arithmetic, 16-Cycle Signed Divider, Tilt Dynamics.
+* **Hardware Interconnects:**
+  - Logic clock: **100 MHz** (onboard oscillator).
+  - Dual OLED displays: Two 96×64 RGB OLEDs (SSD1331 via SPI at **6.25 MHz**) on PMOD JA (Left) and PMOD JB (Right).
+  - Audio: 8-bit PWM sound effects and dual-voice music driving Pmod AMP2 on JXADC.
+  - PS/2 Mouse: Standard PS/2 streaming interface on PMOD JC.
+  - Basys 3 onboard I/O: 4-digit active-low 7-segment display (M.SS timer), switches (SW0 engine, SW1 reverse, SW4 free look), and buttons.
+* **Team Roles & Responsibilities:**
+  - **Role 1 (Kaushal):** Vehicle Builder, Inventory/Stock Validation, Mouse Input & Drag-and-Drop, Audio Pipeline (BGM + SFX), 7-Segment Timer, Left OLED UI Layouts.
+  - **Role 2 (Kyle):** Physics Engine, Newtonian Kinematics, Fixed-Point Arithmetic (Q12.8), 16-Cycle Signed Divider, Tilt Dynamics & Settling.
   - **Role 3 (Yap Ting):** Terrain Collision Engine (SAT Raster Scanner), TNT Explosions & Damage Masks, World Outcomes (Goal, Hazards, Death).
   - **Role 4 (Marcus):** Master Game Controller FSM, Level Data, Dual-OLED Renderers (Follow-Camera, Viewports), CDC Display Snapshot.
 
 ---
 
-## 2. Critical Non-Negotiable Constraints
+## 2. Core Coding Standards & Team Principles
 
-When working on this repository, **you must strictly adhere to the following rules**:
+### 💡 1. No Complicated / Obfuscated Code (Simplicity & Readability First)
+* **Context:** This is an undergraduate academic FPGA project. The code must be clean, modular, self-documenting, and easy for any teammate or lab instructor to read, explain, and maintain.
+* **Rules:**
+  - **Avoid needlessly clever, dense, or obfuscated one-liners.**
+  - **Avoid deeply nested ternary operators (`? : ? : ? :`).** Use clean `if...else if...else` blocks or explicit `case` statements.
+  - **Name signals descriptively:** Use physical names (e.g. `is_grounded`, `engine_thrust`, `first_intact_balloon`) rather than cryptic abbreviations.
+  - **Document physical meaning:** Always comment *why* a constant exists (e.g. `// Rolling drag = 10 units; scraping drag on bare wood = 128 units`).
+  - **Explicit FSM states:** Define states with `localparam` and write clean state transition logic.
 
-### 🚫 Constraint 1: NEVER TOUCH MAP FILES
-- **Files:** `cave_flight_map.mem`, `cave_flight_solid.mem`, `cave_flight_colour_*.mem`, `cave_arch_map.mem`, `cave_arch_solid.mem`, and [`level_map.v`](file:///c:/Users/kaush/EE2026Labs/GPT6_S2_01_I-FDP_project/GPT_6_S2_01_I-FDP_project.srcs/sources_1/new/level_map.v).
-- **Reason:** A teammate is actively detailing the terrain artwork, color palettes, and solidity maps. Any modification to these files will break concurrent work. The engine is designed so that when the `.mem` files are updated, collision and display pipelines automatically adapt.
+### ⚡ 2. Strict LUT Minimization (Tight FPGA Capacity)
+* **Constraint:** The Artix-7 `XC7A35T` has only **20,800 Slice LUTs**. The design currently uses **~16,500 LUTs (79.34%)**. We must aggressively conserve LUTs to leave headroom.
+* **Rules:**
+  - **NO runtime division (`/`) or modulo (`%`) in single-cycle or display paths.**
+    - A single combinational `/` or `%` synthesizes into massive multiplier/divider trees consuming hundreds of LUTs and destroying timing.
+    - **Never do:** `wire [6:0] x = pixel_index % 96; wire [5:0] y = pixel_index / 96;` in active raster logic. Instead, track `x` and `y` using simple incremental counters or passed-down coordinates.
+    - For timer BCD conversion (e.g. seconds $\to$ minutes/seconds), use **subtraction ladders** (e.g. `if (s >= 60) begin m = 1; s = s - 60; end`) rather than `/ 60` or `% 60`.
+    - If division is strictly required for physics kinematics ($a = F/m$), use the sequential 16-cycle restoring divider ([`signed_divider16.v`](file:///c:/Users/kaush/EE2026Labs/GPT6_S2_01_I-FDP_project/GPT_6_S2_01_I-FDP_project.srcs/sources_1/new/signed_divider16.v)).
+  - **Right-size bit widths:** Never declare signals as 32-bit `integer` or `reg [31:0]` when a 6-bit (`reg [5:0]`) or 10-bit value suffices. Oversized registers waste flip-flops and expand comparator logic.
+  - **Share common logic:** Reuse shared arithmetic, coordinate lookups, and glyph drawing functions instead of duplicating identical decoding blocks.
 
-### 🚫 Constraint 2: STRICT ZERO EXTRA BRAM (Max 48 / 50 Tiles)
-- The Artix-7 `XC7A35T` on Basys 3 has exactly **50 Block RAM tiles** (`RAMB36E1`).
-- The project currently uses **48 / 50 tiles (96.00%)**.
-- **Rule:** **DO NOT instantiate any new Block RAM, dual-port RAMs, or large memory arrays.** All new UI elements, icons, bitmap fonts, start screens, and animations must be implemented as distributed logic ROMs (look-up tables, `ui_font.vh`, combinational decoders).
+### 🚫 3. STRICT ZERO EXTRA BRAM (Max 48 / 50 Tiles — 96.00%)
+* **Constraint:** Basys 3 has exactly **50 Block RAM tiles** (`RAMB36E1`). Current design uses **48 tiles (96%)**.
+* **Rules:**
+  - **DO NOT instantiate any new Block RAM, dual-port RAMs, or large memory arrays.**
+  - All new UI elements, buttons, glyphs, start screen artwork, star rating badges, and sprite animations **must be implemented in distributed logic (LUT ROMs)** using look-up tables, `ui_font.vh`, and combinational decoders.
+  - **Reuse idle ports:** When an existing BRAM port is idle in a specific state, multiplex it. *(Example: During the Start Screen, Right OLED is blanked, so Port B of the terrain BRAM is borrowed by Left OLED to scroll the live cave background at 0% extra BRAM cost).*
 
-### 🚫 Constraint 3: TIMING CLOSURE AT 100 MHz
-- Logic clock runs at **100 MHz**; OLED SPI clock runs at **6.25 MHz**.
-- All PRs and modifications must achieve positive slack (**WNS > 0.000 ns**, **WHS > 0.000 ns**, **0 failing endpoints**).
-- Avoid deep combinational dividers or wide nested arithmetic in single-cycle paths. Use pipelined dividers ([`signed_divider16.v`](file:///c:/Users/kaush/EE2026Labs/GPT6_S2_01_I-FDP_project/GPT_6_S2_01_I-FDP_project.srcs/sources_1/new/signed_divider16.v)) and registered FSM stages.
+### 🚫 4. NEVER TOUCH MAP FILES
+* **Protected Files:** `cave_flight_map.mem`, `cave_flight_solid.mem`, `cave_flight_colour_*.mem`, `cave_arch_map.mem`, `cave_arch_solid.mem`, and [`level_map.v`](file:///c:/Users/kaush/EE2026Labs/GPT6_S2_01_I-FDP_project/GPT_6_S2_01_I-FDP_project.srcs/sources_1/new/level_map.v).
+* **Reason:** Teammates are actively detailing the cave terrain artwork, color palettes, and collision solidity. Any changes here will corrupt parallel work. The engine is built so that when `.mem` files are re-exported, the collision and rendering pipelines automatically adapt without code edits.
 
-### 🚫 Constraint 4: MAINTAIN 100% PASS RATE ON ALL 51 TESTBENCHES
-- The regression test suite contains **51 testbenches**.
-- Before committing any change, all 51 testbenches must pass without regression.
+### ⏱️ 5. Timing Closure at 100 MHz
+* **Constraint:** Logic clock runs at **100 MHz**; OLED SPI clock runs at **6.25 MHz**.
+* **Requirements:**
+  - All builds must achieve positive slack: **WNS > 0.000 ns**, **WHS > 0.000 ns**, **0 failing endpoints**.
+  - All cross-clock communication must pass through the registered CDC handshake module ([`display_snapshot.v`](file:///c:/Users/kaush/EE2026Labs/GPT6_S2_01_I-FDP_project/GPT_6_S2_01_I-FDP_project.srcs/sources_1/new/display_snapshot.v)).
+  - Avoid wide combinational logic cascades across single clock cycles. Register intermediate results in FSM stages.
 
-### 🚫 Constraint 5: BACKWARD-COMPATIBLE HITBOXES
-- When tweaking UI button coordinates or hitboxes on Left OLED, always maintain backward compatibility for existing testbenches using fallback conditions or prioritized evaluation order (`RETRY` $\to$ `SETTINGS` $\to$ `EDIT` $\to$ `ACTION ICONS`).
+### 🛡️ 6. Maintain 100% Pass Rate on All 51 Testbenches & Backward Compatibility
+* The test suite contains **51 testbenches** covering every subsystem.
+* **Never commit breaking interface changes.**
+* When adjusting UI button hitboxes on Left OLED, **always preserve backward compatibility** with legacy testbench clicks using fallback coordinates or prioritized checking order (`RETRY` $\to$ `SETTINGS` $\to$ `EDIT` $\to$ `ACTION ICONS`).
 
 ---
 
@@ -97,22 +116,22 @@ flowchart TD
 
 ---
 
-## 4. Key Subsystem Implementation Notes
+## 4. Hardware & Subsystem Implementation Details
 
-### 4.1 Clocking & Clock Domain Crossing (CDC)
-* **100 MHz Domain:** Inputs, physics, collision FSM, game state, audio PWM.
+### 4.1 Clock Domain Crossing (CDC)
+* **100 MHz Domain:** Core FSM, inputs, physics calculations, SAT collision scanner, audio PWM.
 * **6.25 MHz Domain:** OLED SPI transmission and pixel rasterization.
-* **CDC Module ([`display_snapshot.v`](file:///c:/Users/kaush/EE2026Labs/GPT6_S2_01_I-FDP_project/GPT_6_S2_01_I-FDP_project.srcs/sources_1/new/display_snapshot.v)):** Uses a 4-phase toggle handshake with 2-stage synchronizers (`meta -> sync`). The display domain registers snapshot data and only commits it to output on `frame_begin`. This guarantees tearing-free 60 fps rendering.
+* **Snapshot Protocol ([`display_snapshot.v`](file:///c:/Users/kaush/EE2026Labs/GPT6_S2_01_I-FDP_project/GPT_6_S2_01_I-FDP_project.srcs/sources_1/new/display_snapshot.v)):** Uses a 4-phase toggle handshake with 2-stage synchronizers (`meta -> sync`). Output data commits strictly on `frame_begin`, preventing mid-frame tearing and metastability.
 
 ### 4.2 PS/2 Mouse & Coordinates
-* Mouse is initialized to stream mode (`0xF4`) at 40 Hz reporting.
-* [`mouse_adapter.v`](file:///c:/Users/kaush/EE2026Labs/GPT6_S2_01_I-FDP_project/GPT_6_S2_01_I-FDP_project.srcs/sources_1/new/mouse_adapter.v) maintains clamped cursor coordinates $(x, y) \in [0..95, 0..63]$ matching the 96×64 OLED resolution.
-* Drag-and-drop: Left click down on inventory initiates drag; release over a 3×3 grid cell places the part. Right-click removes parts.
+* Mouse runs in stream mode (`0xF4`) at 40 Hz reporting.
+* [`mouse_adapter.v`](file:///c:/Users/kaush/EE2026Labs/GPT6_S2_01_I-FDP_project/GPT_6_S2_01_I-FDP_project.srcs/sources_1/new/mouse_adapter.v) scales raw deltas (`SPD: SLOW / NORM / FAST`) and clamps cursor coordinates to $[0..95, 0..63]$.
+* Drag-and-drop: Holding Left Click over an inventory part starts dragging; releasing over a valid 3×3 grid cell places the part. Right-click removes parts.
 * In RUN mode, left clicks on balloons in the vehicle diagram or action bar trigger popping requests.
 
 ### 4.3 Vehicle Construction Rules ([`vehicle_builder.v`](file:///c:/Users/kaush/EE2026Labs/GPT6_S2_01_I-FDP_project/GPT_6_S2_01_I-FDP_project.srcs/sources_1/new/vehicle_builder.v))
-* Vehicle footprint is 3×3 cells (each 8×8 world pixels, total 24×24 pixels).
-* Structural rules:
+* Footprint is 3×3 cells (each 8×8 world pixels, total 24×24 pixels).
+* Mounting rules:
   - `PIG` and `ENGINE` require an underlying `FRAME`.
   - `WHEEL` requires a supporting frame directly above or below.
   - `BALLOON` requires frame support below or beside.
@@ -122,9 +141,9 @@ flowchart TD
 ### 4.4 Rigid Body Physics & Rotation ([`physics_engine.v`](file:///c:/Users/kaush/EE2026Labs/GPT6_S2_01_I-FDP_project/GPT_6_S2_01_I-FDP_project.srcs/sources_1/new/physics_engine.v))
 * Kinematics use Q12.8 fixed-point format (`LP_COORD_BITS = 20` or 16-bit).
 * Rotation is quantized into 32 angular steps (11.25° increments) covering -16..15 tilt values via [`rotation_geometry.vh`](file:///c:/Users/kaush/EE2026Labs/GPT6_S2_01_I-FDP_project/GPT_6_S2_01_I-FDP_project.srcs/sources_1/new/rotation_geometry.vh).
-* Acceleration calculation $a = F / m$ uses a 16-cycle restoring divider ([`signed_divider16.v`](file:///c:/Users/kaush/EE2026Labs/GPT6_S2_01_I-FDP_project/GPT_6_S2_01_I-FDP_project.srcs/sources_1/new/signed_divider16.v)).
+* Mass division $a = F / m$ uses a 16-cycle restoring divider ([`signed_divider16.v`](file:///c:/Users/kaush/EE2026Labs/GPT6_S2_01_I-FDP_project/GPT_6_S2_01_I-FDP_project.srcs/sources_1/new/signed_divider16.v)).
 * Ground friction: Rolling drag = 10 units; scraping drag (bare frames on rock) = 128 units.
-* Camera height smoothing: `display_y` uses an alpha-beta filter to eliminate 2-pixel terrain step jitter.
+* Camera smoothing: `display_y` uses an alpha-beta filter to eliminate 2-pixel terrain step jitter.
 
 ### 4.5 Terrain Collision & SAT ([`rotating_map_collision_engine.v`](file:///c:/Users/kaush/EE2026Labs/GPT6_S2_01_I-FDP_project/GPT_6_S2_01_I-FDP_project.srcs/sources_1/new/rotating_map_collision_engine.v))
 * Evaluates rotated bounding pixel area against solidity RAM using Separating Axis Theorem (SAT).
@@ -144,7 +163,7 @@ flowchart TD
 * SFX Priority: $\text{Failure} > \text{Success} > \text{Explosion} > \text{Collision} > \text{Pop} > \text{Launch} > \text{Test}$.
 * Outputs 8-bit PWM on `JXADC[0]` with hardware gain on `JXADC[1]` and active shutdown on `JXADC[3]`.
 
-### 4.8 Dual OLED Rendering & Port B Multiplexing
+### 4.8 Dual OLED Rendering & Hardware Orientation
 * **JA (Left OLED):** Rotated 180° in hardware (`95 - x`, `63 - y`) because PMOD JA is mounted upside down on the Basys 3 board.
   - *Title Screen:* Scrolling cave background with game logo, Play button, and Settings button.
   - *Build Screen:* 16px grid, inventory pages 1 & 2, drag preview, Go button, Book/Settings icons.
@@ -154,13 +173,17 @@ flowchart TD
   - World follow-camera with 4 zoom levels (1.5x, 1.0x, 0.75x, 0.5x) or mouse Free Look (SW4).
 * **Port B BRAM Multiplexing:** During the Title Screen, because Right OLED is turned off, Port B of the terrain BRAM (`level_map.v`) is routed to the Left OLED pipeline with an offset scroll counter. This produces a live moving cave background at **0% extra BRAM cost**.
 
+### 4.9 7-Segment Run Timer ([`seven_seg_timer.v`](file:///c:/Users/kaush/EE2026Labs/GPT6_S2_01_I-FDP_project/GPT_6_S2_01_I-FDP_project.srcs/sources_1/new/seven_seg_timer.v))
+* Formats elapsed run time as active-low `M.SS` with the decimal point lit on digit 2 (`an = 4'b1011, dp = 0`).
+* Digit 3 actively scans (`an = 4'b0111, number = 0`) to satisfy Basys 3 digit multiplexing hardware contracts without ghosting.
+* Uses subtraction-ladder BCD decoding instead of division to save LUTs and avoid timing paths.
+
 ---
 
-## 5. Development & Verification Guide
+## 5. Development & Verification Commands
 
 ### 5.1 Running Simulations
-Simulations are located in `sim/`. You can compile and run any testbench using Vivado `xvlog`/`xelab`/`xsim`:
-
+Compile and run any testbench using Vivado `xvlog`/`xelab`/`xsim`:
 ```powershell
 # Example: Running the full cave autonomous drive testbench
 xvlog -i GPT_6_S2_01_I-FDP_project.srcs/sources_1/new sim/cave_arch_drive_tb.v
@@ -168,7 +191,7 @@ xelab -debug typical cave_arch_drive_tb -s cave_arch_drive_sim
 xsim cave_arch_drive_sim -R
 ```
 
-Or run all testbenches using the PowerShell regression runner:
+Or run the complete regression test suite:
 ```powershell
 .\scripts\run_all_tests.ps1
 ```
@@ -182,19 +205,21 @@ Check resource utilization and timing in:
 - `tmp/bitstream_build/utilization_routed.rpt`
 - `tmp/bitstream_build/timing_routed.rpt`
 
-Verify that:
+Verify before flashing:
 - **Block RAM Tile** $\le 48$ / 50.
 - **Slice LUTs** $\le 20,800$.
 - **WNS** $\ge 0.000$ ns.
 
 ---
 
-## 6. Checklist for Future AI Agents
+## 6. Pre-Commit Checklist for Teammates & Agents
 
-Before declaring any coding task complete:
-1. [ ] Did you avoid touching `cave_*.mem` and `level_map.v`?
-2. [ ] Did you ensure 0 additional Block RAM blocks were introduced?
-3. [ ] Did all 51 testbenches pass cleanly?
-4. [ ] Did timing close with positive WNS and WHS?
-5. [ ] Are all UI hitboxes backward-compatible with legacy automated tests?
-6. [ ] Are changes cleanly staged without leftover temporary files?
+Before committing or opening a PR:
+1. [ ] **No complicated/unreadable code?** Is the logic clear, well-structured, and documented?
+2. [ ] **LUT minimized?** Did you avoid single-cycle `/` and `%`? Are register bit-widths minimal?
+3. [ ] **0 Extra BRAM?** Are all UI elements and icons in distributed LUT logic?
+4. [ ] **Map files untouched?** Are `cave_*.mem` and `level_map.v` completely unmodified?
+5. [ ] **All 51 testbenches passing?** Did you run regression tests without errors?
+6. [ ] **Timing closed?** Are WNS and WHS positive with 0 failing endpoints?
+7. [ ] **Backward-compatible hitboxes?** Do legacy automated clicks still trigger expected buttons?
+8. [ ] **Clean git status?** No temporary files, logs, or clutter left behind?
