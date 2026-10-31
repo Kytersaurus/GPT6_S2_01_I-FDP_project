@@ -48,3 +48,4 @@ tmp/
 
 # Vivado-generated incremental synthesis checkpoints
 *.srcs/utils_1/
+scratch/

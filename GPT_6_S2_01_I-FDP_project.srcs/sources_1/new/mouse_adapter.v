@@ -41,7 +41,8 @@ module mouse_adapter (
     wire pop_grid_area = mouse_x >= 4 && mouse_x < 40 && mouse_y >= 12 && mouse_y < 48;
     wire run_grid_big = mouse_x >= 24 && mouse_x < 72 && mouse_y >= 2 && mouse_y < 50;
 
-    wire in_grid = (game_state == `LP_BUILD) ? build_grid_area : (run_grid_big || pop_grid_area);
+    wire in_grid = (game_state == `LP_BUILD) ? build_grid_area :
+                   (run_page == 2'd1) ? pop_grid_area : run_grid_big;
     wire in_inventory = mouse_x >= 56 && mouse_x < 92 && mouse_y >= 4 && mouse_y < 54;
     // Find grid rows and columns with fixed range checks instead of division.
     wire building = game_state == `LP_BUILD;
@@ -52,8 +53,8 @@ module mouse_adapter (
     wire [1:0] run_col_big = mouse_x < 40 ? 2'd0 : mouse_x < 56 ? 2'd1 : 2'd2;
     wire [1:0] run_row_big = mouse_y < 18 ? 2'd0 : mouse_y < 34 ? 2'd1 : 2'd2;
 
-    wire [1:0] hovered_col = building ? build_col : (run_grid_big ? run_col_big : pop_col);
-    wire [1:0] hovered_row = building ? build_row : (run_grid_big ? run_row_big : pop_row);
+    wire [1:0] hovered_col = building ? build_col : (run_page == 2'd1 ? pop_col : run_col_big);
+    wire [1:0] hovered_row = building ? build_row : (run_page == 2'd1 ? pop_row : run_row_big);
     reg [3:0] hovered_cell;
     reg [2:0] hovered_part;
     reg hovered_frame, hovered_facing_left;
@@ -231,14 +232,14 @@ module mouse_adapter (
                     if (in_grid) begin
                         if (hovered_part == `LP_PART_BALLOON) begin
                             pop_req <= 1; pop_cell <= hovered_cell;
-                        end else if (hovered_part == `LP_PART_ENGINE) begin
-                            engine_toggle_req <= 1;
-                        end else if (hovered_part == `LP_PART_FAN) begin
-                            fan_toggle_req <= 1;
-                        end else if (hovered_part == `LP_PART_BOOSTER) begin
-                            boost_req <= 1;
-                        end else begin
-                            pop_req <= 1; pop_cell <= hovered_cell;
+                        end else if (run_page == 2'd0) begin
+                            if (hovered_part == `LP_PART_ENGINE) begin
+                                engine_toggle_req <= 1;
+                            end else if (hovered_part == `LP_PART_FAN) begin
+                                fan_toggle_req <= 1;
+                            end else if (hovered_part == `LP_PART_BOOSTER) begin
+                                boost_req <= 1;
+                            end
                         end
                     end
                     // DRIVE boost comes from ui_controller.

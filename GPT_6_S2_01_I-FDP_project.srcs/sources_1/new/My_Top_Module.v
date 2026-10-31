@@ -199,6 +199,7 @@ module My_Top_Module #(
     wire ui_pop_req, mouse_pop_req;
     wire [3:0] mouse_pop_cell;
     wire ui_boost_req, mouse_boost_req, combined_boost_req;
+    wire mouse_engine_toggle_req, mouse_fan_toggle_req, ui_end_try;
 
     wire has_intact_engine = (intact_mask[0] && build_grid[2:0] == `LP_PART_ENGINE) ||
                              (intact_mask[1] && build_grid[5:3] == `LP_PART_ENGINE) ||
@@ -251,8 +252,8 @@ module My_Top_Module #(
         (intact_mask[7] && build_grid[23:21] == `LP_PART_BALLOON) ? 4'd7 :
         (intact_mask[8] && build_grid[26:24] == `LP_PART_BALLOON) ? 4'd8 : 4'd15;
 
-    assign pop_req = mouse_pop_req || ui_pop_req;
-    assign pop_cell = mouse_pop_req ? mouse_pop_cell : first_intact_balloon;
+    assign pop_req = mouse_pop_req;
+    assign pop_cell = mouse_pop_cell;
 
     assign level_open_req = btn_level_open_req || ui_level_open_req;
     assign combined_boost_req = ui_boost_req || mouse_boost_req || (game_state == `LP_RUN && right_press);
@@ -265,11 +266,11 @@ module My_Top_Module #(
         .game_state(game_state),
         .mouse_x(mouse_x), .mouse_y(mouse_y), .mouse_left(mouse_left), .mouse_right(mouse_right),
         .mouse_event(mouse_event), .next_press(start_press), .engine_switch_changed(engine_switch_changed),
+        .engine_switch(sw[0]), .engine_toggle_req(mouse_engine_toggle_req), .fan_toggle_req(mouse_fan_toggle_req),
         .fan_available(has_intact_fan), .rocket_available(has_intact_rocket), .rocket_ready(has_intact_rocket && !boost_active), .balloon_available(has_intact_balloon),
-        .build_grid(build_grid), .intact_mask(intact_mask),
-        .launch_req(ui_launch), .edit_req(ui_edit), .guide_open_req(ui_guide_open), .guide_close_req(ui_guide_close),
+        .launch_req(ui_launch), .edit_req(ui_edit), .end_try_req(ui_end_try), .guide_open_req(ui_guide_open), .guide_close_req(ui_guide_close),
         .level_open_req(ui_level_open_req), .level_close_req(level_close_req), .level_select_req(level_select_req), .selected_level(selected_level),
-        .run_page(run_page), .boost_req(ui_boost_req), .pop_req(ui_pop_req), .pop_cell(mouse_pop_cell), .diary_page(diary_page), .master_volume(master_volume), .mouse_speed(mouse_speed), .engine_on(ui_engine_on), .fan_on(ui_fan_on), .rocket_req(ui_rocket_req), .sound_muted(ui_sound_muted), .launch_flash(launch_flash)
+        .run_page(run_page), .boost_req(ui_boost_req), .diary_page(diary_page), .master_volume(master_volume), .mouse_speed(mouse_speed), .engine_on(ui_engine_on), .fan_on(ui_fan_on), .rocket_req(ui_rocket_req), .sound_muted(ui_sound_muted), .launch_flash(launch_flash)
     );
     wire [7:0] par_time;
     seven_seg_timer #(.COUNTDOWN(1), .TIME_LIMIT(20)) u_board_timer (.clk(clk), .reset(reset), .seconds(run_seconds), .seg(seg), .an(an), .dp(dp));
@@ -317,7 +318,8 @@ module My_Top_Module #(
         .cursor_x(cursor_x), .cursor_y(cursor_y), .selected_part(selected_part),
         .drag_active(drag_active), .drag_from_grid(drag_from_grid), .drag_source(drag_source), .drag_contents(drag_contents),
         .edit_valid(edit_valid), .edit_op(edit_op), .edit_cell(edit_cell), .edit_source(edit_source), .edit_part(edit_part),
-        .pop_req(mouse_pop_req), .pop_cell(mouse_pop_cell), .boost_req(mouse_boost_req)
+        .pop_req(mouse_pop_req), .pop_cell(mouse_pop_cell), .boost_req(mouse_boost_req),
+        .engine_toggle_req(mouse_engine_toggle_req), .fan_toggle_req(mouse_fan_toggle_req)
     );
     zoom_control u_zoom (
         .clk(clk), .reset(reset), .zoom_switch(sw[3]), .mouse_event(mouse_event), .mouse_z(mouse_z),
@@ -362,6 +364,7 @@ module My_Top_Module #(
     );
     game_controller #(.ENABLE_START_SCREEN(ENABLE_START_SCREEN)) u_game (
         .clk(clk), .reset(reset), .launch_req(start_press || ui_launch), .retry_req(start_press || ui_launch), .edit_req(edit_press || ui_edit),
+        .end_try_req(ui_end_try),
         .guide_open_req(ui_guide_open || (game_state==`LP_BUILD && edit_press)), .guide_close_req(ui_guide_close || edit_press),
         .guide_return_state(guide_return_state), .level_next_req(1'b0), .level_open_req(level_open_req),
         .level_close_req(level_close_req), .level_select_req(level_select_req), .selected_level(selected_level),
@@ -660,7 +663,7 @@ module My_Top_Module #(
         .map_x(right_map_x), .map_y(right_map_y), .map_class(map_draw_class),
         .pixel_data(right_pixel_data)
     );
-    wire right_oled_on = (draw_state != `LP_LEVEL_SELECT);
+    wire right_oled_on = !draw_start_screen_active && (draw_state != `LP_LEVEL_SELECT);
     Oled_Display u_left_oled (
         .clk(oled_clk), .reset(oled_reset), .frame_begin(left_frame), .sending_pixels(), .sample_pixel(left_sample),
         .pixel_index(left_pixel_index), .pixel_data(show_map ? right_pixel_data : left_pixel_data), .cs(JA[0]), .sdin(JA[1]), .sclk(JA[3]),

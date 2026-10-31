@@ -9,16 +9,13 @@ module ui_controller (
     input wire mouse_left, mouse_right, mouse_event, next_press, engine_switch_changed,
     input wire engine_switch, engine_toggle_req, fan_toggle_req,
     input wire fan_available, rocket_available, rocket_ready, balloon_available,
-    input wire [26:0] build_grid,
-    input wire [8:0] intact_mask,
     output reg launch_req, edit_req, end_try_req, guide_open_req, guide_close_req,
     output reg level_open_req, level_close_req, level_select_req,
     output reg [`LP_LEVEL_BITS-1:0] selected_level,
     output reg [1:0] diary_page,
     output reg [2:0] master_volume,
     output reg [1:0] run_page,
-    output reg boost_req, pop_req,
-    output reg [3:0] pop_cell,
+    output reg boost_req,
     output reg [1:0] mouse_speed,
     output reg engine_on, fan_on, rocket_req, sound_muted,
     output wire launch_flash
@@ -27,44 +24,18 @@ module ui_controller (
     reg [3:0] launch_ticks;
     assign launch_flash = launch_ticks != 0;
 
-    wire [26:0] safe_grid = (build_grid === 27'bx || build_grid === 27'bz) ? 27'd0 : build_grid;
-    wire [8:0] safe_intact = (intact_mask === 9'bx || intact_mask === 9'bz) ? 9'd0 : intact_mask;
-
-    // Run grid decoding for 16x16 interactive parts (x: 24..71, y: 2..49)
-    wire run_grid_hit = (mouse_x >= 24 && mouse_x < 72 && mouse_y >= 2 && mouse_y < 50);
-    wire [1:0] run_col = (mouse_x < 40) ? 2'd0 : (mouse_x < 56) ? 2'd1 : 2'd2;
-    wire [1:0] run_row = (mouse_y < 18) ? 2'd0 : (mouse_y < 34) ? 2'd1 : 2'd2;
-    wire [3:0] run_clicked_cell = {2'b00, run_row} * 4'd3 + {2'b00, run_col};
-    reg [2:0] clicked_part;
-    reg clicked_intact;
-
-    always @* begin
-        case (run_clicked_cell)
-            4'd0: begin clicked_part = safe_grid[2:0];   clicked_intact = safe_intact[0]; end
-            4'd1: begin clicked_part = safe_grid[5:3];   clicked_intact = safe_intact[1]; end
-            4'd2: begin clicked_part = safe_grid[8:6];   clicked_intact = safe_intact[2]; end
-            4'd3: begin clicked_part = safe_grid[11:9];  clicked_intact = safe_intact[3]; end
-            4'd4: begin clicked_part = safe_grid[14:12]; clicked_intact = safe_intact[4]; end
-            4'd5: begin clicked_part = safe_grid[17:15]; clicked_intact = safe_intact[5]; end
-            4'd6: begin clicked_part = safe_grid[20:18]; clicked_intact = safe_intact[6]; end
-            4'd7: begin clicked_part = safe_grid[23:21]; clicked_intact = safe_intact[7]; end
-            4'd8: begin clicked_part = safe_grid[26:24]; clicked_intact = safe_intact[8]; end
-            default: begin clicked_part = `LP_PART_EMPTY; clicked_intact = 1'b0; end
-        endcase
-    end
-
     always @(posedge clk) begin
         if (reset) begin
-            left_was_down<=0; diary_page<=0; master_volume<=4; engine_on<=0; fan_on<=0; sound_muted<=0;
-            run_page<=0; boost_req<=0; pop_req<=0; pop_cell<=0; mouse_speed<=1; // Default NORM
+            left_was_down<=0; diary_page<=0; master_volume<=4; engine_on<=1; fan_on<=0; sound_muted<=0;
+            run_page<=0; boost_req<=0; mouse_speed<=1; // Default NORM
             launch_req<=0; edit_req<=0; end_try_req<=0; guide_open_req<=0; guide_close_req<=0;
             rocket_req<=0; launch_ticks<=0;
             level_open_req<=0; level_close_req<=0; level_select_req<=0; selected_level<=0;
         end else begin
             launch_req<=0; edit_req<=0; end_try_req<=0; guide_open_req<=0; guide_close_req<=0; rocket_req<=0;
             level_open_req<=0; level_close_req<=0; level_select_req<=0;
-            boost_req<=0; pop_req<=0;
-            if (run_init) begin engine_on<=engine_switch; fan_on<=0; run_page<=0; end
+            boost_req<=0;
+            if (run_init) begin engine_on<=1; fan_on<=0; run_page<=0; end
             if (engine_toggle_req) engine_on<=!engine_on;
             if (fan_toggle_req && fan_available) fan_on<=!fan_on;
             // SW0 does not change the on-screen engine setting; engine is toggled via on-screen DRIVE control.
@@ -135,30 +106,15 @@ module ui_controller (
                         else if (mouse_x>=32 && mouse_x<60) edit_req <= 1;
                         else if (mouse_x>=64 && mouse_x<96) begin guide_open_req <= 1; diary_page <= 0; end
                     end else if (game_state==`LP_RUN) begin
-                        // 1. In-grid interactive part clicks (BIG 16x16 grid: x: 24..71, y: 2..49)
-                        if (run_grid_hit) begin
-                            if (clicked_part == `LP_PART_BALLOON && clicked_intact) begin
-                                pop_req <= 1;
-                                pop_cell <= run_clicked_cell;
-                            end else if (clicked_part == `LP_PART_ENGINE && clicked_intact) begin
-                                engine_on <= !engine_on;
-                            end else if (clicked_part == `LP_PART_FAN && clicked_intact && fan_available) begin
-                                fan_on <= !fan_on;
-                            end else if (clicked_part == `LP_PART_BOOSTER && clicked_intact && rocket_available && rocket_ready) begin
-                                rocket_req <= 1;
-                                boost_req <= 1;
-                            end
+                        // 1. Bottom Navigation Bar in run mode (only when run_page == 0 && y >= 54): [RTRY] [END] [EDIT] [GEAR]
+                        if (run_page == 0 && mouse_y >= 54 && mouse_y <= 63) begin
+                            if (mouse_x >= 2 && mouse_x <= 22) launch_req <= 1;          // [RETRY]
+                            else if (mouse_x >= 26 && mouse_x <= 44) end_try_req <= 1;   // [END TRY]
+                            else if (mouse_x >= 52 && mouse_x <= 70) edit_req <= 1;      // [EDIT]
+                            else if (mouse_x >= 74 && mouse_x <= 94) level_open_req <= 1; // [GEAR]
                         end
 
-                        // 2. Bottom Navigation Bar (y >= 50): [RETRY] [END] [EDIT] [GEAR]
-                        if (mouse_y >= 50 && mouse_y <= 63) begin
-                            if (mouse_x >= 1 && mouse_x <= 24) launch_req <= 1;          // [RETRY]
-                            else if (mouse_x >= 25 && mouse_x <= 48) end_try_req <= 1;   // [END]
-                            else if (mouse_x >= 49 && mouse_x <= 72) edit_req <= 1;      // [EDIT]
-                            else if (mouse_x >= 73 && mouse_x <= 95) level_open_req <= 1; // [GEAR]
-                        end
-
-                        // 3. Backward-compatible legacy checks:
+                        // 2. Backward-compatible legacy checks:
                         // EDIT: top-bar (40..76, <10) or right-bar (70..94, 32..42) or pop page
                         if ((mouse_x>=40 && mouse_x<=76 && mouse_y<10) ||
                             (mouse_x>=70 && mouse_x<=94 && mouse_y>=32 && mouse_y<=42) ||

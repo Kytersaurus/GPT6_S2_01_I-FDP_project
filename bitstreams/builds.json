@@ -1,121 +1,135 @@
 [
-  {
-    "path": "2026-10-31/142236_My_Top_Module.bit",
-    "built": "2026-10-31T14:22:36",
-    "source_commit": "98fd28f",
-    "description": "LATEST & RECOMMENDED: Bulletproof dividers (7-seg subtractive comparator, combinational OLED coordinate translation, 16-cycle restoring physics divider), animated moving cave Start Screen with fanfare BGM, blanked Right OLED during Title, centered run damage diagram, squarish action buttons, and rocket booster. All 51 simulations passed; 100 MHz timing met with +0.253 ns WNS, 79.87% LUTs, 48/50 BRAM tiles (0 extra BRAM).",
-    "sha256": "052d894ea113e1079c69c144eb37fc20ac6e953902d3aeab7bd2a09e80913b86"
-  },
-  {
-    "path": "2026-10-30/124152_My_Top_Module.bit",
-    "built": "2026-10-30T12:41:52",
-    "source_commit": "64c496f",
-    "description": "LATEST & RECOMMENDED: Official integrated build. 2 cave levels (Cave Arch 2x and Cave Flight), smoothed terrain, display_y alpha-beta camera filter, 3-update tilt hold, steep-slope tip guard, 360-degree flip physics, and pruned rectangle collisions. All 51 simulations passed; 100 MHz timing met with +0.154 ns WNS and 82.00% LUTs.",
-    "sha256": "bd8c33ab1c57b048ece5e65a6899ec102ce87b2550c095b43ab4a6d3db19ccfc"
-  },
-  {
-    "path": "2026-10-30/012541_two_cave_levels_stripped_rects.bit",
-    "built": "2026-10-30T01:25:41",
-    "source_commit": "99bd13c",
-    "description": "2-cave levels milestone: Stripped placeholder maps & rectangle collisions, Cave Arch 2x scale & Cave Flight, 360-degree flip physics. 51 simulations passed.",
-    "sha256": "e08a3365526090bace199bd0fe150667ee89ed3bfc2b491a1f4a74e5a3a93441"
-  },
-  {
-    "path": "2026-10-29/221420_cave-arch-loop-physics.bit",
-    "built": "2026-10-29T22:14:20",
-    "source_commit": "cdac53e",
-    "description": "Role 4 test build (Marcus): Cave Arch drivable end to end at 2x, full-turn 360-degree rotation, wheel sides, edge tipping, ENGINE_FORCE 320, 6 px step-up, decorative grass open.",
-    "sha256": "06c91e69213fa557c7d8209b58a0478abe521607ebeeaca29fc202ca3bc4a0b8"
-  },
-  {
-    "path": "2026-10-29/151047_My_Top_Module.bit",
-    "built": "2026-10-29T15:10:47",
-    "source_commit": "4f1912b",
-    "description": "Rotation geometry addition (Kyle): 32-angle tables, separating-axis occupancy collision, and synthesized collision ROM repair.",
-    "sha256": "a9ff173e55901c76c75eed7b3acb5976ba3ff9c3f7ae87587f0285de282115f0"
-  },
-  {
-    "path": "2026-10-29/142148_My_Top_Module.bit",
-    "built": "2026-10-29T14:21:48",
-    "source_commit": "b7c525f",
-    "description": "Rotation top latency test build: natural 45-degree settling and coherent display transfer.",
-    "sha256": "0b1ae70389a16dde2943b5d7b42d1d989cad2405a2b6cbff5a0a539a11706674"
-  },
-  {
-    "path": "2026-10-28/153641_My_Top_Module.bit",
-    "built": "2026-10-28T15:36:41",
-    "source_commit": "aa0efb1",
-    "description": "Slope physics and collision test build: downhill gravity, uphill climbing resistance, and terrain ROM queries.",
-    "sha256": "ef8ea467dab62d48fe46c467ef6955af7ac667a7d460ac9ef288616ca44d8117"
-  },
-  {
-    "path": "2026-10-27/141337_My_Top_Module.bit",
-    "built": "2026-10-27T14:13:37",
-    "source_commit": "ce62986",
-    "description": "Map BRAM cascade prevention, builder validation updates, and coordinate expansion.",
-    "sha256": "af3d30f40a0375d6ef7907b96a1480c3ad816fa4a247f7f303985053770246be"
-  },
-  {
-    "path": "2026-10-26/235439_My_Top_Module.bit",
-    "built": "2026-10-26T23:54:39",
-    "source_commit": "e013816",
-    "description": "Directional part facing validation, in-cell part flipping, and mouse grid selection optimizations.",
-    "sha256": "41e3f861c8de252b3d194e7a3fecf64f888a1615a8c4f484923ac1b168a62830"
-  },
-  {
-    "path": "2026-10-26/163745_My_Top_Module.bit",
-    "built": "2026-10-26T16:37:45",
-    "source_commit": "bab2d96",
-    "description": "Run controls (DRIVE, POP, SOUND tabs) and map camera navigation improvements.",
-    "sha256": "dc7d9151f46e877d7941ee5f3138ed25d3a0205b95e66bab4a54ace7dbc5a422"
-  },
-  {
-    "path": "2026-10-25/180142_map-view-12px.bit",
-    "built": "2026-10-25T18:01:42",
-    "source_commit": "b79d73a",
-    "description": "Role 4 test build: 1.5x map view with 12x12 sprites, red/white/black TNT, Cave Arch view only, SW3/wheel zoom, SW4 free look.",
-    "sha256": "568373372d3f3acfcf6d915ba64c669cafbbf7e8ca113f9784db48395691bdc8"
-  },
-  {
-    "path": "2026-10-25/173035_cave-arch-camera.bit",
-    "built": "2026-10-25T17:30:35",
-    "source_commit": "3f58d16",
-    "description": "Role 4 test build: 16x16 sprites, Cave Arch map (view only), following camera, SW3/wheel zoom, SW4 free look.",
-    "sha256": "10a9bfea61880e130b8fcdc546a73323ef82bb1e24efda78ad4d53fd097428a6"
-  },
-  {
-    "path": "2026-10-25/000034_all-role-merge.bit",
-    "built": "2026-10-25T00:00:34",
-    "source_commit": "0e960d4",
-    "description": "All four roles merged, integrated TNT/collision/audio.",
-    "sha256": "276516464bd607de3a5326ab6861b658ad24858dad2120b387e10185b1d4d2c5"
-  },
-  {
-    "path": "2026-10-24/225954_engine-boost-audio.bit",
-    "built": "2026-10-24T22:59:54",
-    "source_commit": "9fd5776",
-    "description": "Engine boost and audio, before TNT integration.",
-    "sha256": "78ddee66125e35ae3e56a0f0e68dc3195c2d2c1793b43ddbccb26092e55eafba"
-  },
-  {
-    "path": "2026-10-24/200820_vivado-build.bit",
-    "built": "2026-10-24T20:08:20",
-    "source_commit": null,
-    "description": "Earlier Vivado baseline build.",
-    "sha256": "ebfd314e105fcc555f92bc3631b5522ea6dc3d364e9ad8c77c6b9177cb2759fb"
-  },
-  {
-    "path": "2026-10-21/191139_balloon-test.bit",
-    "built": "2026-10-21T19:11:39",
-    "source_commit": null,
-    "description": "Earlier interactive balloon popping test build.",
-    "sha256": "230ee1e333afb659221660d2dc2453472d970ef6a6c8e09bd40470303d8c736c"
-  },
-  {
-    "path": "2026-10-19/192905_oled-test.bit",
-    "built": "2026-10-19T19:29:05",
-    "source_commit": null,
-    "description": "Earlier dual-layer OLED builder and mouse test build.",
-    "sha256": "0145b2db7e8d6eb8fa670cba61aa337760756a9376de1196d070665dd991f805"
-  }
+    {
+        "path":  "2026-10-31/165601_My_Top_Module.bit",
+        "built":  "2026-10-31T16:56:01",
+        "source_commit":  "98ca1e1",
+        "description":  "LATEST \u0026 RECOMMENDED: Complete UX \u0026 Audio Overhaul. Option B Bad Piggies title screen with LAGGY PIGGIES bubble font, centered Play button, and cartoon gear; live Cave Arch view on Right OLED. 20s negative countdown timer strictly on 7-segment display (0.20 -\u003e 0.00 -\u003e -0.01...). Run screen big 16x16 interactive grid with part toggles \u0026 SW0 engine indicator. 3 centered icon boxes in Settings with mouse speed scaling and wide volume view with SW1 mute banner. Run BGM transposed up 1 octave eliminating low buzz, with boosted master gain. LEDs tied to switches. 51/51 simulations passed; 100 MHz timing met with +0.142 ns WNS, 18,905 LUTs (90.89%), 48 BRAM tiles (96.00%).",
+        "sha256":  "8f2a2e452491fd8726c4a75d910360d281bfc350dbf89c6058a9e9c6149ba28b"
+    },
+    {
+        "path":  "2026-10-31/155832_My_Top_Module.bit",
+        "built":  "2026-10-31T15:58:32",
+        "source_commit":  "98ca1e1",
+        "description":  "LATEST \u0026 RECOMMENDED: Full Start Screen with animated moving cave background (Port B BRAM multiplexing at 0% extra BRAM), 135 BPM upbeat title fanfare, blanked Right OLED, Settings overlay button on Start and Run screens, centered 12px vehicle damage diagram, responsive bottom action buttons, division-free BCD priority subtraction timer, and audited signed divider. 51/51 simulations passed; 100 MHz timing met with +0.193 ns WNS, 16,800 LUTs (80.77%), 48.5 BRAM tiles (97.00%).",
+        "sha256":  "ddba77fc6b2e783c15ff73c53d942acda81f09546f9317d029f4e20b65f8451f"
+    },
+    {
+        "path":  "2026-10-31/142236_My_Top_Module.bit",
+        "built":  "2026-10-31T14:22:36",
+        "source_commit":  "98fd28f",
+        "description":  "Bulletproof dividers (7-seg subtractive comparator, combinational OLED coordinate translation, 16-cycle restoring physics divider), animated moving cave Start Screen with fanfare BGM, blanked Right OLED during Title, centered run damage diagram, squarish action buttons, and rocket booster. All 51 simulations passed; 100 MHz timing met with +0.253 ns WNS, 79.87% LUTs, 48/50 BRAM tiles (0 extra BRAM).",
+        "sha256":  "052d894ea113e1079c69c144eb37fc20ac6e953902d3aeab7bd2a09e80913b86"
+    },
+    {
+        "path":  "2026-10-30/124152_My_Top_Module.bit",
+        "built":  "2026-10-30T12:41:52",
+        "source_commit":  "64c496f",
+        "description":  "LATEST \u0026 RECOMMENDED: Official integrated build. 2 cave levels (Cave Arch 2x and Cave Flight), smoothed terrain, display_y alpha-beta camera filter, 3-update tilt hold, steep-slope tip guard, 360-degree flip physics, and pruned rectangle collisions. All 51 simulations passed; 100 MHz timing met with +0.154 ns WNS and 82.00% LUTs.",
+        "sha256":  "bd8c33ab1c57b048ece5e65a6899ec102ce87b2550c095b43ab4a6d3db19ccfc"
+    },
+    {
+        "path":  "2026-10-30/012541_two_cave_levels_stripped_rects.bit",
+        "built":  "2026-10-30T01:25:41",
+        "source_commit":  "99bd13c",
+        "description":  "2-cave levels milestone: Stripped placeholder maps \u0026 rectangle collisions, Cave Arch 2x scale \u0026 Cave Flight, 360-degree flip physics. 51 simulations passed.",
+        "sha256":  "e08a3365526090bace199bd0fe150667ee89ed3bfc2b491a1f4a74e5a3a93441"
+    },
+    {
+        "path":  "2026-10-29/221420_cave-arch-loop-physics.bit",
+        "built":  "2026-10-29T22:14:20",
+        "source_commit":  "cdac53e",
+        "description":  "Role 4 test build (Marcus): Cave Arch drivable end to end at 2x, full-turn 360-degree rotation, wheel sides, edge tipping, ENGINE_FORCE 320, 6 px step-up, decorative grass open.",
+        "sha256":  "06c91e69213fa557c7d8209b58a0478abe521607ebeeaca29fc202ca3bc4a0b8"
+    },
+    {
+        "path":  "2026-10-29/151047_My_Top_Module.bit",
+        "built":  "2026-10-29T15:10:47",
+        "source_commit":  "4f1912b",
+        "description":  "Rotation geometry addition (Kyle): 32-angle tables, separating-axis occupancy collision, and synthesized collision ROM repair.",
+        "sha256":  "a9ff173e55901c76c75eed7b3acb5976ba3ff9c3f7ae87587f0285de282115f0"
+    },
+    {
+        "path":  "2026-10-29/142148_My_Top_Module.bit",
+        "built":  "2026-10-29T14:21:48",
+        "source_commit":  "b7c525f",
+        "description":  "Rotation top latency test build: natural 45-degree settling and coherent display transfer.",
+        "sha256":  "0b1ae70389a16dde2943b5d7b42d1d989cad2405a2b6cbff5a0a539a11706674"
+    },
+    {
+        "path":  "2026-10-28/153641_My_Top_Module.bit",
+        "built":  "2026-10-28T15:36:41",
+        "source_commit":  "aa0efb1",
+        "description":  "Slope physics and collision test build: downhill gravity, uphill climbing resistance, and terrain ROM queries.",
+        "sha256":  "ef8ea467dab62d48fe46c467ef6955af7ac667a7d460ac9ef288616ca44d8117"
+    },
+    {
+        "path":  "2026-10-27/141337_My_Top_Module.bit",
+        "built":  "2026-10-27T14:13:37",
+        "source_commit":  "ce62986",
+        "description":  "Map BRAM cascade prevention, builder validation updates, and coordinate expansion.",
+        "sha256":  "af3d30f40a0375d6ef7907b96a1480c3ad816fa4a247f7f303985053770246be"
+    },
+    {
+        "path":  "2026-10-26/235439_My_Top_Module.bit",
+        "built":  "2026-10-26T23:54:39",
+        "source_commit":  "e013816",
+        "description":  "Directional part facing validation, in-cell part flipping, and mouse grid selection optimizations.",
+        "sha256":  "41e3f861c8de252b3d194e7a3fecf64f888a1615a8c4f484923ac1b168a62830"
+    },
+    {
+        "path":  "2026-10-26/163745_My_Top_Module.bit",
+        "built":  "2026-10-26T16:37:45",
+        "source_commit":  "bab2d96",
+        "description":  "Run controls (DRIVE, POP, SOUND tabs) and map camera navigation improvements.",
+        "sha256":  "dc7d9151f46e877d7941ee5f3138ed25d3a0205b95e66bab4a54ace7dbc5a422"
+    },
+    {
+        "path":  "2026-10-25/180142_map-view-12px.bit",
+        "built":  "2026-10-25T18:01:42",
+        "source_commit":  "b79d73a",
+        "description":  "Role 4 test build: 1.5x map view with 12x12 sprites, red/white/black TNT, Cave Arch view only, SW3/wheel zoom, SW4 free look.",
+        "sha256":  "568373372d3f3acfcf6d915ba64c669cafbbf7e8ca113f9784db48395691bdc8"
+    },
+    {
+        "path":  "2026-10-25/173035_cave-arch-camera.bit",
+        "built":  "2026-10-25T17:30:35",
+        "source_commit":  "3f58d16",
+        "description":  "Role 4 test build: 16x16 sprites, Cave Arch map (view only), following camera, SW3/wheel zoom, SW4 free look.",
+        "sha256":  "10a9bfea61880e130b8fcdc546a73323ef82bb1e24efda78ad4d53fd097428a6"
+    },
+    {
+        "path":  "2026-10-25/000034_all-role-merge.bit",
+        "built":  "2026-10-25T00:00:34",
+        "source_commit":  "0e960d4",
+        "description":  "All four roles merged, integrated TNT/collision/audio.",
+        "sha256":  "276516464bd607de3a5326ab6861b658ad24858dad2120b387e10185b1d4d2c5"
+    },
+    {
+        "path":  "2026-10-24/225954_engine-boost-audio.bit",
+        "built":  "2026-10-24T22:59:54",
+        "source_commit":  "9fd5776",
+        "description":  "Engine boost and audio, before TNT integration.",
+        "sha256":  "78ddee66125e35ae3e56a0f0e68dc3195c2d2c1793b43ddbccb26092e55eafba"
+    },
+    {
+        "path":  "2026-10-24/200820_vivado-build.bit",
+        "built":  "2026-10-24T20:08:20",
+        "source_commit":  null,
+        "description":  "Earlier Vivado baseline build.",
+        "sha256":  "ebfd314e105fcc555f92bc3631b5522ea6dc3d364e9ad8c77c6b9177cb2759fb"
+    },
+    {
+        "path":  "2026-10-21/191139_balloon-test.bit",
+        "built":  "2026-10-21T19:11:39",
+        "source_commit":  null,
+        "description":  "Earlier interactive balloon popping test build.",
+        "sha256":  "230ee1e333afb659221660d2dc2453472d970ef6a6c8e09bd40470303d8c736c"
+    },
+    {
+        "path":  "2026-10-19/192905_oled-test.bit",
+        "built":  "2026-10-19T19:29:05",
+        "source_commit":  null,
+        "description":  "Earlier dual-layer OLED builder and mouse test build.",
+        "sha256":  "0145b2db7e8d6eb8fa670cba61aa337760756a9376de1196d070665dd991f805"
+    }
 ]

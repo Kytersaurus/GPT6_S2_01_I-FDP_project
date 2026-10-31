@@ -192,62 +192,108 @@ module ui_renderer (
             // SETTINGS SCREEN: 3 Centered Icon Boxes (Sound, Map, Mouse)
             // -----------------------------------------------------------------
             pixel_data = 16'h0841;
-            if (text_on("SETTINGS        ", 24, 2, x, y)) pixel_data = 16'h07ff;
+            if (audio_muted) begin
+                if (text_on("MUTED VIA SW1   ", 10, 2, x, y)) pixel_data = 16'hffe0;
+            end else begin
+                if (text_on("SETTINGS        ", 24, 2, x, y)) pixel_data = 16'h07ff;
+            end
 
-            // Box 1: SOUND SETTINGS (x: 8..87, y: 11..22)
-            if (x >= 8 && x <= 87 && y >= 11 && y <= 22) begin
-                if (x == 8 || x == 87 || y == 11 || y == 22) pixel_data = 16'h04b4;
-                else if (cursor_x >= 8 && cursor_x <= 87 && cursor_y >= 11 && cursor_y <= 22) pixel_data = 16'h0351;
+            // Box 1: SOUND SETTINGS (x: 6..30, y: 12..48)
+            if (x >= 6 && x <= 30 && y >= 12 && y <= 48) begin
+                if (x == 6 || x == 30 || y == 12 || y == 48) pixel_data = 16'h04b4;
+                else if (cursor_x >= 6 && cursor_x <= 30 && cursor_y >= 12 && cursor_y <= 48) pixel_data = 16'h0351;
                 else pixel_data = 16'h18e5;
 
-                // Speaker Icon at x: 12..20, y: 13..20
-                if ((x >= 12 && x <= 14 && y >= 15 && y <= 18) ||
-                    (x == 15 && y >= 14 && y <= 19) ||
-                    (x == 16 && y >= 13 && y <= 20) ||
-                    ((x == 18 || x == 20) && (y == 14 || y == 19)) ||
-                    ((x == 19 || x == 21) && (y >= 15 && y <= 18)))
+                // Speaker Icon (x: 11..25, y: 17..27)
+                if ((x >= 11 && x <= 13 && y >= 20 && y <= 24) ||
+                    (x == 14 && y >= 19 && y <= 25) ||
+                    (x == 15 && y >= 18 && y <= 26) ||
+                    (x == 16 && y >= 17 && y <= 27) ||
+                    (x == 19 && y >= 19 && y <= 25) ||
+                    (x == 20 && (y == 20 || y == 24)) ||
+                    (x == 23 && y >= 18 && y <= 26) ||
+                    (x == 24 && (y == 19 || y == 25)))
                     pixel_data = 16'hffe0;
-            end
-            if (text_on("SOUND SETTINGS >", 24, 13, x, y)) pixel_data = 16'hffff;
 
-            // Box 2: MAP SELECTOR (x: 8..87, y: 25..36)
-            if (x >= 8 && x <= 87 && y >= 25 && y <= 36) begin
-                if (x == 8 || x == 87 || y == 25 || y == 36) pixel_data = 16'h04b4;
-                else if (cursor_x >= 8 && cursor_x <= 87 && cursor_y >= 25 && cursor_y <= 36) pixel_data = 16'h0351;
+                // Red mute slash across speaker if muted (Rule 2: zero division)
+                if (audio_muted && ((x == 11 && y == 17) || (x == 12 && y == 18) || (x == 13 && y == 19) ||
+                                    (x == 14 && y == 20) || (x == 15 && y == 21) || (x == 16 && y == 21) ||
+                                    (x == 17 && y == 22) || (x == 18 && y == 23) || (x == 19 && y == 24) ||
+                                    (x == 20 && y == 24) || (x == 21 && y == 25) || (x == 22 && y == 26) ||
+                                    (x == 23 && y == 27) || (x == 24 && y == 28)))
+                    pixel_data = 16'hf800;
+            end
+            if (text_on("SND             ", 9, 31, x, y)) pixel_data = 16'hffff;
+            if (audio_muted) begin
+                if (text_on("MUTE            ", 8, 39, x, y)) pixel_data = 16'hf800;
+            end else begin
+                case (master_volume)
+                    0: if (text_on(" 0/4            ", 8, 39, x, y)) pixel_data = 16'h07ff;
+                    1: if (text_on(" 1/4            ", 8, 39, x, y)) pixel_data = 16'h07ff;
+                    2: if (text_on(" 2/4            ", 8, 39, x, y)) pixel_data = 16'h07ff;
+                    3: if (text_on(" 3/4            ", 8, 39, x, y)) pixel_data = 16'h07ff;
+                    default: if (text_on(" 4/4            ", 8, 39, x, y)) pixel_data = 16'h07ff;
+                endcase
+            end
+
+            // Box 2: MAP SELECTOR (x: 36..60, y: 12..48)
+            if (x >= 36 && x <= 60 && y >= 12 && y <= 48) begin
+                if (x == 36 || x == 60 || y == 12 || y == 48) pixel_data = 16'h04b4;
+                else if (cursor_x >= 36 && cursor_x <= 60 && cursor_y >= 12 && cursor_y <= 48) pixel_data = 16'h0351;
                 else pixel_data = 16'h18e5;
 
-                // Map Icon at x: 12..20, y: 27..34 (folded panels)
-                if ((x >= 12 && x <= 20 && (y == 27 || y == 34)) ||
-                    (x == 12 || x == 20 || x == 15 || x == 18) && (y >= 27 && y <= 34))
-                    pixel_data = 16'h07ff;
+                // Folded Parchment Map Icon (x: 41..55, y: 17..27)
+                if (x >= 41 && x <= 55 && y >= 17 && y <= 27) begin
+                    if (y == 17 || y == 27 || x == 41 || x == 55) pixel_data = 16'h8a22;
+                    else if (x == 45 || x == 51) pixel_data = 16'hb530;
+                    else if ((x == 43 && y == 24) || (x == 47 && y == 21) || (x == 53 && y == 19)) pixel_data = 16'hf800;
+                    else pixel_data = 16'hffdf;
+                end
             end
-            if (text_on("MAP SELECTOR    ", 24, 27, x, y)) pixel_data = 16'hffff;
+            if (text_on("MAP             ", 39, 31, x, y)) pixel_data = 16'hffff;
+            if (level_index == 0) begin
+                if (text_on("ARCH            ", 38, 39, x, y)) pixel_data = 16'h07ff;
+            end else begin
+                if (text_on("FLGT            ", 38, 39, x, y)) pixel_data = 16'h07ff;
+            end
 
-            // Box 3: MOUSE SENSITIVITY (x: 8..87, y: 39..50)
-            if (x >= 8 && x <= 87 && y >= 39 && y <= 50) begin
-                if (x == 8 || x == 87 || y == 39 || y == 50) pixel_data = 16'h04b4;
-                else if (cursor_x >= 8 && cursor_x <= 87 && cursor_y >= 39 && cursor_y <= 50) pixel_data = 16'h0351;
+            // Box 3: MOUSE SENSITIVITY (x: 66..90, y: 12..48)
+            if (x >= 66 && x <= 90 && y >= 12 && y <= 48) begin
+                if (x == 66 || x == 90 || y == 12 || y == 48) pixel_data = 16'h04b4;
+                else if (cursor_x >= 66 && cursor_x <= 90 && cursor_y >= 12 && cursor_y <= 48) pixel_data = 16'h0351;
                 else pixel_data = 16'h18e5;
 
-                // Mouse Icon at x: 12..20, y: 41..48
-                if (((x >= 14 && x <= 18) && (y == 41 || y == 48)) ||
-                    ((x == 13 || x == 19) && (y >= 42 && y <= 47)) ||
-                    (x == 16 && (y == 42 || y == 43)))
-                    pixel_data = 16'h07e0;
+                // Mouse Icon (x: 73..83, y: 17..27)
+                if ((x >= 74 && x <= 82 && y >= 18 && y <= 26) || (x >= 75 && x <= 81 && (y == 17 || y == 27))) begin
+                    if (x == 78 && y >= 19 && y <= 21) pixel_data = 16'h0000;
+                    else if (x == 78 && y >= 17 && y <= 22) pixel_data = 16'h036a;
+                    else pixel_data = 16'hffff;
+                end else if ((y == 17 && (x == 75 || x == 81)) || (y == 27 && (x == 75 || x == 81)) || ((x == 73 || x == 83) && y >= 19 && y <= 25)) begin
+                    pixel_data = 16'h036a;
+                end
             end
             case (mouse_speed)
-                0: if (text_on("MOUSE: SLOW 0.5X", 24, 41, x, y)) pixel_data = 16'hffe0;
-                1: if (text_on("MOUSE: NORM 1.0X", 24, 41, x, y)) pixel_data = 16'hffe0;
-                default: if (text_on("MOUSE: FAST 2.5X", 24, 41, x, y)) pixel_data = 16'hffe0;
+                0: begin
+                    if (text_on("SLOW            ", 68, 31, x, y)) pixel_data = 16'hffe0;
+                    if (text_on("0.5X            ", 68, 39, x, y)) pixel_data = 16'h7bef;
+                end
+                1: begin
+                    if (text_on("NORM            ", 68, 31, x, y)) pixel_data = 16'hffe0;
+                    if (text_on("1.0X            ", 68, 39, x, y)) pixel_data = 16'h7bef;
+                end
+                default: begin
+                    if (text_on("FAST            ", 68, 31, x, y)) pixel_data = 16'hffe0;
+                    if (text_on("2.5X            ", 68, 39, x, y)) pixel_data = 16'h7bef;
+                end
             endcase
 
-            // Bottom Centered [ BACK ] Button (x: 28..67, y: 53..63)
-            if (x >= 28 && x <= 67 && y >= 53 && y <= 63) begin
-                if (x == 28 || x == 67 || y == 53 || y == 63) pixel_data = 16'h04b4;
-                else if (cursor_x >= 28 && cursor_x <= 67 && cursor_y >= 53 && cursor_y <= 63) pixel_data = 16'h0351;
+            // Bottom Centered [ BACK ] Button (x: 28..68, y: 52..62)
+            if (x >= 28 && x <= 68 && y >= 52 && y <= 62) begin
+                if (x == 28 || x == 68 || y == 52 || y == 62) pixel_data = 16'h04b4;
+                else if (cursor_x >= 28 && cursor_x <= 68 && cursor_y >= 52 && cursor_y <= 62) pixel_data = 16'h0351;
                 else pixel_data = 16'h18e5;
             end
-            if (text_on("BACK            ", 40, 55, x, y)) pixel_data = 16'hffff;
+            if (text_on("BACK            ", 40, 54, x, y)) pixel_data = 16'hffff;
 
         end else if (game_state == `LP_GUIDE) begin
             // -----------------------------------------------------------------
@@ -429,18 +475,18 @@ module ui_renderer (
                             if (x == 1 || x == 22 || y == 10 || y == 42) pixel_data = 16'hf800;
                             else pixel_data = 16'h3000;
                         end
-                        if (text_on("ENG             ", 4, 13, x, y)) pixel_data = 16'hf800;
-                        if (text_on("OFF             ", 4, 23, x, y)) pixel_data = 16'hffe0;
-                        if (text_on("SW0             ", 4, 33, x, y)) pixel_data = 16'hffff;
+                        if (text_on("ENG             ", 3, 13, x, y)) pixel_data = 16'hf800;
+                        if (text_on("OFF             ", 3, 23, x, y)) pixel_data = 16'hffe0;
+                        if (text_on("SW0             ", 3, 33, x, y)) pixel_data = 16'hffff;
                     end else begin
                         // Active Box: Engine ON by SW0
                         if (x >= 1 && x <= 22 && y >= 10 && y <= 42) begin
                             if (x == 1 || x == 22 || y == 10 || y == 42) pixel_data = 16'h07e0;
                             else pixel_data = 16'h0200;
                         end
-                        if (text_on("ENG             ", 4, 13, x, y)) pixel_data = 16'h07e0;
-                        if (text_on(" ON             ", 4, 23, x, y)) pixel_data = 16'h07e0;
-                        if (text_on("SW0             ", 4, 33, x, y)) pixel_data = 16'h7bef;
+                        if (text_on("ENG             ", 3, 13, x, y)) pixel_data = 16'h07e0;
+                        if (text_on(" ON             ", 3, 23, x, y)) pixel_data = 16'h07e0;
+                        if (text_on("SW0             ", 3, 33, x, y)) pixel_data = 16'h7bef;
                     end
                 end
             end
@@ -496,40 +542,40 @@ module ui_renderer (
                 pixel_data = 16'h0841;
             end
 
-            // 4. Bottom Action Bar (y: 51..63): [ RETRY ] | [ GEAR ] | [ EDIT ] | [ DIARY ]
-            if (y >= 51) begin
-                if (y == 51) pixel_data = 16'h04b4; // Separator line
+            // 4. Bottom Action Bar (y: 52..63): [ RTRY ] | [ END ] | [ EDIT ] | [ GEAR ]
+            if (y >= 52) begin
+                if (y == 52) pixel_data = 16'h04b4; // Separator line
                 else begin
-                    // Button 1: [ RETRY ] (x: 1..22)
-                    if (x >= 1 && x <= 22) begin
-                        if (x == 1 || x == 22 || y == 52 || y == 63) pixel_data = 16'h04b4;
-                        else if (cursor_x >= 1 && cursor_x <= 22 && cursor_y >= 52 && cursor_y <= 63) pixel_data = 16'h0351;
+                    // Button 1: [ RETRY ] (x: 2..22)
+                    if (x >= 2 && x <= 22) begin
+                        if (x == 2 || x == 22 || y == 53 || y == 63) pixel_data = 16'h04b4;
+                        else if (cursor_x >= 2 && cursor_x <= 22 && cursor_y >= 54 && cursor_y <= 63) pixel_data = 16'h0351;
                         else pixel_data = 16'h18e5;
-                        if (text_on("RETRY           ", 2, 54, x, y)) pixel_data = 16'hffff;
+                        if (text_on("RTRY            ", 4, 55, x, y)) pixel_data = 16'hffff;
                     end
 
-                    // Button 2: [ GEAR ] Settings Icon (x: 24..45)
-                    else if (x >= 24 && x <= 45) begin
-                        if (x == 24 || x == 45 || y == 52 || y == 63) pixel_data = 16'h04b4;
-                        else if (cursor_x >= 24 && cursor_x <= 45 && cursor_y >= 52 && cursor_y <= 63) pixel_data = 16'h0351;
+                    // Button 2: [ END TRY ] (x: 26..44)
+                    else if (x >= 26 && x <= 44) begin
+                        if (x == 26 || x == 44 || y == 53 || y == 63) pixel_data = 16'h04b4;
+                        else if (cursor_x >= 26 && cursor_x <= 44 && cursor_y >= 54 && cursor_y <= 63) pixel_data = 16'h0351;
                         else pixel_data = 16'h18e5;
-                        pixel_data = cartoon_gear(7'd34, 6'd57, x, y, pixel_data);
+                        if (text_on("END             ", 30, 55, x, y)) pixel_data = 16'hf800; // Red text
                     end
 
-                    // Button 3: [ EDIT ] (x: 47..68)
-                    else if (x >= 47 && x <= 68) begin
-                        if (x == 47 || x == 68 || y == 52 || y == 63) pixel_data = 16'h04b4;
-                        else if (cursor_x >= 47 && cursor_x <= 68 && cursor_y >= 52 && cursor_y <= 63) pixel_data = 16'h0351;
+                    // Button 3: [ EDIT ] (x: 52..70)
+                    else if (x >= 52 && x <= 70) begin
+                        if (x == 52 || x == 70 || y == 53 || y == 63) pixel_data = 16'h04b4;
+                        else if (cursor_x >= 52 && cursor_x <= 70 && cursor_y >= 54 && cursor_y <= 63) pixel_data = 16'h0351;
                         else pixel_data = 16'h18e5;
-                        if (text_on("EDIT            ", 49, 54, x, y)) pixel_data = 16'hffff;
+                        if (text_on("EDIT            ", 53, 55, x, y)) pixel_data = 16'h07ff;
                     end
 
-                    // Button 4: [ DIARY ] (x: 70..94)
-                    else if (x >= 70 && x <= 94) begin
-                        if (x == 70 || x == 94 || y == 52 || y == 63) pixel_data = 16'h04b4;
-                        else if (cursor_x >= 70 && cursor_x <= 94 && cursor_y >= 52 && cursor_y <= 63) pixel_data = 16'h0351;
+                    // Button 4: [ GEAR ] (x: 74..94)
+                    else if (x >= 74 && x <= 94) begin
+                        if (x == 74 || x == 94 || y == 53 || y == 63) pixel_data = 16'h04b4;
+                        else if (cursor_x >= 74 && cursor_x <= 94 && cursor_y >= 54 && cursor_y <= 63) pixel_data = 16'h0351;
                         else pixel_data = 16'h18e5;
-                        if (text_on("DIARY           ", 72, 54, x, y)) pixel_data = 16'hffff;
+                        pixel_data = cartoon_gear(7'd84, 6'd58, x, y, pixel_data);
                     end
                 end
             end
