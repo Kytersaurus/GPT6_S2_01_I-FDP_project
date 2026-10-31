@@ -15,6 +15,10 @@ module collision_engine #(parameter ROTATION_ONLY = 0) (
     input tri0 rotation_enabled,
     input wire signed [`LP_TILT_BITS-1:0] previous_tilt, proposed_tilt,
     input tri1 [8:0] collision_mask,
+    input tri0 cg_enabled,
+    input tri0 [26:0] build_grid,
+    input tri0 [8:0] part_intact_mask, frame_intact_mask,
+    output wire support_unstable,
     input wire [9:0] world_width, world_height,
     output wire signed [10:0] query_x, query_y,
     input wire [2:0] query_class,
@@ -28,6 +32,8 @@ module collision_engine #(parameter ROTATION_ONLY = 0) (
     output wire signed [1:0] tip_dir
 );
     reg busy, active_rotation;
+    wire rot_unstable;
+    assign support_unstable=active_rotation && rot_unstable;
     wire use_rotation = ROTATION_ONLY || rotation_enabled;
     wire rot_ready, rot_valid, rot_ground;
     wire signed [`LP_COORD_BITS-1:0] rot_x, rot_y;
@@ -78,7 +84,9 @@ module collision_engine #(parameter ROTATION_ONLY = 0) (
         .clk(clk), .reset(reset), .move_valid(move_valid && !busy && use_rotation), .move_ready(rot_ready),
         .previous_x(previous_x), .previous_y(previous_y), .proposed_x(proposed_x), .proposed_y(proposed_y),
         .previous_tilt(previous_tilt), .proposed_tilt(proposed_tilt),
-        .collision_mask(collision_mask),
+        .collision_mask(collision_mask), .cg_enabled(cg_enabled), .build_grid(build_grid),
+        .part_intact_mask(part_intact_mask), .frame_intact_mask(frame_intact_mask),
+        .support_unstable(rot_unstable),
         .proposed_vx(proposed_vx), .proposed_vy(proposed_vy), .world_width(world_width), .world_height(world_height),
         .query_x(rot_qx), .query_y(rot_qy), .query_class(query_class),
         .response_valid(rot_valid), .response_ready(response_ready && busy && active_rotation),

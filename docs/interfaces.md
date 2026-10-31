@@ -377,17 +377,11 @@ readiness; horizontal and vertical rocket axes are now body-relative and their n
 is rotated into world coordinates for translation. Two opposing forces can produce a couple even when their net
 translational force is zero. Force through COM produces no moment.
 
-Engine drive and wheel resistance act at grounded wheel contacts, not at engine
-cells. Only the currently supporting wheel side receives traction. Eligibility uses the
-existing frame-attachment side and body-grounded convention, rather than a
-separate terrain query for each tyre. Total drive
-plus wheel drag is divided equally among those wheels, distributing any integer
-remainder across contacts so no force is lost. The contact is four pixels beyond
-the wheel's cell centre on its ground-facing side. Airborne wheels have no
-traction. The game now sets `WHEEL_TORQUE_SHIFT=2`, applying one quarter of the
-raw wheel-to-body torque as a conservative approximation of unresolved tyre and
-ground reactions. Linear drive/braking force is unchanged. This tuning is not a
-claim of exact suspension dynamics; 0 restores the unscaled wheel moment. With moments enabled, engine drive also requires contacting wheels;
+Wheel drive and resistance now contribute translation only. No wheel force is
+split among contacts or multiplied by a moment arm. `WHEEL_TORQUE_SHIFT` remains
+an accepted compatibility parameter but has no effect. Passive ground support,
+slope settling and terrain-edge tipping remain, as do the fan/rocket moments.
+With moments enabled, engine drive requires grounded contacting wheels; the
 legacy arithmetic mode retains its former fallback for old benches.
 
 Torque uses Q10 (Q8 force times quarter-pixel arm). Angular acceleration in Q8
@@ -563,3 +557,259 @@ Combined utilization is 20,130 LUTs (96.78%, 670 free), 4,566 registers, 23 DSPs
 and 48 block-RAM tiles. Pre-route WNS is -1.367 ns, so this is not routed timing
 sign-off. Logs: `tmp/merge_all_summary.log`, `tmp/merge_contract_final/` and
 `tmp/merge_synthesis/`.
+
+
+## Menu and wheel controls update (2026-10-31)
+
+This section supersedes earlier UI defaults and wheel-moment tuning above.
+Volume resets to 2/4; all five settings, 0/4 through 4/4, remain selectable and
+render numerically even while muted. The mute slash is the status indicator;
+redundant captions and SW1 text are removed. Settings hit boxes match the drawn
+Sound (6..30), Map (36..60), and Mouse (66..90) boxes at y=12..48. The obsolete
+`level_button` handler for the full Settings row was removed: it was opening Map
+on Sound and sensitivity clicks. No invisible shortcut overlaps the RUN vehicle
+or the bottom navigation buttons.
+
+Map Back restores Settings; Settings Back restores its entry page. The Map
+entry flag is reset when entering from Settings, including after Title Play.
+Settings Home and result Home return to Title while preserving the saved build.
+Title clicks cannot edit the build behind the title graphic. Diary lines fit
+the available 96-pixel width, including the narrow blueprint column.
+
+Engine and fan start OFF on every launch/retry. SW0 is a master engine inhibit:
+OFF clears the engine toggle, and ON permits the engine icon to toggle power.
+GO lasts 30 physics ticks (about half a second at 60 Hz). Wheels may mount to
+any orthogonally adjacent frame; horizontal masks prevent row wrap. Wheel drive
+never adds torque, including boosted drive or a single contact. Fan/rocket COM
+moments and the 1024 production rocket force remain enabled.
+
+Settings waits for an outstanding movement/collision update to complete before
+pausing RUN. Menus preserve vehicle momentum and the rocket's fuel/spent latch,
+so opening Settings cannot recharge a spent rocket. Engine boost time freezes
+while paused. Fan state is preserved across menus; launch/retry still clears it.
+
+The board timer is blank outside RUN. For seconds-only values the minutes digit
+and its decimal point are off; at one minute or more it shows M.SS. The unused
+leftmost digit is blank unless needed for the existing countdown's minus sign.
+`menu_fixes_tb` covers navigation, click edges, volume glyphs 0..4, SW0 and timer
+gating. `menu_pause_tb` checks collision completion before pause and successful
+resume. Existing wheel/moments tests now assert zero wheel spin with unchanged
+linear drive and retained fan/rocket spin.
+
+Motor-only builds now select the original terrain turning model. COM moments
+are enabled when a fan or rocket is fitted to the saved build, including when
+its control is currently OFF. Saved inventory counts select this mode, so damage
+or an expended rocket cannot switch turning models midway through RUN. This
+completes the wheel rollback instead of leaving the newer edge-turning model
+active on a wheel-only cart. Fan/rocket builds still have zero wheel drive torque.
+
+### Final validation
+
+All 60 regression benches pass across the full suite and affected reruns;
+all 19 top-level benches pass again after the final wheel-only model selection.
+Production sources compile as Verilog-2001 without `--sv`. The diary/settings
+pixels were exported and visually checked, and protected map files are unchanged.
+Per-bench results: `tmp/ui_validation_summary.json`.
+
+Final synthesis uses 19,669 LUTs (94.56%). After placement/routing: 19,390 LUTs
+(93.22%, 1,410 free), 4,490 registers, 23 DSPs and 48 BRAM tiles. At 100 MHz,
+routed setup slack is +0.015 ns and hold slack +0.030 ns, with zero failing
+endpoints. The timing margin is narrow. Reports are in
+`tmp/ui_final_synthesis/utilization_routed.rpt` and `timing_routed.rpt`.
+No bitstream was generated or programmed in this update.
+
+
+## Center-of-gravity terrain support (2026-11-01)
+
+The game enables `cg_enabled` on the rotated collision engine and supplies the
+saved grid plus separate surviving-content and surviving-frame masks. These are
+captured with each movement. The existing full-contact scan supplies the minimum
+and maximum terrain contact X. The vertical weight line must lie within that
+support interval, extended by one pixel on each side to avoid raster jitter.
+A center over air is safe when two contacts straddle it (a bridge).
+
+The check uses the same point masses as construction: frame 2, pig 2, engine 3,
+wheel 1, balloon 1, rocket 2 and fan 2. Cell centers are rotated using the actual
+accepted collision angle. No new divider, multiplier or map reads are needed:
+`CG_ACCUM` repeatedly adds each cell's projected X and both support bounds once
+per mass unit. Comparing `sum(m*x)` against `total_mass*left/right` is equivalent
+to calculating COM and comparing it with the support interval. Three registered
+sums and a small counter require at most 64 extra 100 MHz clocks per movement.
+
+`support_unstable` accompanies a nonzero tipping direction when COM is outside
+that interval. A local smooth-slope reading cannot cancel it. Physics captures
+the flag with the accepted collision response; it bypasses the old terrain-angle
+limit that could stop a real overhang tipping. While unsupported contact remains,
+a bounded gravity-driven outward slide uses acceleration 16 Q8 units (4 with one
+balloon, zero with net upward buoyancy), reusing the normal mass division and
+friction. This prevents turning in place forever on a ledge. Collision still
+blocks penetration, and ordinary gravity takes over after contact releases.
+This is one rigid body; wheel drive torque remains disabled.
+
+`cg_support_tb` checks mass shifts, destroyed parts/frames, rotated and inverted
+mass distributions, safe bridging, slope veto, geometry snapshots, backpressure
+and reset. `cg_falling_tb` checks unpowered left/right overhangs actually slide
+and fall while a bridge remains stable. `cg_cave_ledge_tb` uses the protected,
+unchanged Cave Arch ROM to reproduce the previously trapped (576,230), -22.5
+degree pose: the unpowered cart leaves the ledge and drops more than four pixels
+within 11 physics updates. Legacy standalone collision callers can omit the new
+ports (`cg_enabled` defaults to zero); the production top connects them explicitly.
+
+The resource check initially remapped the pre-existing bass note decoder into a
+half BRAM tile. Its 256 entries are now grouped by their 13 identical pitches in
+a plain case statement, keeping the decoder in LUT logic. All 256 output values
+were checked against the original song, and the audio regressions pass. This
+changes neither song data nor timing/volume behavior. The goal/bounds integration
+fixture also clears its cached terrain contact when manually teleporting its
+vehicle; a contact from spawn must not slide a synthetic goal pose out of bounds.
+
+### CoG implementation validation
+
+All 63 regression benches pass across the full run and affected reruns. The final
+slope/rotation/CoG/goal/drive checks also pass after timing pipelining. A separate
+comparison against the original BGM verifies identical bass waveforms at 1,024
+mode/note, volume and pause boundaries. Note data is unchanged. Production RTL
+compiles as Verilog-2001.
+
+Timing stages now register the collision projection's sign inversion before its
+DSP, cache slope-to-angle conversion between accepted physics updates, and cache
+the bass period during the note-start reset. The bass period/count is 20 bits,
+sufficient for every existing pitch. These changes preserve movement-update
+latency and note periods. The project and rebuild setup enable post-route
+`AggressiveExplore` physical optimization; the standalone build script follows
+the same flow. Rebuilding from an already-open GUI should use
+`source scripts/rebuild_bitstream.tcl` to refresh the run properties.
+
+Final implementation: 19,452 LUTs (93.52%, 1,348 free), 4,648 registers, 23 DSPs
+and 48 BRAM tiles. This is a net 62-LUT increase from the preceding routed build,
+with no extra DSP or BRAM. At 100 MHz, setup slack is +0.040 ns and hold slack
++0.023 ns, with zero failing endpoints; the margin remains narrow. Reports:
+`tmp/cg_timing_final/utilization_optimized.rpt`, `timing_optimized.rpt`.
+`tmp/cg_validation_summary.json` records the per-bench results.
+
+The verified bitstream is `tmp/cg_release/Laggy_Piggies_CoG.bit`, with its SHA-256
+and validation data in `tmp/cg_release/validation.json`. The board was not
+programmed by the agent. Protected map assets and `level_map.v` are unchanged.
+
+
+### Rotation stability correction (1 November 2026)
+
+This revision supersedes the CoG release rotation behavior above. CoG overhangs
+retain their outward gravity slide, including the reduced force with a balloon,
+but do not repeatedly inject angular acceleration. Normal terrain alignment
+controls pitch. The legacy tipping angle guard remains for callers without CoG
+support. Fan and rocket moments remain enabled; wheel moments remain disabled.
+
+Free rotation now loses speed each accepted physics update. Legacy spin loses
+one unit toward zero; the moments path loses one eighth of angular speed and,
+with no applied torque, stops below 64 Q8 units. Stopping clears fractional angle
+remainders so they cannot keep producing angle changes. Active fan or rocket
+torque can still accelerate rotation. Menu pauses do not advance this damping.
+
+Ground alignment reuses the existing held target and confirmation counter. Once
+aligned, an adjacent non-flat slope bin leaves the resting angle unchanged.
+Larger grade changes still align, and a flat floor always returns fully level.
+This prevents neighboring raster slope readings from rocking the body between
+two display angles without adding another counter or terrain memory.
+
+`first_map_slope_tb` reproduces the real first Cave Arch downhill using the
+production CoG connection. Before this correction a two-wheel cart reached tilt
+8 (90 degrees) at update 85. With the correction it traverses the downhill in
+249 updates with a peak tilt of 4 (45 degrees); the four-wheel layout also
+completes in 249 updates with the same peak angle. `rotation_stability_tb` checks
+neighboring-bin stability, larger grade changes and flat-floor alignment in both
+rotation modes, plus positive and negative legacy spin decay.
+`physics_moments_tb` checks positive and negative free-spin decay to a fixed
+angle after thrust is removed, while retaining powered fan/rocket rotation.
+The actual-map display integration fixture now starts on the scaled downhill;
+the full Arch drive regression explicitly enables the production CoG input.
+
+
+The corrected implementation uses 19,625 LUTs (94.35%, 1,175 free), 4,632
+registers, 23 DSPs and 48 BRAM tiles. This is 173 LUTs above the preceding CoG
+build, with no additional DSP or BRAM. At 100 MHz setup slack is +0.265 ns and
+hold slack is +0.023 ns, with zero failing endpoints. Reports are in
+`tmp/stable_rotation_build/utilization_routed.rpt` and `timing_routed.rpt`.
+
+The full production-CoG Arch drive reaches the finish flag in 1,708 physics
+updates with two ordinary direction reversals. The unpowered real-map ledge
+fixture still drops clear in 10 updates. Protected maps remain unchanged.
+
+All 65 default regression benches pass for this corrected build. Extra runs
+cover both rotation modes and both two-/four-wheel first-downhill layouts.
+Production RTL also compiles as Verilog-2001. The verified replacement bitstream
+is `tmp/stable_rotation_build/Laggy_Piggies_StableRotation.bit`; its SHA-256,
+resources, timing and regression evidence are recorded in
+`tmp/stable_rotation_build/validation.json`. This supersedes the earlier CoG
+bitstream. The board has not been programmed by the agent.
+
+
+### Momentum-preserving slope and CoG forces (1 November 2026)
+
+A support hint must not replace the gravity from a measured ramp or turn a
+missing ramp sample into artificial braking. All nonzero accepted gradients
+therefore retain their ordinary signed downhill force, independently of the CoG
+hint. On a zero-gradient/unknown-gradient contact, the synthetic ledge-release
+force applies only from rest or in the current direction of travel. An opposing
+hint leaves rolling resistance as the only horizontal drag on that contact.
+The rules use velocity, gradient and support direction, with no map coordinates
+or level-specific exceptions. Uphill gravity, normal rolling resistance and
+real blocking collisions still slow or stop a cart.
+
+The force goes through the existing force/mass divider and fractional carry;
+velocity is not overwritten to implement the CoG assistance. A resting overhang
+still starts sliding out of support. Rotation damping, fractional-angle clearing
+and neighboring-bin ground alignment from the preceding revision are retained.
+The current user-selected rolling drag is 6 per contacting wheel; scraping drag
+remains 128. All arithmetic remains Verilog-2001, with no new divider, multiplier
+or memory introduced by the momentum rule.
+
+The old code reproduced an engine-off speed drop of 256 to 240 at a first-map
+stair: the ramp probe returned zero and a leftward CoG hint applied a backward
+force of 208. Collision preserved the proposed speed. With the correction that
+contact contributes zero CoG force, allowing ordinary gradual friction instead.
+`physics_slope_tb` now checks 198 cases, including an invariance sweep of every
+nonzero supported slope (-16..16), both velocity signs and both CoG hint signs.
+Known-ramp motion must match the no-CoG reference in every combination. It also
+checks mirrored motor-off coasting, opposite flat hints, and release from rest.
+`coasting_slope_tb` drives the actual Cave Arch ROM to x300, switches the motor
+off, and checks continued downhill progress to x450 without sudden non-uphill
+braking. Two-/four-wheel and legacy/moments rotation variants share that check.
+
+
+The four-wheel/moments coast test also exposed a separate collision issue at
+an uphill transition. `proposed_y` includes a rotation pivot shift of the grid
+origin, so an upward origin shift does not necessarily mean upward velocity.
+During a turn collision now uses `proposed_vy` to classify upward flight; when
+the angle is unchanged, position-only upward requests retain their old behavior.
+This keeps normal ground snap and stair handling available during a supported
+rotation without snapping genuine jumps or rising vehicles back to the ground.
+`pivot_slope_contact_tb` verifies 18 mirrored flat/stair cases with public request
+and response signals, including backpressure, true upward launches and legacy
+position-only upward moves. The old classification fails the first supported
+turn; the corrected classification passes all 18.
+
+
+Final targeted checks on both shared-rule corrections pass all four coasting
+configurations to the original x450 endpoint, 151 unpowered updates each. The
+four-wheel/moments uphill transition retains vx209 where the old classification
+forced it to zero. Full Arch drive reaches the flag in 1,700 updates with two
+direction reversals. The powered first downhill completes in 248 updates with
+peak tilt4 (45 degrees), and display pose/angle transfer passes.
+
+The final routed design uses 19,630 LUTs (94.38%, 1,170 free), 4,637 registers,
+23 DSPs and 48 BRAM tiles: a net five LUTs above the preceding stable-rotation
+build, with no additional DSP or BRAM. Setup slack is +0.081 ns and hold slack
++0.030 ns at 100 MHz, with zero failing endpoints. Reports and the replacement
+bitstream are in `tmp/momentum_final_build/`; earlier `tmp/momentum_build/` was
+a force-only intermediate revision and is superseded by this final build.
+
+
+All 67 registered regression benches have passing results: the full 66-bench
+force revision run, fresh reruns of the affected collision/map/course checks on
+the final collision revision, and the new 18-case pivot/contact bench. The four
+coasting variants also pass on the final sources. Production RTL compiles as
+Verilog-2001. `tmp/momentum_final_build/validation.json` records per-stage evidence,
+source hashes, resources, timing and the bitstream SHA-256. The verified bitstream
+is `tmp/momentum_final_build/Laggy_Piggies_Momentum.bit`. The board was not
+programmed by the agent. Protected maps and `level_map.v` remain unchanged.

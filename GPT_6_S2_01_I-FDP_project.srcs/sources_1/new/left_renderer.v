@@ -108,7 +108,7 @@ module left_renderer #(parameter EDITOR_CELL_PIXELS = 16) (
             `LP_FEEDBACK_REMOVED: begin message = "REMOVED         "; message_colour = 16'h07e0; end
             `LP_FEEDBACK_NO_STOCK: message = "NO STOCK        ";
             `LP_FEEDBACK_NEED_FRAME: message = "NEED FRAME      ";
-            `LP_FEEDBACK_FRAME_ABOVE: message = "FRAME UP/DOWN   ";
+            `LP_FEEDBACK_FRAME_ABOVE: message = "ADJACENT FRAME  ";
             `LP_FEEDBACK_FRAME_BELOW: message = "FRAME BELOW     ";
             `LP_FEEDBACK_OCCUPIED: message = "CELL OCCUPIED   ";
             default: begin

@@ -49,9 +49,9 @@ module wheel_stability_tb;
         clocks(3);reset=0;state=`LP_INIT_RUN;init=1;clocks(2);init=0;state=`LP_RUN;
         update();contact=1;
         for(i=0;i<64;i=i+1) update();
-        if(stable_peak>=256 || raw_peak<=512 || stable_peak>=raw_peak)
-            $fatal(1,"Single wheel still over-rotates: raw=%0d stable=%0d",raw_peak,stable_peak);
-        $display("PASS wheel_stability_tb: single-wheel spin reduced from %0d to %0d Q8 units with identical linear drive",raw_peak,stable_peak);
+        if(stable_peak!=0 || raw_peak!=0 || vx_all==0)
+            $fatal(1,"Wheel drive created rotation: raw=%0d stable=%0d",raw_peak,stable_peak);
+        $display("PASS wheel_stability_tb: single-wheel spin remains %0d / %0d with identical nonzero linear drive",raw_peak,stable_peak);
         $finish;
     end
     initial begin #1500000;$fatal(1,"Wheel stability test timeout");end

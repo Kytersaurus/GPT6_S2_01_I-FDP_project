@@ -8,6 +8,7 @@ module game_controller #(
     parameter integer TICKS_PER_SECOND = 60,
     parameter integer ENABLE_START_SCREEN = 0
 ) (
+    input tri0 home_req,
     input wire clk, reset, launch_req, retry_req, edit_req, guide_open_req, guide_close_req,
     input wire level_next_req, level_open_req, level_close_req, level_select_req, end_try_req,
     input wire [`LP_LEVEL_BITS-1:0] selected_level,
@@ -31,6 +32,7 @@ module game_controller #(
     output reg step_start, update_release, launch_event, success_event, failure_event
 );
     reg step_busy;
+    reg settings_pending;
     reg [6:0] second_ticks;
     reg settings_from_start;
     reg [2:0] settings_return_state;
@@ -43,7 +45,7 @@ module game_controller #(
         if (reset) begin
             game_state <= `LP_BUILD; guide_return_state <= `LP_BUILD; settings_return_state <= `LP_BUILD; level_index <= 0; fail_reason <= `LP_FAIL_NONE;
             run_seconds <= 0; second_ticks <= 0; star_box_collected <= 0;
-            step_busy <= 0; step_start <= 0; update_release <= 0;
+            step_busy <= 0; settings_pending <= 0; step_start <= 0; update_release <= 0;
             launch_event <= 0; success_event <= 0; failure_event <= 0;
             start_screen_active <= (enable_start_screen === 1'b1) || (ENABLE_START_SCREEN != 0);
             settings_from_start <= 1'b0;
@@ -52,7 +54,12 @@ module game_controller #(
             step_start <= 0; update_release <= 0;
             if (star_box_hit && game_state == `LP_RUN) star_box_collected <= 1;
             launch_event <= 0; success_event <= 0; failure_event <= 0;
-            if (start_screen_active) begin
+            if (game_state!=`LP_RUN) settings_pending <= 0;
+            else if (level_open_req) settings_pending <= 1;
+            if (home_req) begin
+                game_state <= `LP_BUILD; start_screen_active <= 1;
+                step_busy <= 0; settings_from_start <= 0; map_from_start <= 0;
+            end else if (start_screen_active) begin
                 step_busy <= 0;
                 if (launch_req) begin
                     start_screen_active <= 1'b0;
@@ -84,7 +91,9 @@ module game_controller #(
                                 game_state <= settings_return_state;
                             end
                         end
-                        else if (level_select_req || level_open_req) game_state <= `LP_LEVEL_SELECT;
+                        else if (level_select_req || level_open_req) begin
+                            map_from_start <= 0; game_state <= `LP_LEVEL_SELECT;
+                        end
                         else if (guide_open_req) begin guide_return_state <= `LP_SETTINGS; game_state <= `LP_GUIDE; end
                     end
                     `LP_LEVEL_SELECT: begin
@@ -115,7 +124,7 @@ module game_controller #(
                             if (goal_hit) begin game_state <= `LP_SUCCESS; success_event <= 1; end
                             else begin game_state <= `LP_FAIL; fail_reason <= `LP_FAIL_NONE; failure_event <= 1; end
                         end
-                        else if (level_open_req) begin settings_from_start <= 1'b0; settings_return_state <= `LP_RUN; game_state <= `LP_SETTINGS; end
+                        else if ((level_open_req || settings_pending) && !step_busy && !gameplay_pending) begin settings_from_start <= 1'b0; settings_return_state <= `LP_RUN; game_state <= `LP_SETTINGS; end
                         else begin
                     // Whole seconds of RUN, held at 4:15; results freeze the final time.
                     if (physics_tick) begin

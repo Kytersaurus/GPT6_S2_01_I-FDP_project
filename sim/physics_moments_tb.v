@@ -14,8 +14,9 @@ module physics_moments_tb;
     wire signed [19:0] nx,ny,x,y;
     wire signed [15:0] vx,vy;
     wire signed [4:0] nt,tilt;
-    integer waited,i,start_comx,start_comy,end_comx,end_comy,peak_wait=0;
+    integer pause_fuel,pause_x,pause_y,waited,i,start_comx,start_comy,end_comx,end_comy,peak_wait=0;
     reg signed [13:0] held_spin;
+    reg signed [4:0] quiet_tilt;
     `include "rotation_geometry.vh"
     always #5 clk=~clk;
     physics_engine #(.ENGINE_FORCE(320)) dut(.clk(clk),.reset(reset),.run_init(init),.game_state(state),
@@ -68,7 +69,27 @@ module physics_moments_tb;
         if(tilt>=0 || dut.angular_velocity_q8>=0) $fatal(1,"Offset fan did not spin body");
         fan=0;held_spin=dut.angular_velocity_q8;
         for(i=0;i<12;i=i+1) update();
-        if(dut.angular_velocity_q8!=held_spin) $fatal(1,"Airborne angular momentum did not persist");
+        if(dut.angular_velocity_q8>0 || dut.angular_velocity_q8<=held_spin)
+            $fatal(1,"Airborne fan spin did not decay without reversing");
+        for(i=0;i<40;i=i+1) update();
+        if(dut.angular_velocity_q8!=0 || dut.moment_angle_remainder!=0)
+            $fatal(1,"Unpowered angular motion never stopped");
+        quiet_tilt=tilt;for(i=0;i<12;i=i+1) begin update();
+            if(tilt!=quiet_tilt) $fatal(1,"Stopped negative spin changed rotation state");end
+        // Reversed fan: positive rotation also decays without changing sign.
+        empty();put(1,`LP_PART_FAN);facing[1]=1;fans=-1;fan=1;mass=6;restart();
+        for(i=0;i<30;i=i+1) update();
+        if(dut.angular_velocity_q8<=0) $fatal(1,"Reversed fan did not generate positive spin");
+        fan=0;held_spin=dut.angular_velocity_q8;
+        for(i=0;i<40;i=i+1) begin update();
+            if(dut.angular_velocity_q8<0 || dut.angular_velocity_q8>held_spin)
+                $fatal(1,"Positive spin grew or reversed after power off");
+            held_spin=dut.angular_velocity_q8;
+        end
+        if(dut.angular_velocity_q8!=0 || dut.moment_angle_remainder!=0)
+            $fatal(1,"Positive spin never stopped");
+        quiet_tilt=tilt;for(i=0;i<12;i=i+1) begin update();
+            if(tilt!=quiet_tilt) $fatal(1,"Stopped positive spin changed rotation state");end
         // A pure couple rotates while horizontal COM velocity remains zero.
         empty();put(1,`LP_PART_FAN);put(7,`LP_PART_FAN);facing[7]=1;fan=1;fans=0;mass=8;restart();
         for(i=0;i<24;i=i+1) update();
@@ -81,19 +102,29 @@ module physics_moments_tb;
         fire=1;clocks(1);fire=0;
         for(i=0;i<12;i=i+1) update();
         if(tilt<=0 || vy>=0) $fatal(1,"Vertical rocket did not lift and rotate");
+        pause_fuel=dut.rocket_fuel;pause_x=x;pause_y=y;held_spin=dut.angular_velocity_q8;
+        state=`LP_SETTINGS;clocks(20);state=`LP_GUIDE;clocks(20);
+        if(dut.rocket_fuel!=pause_fuel || !dut.rocket_spent || x!=pause_x || y!=pause_y || dut.angular_velocity_q8!=held_spin)
+            $fatal(1,"Menu changed rocket fuel, pose or momentum");
+        state=`LP_RUN;
         for(i=0;i<78;i=i+1) update();
         held_spin=dut.angular_velocity_q8;update();
-        if(dut.u_moments.torque_q10!=0 || dut.angular_velocity_q8!=held_spin)
-            $fatal(1,"Expended rocket kept adding angular acceleration");
+        if(dut.u_moments.torque_q10!=0 || (held_spin>0 && dut.angular_velocity_q8>=held_spin) ||
+           (held_spin<0 && dut.angular_velocity_q8<=held_spin))
+            $fatal(1,"Expended rocket spin did not decay");
         // The engine drives only grounded wheels; a blocked terrain turn kills spin.
         empty();frames[3]=1;frame_alive[3]=1;put(3,`LP_PART_ENGINE);put(7,`LP_PART_WHEEL);
         mass=10;wheel_count=1;engine_count=1;engine=1;restart();
         update();if(vx!=0 || dut.u_moments.torque_q10!=0) $fatal(1,"Airborne wheel drove body");
         contact=1;update();block_turn=1;
-        i=0;
-        begin_step();
+        for(i=0;i<40;i=i+1) update();
+        if(tilt!=0 || dut.angular_velocity_q8!=0 || vx<=0)
+            $fatal(1,"Wheel drive rotated instead of translating");
+        // A blocked fan turn clears angular momentum.
+        empty();put(1,`LP_PART_FAN);fans=1;fan=1;mass=6;restart();block_turn=1;
+        i=0;begin_step();
         while(nt==0 && i<40) begin finish();begin_step();i=i+1;end
-        if(nt==0 || vx<=0) $fatal(1,"Wheel drive did not create traction moment");
+        if(nt==0) $fatal(1,"Fan failed to request blocked rotation");
         finish();
         if(tilt!=0 || dut.angular_velocity_q8!=0) $fatal(1,"Blocked turn retained spin");
         // Ordinary drive is held by normal reactions; boost can exceed them.
@@ -104,7 +135,7 @@ module physics_moments_tb;
         if(tilt!=0 || dut.angular_velocity_q8!=0 || vx<=0) $fatal(1,"Supported cart tipped under ordinary drive");
         boost=1;clocks(1);boost=0;clocks(1);
         for(i=0;i<16;i=i+1) update();
-        if(dut.angular_velocity_q8>=0) $fatal(1,"Excess drive torque could not overcome normal reaction");
+        if(dut.angular_velocity_q8!=0 || tilt!=0) $fatal(1,"Boosted wheel drive rotated the body");
         step=1;clocks(1);step=0;clocks(4);restart();
         if(tilt!=0 || x!=8192 || y!=8192 || dut.angular_velocity_q8!=0 || valid)
             $fatal(1,"Retry retained moment calculation or spin");

@@ -229,11 +229,7 @@ module ui_renderer (
             // SETTINGS SCREEN: 3 Centered Icon Boxes (Sound, Map, Mouse)
             // -----------------------------------------------------------------
             pixel_data = 16'h0841;
-            if (audio_muted) begin
-                if (text_on("MUTED VIA SW1   ", 10, 2, x, y)) pixel_data = 16'hffe0;
-            end else begin
-                if (text_on("SETTINGS        ", 24, 2, x, y)) pixel_data = 16'h07ff;
-            end
+            if (text_on("SETTINGS        ", 24, 2, x, y)) pixel_data = 16'h07ff;
 
             // Box 1: SOUND SETTINGS (x: 6..30, y: 12..48)
             if (x >= 6 && x <= 30 && y >= 12 && y <= 48) begin
@@ -260,18 +256,13 @@ module ui_renderer (
                                     (x == 23 && y == 27) || (x == 24 && y == 28)))
                     pixel_data = 16'hf800;
             end
-            if (text_on("SND             ", 9, 31, x, y)) pixel_data = 16'hffff;
-            if (audio_muted) begin
-                if (text_on("MUTE            ", 8, 39, x, y)) pixel_data = 16'hf800;
-            end else begin
-                case (master_volume)
-                    0: if (text_on(" 0/4            ", 8, 39, x, y)) pixel_data = 16'h07ff;
-                    1: if (text_on(" 1/4            ", 8, 39, x, y)) pixel_data = 16'h07ff;
-                    2: if (text_on(" 2/4            ", 8, 39, x, y)) pixel_data = 16'h07ff;
-                    3: if (text_on(" 3/4            ", 8, 39, x, y)) pixel_data = 16'h07ff;
-                    default: if (text_on(" 4/4            ", 8, 39, x, y)) pixel_data = 16'h07ff;
-                endcase
-            end
+            case (master_volume)
+                0: if (text_on("0/4             ", 10, 39, x, y)) pixel_data = 16'h07ff;
+                1: if (text_on("1/4             ", 10, 39, x, y)) pixel_data = 16'h07ff;
+                2: if (text_on("2/4             ", 10, 39, x, y)) pixel_data = 16'h07ff;
+                3: if (text_on("3/4             ", 10, 39, x, y)) pixel_data = 16'h07ff;
+                default: if (text_on("4/4             ", 10, 39, x, y)) pixel_data = 16'h07ff;
+            endcase
 
             // Box 2: MAP SELECTOR (x: 36..60, y: 12..48)
             if (x >= 36 && x <= 60 && y >= 12 && y <= 48) begin
@@ -287,7 +278,6 @@ module ui_renderer (
                     else pixel_data = 16'hffdf;
                 end
             end
-            if (text_on("MAP             ", 39, 31, x, y)) pixel_data = 16'hffff;
             if (level_index == 0) begin
                 if (text_on("ARCH            ", 38, 39, x, y)) pixel_data = 16'h07ff;
             end else begin
@@ -311,16 +301,13 @@ module ui_renderer (
             end
             case (mouse_speed)
                 0: begin
-                    if (text_on("SLOW            ", 68, 31, x, y)) pixel_data = 16'hffe0;
                     if (text_on("0.5X            ", 68, 39, x, y)) pixel_data = 16'h7bef;
                 end
                 1: begin
-                    if (text_on("NORM            ", 68, 31, x, y)) pixel_data = 16'hffe0;
                     if (text_on("1.0X            ", 68, 39, x, y)) pixel_data = 16'h7bef;
                 end
                 default: begin
-                    if (text_on("FAST            ", 68, 31, x, y)) pixel_data = 16'hffe0;
-                    if (text_on("2.5X            ", 68, 39, x, y)) pixel_data = 16'h7bef;
+                    if (text_on("2.0X            ", 68, 39, x, y)) pixel_data = 16'h7bef;
                 end
             endcase
 
@@ -331,6 +318,11 @@ module ui_renderer (
                 else pixel_data = 16'h18e5;
             end
             if (text_on("BACK            ", 40, 54, x, y)) pixel_data = 16'hffff;
+            if (x>=70 && x<=95 && y>=52 && y<=62) begin
+                if (x==70 || x==95 || y==52 || y==62) pixel_data=16'h04b4;
+                else pixel_data=16'h18e5;
+                if (text_on("HOME            ", 72, 54, x, y)) pixel_data=16'hffff;
+            end
 
         end else if (game_state == `LP_GUIDE) begin
             // -----------------------------------------------------------------
@@ -339,19 +331,19 @@ module ui_renderer (
             pixel_data = 16'h0841;
             case (diary_page)
                 0: begin
-                    if (text_on("CONTROLS     1/3", 2, 2, x, y)) pixel_data = 16'h07ff;
+                    if (text_on("CONTROLS    1/3 ", 2, 2, x, y)) pixel_data = 16'h07ff;
                     if (text_on("L-DRAG: PLACE   ", 4, 12, x, y)) pixel_data = 16'hffff;
                     if (text_on("R-CLK:  DELETE  ", 4, 22, x, y)) pixel_data = 16'hffe0;
                     if (text_on("SW0:    MOTOR   ", 4, 32, x, y)) pixel_data = 16'h07e0;
-                    if (text_on("SW1:    REVERSE ", 4, 42, x, y)) pixel_data = 16'h07ff;
+                    if (text_on("SW2:    REVERSE ", 4, 42, x, y)) pixel_data = 16'h07ff;
                 end
                 1: begin
-                    if (text_on("BLUEPRINT    2/3", 2, 2, x, y)) pixel_data = 16'h07ff;
-                    if (text_on("MOTOR CART      ", 44, 12, x, y)) pixel_data = 16'h07e0;
-                    if (text_on("ROW1: EMPTY     ", 44, 21, x, y)) pixel_data = 16'h7bef;
-                    if (text_on("ROW2: ENG+PIG   ", 44, 29, x, y)) pixel_data = 16'hffff;
-                    if (text_on("ROW3: 2X WHEELS ", 44, 37, x, y)) pixel_data = 16'hffe0;
-                    if (text_on("SW0: DRIVE GO   ", 44, 45, x, y)) pixel_data = 16'h07e0;
+                    if (text_on("BLUEPRINT   2/3 ", 2, 2, x, y)) pixel_data = 16'h07ff;
+                    if (text_on("CART            ", 44, 12, x, y)) pixel_data = 16'h07e0;
+                    if (text_on("TOP: -          ", 44, 21, x, y)) pixel_data = 16'h7bef;
+                    if (text_on("ENG+PIG         ", 44, 29, x, y)) pixel_data = 16'hffff;
+                    if (text_on("2 WHEELS        ", 44, 37, x, y)) pixel_data = 16'hffe0;
+                    if (text_on("SW0 ON          ", 44, 45, x, y)) pixel_data = 16'h07e0;
                     if (x >= 4 && x < 40 && y >= 12 && y < 48) begin
                         if (x < 16) begin example_col = 0; example_local_x = x - 4; end
                         else if (x < 28) begin example_col = 1; example_local_x = x - 16; end
@@ -373,22 +365,22 @@ module ui_renderer (
                     end
                 end
                 2: begin
-                    if (text_on("PARTS & TIPS 3/3", 2, 2, x, y)) pixel_data = 16'h07ff;
+                    if (text_on("PARTS TIPS 3/3  ", 2, 2, x, y)) pixel_data = 16'h07ff;
                     if (x >= 4 && x < 12 && y >= 11 && y < 19)
                         pixel_data = part_sprite(`LP_PART_PIG, x - 4, y - 11, 1'b0, pixel_data);
-                    if (text_on("PIG: KEEP ALIVE ", 16, 12, x, y)) pixel_data = 16'hffff;
+                    if (text_on("KEEP PIG SAFE   ", 16, 12, x, y)) pixel_data = 16'hffff;
 
                     if (x >= 4 && x < 12 && y >= 21 && y < 29)
                         pixel_data = tnt_sprite(x - 4, y - 21, pixel_data);
-                    if (text_on("TNT: AVOID BLAST", 16, 22, x, y)) pixel_data = 16'hf800;
+                    if (text_on("AVOID TNT       ", 16, 22, x, y)) pixel_data = 16'hf800;
 
                     if (x >= 4 && x < 12 && y >= 31 && y < 39)
                         pixel_data = part_sprite(`LP_PART_ENGINE, x - 4, y - 31, 1'b0, pixel_data);
-                    if (text_on("ENG: MOTOR DRIVE", 16, 32, x, y)) pixel_data = 16'h07e0;
+                    if (text_on("MOTOR DRIVE     ", 16, 32, x, y)) pixel_data = 16'h07e0;
 
                     if (x >= 4 && x < 12 && y >= 41 && y < 49)
                         pixel_data = part_sprite(`LP_PART_WHEEL, x - 4, y - 41, 1'b0, pixel_data);
-                    if (text_on("WHL: GROUND GRIP", 16, 42, x, y)) pixel_data = 16'hffe0;
+                    if (text_on("GROUND GRIP     ", 16, 42, x, y)) pixel_data = 16'hffe0;
                 end
                 default: begin
                     // Sound Settings Page (diary_page == 3)
@@ -420,16 +412,6 @@ module ui_renderer (
                     end
                     if (text_on(" +              ", 68, 28, x, y)) pixel_data = 16'hffff;
 
-                    // Audio Mute Status Banner (x: 8..87, y: 41..51)
-                    if (audio_muted) begin
-                        if (x >= 8 && x <= 87 && y >= 41 && y <= 51) begin
-                            if (x == 8 || x == 87 || y == 41 || y == 51) pixel_data = 16'hf800;
-                            else pixel_data = 16'h3000;
-                        end
-                        if (text_on("MUTED VIA SW1   ", 12, 43, x, y)) pixel_data = 16'hffe0;
-                    end else begin
-                        if (text_on("SW1: MUTE SOUND ", 12, 43, x, y)) pixel_data = 16'h7bef;
-                    end
                 end
             endcase
 
@@ -606,7 +588,7 @@ module ui_renderer (
                 if (x < 28) begin
                     if (x == 0 || x == 27 || y == 55 || y == 63) pixel_data = 16'h04b4;
                     else pixel_data = 16'h18e5;
-                    if (text_on("TRY             ", 2, 56, x, y)) pixel_data = 16'hffff;
+                    if (text_on("HOME            ", 2, 56, x, y)) pixel_data = 16'hffff;
                 end
                 // NEXT / EDIT button
                 else if (x >= 32 && x < 60) begin

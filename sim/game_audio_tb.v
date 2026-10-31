@@ -146,11 +146,11 @@ module game_audio_tb;
         click(74,48); click(12,12); click(28,12);
         if (!dut.build_valid || dut.balloon_count!=2) $fatal(1,"Test construction failed");
         launch(); wait_quiet(); before_starts=top_starts;
-        click(12,12); clocks(3);
+        click(32,10); clocks(3);
         if (last_top_sound!=`LP_SOUND_POP || top_starts!=before_starts+1 || dut.balloon_count!=1)
             $fatal(1,"Applied balloon pop did not make one sound");
         wait_quiet(); before_starts=top_starts;
-        click(12,12); click(28,28);
+        click(32,10); click(48,26);
         if (top_starts!=before_starts) $fatal(1,"Empty/non-balloon click made a pop sound");
 
         // Supply accepted collision responses; the landing adapter stays real.

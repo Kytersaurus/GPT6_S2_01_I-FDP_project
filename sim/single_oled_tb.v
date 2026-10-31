@@ -54,7 +54,7 @@ module single_oled_tb;
         click(74,8);click(12,12);
         if(dut.build_frames!==9'b000000001) $fatal(1,"Visible builder did not accept placement");
         packet(74,8,1);packet(28,12,1);sw=16'h8000;clocks(200);packet(28,12,0);
-        if(dut.build_frames!==9'b000000001 || dut.drag_active || !dut.engine_enabled || dut.audio_muted)
+        if(dut.build_frames!==9'b000000001 || dut.drag_active || dut.engine_enabled || dut.audio_muted)
             $fatal(1,"View change left a pending drag or interfered with engine/mute");
         if(!dut.u_bgm.enabled || dut.u_bgm.fast) $fatal(1,"Builder music was disabled by the map view");
         force dut.game_state=`LP_RUN;clocks(2);

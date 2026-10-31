@@ -273,7 +273,7 @@ module role4_game_display_tb;
         button_packet(88,59,0,0); check_button_click(88,59,1);
         // Settings has a separate map-row hitbox; the BUILD icon is inactive.
         button_state=`LP_SETTINGS;
-        check_button_click(8,30,1); check_button_click(87,43,1);
+        check_button_click(8,30,0); check_button_click(87,43,0);
         check_button_click(7,35,0); check_button_click(88,35,0);
         check_button_click(30,29,0); check_button_click(30,44,0);
         check_button_click(88,59,0);

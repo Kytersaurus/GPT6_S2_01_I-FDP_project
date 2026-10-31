@@ -28,7 +28,7 @@ module level_selector_tb;
     endtask
     task open_menu;
         begin click(88,59);if(dut.game_state!==`LP_SETTINGS) $fatal(1,"Gear did not open settings");
-        click(30,35);if(dut.game_state!==`LP_LEVEL_SELECT) $fatal(1,"Map icon did not open menu");end
+        click(48,35);if(dut.game_state!==`LP_LEVEL_SELECT) $fatal(1,"Map icon did not open menu");end
     endtask
     task preserved;
         begin
@@ -46,7 +46,7 @@ module level_selector_tb;
         // Opening must not cycle; held movement over a tile must not select it.
         packet(88,59,1,0);packet(60,42,1,0);clocks(10);
         if(dut.game_state!==`LP_SETTINGS || dut.level_index!==0) $fatal(1,"Held gear click selected a level");
-        packet(60,42,0,0);click(30,35);click(48,33);
+        packet(60,42,0,0);click(48,35);click(48,33);
         if(dut.game_state!==`LP_LEVEL_SELECT) $fatal(1,"Gap selected a level");
         packet(60,42,0,1);packet(60,42,0,0);
         if(dut.game_state!==`LP_LEVEL_SELECT) $fatal(1,"Right click selected a level");

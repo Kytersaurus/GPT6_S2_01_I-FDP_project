@@ -37,7 +37,7 @@ module My_Top_Module #(
     // Bad Piggies climbs a hill; 96 managed only about 12 degrees.
     parameter integer ENGINE_FORCE = 320,
     parameter integer ENABLE_MOMENTS = 1,
-    parameter integer WHEEL_TORQUE_SHIFT = 2, // quarter wheel-to-body turning response
+    parameter integer WHEEL_TORQUE_SHIFT = 2, // compatibility only; wheel drive adds no torque
     // Rocket must overcome gravity on a loaded cart when pointing upward.
     parameter integer ROCKET_FORCE_SHIFT = 10, // 1024; set 9 for the older 512
     parameter integer BALLOON_LIMIT = 2,
@@ -60,6 +60,7 @@ module My_Top_Module #(
     wire enable_start_screen = (ENABLE_START_SCREEN != 0);
 `endif
     wire reset, oled_clk, oled_reset, physics_tick, start_press, edit_press, engine_enabled;
+    wire support_unstable;
     wire engine_reverse, reverse_switch_enabled, jump_press, boost_req, boost_active;
     wire [1:0] run_page, draw_run_page;
     wire selected_left, edit_facing_left, draw_selected_left;
@@ -69,6 +70,10 @@ module My_Top_Module #(
     wire rocket_ready, rocket_active;
     wire [3:0] drive_engines = engine_balance<0 ? -engine_balance : engine_balance;
     wire [3:0] rocket_count, fan_count, rockets_left, fans_left, draw_rockets_left, draw_fans_left;
+    // Saved inventory selects the original turning model for motor-only carts.
+    // Damage cannot change this choice during a run.
+    wire air_moments_enabled = (ENABLE_MOMENTS != 0) &&
+        ((fans_left < FAN_LIMIT) || (rockets_left < ROCKET_LIMIT));
     wire fan_available = fan_count != 0;
     wire rocket_available = rocket_count != 0;
     wire ui_fan_on, ui_rocket_req, ui_sound_muted;
@@ -80,7 +85,7 @@ module My_Top_Module #(
     wire signed [`LP_COORD_BITS-1:0] death_x, death_y;
     wire launch_flash;
     // SW0 changes the shared engine state; the on-screen DRIVE control can also toggle it.
-    assign engine_enabled = ui_engine_on;
+    assign engine_enabled = ui_engine_on && sw[0];
     wire [2:0] game_state, init_ready;
     wire run_init, step_start, update_release;
     wire [26:0] build_grid;
@@ -202,6 +207,7 @@ module My_Top_Module #(
         .audio_muted(switch_audio_muted), .engine_reverse(reverse_switch_enabled), .jump_press(jump_press)
     );
     wire start_screen_active;
+    wire ui_home_req;
     wire ui_level_open_req, btn_level_open_req;
     wire ui_pop_req, mouse_pop_req;
     wire [3:0] mouse_pop_cell;
@@ -280,7 +286,7 @@ module My_Top_Module #(
         .fan_toggle_req(mouse_fan_toggle_req),
         .fan_available(fan_available), .rocket_available(rocket_available),
         .rocket_ready(rocket_ready), .balloon_available(has_intact_balloon),
-        .launch_req(ui_launch), .edit_req(ui_edit), .end_try_req(ui_end_try),
+        .home_req(ui_home_req), .launch_req(ui_launch), .edit_req(ui_edit), .end_try_req(ui_end_try),
         .guide_open_req(ui_guide_open), .guide_close_req(ui_guide_close),
         .level_open_req(ui_level_open_req), .level_close_req(level_close_req),
         .level_select_req(level_select_req), .selected_level(selected_level),
@@ -290,7 +296,7 @@ module My_Top_Module #(
         .launch_flash(launch_flash)
     );
     wire [7:0] par_time;
-    seven_seg_timer #(.COUNTDOWN(1), .TIME_LIMIT(20)) u_board_timer (.clk(clk), .reset(reset), .seconds(run_seconds), .seg(seg), .an(an), .dp(dp));
+    seven_seg_timer #(.COUNTDOWN(1), .TIME_LIMIT(20)) u_board_timer (.clk(clk), .reset(reset || game_state!=`LP_RUN), .seconds(run_seconds), .seg(seg), .an(an), .dp(dp));
     pig_death_effect u_pig_death (
         .clk(clk), .reset(reset), .run_init(run_init), .physics_tick(physics_tick), .pig_alive(pig_alive),
         .game_state(game_state), .build_grid(build_grid), .vehicle_x(vehicle_x), .vehicle_y(vehicle_y), .vehicle_tilt(vehicle_tilt),
@@ -327,7 +333,7 @@ module My_Top_Module #(
         .ps2_clk(PS2Clk), .ps2_data(PS2Data)
     );
     mouse_adapter u_mouse_adapter (
-        .clk(clk), .reset(reset), .input_enabled(builder_input_enabled), .game_state(game_state),
+        .clk(clk), .reset(reset), .input_enabled(builder_input_enabled && !start_screen_active), .game_state(game_state),
         .build_grid(build_grid), .build_frames(build_frames), .build_facing_left(build_facing_left),
         .run_page(run_page), .selected_left(selected_left), .inventory_page(inventory_page), .edit_facing_left(edit_facing_left), .mouse_x(mouse_x), .mouse_y(mouse_y),
         .mouse_left(mouse_left), .mouse_right(mouse_right), .mouse_event(mouse_event),
@@ -343,7 +349,7 @@ module My_Top_Module #(
         .zoomed_out(zoomed_out), .overview(overview)
     );
     level_button u_level_button (
-        .clk(clk), .reset(reset), .input_enabled(builder_input_enabled), .game_state(game_state), .mouse_x(effective_mouse_x), .mouse_y(effective_mouse_y),
+        .clk(clk), .reset(reset), .input_enabled(builder_input_enabled && !start_screen_active), .game_state(game_state), .mouse_x(effective_mouse_x), .mouse_y(effective_mouse_y),
         .mouse_left(mouse_left), .mouse_right(mouse_right), .mouse_event(mouse_event), .level_open_req(btn_level_open_req)
     );
     balloon_control u_balloons (
@@ -381,7 +387,7 @@ module My_Top_Module #(
         .flag_x(flag_x), .flag_y(flag_y), .star_box_x(star_box_x), .star_box_y(star_box_y)
     );
     game_controller #(.ENABLE_START_SCREEN(ENABLE_START_SCREEN)) u_game (
-        .clk(clk), .reset(reset), .launch_req(start_press || ui_launch), .retry_req(start_press || ui_launch), .edit_req(edit_press || ui_edit),
+        .home_req(ui_home_req), .clk(clk), .reset(reset), .launch_req(start_press || ui_launch), .retry_req(start_press || ui_launch), .edit_req(edit_press || ui_edit),
         .end_try_req(ui_end_try),
         .guide_open_req(ui_guide_open || (game_state==`LP_BUILD && edit_press)), .guide_close_req(ui_guide_close || edit_press),
         .guide_return_state(guide_return_state), .level_next_req(1'b0), .level_open_req(level_open_req),
@@ -402,14 +408,14 @@ module My_Top_Module #(
         .tnt_intact(tnt_intact), .blast_phase(blast_phase)
     );
     physics_engine #(.ENGINE_FORCE(ENGINE_FORCE), .ROCKET_FORCE_SHIFT(ROCKET_FORCE_SHIFT), .WHEEL_TORQUE_SHIFT(WHEEL_TORQUE_SHIFT)) u_physics (
-        .moments_enabled(ENABLE_MOMENTS != 0),.build_grid(build_grid),.build_frames(build_frames),
+        .moments_enabled(air_moments_enabled),.build_grid(build_grid),.build_frames(build_frames),
         .intact_mask(intact_mask),.frame_intact_mask(frame_intact_mask),
         .build_facing_left(build_facing_left),.rocket_vertical_mask(9'd0),
         .fan_balance(fan_balance), .rocket_balance(rocket_balance), .rocket_count(rocket_count),
         .fan_enabled(ui_fan_on), .rocket_req(ui_rocket_req), .rocket_ready(rocket_ready), .rocket_active(rocket_active),
         .clk(clk), .reset(reset), .game_state(game_state), .run_init(run_init), .init_ready(init_ready[1]),
         .spawn_x(spawn_x), .spawn_y(spawn_y), .step_start(step_start), .update_release(update_release),
-        .wheel_count(wheel_count), .wheels_down(wheels_down), .wheels_up(wheels_up), .tip_dir(tip_dir),
+        .wheel_count(wheel_count), .wheels_down(wheels_down), .wheels_up(wheels_up), .tip_dir(tip_dir), .support_unstable(support_unstable),
         .engine_count(drive_engines), .balloon_count(balloon_count),
         .mass_units(mass_units), .engine_enabled(engine_enabled), .engine_reverse(engine_reverse), .jump_press(jump_press), .boost_req(boost_req), .boost_active(boost_active),
         .move_valid(move_valid), .move_ready(move_ready),
@@ -422,6 +428,8 @@ module My_Top_Module #(
     );
     collision_engine #(.ROTATION_ONLY(1)) u_collision (
         .collision_mask(intact_mask | frame_intact_mask),
+        .cg_enabled(1'b1), .build_grid(build_grid), .part_intact_mask(intact_mask),
+        .frame_intact_mask(frame_intact_mask), .support_unstable(support_unstable),
         .clk(clk), .reset(reset || run_init || game_state != `LP_RUN), .move_valid(move_valid), .move_ready(move_ready),
         .previous_x(previous_x), .previous_y(previous_y), .proposed_x(proposed_x), .proposed_y(proposed_y),
         .proposed_vx(proposed_vx), .proposed_vy(proposed_vy), .terrain_count(terrain_count), .terrain_rects(terrain_rects),

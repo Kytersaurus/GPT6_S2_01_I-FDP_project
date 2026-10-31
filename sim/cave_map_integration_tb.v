@@ -55,6 +55,12 @@ module cave_map_integration_tb;
             dut.u_physics.vehicle_y=pose_y;
             dut.u_physics.velocity_x=0;
             dut.u_physics.velocity_y=0;
+            // Teleporting a goal/bounds fixture also rebases its terrain cache.
+            // A contact from spawn must not slide this new pose out of the goal.
+            dut.u_physics.was_grounded=0;
+            dut.u_physics.last_ground_slope=0;
+            dut.u_physics.last_tip=0;
+            dut.u_physics.last_support_unstable=0;
             waited=0;
             while (dut.game_state==`LP_RUN && waited<200000) begin clocks(1); waited=waited+1; end
             if (dut.game_state!==expected_state)

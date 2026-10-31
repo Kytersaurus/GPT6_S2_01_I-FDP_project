@@ -65,10 +65,11 @@ module vehicle_builder #(
     assign damage_ready = (game_state == `LP_RUN) && !run_init;
 
     // Shift the frame layer by one row in either direction; no edge wraps.
-    wire [8:0] wheel_support = (build_frames << 3) | (build_frames >> 3);
     // Column masks prevent horizontal neighbours wrapping to the next row.
     wire [8:0] side_support = ((build_frames & 9'b011011011) << 1) |
                               ((build_frames & 9'b110110110) >> 1);
+    wire [8:0] wheel_support = (build_frames << 3) | (build_frames >> 3) | side_support;
+
 
     // Decide once: this result controls both editing and the on-screen feedback.
     // Repeating the same placement or removing an empty cell is a quiet no-op.

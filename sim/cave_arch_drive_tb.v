@@ -11,7 +11,7 @@
 // world_outcomes' map goal: the pig (centre cell) inside the box from the flag pole.
 // Each update must commit; the run fails if the vehicle leaves the world or stops
 // moving for 10 seconds of updates.
-module cave_arch_drive_tb #(parameter ENABLE_MOMENTS=0, parameter WHEEL_TORQUE_SHIFT=2);
+module cave_arch_drive_tb #(parameter ENABLE_MOMENTS=0, parameter WHEEL_TORQUE_SHIFT=2, parameter CG_SUPPORT=1);
     reg clk=0, reset=1, run_init=0, step_start=0, update_release=0, engine_reverse=0;
     reg [2:0] game_state=`LP_BUILD;
     always #5 clk=~clk;
@@ -30,6 +30,7 @@ module cave_arch_drive_tb #(parameter ENABLE_MOMENTS=0, parameter WHEEL_TORQUE_S
     wire signed [7:0] ground_slope;
     wire signed [`LP_TILT_BITS-1:0] previous_tilt, proposed_tilt, corrected_tilt, vehicle_tilt;
     wire signed [1:0] tip_dir;
+    wire support_unstable;
     wire signed [10:0] qx, qy;
     wire [2:0] query_class;
     wire query_solid;
@@ -49,7 +50,7 @@ module cave_arch_drive_tb #(parameter ENABLE_MOMENTS=0, parameter WHEEL_TORQUE_S
         .intact_mask(9'b101011101),.build_facing_left(9'd0),.rocket_vertical_mask(9'd0),
         .clk(clk), .reset(reset), .game_state(game_state), .run_init(run_init), .init_ready(init_ready),
         .spawn_x(spawn_x), .spawn_y(spawn_y), .step_start(step_start), .update_release(update_release),
-        .wheel_count(4'd4), .wheels_down(4'd2), .wheels_up(4'd2), .tip_dir(tip_dir),
+        .wheel_count(4'd4), .wheels_down(4'd2), .wheels_up(4'd2), .tip_dir(tip_dir), .support_unstable(support_unstable),
         .engine_count(4'd1), .balloon_count(4'd0), .mass_units(8'd15),
         .engine_enabled(1'b1), .engine_reverse(engine_reverse), .jump_press(1'b0), .boost_req(1'b0),
         .boost_active(), .move_valid(move_valid), .move_ready(move_ready),
@@ -66,6 +67,11 @@ module cave_arch_drive_tb #(parameter ENABLE_MOMENTS=0, parameter WHEEL_TORQUE_S
         .previous_x(previous_x), .previous_y(previous_y), .proposed_x(proposed_x), .proposed_y(proposed_y),
         .proposed_vx(proposed_vx), .proposed_vy(proposed_vy), .terrain_count(3'd0), .terrain_rects(128'd0),
         .map_level(map_level), .rotation_enabled(1'b1), .previous_tilt(previous_tilt), .proposed_tilt(proposed_tilt),
+        .cg_enabled(CG_SUPPORT!=0), .support_unstable(support_unstable),
+        .build_grid({`LP_PART_WHEEL,`LP_PART_EMPTY,`LP_PART_WHEEL,
+                     `LP_PART_EMPTY,`LP_PART_PIG,`LP_PART_ENGINE,
+                     `LP_PART_WHEEL,`LP_PART_EMPTY,`LP_PART_WHEEL}),
+        .part_intact_mask(9'b101011101), .frame_intact_mask(9'b000111000),
         .collision_mask(9'b101111101), .world_width(world_width), .world_height(world_height),
         .query_x(qx), .query_y(qy), .query_class(query_class),
         .response_valid(response_valid), .response_ready(response_ready), .corrected_x(corrected_x),

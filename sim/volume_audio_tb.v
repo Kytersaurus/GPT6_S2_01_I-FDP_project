@@ -28,14 +28,14 @@ module volume_audio_tb;
     endtask
     initial begin
         clocks(20);btnD=0;clocks(300);
-        if(dut.master_volume!=4 || dut.u_bgm.volume!=4 || dut.u_bgm.bass_volume!=2)
-            $fatal(1,"Full-volume melody/bass not available at startup");
+        if(dut.master_volume!=2 || dut.u_bgm.volume!=2 || dut.u_bgm.bass_volume!=1)
+            $fatal(1,"Half-volume melody/bass not available at startup");
         btnR=1;clocks(30);btnR=0;clocks(30);
         if(starts!=0 || dut.audio_busy) $fatal(1,"Removed test button still plays audio");
         click(88,59);click(30,18);
         if(dut.diary_page!=3 || dut.game_state!=`LP_GUIDE) $fatal(1,"Sound page unreachable");
         packet(20,35,1,0);clocks(100);packet(20,35,1,0);
-        if(dut.master_volume!=3) $fatal(1,"Held volume button repeated");
+        if(dut.master_volume!=1) $fatal(1,"Held volume button repeated");
         packet(20,35,0,0);
         for(n=0;n<5;n=n+1) click(20,35);
         clocks(300);
@@ -71,7 +71,7 @@ module volume_audio_tb;
         sw=0;clocks(300);
         if(dut.master_volume!=2 || dut.u_bgm.bass_volume!=1) $fatal(1,"Unmute lost volume/bass");
         btnD=1;clocks(12);btnD=0;clocks(300);
-        if(dut.master_volume!=4 || dut.game_state!=`LP_BUILD) $fatal(1,"Reset did not restore default volume");
+        if(dut.master_volume!=2 || dut.game_state!=`LP_BUILD) $fatal(1,"Reset did not restore default volume");
         $display("PASS volume_audio_tb: sound page, held/right clicks, limits, quiet zero, both voices, launch track, effect priority, removed BTNR, mute/reset");
         $finish;
     end

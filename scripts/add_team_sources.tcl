@@ -33,3 +33,11 @@ set_property include_dirs $lp_include_dirs $lp_sources
 set_property top My_Top_Module $lp_sources
 update_compile_order -fileset sources_1
 puts "Team sources registered from $lp_source_dir"
+
+# Keep GUI/rebuild runs on the validated 100 MHz implementation flow.
+set lp_impl_run [get_runs -quiet impl_1]
+if {[llength $lp_impl_run] == 1} {
+    set_property STEPS.PHYS_OPT_DESIGN.IS_ENABLED true $lp_impl_run
+    set_property STEPS.POST_ROUTE_PHYS_OPT_DESIGN.IS_ENABLED true $lp_impl_run
+    set_property STEPS.POST_ROUTE_PHYS_OPT_DESIGN.ARGS.DIRECTIVE AggressiveExplore $lp_impl_run
+}

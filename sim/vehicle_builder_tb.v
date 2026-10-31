@@ -91,6 +91,17 @@ module vehicle_builder_tb;
             build_valid || pig_alive || mass!=0 || frames_left!=9 || pigs_left!=2 ||
             wheels_left!=3 || engines_left!=9 || balloons_left!=2)
             $fatal(1,"Empty startup or configured inventory incorrect");
+        edit(`LP_EDIT_PLACE,4,`LP_PART_FRAME);
+        edit(`LP_EDIT_PLACE,4,`LP_PART_PIG);
+        edit(`LP_EDIT_PLACE,3,`LP_PART_WHEEL);
+        edit(`LP_EDIT_PLACE,5,`LP_PART_WHEEL);
+        if(!build_valid || wheels!=2 || build_grid[11:9]!=`LP_PART_WHEEL || build_grid[17:15]!=`LP_PART_WHEEL)
+            $fatal(1,"Side wheels did not attach to centre frame");
+        edit(`LP_EDIT_REMOVE,3,`LP_PART_EMPTY);edit(`LP_EDIT_REMOVE,5,`LP_PART_EMPTY);
+        edit(`LP_EDIT_REMOVE,4,`LP_PART_EMPTY);edit(`LP_EDIT_REMOVE,4,`LP_PART_EMPTY);
+        edit(`LP_EDIT_PLACE,2,`LP_PART_FRAME);save_build();
+        edit(`LP_EDIT_PLACE,3,`LP_PART_WHEEL);check_unchanged();
+        edit(`LP_EDIT_REMOVE,2,`LP_PART_EMPTY);
         build_test_vehicle();
         if (!build_valid || mass != 13 || intact_mask != 9'b101110000 || build_frames != 9'b000111000)
             $fatal(1, "Test frame/content build incorrect");

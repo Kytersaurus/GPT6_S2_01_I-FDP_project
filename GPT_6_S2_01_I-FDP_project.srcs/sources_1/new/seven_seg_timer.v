@@ -49,8 +49,8 @@ module seven_seg_timer #(
         case (digit)
             0: begin an = 4'b1110; number = sec_ones; end
             1: begin an = 4'b1101; number = sec_tens; end
-            2: begin an = 4'b1011; number = minutes; dp = 0; end
-            3: begin an = 4'b0111; number = is_negative ? 4'd10 : 4'd0; end
+            2: if (minutes!=0) begin an = 4'b1011; number = minutes; dp = 0; end
+            3: if (is_negative) begin an = 4'b0111; number = 4'd10; end
         endcase
         case (number)
             0: seg = 7'b1000000; 1: seg = 7'b1111001;

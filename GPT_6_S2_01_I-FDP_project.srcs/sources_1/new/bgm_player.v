@@ -49,11 +49,20 @@ module bgm_player #(
 
     // Two small square-wave voices share one signed sample; no recorded audio RAM.
     reg [8:0] song_unit;
-    reg [31:0] bass_count, bass_fade_count;
+    // Every bass half-period is below 2^20 clocks (largest is 764451).
+    reg [19:0] bass_count;
+    reg [31:0] bass_fade_count;
     reg bass_high;
     reg [1:0] bass_volume;
-    reg [31:0] bass_half_cycles;
-    wire [31:0] effective_bass_half = (effective_mode == 2'b01) ? (bass_half_cycles >> 1) : bass_half_cycles;
+    reg [19:0] bass_half_cycles;
+    wire [19:0] effective_bass_half = (effective_mode == 2'b01) ? (bass_half_cycles >> 1) : bass_half_cycles;
+    reg [19:0] bass_limit;
+    // Pitch changes occur at a new even song_unit, where bass_count is reset.
+    // Cache the limit during that reset clock, before counting the new note.
+    always @(posedge clk) begin
+        if (reset) bass_limit<=0;
+        else bass_limit<=effective_bass_half-20'd1;
+    end
     wire [1:0] bass_max = master_volume<2 ? 0 : master_volume==4 ? 2 : 1;
     wire music_enabled = enabled && !pause && !reset;
     wire signed [3:0] melody_sample = !playing ? 4'sd0 :
@@ -74,7 +83,7 @@ module bgm_player #(
             if (note_count==0 && !song_unit[0]) begin
                 bass_count<=0; bass_high<=0; bass_volume<=0; bass_fade_count<=0;
             end else begin
-                if (bass_count>=effective_bass_half-1) begin bass_count<=0; bass_high<=!bass_high; end
+                if (bass_count>=bass_limit) begin bass_count<=0; bass_high<=!bass_high; end
                 else bass_count<=bass_count+1'b1;
                 if (bass_fade_count==FADE_CYCLES-1) begin
                     bass_fade_count<=0;
@@ -100,263 +109,33 @@ module bgm_player #(
             endcase
         end else if (is_run) begin
             // Single bass voice from the same main-theme MIDI accompaniment.
+            // Group equal pitches so this decoder stays in LUT logic,
+            // instead of a dense 256-entry table inferred as block RAM.
             case (song_unit[8:1])
-                0: bass_half_cycles = 382226;
-                1: bass_half_cycles = 321412;
-                2: bass_half_cycles = 510210;
-                3: bass_half_cycles = 321412;
-                4: bass_half_cycles = 382226;
-                5: bass_half_cycles = 321412;
-                6: bass_half_cycles = 510210;
-                7: bass_half_cycles = 321412;
-                8: bass_half_cycles = 321412;
-                9: bass_half_cycles = 255105;
-                10: bass_half_cycles = 429034;
-                11: bass_half_cycles = 255105;
-                12: bass_half_cycles = 321412;
-                13: bass_half_cycles = 255105;
-                14: bass_half_cycles = 429034;
-                15: bass_half_cycles = 255105;
-                16: bass_half_cycles = 429034;
-                17: bass_half_cycles = 340524;
-                18: bass_half_cycles = 572691;
-                19: bass_half_cycles = 340524;
-                20: bass_half_cycles = 429034;
-                21: bass_half_cycles = 340524;
-                22: bass_half_cycles = 572691;
-                23: bass_half_cycles = 340524;
-                24: bass_half_cycles = 481574;
-                25: bass_half_cycles = 382226;
-                26: bass_half_cycles = 642824;
-                27: bass_half_cycles = 382226;
-                28: bass_half_cycles = 510210;
-                29: bass_half_cycles = 404954;
-                30: bass_half_cycles = 681049;
-                31: bass_half_cycles = 404954;
-                32: bass_half_cycles = 382226;
-                33: bass_half_cycles = 321412;
-                34: bass_half_cycles = 510210;
-                35: bass_half_cycles = 321412;
-                36: bass_half_cycles = 382226;
-                37: bass_half_cycles = 321412;
-                38: bass_half_cycles = 510210;
-                39: bass_half_cycles = 321412;
-                40: bass_half_cycles = 321412;
-                41: bass_half_cycles = 255105;
-                42: bass_half_cycles = 429034;
-                43: bass_half_cycles = 255105;
-                44: bass_half_cycles = 321412;
-                45: bass_half_cycles = 255105;
-                46: bass_half_cycles = 429034;
-                47: bass_half_cycles = 255105;
-                48: bass_half_cycles = 429034;
-                49: bass_half_cycles = 340524;
-                50: bass_half_cycles = 572691;
-                51: bass_half_cycles = 340524;
-                52: bass_half_cycles = 429034;
-                53: bass_half_cycles = 340524;
-                54: bass_half_cycles = 572691;
-                55: bass_half_cycles = 340524;
-                56: bass_half_cycles = 481574;
-                57: bass_half_cycles = 382226;
-                58: bass_half_cycles = 642824;
-                59: bass_half_cycles = 382226;
-                60: bass_half_cycles = 510210;
-                61: bass_half_cycles = 404954;
-                62: bass_half_cycles = 681049;
-                63: bass_half_cycles = 404954;
-                64: bass_half_cycles = 481574;
-                65: bass_half_cycles = 382226;
-                66: bass_half_cycles = 642824;
-                67: bass_half_cycles = 382226;
-                68: bass_half_cycles = 481574;
-                69: bass_half_cycles = 382226;
-                70: bass_half_cycles = 642824;
-                71: bass_half_cycles = 382226;
-                72: bass_half_cycles = 572691;
-                73: bass_half_cycles = 481574;
-                74: bass_half_cycles = 764451;
-                75: bass_half_cycles = 481574;
-                76: bass_half_cycles = 572691;
-                77: bass_half_cycles = 481574;
-                78: bass_half_cycles = 764451;
-                79: bass_half_cycles = 481574;
-                80: bass_half_cycles = 429034;
-                81: bass_half_cycles = 340524;
-                82: bass_half_cycles = 572691;
-                83: bass_half_cycles = 340524;
-                84: bass_half_cycles = 429034;
-                85: bass_half_cycles = 340524;
-                86: bass_half_cycles = 572691;
-                87: bass_half_cycles = 340524;
-                88: bass_half_cycles = 481574;
-                89: bass_half_cycles = 382226;
-                90: bass_half_cycles = 642824;
-                91: bass_half_cycles = 382226;
-                92: bass_half_cycles = 510210;
-                93: bass_half_cycles = 404954;
-                94: bass_half_cycles = 681049;
-                95: bass_half_cycles = 404954;
-                96: bass_half_cycles = 481574;
-                97: bass_half_cycles = 382226;
-                98: bass_half_cycles = 642824;
-                99: bass_half_cycles = 382226;
-                100: bass_half_cycles = 481574;
-                101: bass_half_cycles = 382226;
-                102: bass_half_cycles = 642824;
-                103: bass_half_cycles = 382226;
-                104: bass_half_cycles = 572691;
-                105: bass_half_cycles = 481574;
-                106: bass_half_cycles = 764451;
-                107: bass_half_cycles = 481574;
-                108: bass_half_cycles = 572691;
-                109: bass_half_cycles = 481574;
-                110: bass_half_cycles = 764451;
-                111: bass_half_cycles = 481574;
-                112: bass_half_cycles = 429034;
-                113: bass_half_cycles = 340524;
-                114: bass_half_cycles = 572691;
-                115: bass_half_cycles = 340524;
-                116: bass_half_cycles = 429034;
-                117: bass_half_cycles = 340524;
-                118: bass_half_cycles = 572691;
-                119: bass_half_cycles = 340524;
-                120: bass_half_cycles = 510210;
-                121: bass_half_cycles = 382226;
-                122: bass_half_cycles = 481574;
-                123: bass_half_cycles = 382226;
-                124: bass_half_cycles = 510210;
-                125: bass_half_cycles = 382226;
-                126: bass_half_cycles = 481574;
-                127: bass_half_cycles = 382226;
-                128: bass_half_cycles = 510210;
-                129: bass_half_cycles = 481574;
-                130: bass_half_cycles = 510210;
-                131: bass_half_cycles = 481574;
-                132: bass_half_cycles = 510210;
-                133: bass_half_cycles = 481574;
-                134: bass_half_cycles = 510210;
-                135: bass_half_cycles = 481574;
-                136: bass_half_cycles = 510210;
-                137: bass_half_cycles = 481574;
-                138: bass_half_cycles = 510210;
-                139: bass_half_cycles = 481574;
-                140: bass_half_cycles = 510210;
-                141: bass_half_cycles = 481574;
-                142: bass_half_cycles = 454545;
-                143: bass_half_cycles = 404954;
-                144: bass_half_cycles = 382226;
-                145: bass_half_cycles = 321412;
-                146: bass_half_cycles = 510210;
-                147: bass_half_cycles = 321412;
-                148: bass_half_cycles = 382226;
-                149: bass_half_cycles = 321412;
-                150: bass_half_cycles = 510210;
-                151: bass_half_cycles = 321412;
-                152: bass_half_cycles = 321412;
-                153: bass_half_cycles = 255105;
-                154: bass_half_cycles = 429034;
-                155: bass_half_cycles = 255105;
-                156: bass_half_cycles = 321412;
-                157: bass_half_cycles = 255105;
-                158: bass_half_cycles = 429034;
-                159: bass_half_cycles = 255105;
-                160: bass_half_cycles = 429034;
-                161: bass_half_cycles = 340524;
-                162: bass_half_cycles = 572691;
-                163: bass_half_cycles = 340524;
-                164: bass_half_cycles = 429034;
-                165: bass_half_cycles = 340524;
-                166: bass_half_cycles = 572691;
-                167: bass_half_cycles = 340524;
-                168: bass_half_cycles = 481574;
-                169: bass_half_cycles = 382226;
-                170: bass_half_cycles = 642824;
-                171: bass_half_cycles = 382226;
-                172: bass_half_cycles = 510210;
-                173: bass_half_cycles = 404954;
-                174: bass_half_cycles = 681049;
-                175: bass_half_cycles = 404954;
-                176: bass_half_cycles = 382226;
-                177: bass_half_cycles = 321412;
-                178: bass_half_cycles = 510210;
-                179: bass_half_cycles = 321412;
-                180: bass_half_cycles = 382226;
-                181: bass_half_cycles = 321412;
-                182: bass_half_cycles = 510210;
-                183: bass_half_cycles = 321412;
-                184: bass_half_cycles = 321412;
-                185: bass_half_cycles = 255105;
-                186: bass_half_cycles = 429034;
-                187: bass_half_cycles = 255105;
-                188: bass_half_cycles = 321412;
-                189: bass_half_cycles = 255105;
-                190: bass_half_cycles = 429034;
-                191: bass_half_cycles = 255105;
-                192: bass_half_cycles = 429034;
-                193: bass_half_cycles = 340524;
-                194: bass_half_cycles = 572691;
-                195: bass_half_cycles = 340524;
-                196: bass_half_cycles = 429034;
-                197: bass_half_cycles = 340524;
-                198: bass_half_cycles = 572691;
-                199: bass_half_cycles = 340524;
-                200: bass_half_cycles = 481574;
-                201: bass_half_cycles = 382226;
-                202: bass_half_cycles = 642824;
-                203: bass_half_cycles = 382226;
-                204: bass_half_cycles = 510210;
-                205: bass_half_cycles = 404954;
-                206: bass_half_cycles = 681049;
-                207: bass_half_cycles = 404954;
-                208: bass_half_cycles = 481574;
-                209: bass_half_cycles = 382226;
-                210: bass_half_cycles = 642824;
-                211: bass_half_cycles = 382226;
-                212: bass_half_cycles = 481574;
-                213: bass_half_cycles = 382226;
-                214: bass_half_cycles = 642824;
-                215: bass_half_cycles = 382226;
-                216: bass_half_cycles = 572691;
-                217: bass_half_cycles = 481574;
-                218: bass_half_cycles = 764451;
-                219: bass_half_cycles = 481574;
-                220: bass_half_cycles = 572691;
-                221: bass_half_cycles = 481574;
-                222: bass_half_cycles = 764451;
-                223: bass_half_cycles = 481574;
-                224: bass_half_cycles = 429034;
-                225: bass_half_cycles = 340524;
-                226: bass_half_cycles = 572691;
-                227: bass_half_cycles = 340524;
-                228: bass_half_cycles = 429034;
-                229: bass_half_cycles = 340524;
-                230: bass_half_cycles = 572691;
-                231: bass_half_cycles = 340524;
-                232: bass_half_cycles = 481574;
-                233: bass_half_cycles = 382226;
-                234: bass_half_cycles = 642824;
-                235: bass_half_cycles = 382226;
-                236: bass_half_cycles = 510210;
-                237: bass_half_cycles = 404954;
-                238: bass_half_cycles = 681049;
+                9, 11, 13, 15, 41, 43, 45, 47, 153, 155, 157, 159,
+                185, 187, 189, 191: bass_half_cycles = 255105;
+                1, 3, 5, 7, 8, 12, 33, 35, 37, 39, 40, 44,
+                145, 147, 149, 151, 152, 156, 177, 179, 181, 183, 184, 188: bass_half_cycles = 321412;
+                17, 19, 21, 23, 49, 51, 53, 55, 81, 83, 85, 87,
+                113, 115, 117, 119, 161, 163, 165, 167, 193, 195, 197, 199,
+                225, 227, 229, 231: bass_half_cycles = 340524;
+                29, 31, 61, 63, 93, 95, 143, 173, 175, 205, 207, 237,
                 239: bass_half_cycles = 404954;
-                240: bass_half_cycles = 481574;
-                241: bass_half_cycles = 382226;
-                242: bass_half_cycles = 642824;
-                243: bass_half_cycles = 382226;
-                244: bass_half_cycles = 481574;
-                245: bass_half_cycles = 382226;
-                246: bass_half_cycles = 642824;
-                247: bass_half_cycles = 382226;
-                248: bass_half_cycles = 572691;
-                249: bass_half_cycles = 481574;
-                250: bass_half_cycles = 764451;
-                251: bass_half_cycles = 481574;
-                252: bass_half_cycles = 572691;
-                253: bass_half_cycles = 481574;
-                254: bass_half_cycles = 764451;
-                255: bass_half_cycles = 481574;
+                10, 14, 16, 20, 42, 46, 48, 52, 80, 84, 112, 116,
+                154, 158, 160, 164, 186, 190, 192, 196, 224, 228: bass_half_cycles = 429034;
+                142: bass_half_cycles = 454545;
+                24, 56, 64, 68, 73, 75, 77, 79, 88, 96, 100, 105,
+                107, 109, 111, 122, 126, 129, 131, 133, 135, 137, 139, 141,
+                168, 200, 208, 212, 217, 219, 221, 223, 232, 240, 244, 249,
+                251, 253, 255: bass_half_cycles = 481574;
+                2, 6, 28, 34, 38, 60, 92, 120, 124, 128, 130, 132,
+                134, 136, 138, 140, 146, 150, 172, 178, 182, 204, 236: bass_half_cycles = 510210;
+                18, 22, 50, 54, 72, 76, 82, 86, 104, 108, 114, 118,
+                162, 166, 194, 198, 216, 220, 226, 230, 248, 252: bass_half_cycles = 572691;
+                26, 58, 66, 70, 90, 98, 102, 170, 202, 210, 214, 234,
+                242, 246: bass_half_cycles = 642824;
+                30, 62, 94, 174, 206, 238: bass_half_cycles = 681049;
+                74, 78, 106, 110, 218, 222, 250, 254: bass_half_cycles = 764451;
                 default: bass_half_cycles=382226;
             endcase
         end else begin

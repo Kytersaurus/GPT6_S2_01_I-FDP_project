@@ -34,6 +34,7 @@ module game_baseline_tb;
     endtask
     task wait_success;
         begin
+            wait(dut.game_state==`LP_RUN);clocks(1);dut.u_ui_control.engine_on=1;
             cycles=0;
             while (dut.vehicle_x <= 20'sd53248 && cycles < 400000) begin clocks(1); cycles=cycles+1; end
             if (dut.vehicle_x <= 20'sd53248) $fatal(1,"Vehicle did not move: state=%0d x=%0d y=%0d",dut.game_state,dut.vehicle_x,dut.vehicle_y);
@@ -78,7 +79,8 @@ module game_baseline_tb;
         if (launches != 2) $fatal(1,"Retry did not initialise a fresh run");
         btnU=1; clocks(12); btnU=0; clocks(12);
         if (dut.game_state != `LP_BUILD) $fatal(1,"EDIT did not return to BUILD");
-        sw=0; clocks(8); btnC=1; clocks(12); btnC=0;
+        sw=1; clocks(8); btnC=1; clocks(12); btnC=0;
+        wait(dut.game_state==`LP_RUN);clocks(1);dut.u_ui_control.engine_on=1;
         cycles=0;
         while (dut.vehicle_x <= 20'sd17408 && cycles < 400000) begin clocks(1); cycles=cycles+1; end
         if (dut.game_state != `LP_RUN || dut.vehicle_x <= 20'sd17408) $fatal(1,"Default DRIVE engine did not propel vehicle");

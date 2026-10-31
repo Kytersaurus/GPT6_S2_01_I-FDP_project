@@ -7,6 +7,10 @@ module rotating_map_collision_engine (
     input wire signed [`LP_COORD_BITS-1:0] previous_x, previous_y, proposed_x, proposed_y,
     input wire signed [`LP_TILT_BITS-1:0] previous_tilt, proposed_tilt,
     input tri1 [8:0] collision_mask,
+    input tri0 cg_enabled,
+    input tri0 [26:0] build_grid,
+    input tri0 [8:0] part_intact_mask, frame_intact_mask,
+    output reg support_unstable,
     input wire signed [15:0] proposed_vx, proposed_vy,
     input wire [9:0] world_width, world_height,
     output wire signed [10:0] query_x, query_y,
@@ -18,9 +22,9 @@ module rotating_map_collision_engine (
     output reg signed [`LP_TILT_BITS-1:0] corrected_tilt,
     output reg grounded,
     output reg signed [7:0] ground_slope,
-    // Grounded at an edge (no even ground both sides of the contact) with every
-    // support contact on one side of the body centre: the body tips toward the
-    // unsupported side (+1 clockwise, -1 anticlockwise).
+    // Ground contacts lie on one side of the vertical weight line. CG mode
+    // uses surviving part masses; legacy callers use the grid centre.
+    // Tip toward the unsupported side (+1 clockwise, -1 anticlockwise).
     output reg signed [1:0] tip_dir
 );
     `include "rotation_geometry.vh"
@@ -30,7 +34,7 @@ module rotating_map_collision_engine (
         FINAL_SUPPORT=15, FINAL_SUPPORT_RESULT=16, SNAP=17, SNAP_RESULT=18,
         REFINE=19, REFINE_SCAN=20, REFINE_RESULT=21,
         SLOPE_LEFT=22, SLOPE_LEFT_RESULT=23, SLOPE_RIGHT=24, SLOPE_RIGHT_RESULT=25,
-        RESPOND=26, ISSUE=27, SAMPLE=28, PROJECT=29, MASK=30, SPAN=31, SPAN_RESULT=32;
+        RESPOND=26, ISSUE=27, SAMPLE=28, PROJECT=29, MASK=30, SPAN=31, SPAN_RESULT=32, CG_CELL=33, CG_ACCUM=34, CG_RESULT=35;
     localparam signed [21:0] PIXEL=256, HALF=3072;
     reg [5:0] phase, scan_return, refine_return;
     reg signed [21:0] work_x, work_y, target_x, target_y, delta_y, turn_y;
@@ -48,6 +52,29 @@ module rotating_map_collision_engine (
     wire [2:0] snap_limit=work_tilt!=old_tilt ? 3'd6 : 3'd3;
     reg [9:0] saved_width, saved_height;
     reg [8:0] saved_collision_mask;
+    reg saved_cg_enabled;
+    reg [26:0] saved_mass_grid;
+    reg [8:0] saved_parts, saved_frames;
+    reg [2:0] cg_units;
+    reg signed [13:0] left_support_arm, right_support_arm;
+    reg signed [20:0] cg_sum, left_support_sum, right_support_sum;
+    reg [2:0] cell_mass;
+    reg [3:0] mask_cell;
+    wire [2:0] mass_part = saved_mass_grid >> (mask_cell*3);
+    // Identical point masses to the builder. Add once per mass unit in the
+    // CG_ACCUM state: sum(m*x) versus mass*support edge, with no division.
+    always @* begin
+        cell_mass = saved_frames[mask_cell] ? 3'd2 : 3'd0;
+        if (saved_parts[mask_cell]) begin
+            case (mass_part)
+                `LP_PART_PIG, `LP_PART_FAN, `LP_PART_BOOSTER: cell_mass=cell_mass+3'd2;
+                `LP_PART_ENGINE: cell_mass=cell_mass+3'd3;
+                `LP_PART_WHEEL, `LP_PART_BALLOON: cell_mass=cell_mass+3'd1;
+                default: begin end
+            endcase
+        end
+    end
+
 
     // Query every pixel intersecting the occupied, rotated 8px cells. Separating-axis
     // tests include the pixel's area, rather than only its centre, so thin
@@ -70,12 +97,14 @@ module rotating_map_collision_engine (
     // Inside a scan's bounded 35px box, relative positions fit signed 16 bits.
     // Register subtraction, projection and comparison separately at 100 MHz.
     reg signed [15:0] scan_dx_q, scan_dy_q;
+    // Stage the sign inversion before the DSP input. Seventeen bits preserve
+    // -(-32768) as well, although the bounded body scan uses far less range.
+    reg signed [16:0] scan_neg_dx_q;
     reg signed [27:0] local_u_q, local_v_q;
     reg signed [34:0] pixel_x_numerator, pixel_y_numerator;
     reg signed [34:0] cell_dx_numerator, cell_dy_numerator;
     reg signed [34:0] cell_world_max_q, cell_world_min_q;
     reg signed [27:0] cell_u_min_q, cell_u_max_q, cell_v_min_q, cell_v_max_q;
-    reg [3:0] mask_cell;
     reg [1:0] mask_stage;
     wire signed [17:0] basis_norm=rotation_norm_squared(work_tilt);
     wire signed [34:0] cell_world_limit=($signed(span) <<< 18)+($signed(basis_norm) <<< 7);
@@ -87,6 +116,7 @@ module rotating_map_collision_engine (
     wire signed [10:0] centre_v_sin=mask_cell<3 ? -sine : mask_cell>=6 ? sine : 11'sd0;
     wire signed [11:0] cell_centre_x=centre_u_cos-centre_v_sin;
     wire signed [11:0] cell_centre_y=centre_u_sin+centre_v_cos;
+    wire signed [14:0] cg_cell_x=$signed(cell_centre_x) <<< 3;
     wire signed [27:0] pixel_radius=$signed(span)*128;
     wire signed [27:0] cell_u_min=mask_cell%3==0 ? -28'sd786432 : mask_cell%3==1 ? -28'sd262144 : 28'sd262144;
     wire signed [27:0] cell_v_min=mask_cell<3 ? -28'sd786432 : mask_cell<6 ? -28'sd262144 : 28'sd262144;
@@ -147,12 +177,15 @@ module rotating_map_collision_engine (
             scan_left<=0; scan_right<=0; scan_bottom<=0; scan_x<=0; scan_y<=0;
             hit_x<=0; hit_y<=0; scan_pose_x<=0; scan_pose_y<=0;
             scan_body_mode<=0; scan_mask<=0; scan_hit<=0; scan_return<=IDLE; refine_return<=IDLE;
-            scan_dx_q<=0; scan_dy_q<=0; local_u_q<=0; local_v_q<=0;
+            scan_dx_q<=0; scan_dy_q<=0; scan_neg_dx_q<=0; local_u_q<=0; local_v_q<=0;
             saved_collision_mask<=9'h1ff; pixel_x_numerator<=0; pixel_y_numerator<=0;
             cell_dx_numerator<=0; cell_dy_numerator<=0; mask_cell<=0; mask_stage<=0;
             cell_world_max_q<=0; cell_world_min_q<=0;
             cell_u_min_q<=0; cell_u_max_q<=0; cell_v_min_q<=0; cell_v_max_q<=0;
             support_x<=0; support_y<=0; left_floor<=0;
+            saved_cg_enabled<=0; saved_mass_grid<=0; saved_parts<=0; saved_frames<=0;
+            cg_units<=0; cg_sum<=0; left_support_sum<=0; right_support_sum<=0;
+            left_support_arm<=0; right_support_arm<=0; support_unstable<=0;
         end else begin
             if (response_valid && response_ready) response_valid<=0;
             case (phase)
@@ -162,9 +195,17 @@ module rotating_map_collision_engine (
                     work_tilt<=sanitize_tilt(previous_tilt); wanted_tilt<=sanitize_tilt(proposed_tilt);
                     old_tilt<=sanitize_tilt(previous_tilt);
                     result_vx<=proposed_vx; result_vy<=proposed_vy;
-                    moving_up<=proposed_vy<0 || proposed_y<previous_y;
+                    // Turning moves the grid origin around its mass centre.
+                    // That geometric y shift is not an upward launch. Use vy
+                    // during a turn; retain position-only upward requests when
+                    // the orientation is unchanged (legacy collision callers).
+                    moving_up<=proposed_vy<0 ||
+                        (sanitize_tilt(proposed_tilt)==sanitize_tilt(previous_tilt) &&
+                         proposed_y<previous_y);
                     saved_width<=world_width; saved_height<=world_height;
                     saved_collision_mask<=collision_mask;
+                    saved_cg_enabled<=cg_enabled; saved_mass_grid<=build_grid;
+                    saved_parts<=part_intact_mask; saved_frames<=frame_intact_mask;
                     result_ground<=0; result_slope<=0; result_tip<=0; slope_ok<=0; attempts<=0; phase<=OLD_BODY;
                 end
                 OLD_BODY: scan_body(work_x,work_y,OLD_RESULT);
@@ -266,11 +307,36 @@ module rotating_map_collision_engine (
                 end
                 SPAN: begin scan_body(work_x,work_y+1,SPAN_RESULT); scan_all<=1; end
                 SPAN_RESULT: begin
-                    // A one pixel margin either side of the centre keeps a level,
-                    // evenly supported body from rocking.
-                    if (!scan_hit) result_tip<=0;
-                    else if (($signed(hit_max_x)+2)*256 <= work_x+HALF) result_tip<=1;
-                    else if (($signed(hit_min_x)-1)*256 >= work_x+HALF) result_tip<=-1;
+                    if (saved_cg_enabled && scan_hit) begin
+                        // Contact pixels occupy [min, max+1]. One extra pixel
+                        // either side prevents quantized terrain from rocking.
+                        left_support_arm<= (($signed(hit_min_x)-1) <<< 8)-work_x-HALF;
+                        right_support_arm<=(($signed(hit_max_x)+2) <<< 8)-work_x-HALF;
+                        cg_sum<=0; left_support_sum<=0; right_support_sum<=0;
+                        mask_cell<=0; phase<=CG_CELL;
+                    end else begin
+                        if (!scan_hit) result_tip<=0;
+                        else if (($signed(hit_max_x)+2)*256 <= work_x+HALF) result_tip<=1;
+                        else if (($signed(hit_min_x)-1)*256 >= work_x+HALF) result_tip<=-1;
+                        phase<=SLOPE_LEFT;
+                    end
+                end
+                CG_CELL: begin cg_units<=cell_mass; phase<=CG_ACCUM; end
+                CG_ACCUM: begin
+                    if (cg_units!=0) begin
+                        cg_sum<=cg_sum+cg_cell_x;
+                        left_support_sum<=left_support_sum+left_support_arm;
+                        right_support_sum<=right_support_sum+right_support_arm;
+                        cg_units<=cg_units-1'b1;
+                    end else if (mask_cell==8) phase<=CG_RESULT;
+                    else begin mask_cell<=mask_cell+1'b1; phase<=CG_CELL; end
+                end
+                CG_RESULT: begin
+                    // Compare the vertical weight line to the full support
+                    // interval. Two separated contacts can safely bridge a gap.
+                    if (cg_sum>right_support_sum) result_tip<=1;
+                    else if (cg_sum<left_support_sum) result_tip<=-1;
+                    else result_tip<=0;
                     phase<=SLOPE_LEFT;
                 end
                 // The probes look 12 pixels up and down, so a 45 degree slope drawn as the
@@ -295,16 +361,20 @@ module rotating_map_collision_engine (
                 end
                 RESPOND: begin
                     corrected_x<=work_x; corrected_y<=work_y; corrected_vx<=result_vx; corrected_vy<=result_vy;
-                    corrected_tilt<=work_tilt; grounded<=result_ground; ground_slope<=result_slope; tip_dir<=slope_ok ? 2'sd0 : result_tip;
+                    corrected_tilt<=work_tilt; grounded<=result_ground; ground_slope<=result_slope; tip_dir<=(saved_cg_enabled || !slope_ok) ? result_tip : 2'sd0;
+                    support_unstable<=saved_cg_enabled && result_ground && result_tip!=0;
                     response_valid<=1; phase<=IDLE;
                 end
                 ISSUE: begin
-                    if (scan_body_mode) begin scan_dx_q<=scan_dx; scan_dy_q<=scan_dy; phase<=PROJECT; end
+                    if (scan_body_mode) begin
+                        scan_dx_q<=scan_dx; scan_dy_q<=scan_dy;
+                        scan_neg_dx_q<=-$signed(scan_dx[15:0]); phase<=PROJECT;
+                    end
                     else begin scan_mask<=1; phase<=SAMPLE; end
                 end
                 PROJECT: begin
                     local_u_q<=scan_dx_q*cosine+scan_dy_q*sine;
-                    local_v_q<=-scan_dx_q*sine+scan_dy_q*cosine;
+                    local_v_q<=scan_neg_dx_q*sine+scan_dy_q*cosine;
                     pixel_x_numerator<=scan_dx_q*basis_norm;
                     pixel_y_numerator<=scan_dy_q*basis_norm;
                     cell_world_max_q<=cell_world_limit; cell_world_min_q<=-cell_world_limit;

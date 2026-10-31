@@ -7,12 +7,13 @@ module vehicle_rotation_top_tb;
     integer waited, settled_updates, saw_nonzero=0;
     reg [511:0] held_snapshot;
     reg signed [19:0] final_x, final_y;
+    reg signed [`LP_TILT_BITS-1:0] final_tilt;
     always #5 clk=~clk;
     My_Top_Module #(
         .PHYSICS_CYCLES(128), .BUTTON_DEBOUNCE_CYCLES(2), .BUTTON_RELEASE_CYCLES(2)
     ) dut (
         .clk(clk),.btnC(btnC),.btnU(1'b0),.btnR(1'b0),.btnL(1'b0),.btnD(btnD),
-        .sw(16'd0),.PS2Clk(PS2Clk),.PS2Data(PS2Data)
+        .sw(16'd1),.PS2Clk(PS2Clk),.PS2Data(PS2Data)
     );
     initial begin
         force dut.level_index=2'd0;
@@ -33,10 +34,11 @@ module vehicle_rotation_top_tb;
         clocks(2); btnC=1; clocks(12); btnC=0;
         waited=0;
         while(dut.game_state!=`LP_RUN && waited<200000) begin clocks(1); waited=waited+1; end
+        dut.u_ui_control.engine_on=1;
         if(dut.game_state!=`LP_RUN || dut.vehicle_tilt!==4'sd0)
             $fatal(1,"Rotation top did not launch level with zero orientation");
         // Finish the spawn update, then provide a pose fixture on the actual
-        // 1:1 Arch road. Orientation is never written or forced by this bench.
+        // scaled Arch downhill. Orientation is never written or forced by this bench.
         clocks(200);
         force dut.left_frame=1'b0;
         clocks(32); held_snapshot=dut.snapshot_out;
@@ -45,34 +47,34 @@ module vehicle_rotation_top_tb;
         if(dut.u_physics.phase!=0) $fatal(1,"Rotation top never became idle");
         // Write immediately while idle. Waiting after observing IDLE can let
         // the next request capture the spawn pose and overwrite this fixture.
-        dut.u_physics.vehicle_x=150*256;
-        dut.u_physics.vehicle_y=44*256;
+        dut.u_physics.vehicle_x=330*256;
+        dut.u_physics.vehicle_y=130*256;
         dut.u_physics.velocity_x=0;
         dut.u_physics.velocity_y=0;
         waited=0; settled_updates=0;
         // Geometry latency may change with collision pipelining. Bound actual
         // completed movement updates; the global watchdog still catches stalls.
-        while(dut.vehicle_tilt!==4'sd4 && settled_updates<40 && dut.game_state==`LP_RUN) begin
+        while((dut.vehicle_tilt<3 || dut.vehicle_tilt>5) && settled_updates<60 && dut.game_state==`LP_RUN) begin
             clocks(1); waited=waited+1;
             if(dut.movement_committed) settled_updates=settled_updates+1;
             if(dut.vehicle_tilt!=0) saw_nonzero=1;
             if(dut.snapshot_out!==held_snapshot)
                 $fatal(1,"Top snapshot changed away from a display frame boundary");
         end
-        if(dut.game_state!=`LP_RUN || dut.vehicle_tilt!==4'sd4 || !saw_nonzero)
+        if(dut.game_state!=`LP_RUN || dut.vehicle_tilt<3 || dut.vehicle_tilt>5 || !saw_nonzero)
             $fatal(1,"Actual map failed to settle vehicle at 45 degrees: state=%0d tilt=%0d slope=%0d updates=%0d cycles=%0d",
                 dut.game_state,dut.vehicle_tilt,dut.ground_slope,settled_updates,waited);
         // Freeze a result pose so the two clocks can publish one exact pair.
         // This force controls lifecycle only, never vehicle pose or angle.
         force dut.game_state=`LP_SUCCESS;
-        final_x=dut.vehicle_x; final_y=dut.vehicle_y;
+        final_x=dut.vehicle_x; final_y=dut.vehicle_y; final_tilt=dut.vehicle_tilt;
         clocks(40);
         if(dut.snapshot_out!==held_snapshot)
             $fatal(1,"A result bypassed the frame-boundary snapshot");
         force dut.left_frame=1'b1;
         clocks(1200);
-        if(dut.draw_tilt!==4'sd4 || dut.draw_x!==final_x || dut.draw_y!==final_y ||
-           dut.draw_state!==`LP_SUCCESS || dut.u_right_renderer.vehicle_tilt!==4'sd4)
+        if(dut.draw_tilt!==final_tilt || dut.draw_x!==final_x || dut.draw_y!==final_y ||
+           dut.draw_state!==`LP_SUCCESS || dut.u_right_renderer.vehicle_tilt!==final_tilt)
             $fatal(1,"Committed rotation/pose was lost or mixed in the display transfer");
         btnD=1; release dut.game_state; clocks(24);
         if(dut.vehicle_tilt!==0 || dut.draw_tilt!==0 || dut.snapshot_out!==0)

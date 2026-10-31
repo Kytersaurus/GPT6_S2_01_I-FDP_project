@@ -1,4 +1,4 @@
-// Owner: Role 1 - Kaushal. Test on-screen engine boost button and timed thrust.
+// Owner: Role 1 - Kaushal. Test mouse boost and exclusion of ordinary sprite clicks.
 `timescale 1ns / 1ps
 `include "game_defs.vh"
 module boost_controls_tb;
@@ -71,17 +71,18 @@ module boost_controls_tb;
         if (dut.boost_active) $fatal(1, "Boost active before any click");
 
         // Click outside button
-        left_click(12'd10, 12'd10);
+        left_click(12'd90, 12'd46);
         clocks(2);
         if (dut.boost_active) $fatal(1, "Boost triggered outside button");
 
-        // Click inside boost button (X=60, Y=40)
-        left_click(12'd60, 12'd40);
-        clocks(2);
+        // Ordinary vehicle clicks must not trigger an invisible old boost row.
+        left_click(12'd60, 12'd40);clocks(2);
+        if(dut.boost_active) $fatal(1,"Wheel sprite triggered invisible boost control");
+        // The compatible left-panel boost shortcut stays outside the vehicle.
+        left_click(12'd20,12'd40);clocks(2);
+        if (!dut.boost_active) $fatal(1, "Left-panel boost shortcut failed to activate");
 
-        if (!dut.boost_active) $fatal(1, "Boost failed to activate after clicking boost button");
-
-        $display("PASS boost_controls_tb: on-screen boost click, activation, and exclusion");
+        $display("PASS boost_controls_tb: left-panel boost activation and ordinary sprite-click exclusion");
         $finish;
     end
     initial begin #200000; $fatal(1,"Boost control test timed out"); end
