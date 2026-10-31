@@ -545,3 +545,21 @@ The final real-terrain check with moments enabled and `WHEEL_TORQUE_SHIFT=2`
 completes Cave Arch in 1,730 updates with two automatic reversals. This confirms
 the gentler turning response still traverses the course. Full trace:
 `tmp/rocket_wheel_drive/drive.log`.
+
+
+## Combined UI and physics integration (2026-10-31)
+
+UI controls and rendering use the physics engine's `rocket_ready`, independently
+of engine boost. UI, mouse and board boost requests combine through one OR net;
+there is one controller output driving `ui_boost_req`. The coherent display
+snapshot includes title/star flags, mouse speed, fan status and rocket availability
+and readiness. Its width is 268 bits with the current coordinate/tilt definitions.
+Controller declarations and top-level port connections occur once per signal.
+
+`merge_integration_tb` guards the full snapshot transfer, physics-owned readiness,
+and all boost request sources. The complete runner passes 58/58 benches; the
+saved-project source list also passes synthesis without unresolved modules.
+Combined utilization is 20,130 LUTs (96.78%, 670 free), 4,566 registers, 23 DSPs
+and 48 block-RAM tiles. Pre-route WNS is -1.367 ns, so this is not routed timing
+sign-off. Logs: `tmp/merge_all_summary.log`, `tmp/merge_contract_final/` and
+`tmp/merge_synthesis/`.

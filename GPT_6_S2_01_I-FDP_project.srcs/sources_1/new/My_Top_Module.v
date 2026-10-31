@@ -272,19 +272,22 @@ module My_Top_Module #(
     ui_controller u_ui_control (
         .clk(clk), .reset(reset), .input_enabled(builder_input_enabled), .run_init(run_init),
         .physics_tick(physics_tick), .launch_event(launch_event),
-        .start_screen_active(start_screen_active),
-        .game_state(game_state),
-        .mouse_x(effective_mouse_x), .mouse_y(effective_mouse_y), .mouse_left(mouse_left), .mouse_right(mouse_right),
-        .mouse_event(mouse_event), .next_press(start_press), .engine_switch_changed(engine_switch_changed),
-        .fan_available(fan_available), .rocket_available(rocket_available), .rocket_ready(rocket_ready),
-        .launch_req(ui_launch), .edit_req(ui_edit), .guide_open_req(ui_guide_open), .guide_close_req(ui_guide_close),
-        .level_close_req(level_close_req), .level_select_req(level_select_req), .selected_level(selected_level),
-        .run_page(run_page), .boost_req(boost_req), .diary_page(diary_page), .master_volume(master_volume), .engine_on(ui_engine_on), .fan_on(ui_fan_on), .rocket_req(ui_rocket_req), .sound_muted(ui_sound_muted), .launch_flash(launch_flash)
-        .engine_switch(sw[0]), .engine_toggle_req(mouse_engine_toggle_req), .fan_toggle_req(mouse_fan_toggle_req),
-        .fan_available(has_intact_fan), .rocket_available(has_intact_rocket), .rocket_ready(has_intact_rocket && !boost_active), .balloon_available(has_intact_balloon),
-        .launch_req(ui_launch), .edit_req(ui_edit), .end_try_req(ui_end_try), .guide_open_req(ui_guide_open), .guide_close_req(ui_guide_close),
-        .level_open_req(ui_level_open_req), .level_close_req(level_close_req), .level_select_req(level_select_req), .selected_level(selected_level),
-        .run_page(run_page), .boost_req(ui_boost_req), .diary_page(diary_page), .master_volume(master_volume), .mouse_speed(mouse_speed), .engine_on(ui_engine_on), .fan_on(ui_fan_on), .rocket_req(ui_rocket_req), .sound_muted(ui_sound_muted), .launch_flash(launch_flash)
+        .start_screen_active(start_screen_active), .game_state(game_state),
+        .mouse_x(effective_mouse_x), .mouse_y(effective_mouse_y),
+        .mouse_left(mouse_left), .mouse_right(mouse_right), .mouse_event(mouse_event),
+        .next_press(start_press), .engine_switch_changed(engine_switch_changed),
+        .engine_switch(sw[0]), .engine_toggle_req(mouse_engine_toggle_req),
+        .fan_toggle_req(mouse_fan_toggle_req),
+        .fan_available(fan_available), .rocket_available(rocket_available),
+        .rocket_ready(rocket_ready), .balloon_available(has_intact_balloon),
+        .launch_req(ui_launch), .edit_req(ui_edit), .end_try_req(ui_end_try),
+        .guide_open_req(ui_guide_open), .guide_close_req(ui_guide_close),
+        .level_open_req(ui_level_open_req), .level_close_req(level_close_req),
+        .level_select_req(level_select_req), .selected_level(selected_level),
+        .run_page(run_page), .boost_req(ui_boost_req), .diary_page(diary_page),
+        .master_volume(master_volume), .mouse_speed(mouse_speed), .engine_on(ui_engine_on),
+        .fan_on(ui_fan_on), .rocket_req(ui_rocket_req), .sound_muted(ui_sound_muted),
+        .launch_flash(launch_flash)
     );
     wire [7:0] par_time;
     seven_seg_timer #(.COUNTDOWN(1), .TIME_LIMIT(20)) u_board_timer (.clk(clk), .reset(reset), .seconds(run_seconds), .seg(seg), .an(an), .dp(dp));
@@ -450,7 +453,7 @@ module My_Top_Module #(
         .world_ready(world_ready), .goal_hit(goal_hit), .hazard_hit(hazard_hit), .out_of_bounds(out_of_bounds), .star_box_hit(star_box_hit)
     );
 
-    localparam SNAPSHOT_WIDTH = 247 + 4*(`LP_COORD_BITS-16) + (`LP_TILT_BITS-4);
+    localparam SNAPSHOT_WIDTH = 251 + 4*(`LP_COORD_BITS-16) + (`LP_TILT_BITS-4);
     wire [SNAPSHOT_WIDTH-1:0] snapshot_in = {start_screen_active, fan_available, ui_fan_on, star_box_collected, rocket_available, rocket_ready, vehicle_tilt, mouse_speed, audio_muted, run_page, selected_left, inventory_page, build_facing_left, rockets_left, fans_left, master_volume, diary_page, guide_return_state, death_phase, death_x, death_y, launch_flash, boost_active, drag_from_grid, drag_source, drag_contents,
                               game_state, build_grid, intact_mask, frame_intact_mask, build_valid, build_error,
                               vehicle_x, display_y, engine_enabled, frames_left, pigs_left, wheels_left,
@@ -459,7 +462,7 @@ module My_Top_Module #(
                               build_frames, run_seconds, blast_phase};
     wire [SNAPSHOT_WIDTH-1:0] snapshot_out;
     wire draw_audio_muted;
-    wire draw_start_screen_active
+    wire draw_start_screen_active;
     wire draw_fan_available, draw_fan_on, draw_rocket_available, draw_rocket_ready;
     wire [1:0] draw_mouse_speed;
     wire signed [`LP_TILT_BITS-1:0] draw_tilt;
@@ -655,11 +658,9 @@ module My_Top_Module #(
         .master_volume(draw_master_volume), .mouse_speed(draw_mouse_speed),
         .level_index(draw_level),
         .build_valid(draw_valid), .engine_enabled(draw_engine), .boost_active(draw_boost_active),
-        .fan_available(draw_fan_available), .fan_on(draw_fan_on), .rocket_available(draw_rocket_available), .rocket_ready(draw_rocket_ready),
-        .cursor_x(draw_cursor_x), .cursor_y(draw_cursor_y), .pixel_data(left_pixel_data)
         .engine_available(draw_has_engine),
-        .fan_available(draw_has_fan), .fan_on(draw_fan_on),
-        .rocket_available(draw_has_rocket), .rocket_ready(draw_has_rocket && !draw_boost_active),
+        .fan_available(draw_fan_available), .fan_on(draw_fan_on),
+        .rocket_available(draw_rocket_available), .rocket_ready(draw_rocket_ready),
         .balloon_available(draw_has_balloon),
         .anim_phase(anim_phase),
         .cursor_x(draw_cursor_x), .cursor_y(draw_cursor_y),
