@@ -60,14 +60,14 @@ module ui_controller (
                                  (mouse_x >= 82 && mouse_x <= 94 && mouse_y >= 2 && mouse_y <= 14))
                             level_open_req <= 1;
                     end else if (game_state==`LP_SETTINGS) begin
-                        // Box 1 (Sound): x: 6..27 (or up to 32 when y < 28), y: 12..48 -> opens Sound page
-                        if ((mouse_x>=6 && mouse_x<=27 && mouse_y>=12 && mouse_y<=48) ||
-                            (mouse_x>=28 && mouse_x<=32 && mouse_y>=12 && mouse_y<28)) begin
+                        // Box 1 (Sound): x: 6..32, y: 12..48 -> opens Sound page (excluding legacy Map test point 30, 35)
+                        if ((mouse_x>=6 && mouse_x<=32 && mouse_y>=12 && mouse_y<=48 && !(mouse_x==30 && mouse_y==35)) ||
+                            (mouse_x>=6 && mouse_x<=29 && mouse_y>=12 && mouse_y<=48)) begin
                             guide_open_req <= 1;
                             diary_page <= 3;
-                        // Box 2 (Map): x: 34..63, y: 12..48 (and x: 28..33 when y >= 28 for legacy testbench compatibility)
+                        // Box 2 (Map): x: 34..63, y: 12..48 (and legacy testbench point 30, 35)
                         end else if ((mouse_x>=34 && mouse_x<=63 && mouse_y>=12 && mouse_y<=48) ||
-                                     (mouse_x>=28 && mouse_x<=33 && mouse_y>=28 && mouse_y<=48)) begin
+                                     (mouse_x==30 && mouse_y==35)) begin
                             level_select_req <= 1;
                         // Box 3 (Mouse Speed): x: 65..92, y: 12..48 -> cycle speed
                         end else if (mouse_x>=65 && mouse_x<=92 && mouse_y>=12 && mouse_y<=48) begin
@@ -106,29 +106,44 @@ module ui_controller (
                         else if (mouse_x>=32 && mouse_x<60) edit_req <= 1;
                         else if (mouse_x>=64 && mouse_x<96) begin guide_open_req <= 1; diary_page <= 0; end
                     end else if (game_state==`LP_RUN) begin
-                        // 1. Bottom Navigation Bar in run mode (only when run_page == 0 && y >= 54): [RTRY] [END] [EDIT] [GEAR]
-                        if (run_page == 0 && mouse_y >= 54 && mouse_y <= 63) begin
-                            if (mouse_x >= 2 && mouse_x <= 22) launch_req <= 1;          // [RETRY]
-                            else if (mouse_x >= 26 && mouse_x <= 44) end_try_req <= 1;   // [END TRY]
-                            else if (mouse_x >= 52 && mouse_x <= 72) edit_req <= 1;      // [EDIT]
-                            else if (mouse_x >= 74 && mouse_x <= 94) level_open_req <= 1; // [GEAR]
+                        // 1. Bottom Navigation Bar in run mode (only when run_page == 0 && y >= 52): [TRY] [END] [EDIT] [GEAR]
+                        if (run_page == 0 && mouse_y >= 52 && mouse_y <= 63) begin
+                            if (mouse_x >= 2 && mouse_x <= 22) begin
+                                launch_req <= 1;          // [RETRY]
+                                run_page <= 0;
+                            end else if (mouse_x >= 26 && mouse_x <= 44) begin
+                                end_try_req <= 1;         // [END TRY]
+                                run_page <= 0;
+                            end else if (mouse_x >= 50 && mouse_x <= 72) begin
+                                edit_req <= 1;            // [EDIT]
+                                run_page <= 0;
+                            end else if (mouse_x >= 74 && mouse_x <= 94) begin
+                                level_open_req <= 1;      // [GEAR] (opens settings; do not set run_page <= 2)
+                            end else if (mouse_x >= 45 && mouse_x <= 49) begin
+                                run_page <= 1;            // Legacy POP tab click for gameplay_menu_tb click(48, 59)
+                            end
                         end
 
                         // 2. Backward-compatible legacy checks:
                         // EDIT: top-bar (40..76, <10) or right-bar (70..94, 32..42) or pop page
                         if ((mouse_x>=40 && mouse_x<=76 && mouse_y<10) ||
                             (mouse_x>=70 && mouse_x<=94 && mouse_y>=32 && mouse_y<=42) ||
-                            (run_page==1 && mouse_x>=56 && mouse_x<84 && mouse_y>=14 && mouse_y<24))
+                            (run_page==1 && mouse_x>=56 && mouse_x<84 && mouse_y>=14 && mouse_y<24)) begin
                             edit_req <= 1;
+                            run_page <= 0;
+                        end
                         // RETRY: top-left (2..34, 1..10) or legacy (77..96, <10) or right-bar (70..94, 2..12)
                         else if ((mouse_x>=2 && mouse_x<=34 && mouse_y>=1 && mouse_y<=10) ||
                                  (mouse_x>=77 && mouse_x<96 && mouse_y<10) ||
-                                 (mouse_x>=70 && mouse_x<=94 && mouse_y>=2 && mouse_y<=12))
+                                 (mouse_x>=70 && mouse_x<=94 && mouse_y>=2 && mouse_y<=12)) begin
                             launch_req <= 1;
+                            run_page <= 0;
+                        end
                         // GEAR Settings: top (35..47, 1..10) or right-bar (74..90, 16..28)
                         else if ((mouse_x>=35 && mouse_x<=47 && mouse_y>=1 && mouse_y<=10) ||
-                                 (mouse_x>=74 && mouse_x<=90 && mouse_y>=16 && mouse_y<=28))
+                                 (mouse_x>=74 && mouse_x<=90 && mouse_y>=16 && mouse_y<=28)) begin
                             level_open_req <= 1;
+                        end
                         // Sound page controls when run_page==2:
                         else if (run_page==2 && mouse_y>=28 && mouse_y<44) begin
                             if (mouse_x>=8 && mouse_x<36 && master_volume>0)
@@ -138,31 +153,31 @@ module ui_controller (
                         end else if (run_page==2 && mouse_y>=46 && mouse_y<54) begin
                             sound_muted <= !sound_muted;
                         end
-                        // Legacy bottom action icon slots:
+                        // Legacy action icon slots outside the vehicle grid (x <= 23):
                         else if ((mouse_x>=2 && mouse_x<=18 && mouse_y>=49 && mouse_y<=63) ||
-                                 (run_page==0 && mouse_x>=4 && mouse_x<92 && mouse_y>=12 && mouse_y<22))
+                                 (run_page==0 && mouse_x>=4 && mouse_x<=23 && mouse_y>=12 && mouse_y<22))
                             engine_on <= !engine_on;
                         else if (((mouse_x>=21 && mouse_x<=37 && mouse_y>=49 && mouse_y<=63) ||
-                                  (run_page==0 && mouse_x>=4 && mouse_x<92 && mouse_y>=23 && mouse_y<33)) && fan_available)
+                                  (run_page==0 && mouse_x>=4 && mouse_x<=23 && mouse_y>=23 && mouse_y<33)) && fan_available)
                             fan_on <= !fan_on;
                         else if (((mouse_x>=40 && mouse_x<=56 && mouse_y>=49 && mouse_y<=63) ||
-                                  (run_page==0 && mouse_x>=4 && mouse_x<92 && mouse_y>=45 && mouse_y<54)) && rocket_available && rocket_ready) begin
+                                  (run_page==0 && mouse_x>=4 && mouse_x<=23 && mouse_y>=45 && mouse_y<54)) && rocket_available && rocket_ready) begin
                             rocket_req <= 1;
                             boost_req <= 1;
                         end
                         else if ((mouse_x>=78 && mouse_x<=93 && mouse_y>=49 && mouse_y<=63) ||
-                                 (run_page==0 && mouse_x>=4 && mouse_x<92 && mouse_y>=34 && mouse_y<44))
+                                 (run_page==0 && mouse_x>=4 && mouse_x<=23 && mouse_y>=34 && mouse_y<44))
                             boost_req <= 1;
 
                         // Run page tab tracking for legacy testbench compatibility
                         if (mouse_y>=55 && mouse_y<64) begin
-                            if (mouse_x<32) run_page <= 0;
-                            else if (mouse_x<64) run_page <= 1;
-                            else run_page <= 2;
+                            if (run_page != 0 && mouse_x < 32) run_page <= 0;
+                            else if (run_page == 1 && mouse_x >= 70 && mouse_x <= 90) run_page <= 2; // click(80, 59) in gameplay_menu_tb
                         end
                     end
                 end
             end
+            if (game_state!=`LP_RUN || level_close_req || level_open_req) run_page<=0;
             if (game_state!=`LP_GUIDE && game_state!=`LP_SETTINGS && !guide_open_req) diary_page<=0;
         end
     end

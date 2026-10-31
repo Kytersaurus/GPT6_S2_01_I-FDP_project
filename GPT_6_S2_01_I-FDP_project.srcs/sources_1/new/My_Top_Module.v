@@ -259,8 +259,8 @@ module My_Top_Module #(
     assign combined_boost_req = ui_boost_req || mouse_boost_req || (game_state == `LP_RUN && right_press);
     assign boost_req = combined_boost_req;
 
-    wire [11:0] effective_mouse_x = (mouse_speed == 2'd1) ? mouse_x : {5'd0, cursor_x};
-    wire [11:0] effective_mouse_y = (mouse_speed == 2'd1) ? mouse_y : {6'd0, cursor_y};
+    wire [11:0] effective_mouse_x = {5'd0, cursor_x};
+    wire [11:0] effective_mouse_y = {6'd0, cursor_y};
 
     ui_controller u_ui_control (
         .clk(clk), .reset(reset), .input_enabled(builder_input_enabled), .run_init(run_init),
