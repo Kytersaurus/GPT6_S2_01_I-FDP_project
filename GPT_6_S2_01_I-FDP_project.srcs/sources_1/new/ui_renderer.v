@@ -503,18 +503,9 @@ module ui_renderer (
             // -----------------------------------------------------------------
             pixel_data = 16'h0841;
 
-            // 1. Left Panel (x: 0..23, y: 0..50): Engine SW0 Status Banner
+            // 1. Left Panel (x: 0..23, y: 0..50): Clean background
             if (x < 24 && y <= 50) begin
-                if (engine_available && !sw0_engine) begin
-                    // Warning Box: Engine OFF by SW0
-                    if (x >= 1 && x <= 22 && y >= 10 && y <= 42) begin
-                        if (x == 1 || x == 22 || y == 10 || y == 42) pixel_data = 16'hf800;
-                        else pixel_data = 16'h3000;
-                    end
-                    if (text_on("ENG             ", 3, 13, x, y)) pixel_data = 16'hf800;
-                    if (text_on("OFF             ", 3, 23, x, y)) pixel_data = 16'hffe0;
-                    if (text_on("SW0             ", 3, 33, x, y)) pixel_data = 16'hffff;
-                end
+                pixel_data = 16'h0841;
             end
 
             // 2. Middle Panel (x: 24..71, y: 2..49): Big 16x16 Interactive Vehicle Grid
@@ -541,7 +532,7 @@ module ui_renderer (
                     // Part sprite layer with active / dimmed rendering
                     if (intact_mask[run_cell_index] && run_part != `LP_PART_EMPTY) begin
                         if (run_part == `LP_PART_ENGINE) begin
-                            if (engine_enabled && sw0_engine) begin
+                            if (engine_enabled) begin
                                 pixel_data = part_sprite_facing(run_part, run_cell_x, run_cell_y, 16, build_facing_left[run_cell_index], anim_phase, pixel_data);
                             end else begin
                                 // Grayed out / dimmed inactive engine
@@ -568,16 +559,16 @@ module ui_renderer (
                 pixel_data = 16'h0841;
             end
 
-            // 4. Bottom Action Bar (y: 52..63): [ RTRY ] | [ END ] | [ EDIT ] | [ GEAR ]
+            // 4. Bottom Action Bar (y: 52..63): [ TRY ] | [ END ] | [ EDIT ] | [ GEAR ]
             if (y >= 52) begin
                 if (y == 52) pixel_data = 16'h04b4; // Separator line
                 else begin
-                    // Button 1: [ RETRY ] (x: 2..22)
+                    // Button 1: [ TRY ] (x: 2..22)
                     if (x >= 2 && x <= 22) begin
                         if (x == 2 || x == 22 || y == 53 || y == 63) pixel_data = 16'h04b4;
                         else if (cursor_x >= 2 && cursor_x <= 22 && cursor_y >= 54 && cursor_y <= 63) pixel_data = 16'h0351;
                         else pixel_data = 16'h18e5;
-                        if (text_on("RTRY            ", 4, 55, x, y)) pixel_data = 16'hffff;
+                        if (text_on("TRY             ", 4, 55, x, y)) pixel_data = 16'hffff;
                     end
 
                     // Button 2: [ END TRY ] (x: 26..44)
@@ -585,15 +576,15 @@ module ui_renderer (
                         if (x == 26 || x == 44 || y == 53 || y == 63) pixel_data = 16'h04b4;
                         else if (cursor_x >= 26 && cursor_x <= 44 && cursor_y >= 54 && cursor_y <= 63) pixel_data = 16'h0351;
                         else pixel_data = 16'h18e5;
-                        if (text_on("END             ", 30, 55, x, y)) pixel_data = 16'hf800; // Red text
+                        if (text_on("END             ", 27, 55, x, y)) pixel_data = 16'hf800; // Red text
                     end
 
-                    // Button 3: [ EDIT ] (x: 52..70)
-                    else if (x >= 52 && x <= 70) begin
-                        if (x == 52 || x == 70 || y == 53 || y == 63) pixel_data = 16'h04b4;
-                        else if (cursor_x >= 52 && cursor_x <= 70 && cursor_y >= 54 && cursor_y <= 63) pixel_data = 16'h0351;
+                    // Button 3: [ EDIT ] (x: 48..72)
+                    else if (x >= 48 && x <= 72) begin
+                        if (x == 48 || x == 72 || y == 53 || y == 63) pixel_data = 16'h04b4;
+                        else if (cursor_x >= 48 && cursor_x <= 72 && cursor_y >= 54 && cursor_y <= 63) pixel_data = 16'h0351;
                         else pixel_data = 16'h18e5;
-                        if (text_on("EDIT            ", 53, 55, x, y)) pixel_data = 16'h07ff;
+                        if (text_on("EDIT            ", 49, 55, x, y)) pixel_data = 16'h07ff;
                     end
 
                     // Button 4: [ GEAR ] (x: 74..94)

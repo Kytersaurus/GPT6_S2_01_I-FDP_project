@@ -259,12 +259,15 @@ module My_Top_Module #(
     assign combined_boost_req = ui_boost_req || mouse_boost_req || (game_state == `LP_RUN && right_press);
     assign boost_req = combined_boost_req;
 
+    wire [11:0] effective_mouse_x = (mouse_speed == 2'd1) ? mouse_x : {5'd0, cursor_x};
+    wire [11:0] effective_mouse_y = (mouse_speed == 2'd1) ? mouse_y : {6'd0, cursor_y};
+
     ui_controller u_ui_control (
         .clk(clk), .reset(reset), .input_enabled(builder_input_enabled), .run_init(run_init),
         .physics_tick(physics_tick), .launch_event(launch_event),
         .start_screen_active(start_screen_active),
         .game_state(game_state),
-        .mouse_x(mouse_x), .mouse_y(mouse_y), .mouse_left(mouse_left), .mouse_right(mouse_right),
+        .mouse_x(effective_mouse_x), .mouse_y(effective_mouse_y), .mouse_left(mouse_left), .mouse_right(mouse_right),
         .mouse_event(mouse_event), .next_press(start_press), .engine_switch_changed(engine_switch_changed),
         .engine_switch(sw[0]), .engine_toggle_req(mouse_engine_toggle_req), .fan_toggle_req(mouse_fan_toggle_req),
         .fan_available(has_intact_fan), .rocket_available(has_intact_rocket), .rocket_ready(has_intact_rocket && !boost_active), .balloon_available(has_intact_balloon),
@@ -326,7 +329,7 @@ module My_Top_Module #(
         .zoomed_out(zoomed_out), .overview(overview)
     );
     level_button u_level_button (
-        .clk(clk), .reset(reset), .input_enabled(builder_input_enabled), .game_state(game_state), .mouse_x(mouse_x), .mouse_y(mouse_y),
+        .clk(clk), .reset(reset), .input_enabled(builder_input_enabled), .game_state(game_state), .mouse_x(effective_mouse_x), .mouse_y(effective_mouse_y),
         .mouse_left(mouse_left), .mouse_right(mouse_right), .mouse_event(mouse_event), .level_open_req(btn_level_open_req)
     );
     balloon_control u_balloons (
