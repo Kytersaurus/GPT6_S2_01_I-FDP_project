@@ -195,8 +195,8 @@ module My_Top_Module #(
     end
 
     // Crash impact: vehicle breaking on landing if it falls too hard
-    localparam signed [15:0] CRASH_VELOCITY_THRESHOLD = 16'sd384;
-    localparam signed [15:0] CRASH_FATAL_THRESHOLD    = 16'sd480;
+    localparam signed [15:0] CRASH_VELOCITY_THRESHOLD = 16'sd448;
+    localparam signed [15:0] CRASH_FATAL_THRESHOLD    = 16'sd513;
     wire vehicle_is_flipped = (vehicle_tilt > 5'sd8 || vehicle_tilt < -5'sd8);
     reg impact_damage_valid;
     reg [8:0] impact_damage_mask;
