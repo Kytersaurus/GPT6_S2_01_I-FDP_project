@@ -71,8 +71,8 @@ module right_renderer (
     integer next_fx, next_fy, next_wx, next_wy, next_tx, next_ty;
     always @* begin
         sx = x; sy = y;
-        view_w = (overview && !zoomed_out) ? 192 : overview ? 128 : (zoomed_out ? 96 : 64);
-        view_h = (overview && !zoomed_out) ? 128 : overview ? 86 : (zoomed_out ? 64 : 43);
+        view_w = overview ? 192 : (zoomed_out ? 96 : 64);
+        view_h = overview ? 128 : (zoomed_out ? 64 : 43);
         // Signed limits: a camera left of or above the world must clamp to zero, not wrap.
         max_x = world_width;
         max_y = world_height;
@@ -90,16 +90,12 @@ module right_renderer (
         if (cam_y > max_y) cam_y = max_y;
         if (cam_x < 0) cam_x = 0;
         if (cam_y < 0) cam_y = 0;
-        if (overview && !zoomed_out) begin
+        if (overview) begin
             // Half scale uses shifts and the existing sprite data, with no new image ROM.
             cam_x=cam_x & ~1; cam_y=cam_y & ~1;
             next_wx=cam_x+2*sx; next_wy=cam_y+2*sy;
             next_fx=(cam_x >>> 1)+sx; next_fy=(cam_y >>> 1)+sy;
             next_tx=2*next_wx; next_ty=2*next_wy;
-        end else if (overview) begin
-            next_wx = cam_x + (4*sx)/3;           next_wy = cam_y + (4*sy)/3;
-            next_fx = (3*cam_x)/4 + sx;           next_fy = (3*cam_y)/4 + sy;
-            next_tx = 2*next_wx;                  next_ty = 2*next_wy;
         end else if (zoomed_out) begin
             next_wx = cam_x + sx;                  next_wy = cam_y + sy;
             next_fx = next_wx;                     next_fy = next_wy;
@@ -248,10 +244,10 @@ module right_renderer (
                 pixel_data = (zoomed_out_q || overview_q) ? tnt_sprite(wx - tx, wy - ty, pixel_data)
                                           : tnt_sprite12(fx - scaled(tx, 1'b0), fy - scaled(ty, 1'b0), pixel_data);
         end
-        // Vehicle: three cells of 12, 8, 6 or 4 screen pixels, using existing sprites.
-        cell_px = (overview_q && !zoomed_out_q) ? 4 : overview_q ? 6 : (zoomed_out_q ? 8 : 12);
-        rel_x = fx - ((overview_q && !zoomed_out_q) ? (vx >>> 1) : overview_q ? (3*vx)/4 : scaled(vx, zoomed_out_q));
-        rel_y = fy - ((overview_q && !zoomed_out_q) ? (vy >>> 1) : overview_q ? (3*vy)/4 : scaled(vy, zoomed_out_q));
+        // Vehicle: three cells of 12, 8, or 4 screen pixels, using existing sprites.
+        cell_px = overview_q ? 4 : (zoomed_out_q ? 8 : 12);
+        rel_x = fx - (overview_q ? (vx >>> 1) : scaled(vx, zoomed_out_q));
+        rel_y = fy - (overview_q ? (vy >>> 1) : scaled(vy, zoomed_out_q));
         // Inverse-map every destination pixel through the body's rotation.
         // Zero tilt retains the original sprite lookup exactly at every zoom.
         if (tilt_q != 0) begin
@@ -274,9 +270,8 @@ module right_renderer (
             cell_index = cell_row*3 + cell_col;
             part = build_grid >> (cell_index*3);
             if (overview_q) begin
-                // Share one sprite lookup for both overview scales.
-                rel_x=zoomed_out_q ? (4*rel_x)/3 : 2*rel_x;
-                rel_y=zoomed_out_q ? (4*rel_y)/3 : 2*rel_y;
+                rel_x=2*rel_x;
+                rel_y=2*rel_y;
                 if (frame_intact_mask[cell_index]) pixel_data = part_sprite(`LP_PART_FRAME, rel_x, rel_y, 1'b0, pixel_data);
                 if (intact_mask[cell_index]) pixel_data = part_sprite_facing(part, rel_x, rel_y, 8, build_facing_left[cell_index], anim_phase, pixel_data);
             end else if (zoomed_out_q) begin

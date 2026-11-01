@@ -190,6 +190,41 @@ module My_Top_Module #(
         end
     end
 
+    // Crash impact: vehicle breaking on landing if it falls too hard
+    localparam signed [15:0] CRASH_VELOCITY_THRESHOLD = 16'sd384;
+    localparam signed [15:0] CRASH_FATAL_THRESHOLD    = 16'sd480;
+    wire vehicle_is_flipped = (vehicle_tilt > 5'sd8 || vehicle_tilt < -5'sd8);
+    reg impact_damage_valid;
+    reg [8:0] impact_damage_mask;
+    reg [8:0] impact_damage_frame_mask;
+
+    always @(posedge clk) begin
+        if (reset || run_init || game_state != `LP_RUN) begin
+            impact_damage_valid <= 1'b0;
+            impact_damage_mask <= 9'd0;
+            impact_damage_frame_mask <= 9'd0;
+        end else begin
+            impact_damage_valid <= 1'b0;
+            if (response_valid && response_ready && grounded && !audio_was_grounded &&
+                $signed(proposed_vy) >= CRASH_VELOCITY_THRESHOLD) begin
+                impact_damage_valid <= 1'b1;
+                if ($signed(proposed_vy) >= CRASH_FATAL_THRESHOLD) begin
+                    // Catastrophic crash: destroys all cells and frames
+                    impact_damage_mask <= 9'b111_111_111;
+                    impact_damage_frame_mask <= 9'b111_111_111;
+                end else if (vehicle_is_flipped) begin
+                    // Flipped landing: top row (cells 0, 1, 2) breaks
+                    impact_damage_mask <= 9'b000_000_111;
+                    impact_damage_frame_mask <= 9'b000_000_111;
+                end else begin
+                    // Upright landing: bottom row (cells 6, 7, 8) breaks
+                    impact_damage_mask <= 9'b111_000_000;
+                    impact_damage_frame_mask <= 9'b111_000_000;
+                end
+            end
+        end
+    end
+
     clock_control #(.PHYSICS_CYCLES(PHYSICS_CYCLES)) u_clocking (
         .clk(clk), .reset_button(btnD), .reset(reset), .oled_clk(oled_clk),
         .oled_reset(oled_reset), .physics_tick(physics_tick)
@@ -367,9 +402,9 @@ module My_Top_Module #(
         .build_facing_left(build_facing_left), .engine_balance(engine_balance),
         .fan_balance(fan_balance), .rocket_balance(rocket_balance),
         .rocket_count(rocket_count), .fan_count(fan_count), .rockets_left(rockets_left), .fans_left(fans_left),
-        .damage_valid(pop_valid || tnt_damage_valid), .damage_ready(damage_ready),
-        .damage_mask((pop_valid ? pop_mask : 9'd0) | (tnt_damage_valid ? tnt_damage_mask : 9'd0)),
-        .damage_frame_mask(tnt_damage_valid ? tnt_frame_mask : 9'd0),
+        .damage_valid(pop_valid || tnt_damage_valid || impact_damage_valid), .damage_ready(damage_ready),
+        .damage_mask((pop_valid ? pop_mask : 9'd0) | (tnt_damage_valid ? tnt_damage_mask : 9'd0) | (impact_damage_valid ? impact_damage_mask : 9'd0)),
+        .damage_frame_mask((tnt_damage_valid ? tnt_frame_mask : 9'd0) | (impact_damage_valid ? impact_damage_frame_mask : 9'd0)),
         .build_grid(build_grid), .build_frames(build_frames),
         .intact_mask(intact_mask), .frame_intact_mask(frame_intact_mask), .build_valid(build_valid),
         .build_error(build_error), .pig_alive(pig_alive), .wheel_count(wheel_count), .wheels_down(wheels_down), .wheels_up(wheels_up),

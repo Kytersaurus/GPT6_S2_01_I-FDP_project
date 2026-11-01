@@ -24,6 +24,10 @@ module ui_controller (
     reg left_was_down;
     reg [4:0] launch_ticks;
     assign launch_flash = launch_ticks != 0;
+    // Clamped screen coordinates save LUTs by replacing 12-bit comparators with 8-bit/7-bit
+    wire [7:0] mx = (mouse_x[11:8] != 4'd0) ? 8'd255 : mouse_x[7:0];
+    wire [6:0] my = (mouse_y[11:7] != 5'd0) ? 7'd127 : mouse_y[6:0];
+
 
     always @(posedge clk) begin
         if (reset) begin
@@ -54,115 +58,115 @@ module ui_controller (
                 if (input_enabled && mouse_left && !left_was_down && !mouse_right) begin
                     if (start_screen_active) begin
                         // Option B: Large centered [ PLAY ] button: center at (48, 40)
-                        if ((mouse_x >= 36 && mouse_x <= 60 && mouse_y >= 28 && mouse_y <= 52) ||
-                            (mouse_x >= 24 && mouse_x <= 71 && mouse_y >= 26 && mouse_y <= 54))
+                        if ((mx >= 36 && mx <= 60 && my >= 28 && my <= 52) ||
+                            (mx >= 24 && mx <= 71 && my >= 26 && my <= 54))
                             launch_req <= 1;
                         // Option B: Cartoon Settings [ GEAR ] in bottom-left: x: 2..22, y: 44..62 (and legacy top-right 82..94, 2..14)
-                        else if ((mouse_x >= 2 && mouse_x <= 22 && mouse_y >= 44 && mouse_y <= 62) ||
-                                 (mouse_x >= 82 && mouse_x <= 94 && mouse_y >= 2 && mouse_y <= 14))
+                        else if ((mx >= 2 && mx <= 22 && my >= 44 && my <= 62) ||
+                                 (mx >= 82 && mx <= 94 && my >= 2 && my <= 14))
                             level_open_req <= 1;
                     end else if (game_state==`LP_SETTINGS) begin
                         // Hit boxes match the three visible icon boxes.
-                        if ((mouse_x>=6 && mouse_x<=30 && mouse_y>=12 && mouse_y<=48)) begin
+                        if ((mx>=6 && mx<=30 && my>=12 && my<=48)) begin
                             guide_open_req <= 1;
                             diary_page <= 3;
                         // Box 2: Map.
-                        end else if ((mouse_x>=36 && mouse_x<=60 && mouse_y>=12 && mouse_y<=48)) begin
+                        end else if ((mx>=36 && mx<=60 && my>=12 && my<=48)) begin
                             level_select_req <= 1;
                         // Box 3: Mouse speed.
-                        end else if (mouse_x>=66 && mouse_x<=90 && mouse_y>=12 && mouse_y<=48) begin
+                        end else if (mx>=66 && mx<=90 && my>=12 && my<=48) begin
                             mouse_speed <= (mouse_speed == 2) ? 0 : mouse_speed + 1;
                         // Home and Back have separate visible buttons.
-                        end else if (mouse_x>=70 && mouse_x<=95 && mouse_y>=52 && mouse_y<=63) begin
+                        end else if (mx>=70 && mx<=95 && my>=52 && my<=63) begin
                             home_req <= 1;
                         // Bottom [ BACK ] button: y >= 50
-                        end else if ((mouse_x>=28 && mouse_x<=68 && mouse_y>=50 && mouse_y<=63) ||
-                                     (mouse_x<=34 && mouse_y>=50 && mouse_y<=63)) begin
+                        end else if ((mx>=28 && mx<=68 && my>=50 && my<=63) ||
+                                     (mx<=34 && my>=50 && my<=63)) begin
                             level_close_req <= 1;
                         end
                     end else if (game_state==`LP_LEVEL_SELECT) begin
-                        if (mouse_x<28 && mouse_y>=55 && mouse_y<64)
+                        if (mx<28 && my>=55 && my<64)
                             level_close_req <= 1;
-                        else if (mouse_x>=4 && mouse_x<92 &&
-                                 ((mouse_y>=12 && mouse_y<32) || (mouse_y>=34 && mouse_y<54))) begin
-                            selected_level <= (mouse_y>=34) ? 2'd1 : 2'd0;
+                        else if (mx>=4 && mx<92 &&
+                                 ((my>=12 && my<32) || (my>=34 && my<54))) begin
+                            selected_level <= (my>=34) ? 2'd1 : 2'd0;
                             level_select_req <= 1;
                         end
-                    end else if (game_state==`LP_BUILD && mouse_y>=55 && mouse_y<64) begin
-                        if (mouse_x<18) launch_req <= 1;
-                        else if (mouse_x>=64 && mouse_x<80) begin guide_open_req <= 1; diary_page <= 0; end
-                        else if (mouse_x>=80 && mouse_x<96) level_open_req <= 1;
+                    end else if (game_state==`LP_BUILD && my>=55 && my<64) begin
+                        if (mx<18) launch_req <= 1;
+                        else if (mx>=64 && mx<80) begin guide_open_req <= 1; diary_page <= 0; end
+                        else if (mx>=80 && mx<96) level_open_req <= 1;
                     end else if (game_state==`LP_GUIDE) begin
-                        if (diary_page==3 && mouse_y>=24 && mouse_y<=37) begin
-                            if (mouse_x>=8 && mouse_x<=28 && master_volume>0)
+                        if (diary_page==3 && my>=24 && my<=37) begin
+                            if (mx>=8 && mx<=28 && master_volume>0)
                                 master_volume <= master_volume - 1;
-                            else if (mouse_x>=64 && mouse_x<=84 && master_volume<4)
+                            else if (mx>=64 && mx<=84 && master_volume<4)
                                 master_volume <= master_volume + 1;
                         end
-                        if (mouse_y>=50 && mouse_y<64) begin
-                            if (mouse_x<32 || diary_page==3) guide_close_req <= 1;
-                            else if (diary_page!=3 && mouse_x>=32 && mouse_x<95)
-                                diary_page <= mouse_x<53 ? 0 : mouse_x<74 ? 1 : 2;
+                        if (my>=50 && my<64) begin
+                            if (mx<32 || diary_page==3) guide_close_req <= 1;
+                            else if (diary_page!=3 && mx>=32 && mx<95)
+                                diary_page <= mx<53 ? 0 : mx<74 ? 1 : 2;
                         end
-                    end else if ((game_state==`LP_SUCCESS || game_state==`LP_FAIL) && mouse_y>=55 && mouse_y<64) begin
-                        if (mouse_x<28) home_req <= 1;
-                        else if (mouse_x>=32 && mouse_x<60) edit_req <= 1;
-                        else if (mouse_x>=64 && mouse_x<96) begin guide_open_req <= 1; diary_page <= 0; end
+                    end else if ((game_state==`LP_SUCCESS || game_state==`LP_FAIL) && my>=55 && my<64) begin
+                        if (mx<28) home_req <= 1;
+                        else if (mx>=32 && mx<60) edit_req <= 1;
+                        else if (mx>=64 && mx<96) begin guide_open_req <= 1; diary_page <= 0; end
                     end else if (game_state==`LP_RUN) begin
                         // 1. Bottom Navigation Bar in run mode (only when run_page == 0 && y >= 52): [TRY] [END] [EDIT] [GEAR]
-                        if (run_page == 0 && mouse_y >= 52 && mouse_y <= 63) begin
-                            if (mouse_x >= 2 && mouse_x <= 22) begin
+                        if (run_page == 0 && my >= 52 && my <= 63) begin
+                            if (mx >= 2 && mx <= 22) begin
                                 launch_req <= 1;          // [RETRY]
                                 run_page <= 0;
-                            end else if (mouse_x >= 26 && mouse_x <= 44) begin
+                            end else if (mx >= 26 && mx <= 44) begin
                                 end_try_req <= 1;         // [END TRY]
                                 run_page <= 0;
-                            end else if (mouse_x >= 50 && mouse_x <= 72) begin
+                            end else if (mx >= 50 && mx <= 72) begin
                                 edit_req <= 1;            // [EDIT]
                                 run_page <= 0;
-                            end else if (mouse_x >= 74 && mouse_x <= 94) begin
+                            end else if (mx >= 74 && mx <= 94) begin
                                 level_open_req <= 1;      // [GEAR] (opens settings; do not set run_page <= 2)
                             end
                         end
 
                         // 2. Backward-compatible legacy checks:
                         // Legacy shortcuts stay outside the visible vehicle grid.
-                        else if ((mouse_x>=2 && mouse_x<=23 && mouse_y==0) ||
-                            (mouse_x>=74 && mouse_x<=94 && mouse_y>=32 && mouse_y<=42) ||
-                            (run_page==1 && mouse_x>=56 && mouse_x<84 && mouse_y>=14 && mouse_y<24)) begin
+                        else if ((mx>=2 && mx<=23 && my==0) ||
+                            (mx>=74 && mx<=94 && my>=32 && my<=42) ||
+                            (run_page==1 && mx>=56 && mx<84 && my>=14 && my<24)) begin
                             edit_req <= 1;
                             run_page <= 0;
                         end
                         // Retry shortcuts.
-                        else if ((mouse_x>=2 && mouse_x<=23 && mouse_y>=1 && mouse_y<=10) ||
-                                 (mouse_x>=77 && mouse_x<96 && mouse_y<10) ||
-                                 (mouse_x>=74 && mouse_x<=94 && mouse_y>=2 && mouse_y<=12)) begin
+                        else if ((mx>=2 && mx<=23 && my>=1 && my<=10) ||
+                                 (mx>=77 && mx<96 && my<10) ||
+                                 (mx>=74 && mx<=94 && my>=2 && my<=12)) begin
                             launch_req <= 1;
                             run_page <= 0;
                         end
                         // Settings shortcut.
-                        else if (mouse_x>=74 && mouse_x<=90 && mouse_y>=16 && mouse_y<=28) begin
+                        else if (mx>=74 && mx<=90 && my>=16 && my<=28) begin
                             level_open_req <= 1;
                         end
                         // Sound page controls when run_page==2:
-                        else if (run_page==2 && mouse_y>=28 && mouse_y<44) begin
-                            if (mouse_x>=8 && mouse_x<=28 && master_volume>0)
+                        else if (run_page==2 && my>=28 && my<44) begin
+                            if (mx>=8 && mx<=28 && master_volume>0)
                                 master_volume <= master_volume - 1;
-                            else if (mouse_x>=64 && mouse_x<=84 && master_volume<4)
+                            else if (mx>=64 && mx<=84 && master_volume<4)
                                 master_volume <= master_volume + 1;
-                        end else if (run_page==2 && mouse_y>=46 && mouse_y<54) begin
+                        end else if (run_page==2 && my>=46 && my<54) begin
                             sound_muted <= !sound_muted;
                         end
                         // Legacy left-panel controls, outside the vehicle diagram:
-                        else if ((run_page==0 && mouse_x>=4 && mouse_x<24 && mouse_y>=12 && mouse_y<22))
+                        else if ((run_page==0 && mx>=4 && mx<24 && my>=12 && my<22))
                             engine_on <= engine_switch && !engine_on;
-                        else if (( (run_page==0 && mouse_x>=4 && mouse_x<24 && mouse_y>=23 && mouse_y<33)) && fan_available)
+                        else if (( (run_page==0 && mx>=4 && mx<24 && my>=23 && my<33)) && fan_available)
                             fan_on <= !fan_on;
-                        else if (( (run_page==0 && mouse_x>=4 && mouse_x<24 && mouse_y>=45 && mouse_y<54)) && rocket_available && rocket_ready) begin
+                        else if (( (run_page==0 && mx>=4 && mx<24 && my>=45 && my<54)) && rocket_available && rocket_ready) begin
                             rocket_req <= 1;
                             boost_req <= 1;
                         end
-                        else if ((run_page==0 && mouse_x>=4 && mouse_x<24 && mouse_y>=34 && mouse_y<44))
+                        else if ((run_page==0 && mx>=4 && mx<24 && my>=34 && my<44))
                             boost_req <= 1;
 
                     end

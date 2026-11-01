@@ -1,7 +1,7 @@
 // Owner: Role 4 - Marcus. Map zoom from SW3 and the mouse wheel.
 `timescale 1ns / 1ps
-// SW3 is a debug shortcut for the normal zoom. The wheel steps through close,
-// normal, overview and wide overview views, saturating at either end.
+// SW3 is a debug shortcut for the normal zoom. The wheel steps through close (1.5x),
+// normal (1.0x), and overview (0.5x) views, saturating at either end.
 // Positive PS/2 deltas step out; negative deltas step in (board wheel orientation).
 module zoom_control (
     input wire clk, reset,
@@ -23,15 +23,23 @@ module zoom_control (
                 overview <= 0;
             end else if (mouse_event && mouse_z != 0) begin
                 if (!mouse_z[3]) begin
-                    if (!overview) begin
-                        if (!zoomed_out) zoomed_out<=1;
-                        else overview<=1;
-                    end else zoomed_out<=0; // Fourth view: 192 x 128, four-pixel cells.
+                    // Step out: 00 (close) -> 01 (normal) -> 10 (overview)
+                    if (!overview && !zoomed_out) begin
+                        zoomed_out <= 1;
+                        overview <= 0;
+                    end else if (!overview && zoomed_out) begin
+                        zoomed_out <= 0;
+                        overview <= 1;
+                    end
                 end else begin
+                    // Step in: 10 (overview) -> 01 (normal) -> 00 (close)
                     if (overview) begin
-                        if (!zoomed_out) zoomed_out<=1;
-                        else overview<=0;
-                    end else zoomed_out<=0;
+                        zoomed_out <= 1;
+                        overview <= 0;
+                    end else if (zoomed_out) begin
+                        zoomed_out <= 0;
+                        overview <= 0;
+                    end
                 end
             end
         end
