@@ -56,6 +56,13 @@
         "sha256":  "06c91e69213fa557c7d8209b58a0478abe521607ebeeaca29fc202ca3bc4a0b8"
     },
     {
+        "path":  "2026-10-30/002002_cave-arch-motion.bit",
+        "built":  "2026-10-30T00:20:02",
+        "source_commit":  "5668802 (inferred from build time; build log overwritten)",
+        "description":  "Role 4 intermediate build (role4): steady tilt, gliding display, spike-pit level removed (3 levels), before Cave Arch terrain smoothing. Superseded by 013218_cave-arch-smooth; timing and utilisation not recorded",
+        "sha256":  "04a7dbcbcda7c673cc0a946262bfe30a817aceb037753d8b8e5791a28d9da8d2"
+    },
+    {
         "path":  "2026-10-30/013218_cave-arch-smooth.bit",
         "built":  "2026-10-30T01:32:18",
         "source_commit":  "5668802 + this commit's changes",
