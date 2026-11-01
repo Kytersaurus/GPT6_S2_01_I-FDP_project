@@ -68,5 +68,12 @@
         "source_commit":  "5668802 + this commit's changes",
         "description":  "Role 4 test build (role4): smoothed Cave Arch terrain, steady tilt, gliding display, steep-slope probe and tipping limit, spike-pit level removed (3 levels). 84% LUTs; 100 MHz timing misses by 0.122 ns on 5 builder/mass paths (Performance_ExplorePostRoutePhysOpt)",
         "sha256":  "e356f0d275a30a16988a8409f5111230a4528bf982ef3b8a6de2b52f278587fe"
+    },
+    {
+        "path":  "2026-11-02/024710_map-smooth-flight-route.bit",
+        "built":  "2026-11-02T02:47:10",
+        "source_commit":  "fd60189",
+        "description":  "Role 4 test build (role4): Cave Arch reaches both world edges, moon restored, Scale2x edge smoothing on the drawn map, solid grass, widened Cave Flight route. 84% LUTs, 97% block RAM; 100 MHz timing misses by 0.241 ns on 28 builder/mouse/pig-death paths",
+        "sha256":  "bb591ebfd175749fa595d72da5984f87b22463e5dfe5452a724aae597186da1a"
     }
 ]
