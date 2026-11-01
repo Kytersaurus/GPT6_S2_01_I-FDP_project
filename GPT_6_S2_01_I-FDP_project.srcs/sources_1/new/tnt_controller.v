@@ -1,16 +1,16 @@
-// Owner: Role 3 - Yap Ting; standalone TNT trigger and damage generation.
+// Owner: Role 3 - Yap Ting; TNT trigger and damage generation; shared integration with Role 1.
 `timescale 1ns / 1ps
 `include "game_defs.vh"
 
 // TNT controller for the run phase.
 //
 // TNT positions are stored as {y[7:0], x[7:0]} pixel coordinates.  Vehicle
-// positions use the shared Q8.8 format and the vehicle footprint is 24 by
+// positions use the shared Q12.8 format and the vehicle footprint is 24 by
 // 24 pixels.  A swept vehicle rectangle is used so a fast movement cannot
 // pass through a TNT between two committed positions.
 //
-// The damage request is held until damage_ready is asserted.  This keeps the
-// module independent from Role 1's eventual damage-application interface.
+// Damage is held until accepted. damage_complete pulses after all TNT touched
+// by one movement have been processed, including a movement with no explosion.
 module tnt_controller (
     input wire clk,
     input wire reset,
@@ -19,10 +19,11 @@ module tnt_controller (
     output wire init_ready,
 
     input wire movement_committed,
-    input wire signed [15:0] previous_x,
-    input wire signed [15:0] previous_y,
-    input wire signed [15:0] vehicle_x,
-    input wire signed [15:0] vehicle_y,
+    input wire signed [`LP_COORD_BITS-1:0] previous_x,
+    input wire signed [`LP_COORD_BITS-1:0] previous_y,
+    input wire signed [`LP_COORD_BITS-1:0] vehicle_x,
+    input wire signed [`LP_COORD_BITS-1:0] vehicle_y,
+    input wire signed [`LP_TILT_BITS-1:0] previous_tilt, vehicle_tilt,
 
     input wire [2:0] tnt_count,
     input wire [`LP_TNT_BITS-1:0] tnt_positions,
@@ -39,181 +40,183 @@ module tnt_controller (
     output reg explosion_event,
     output reg damage_complete
 );
-    localparam [1:0] IDLE = 2'd0;
-    localparam [1:0] WAIT_DAMAGE = 2'd1;
-    localparam [1:0] COMPLETE = 2'd2;
-
-    localparam integer VEHICLE_SIZE_PIXELS = 24;
-    localparam integer TNT_SIZE_PIXELS = 8;
-    localparam integer BLAST_RADIUS_PIXELS = 12;
-    localparam integer BLAST_RADIUS_SQUARED =
-        BLAST_RADIUS_PIXELS * BLAST_RADIUS_PIXELS;
-
-    reg [1:0] state;
+    `include "rotation_geometry.vh"
+    localparam IDLE=0, SELECT_TNT=1, CELL_DISTANCE=2, CHECK_CELL=3,
+               SEND_DAMAGE=4, WAIT_DAMAGE=5, CAPTURE_TRIGGERS=6, CELL_POSITION=7;
+    reg [2:0] state;
+    reg [`LP_MAX_TNT-1:0] pending_triggers;
+    reg signed [`LP_COORD_BITS-1:0] saved_x, saved_y;
+    reg signed [`LP_TILT_BITS-1:0] saved_tilt;
+    reg [1:0] active_tnt;
+    reg [7:0] active_x, active_y;
+    reg [3:0] cell_index;
     reg [`LP_MAX_TNT-1:0] trigger_mask;
     reg trigger_found;
     reg [1:0] selected_tnt;
-    reg signed [15:0] selected_tnt_x;
-    reg signed [15:0] selected_tnt_y;
-    reg [`LP_CELLS-1:0] calculated_damage_mask;
-    reg [`LP_CELLS-1:0] calculated_frame_mask;
+    reg [12:0] distance_x, distance_y;
+    wire [8:0] distance_squared = {1'b0,small_square(distance_x[3:0])} +
+                                         {1'b0,small_square(distance_y[3:0])};
+    reg signed [21:0] previous_x_fp, previous_y_fp, current_x_fp, current_y_fp;
+    reg signed [21:0] next_sweep_left, next_sweep_right, next_sweep_top, next_sweep_bottom;
+    reg signed [21:0] sweep_left_fp, sweep_right_fp, sweep_top_fp, sweep_bottom_fp;
+    reg [`LP_TNT_BITS-1:0] saved_tnt_positions;
+    reg [2:0] saved_tnt_count;
+    reg signed [12:0] cell_x_position, cell_y_position;
+    integer tnt_x_pixels, tnt_y_pixels, tnt_index;
+    integer cell_x_pixels, cell_y_pixels;
+    reg signed [12:0] delta_x, delta_y;
+    wire signed [9:0] saved_cos = rotation_cos(saved_tilt);
+    wire signed [9:0] saved_sin = rotation_sin(saved_tilt);
+    wire signed [14:0] current_extent = rotation_extent(vehicle_tilt);
+    wire signed [14:0] previous_extent = rotation_extent(previous_tilt);
+    wire signed [14:0] sweep_extent = current_extent>previous_extent ? current_extent : previous_extent;
+    reg signed [4:0] cell_local_x, cell_local_y;
+    wire signed [15:0] cell_offset_x = cell_local_x*saved_cos - cell_local_y*saved_sin;
+    wire signed [15:0] cell_offset_y = cell_local_x*saved_sin + cell_local_y*saved_cos;
+    wire signed [`LP_COORD_BITS+1:0] cell_world_x = $signed(saved_x)+22'sd3072+cell_offset_x;
+    wire signed [`LP_COORD_BITS+1:0] cell_world_y = $signed(saved_y)+22'sd3072+cell_offset_y;
 
-    integer previous_x_fp;
-    integer previous_y_fp;
-    integer current_x_fp;
-    integer current_y_fp;
-    integer sweep_left_fp;
-    integer sweep_right_fp;
-    integer sweep_top_fp;
-    integer sweep_bottom_fp;
-    integer tnt_x_pixels;
-    integer tnt_y_pixels;
-    integer selected_x_pixels;
-    integer selected_y_pixels;
-    integer cell_index;
-    integer cell_x_pixels;
-    integer cell_y_pixels;
-    integer delta_x;
-    integer delta_y;
-    integer distance_squared;
-    integer tnt_index;
+    function [7:0] small_square;
+        input [3:0] distance;
+        begin
+            case (distance)
+                0: small_square=0;   1: small_square=1;
+                2: small_square=4;   3: small_square=9;
+                4: small_square=16;  5: small_square=25;
+                6: small_square=36;  7: small_square=49;
+                8: small_square=64;  9: small_square=81;
+                10: small_square=100; 11: small_square=121;
+                12: small_square=144;
+                default: small_square=255;
+            endcase
+        end
+    endfunction
 
     assign init_ready = run_init && (game_state == `LP_INIT_RUN);
 
-    // Find the first intact TNT touched by the swept vehicle footprint.
-    // Coordinates remain in Q8.8 here; TNT coordinates are shifted by eight
-    // bits so comparisons use the same units.
+    // Capture all TNT touched by the movement, not only the first one.
     always @* begin
-        previous_x_fp = $signed(previous_x);
-        previous_y_fp = $signed(previous_y);
-        current_x_fp = $signed(vehicle_x);
-        current_y_fp = $signed(vehicle_y);
-
-        if (previous_x_fp < current_x_fp)
-            sweep_left_fp = previous_x_fp;
-        else
-            sweep_left_fp = current_x_fp;
-
-        if (previous_x_fp + (VEHICLE_SIZE_PIXELS << 8) >
-            current_x_fp + (VEHICLE_SIZE_PIXELS << 8))
-            sweep_right_fp = previous_x_fp + (VEHICLE_SIZE_PIXELS << 8);
-        else
-            sweep_right_fp = current_x_fp + (VEHICLE_SIZE_PIXELS << 8);
-
-        if (previous_y_fp < current_y_fp)
-            sweep_top_fp = previous_y_fp;
-        else
-            sweep_top_fp = current_y_fp;
-
-        if (previous_y_fp + (VEHICLE_SIZE_PIXELS << 8) >
-            current_y_fp + (VEHICLE_SIZE_PIXELS << 8))
-            sweep_bottom_fp = previous_y_fp + (VEHICLE_SIZE_PIXELS << 8);
-        else
-            sweep_bottom_fp = current_y_fp + (VEHICLE_SIZE_PIXELS << 8);
-
-        trigger_mask = {`LP_MAX_TNT{1'b0}};
-        trigger_found = 1'b0;
-        selected_tnt = 2'd0;
-        selected_tnt_x = 16'sd0;
-        selected_tnt_y = 16'sd0;
-
-        for (tnt_index = 0; tnt_index < `LP_MAX_TNT; tnt_index = tnt_index + 1) begin
-            tnt_x_pixels = tnt_positions[tnt_index*16 +: 8];
-            tnt_y_pixels = tnt_positions[tnt_index*16 + 8 +: 8];
-
-            if ((tnt_index < tnt_count) && tnt_intact[tnt_index] &&
-                (sweep_right_fp > (tnt_x_pixels << 8)) &&
-                (sweep_left_fp < ((tnt_x_pixels + TNT_SIZE_PIXELS) << 8)) &&
-                (sweep_bottom_fp > (tnt_y_pixels << 8)) &&
-                (sweep_top_fp < ((tnt_y_pixels + TNT_SIZE_PIXELS) << 8))) begin
-                trigger_mask[tnt_index] = 1'b1;
-                if (!trigger_found) begin
-                    trigger_found = 1'b1;
-                    selected_tnt = tnt_index[1:0];
-                    selected_tnt_x = tnt_x_pixels;
-                    selected_tnt_y = tnt_y_pixels;
-                end
+        previous_x_fp=$signed(previous_x); previous_y_fp=$signed(previous_y);
+        current_x_fp=$signed(vehicle_x); current_y_fp=$signed(vehicle_y);
+        // A conservative swept hull includes both orientations and the path
+        // between them; the blast itself still measures rotated cell centres.
+        next_sweep_left = (previous_x_fp < current_x_fp ? previous_x_fp : current_x_fp)+22'sd3072-sweep_extent;
+        next_sweep_right = (previous_x_fp > current_x_fp ? previous_x_fp : current_x_fp)+22'sd3072+sweep_extent;
+        next_sweep_top = (previous_y_fp < current_y_fp ? previous_y_fp : current_y_fp)+22'sd3072-sweep_extent;
+        next_sweep_bottom = (previous_y_fp > current_y_fp ? previous_y_fp : current_y_fp)+22'sd3072+sweep_extent;
+        trigger_mask=0; trigger_found=0; selected_tnt=0;
+        for (tnt_index=0; tnt_index<`LP_MAX_TNT; tnt_index=tnt_index+1) begin
+            tnt_x_pixels=saved_tnt_positions[tnt_index*16 +: 8];
+            tnt_y_pixels=saved_tnt_positions[tnt_index*16+8 +: 8];
+            if (tnt_index<saved_tnt_count && tnt_intact[tnt_index] &&
+                sweep_right_fp > tnt_x_pixels*256 && sweep_left_fp < (tnt_x_pixels+8)*256 &&
+                sweep_bottom_fp > tnt_y_pixels*256 && sweep_top_fp < (tnt_y_pixels+8)*256)
+                trigger_mask[tnt_index]=1;
+            if (!trigger_found && pending_triggers[tnt_index]) begin
+                trigger_found=1; selected_tnt=tnt_index[1:0];
             end
         end
     end
 
-    // Calculate the content and frame cells inside the provisional blast
-    // radius.  Cell centres are relative to the current 24 by 24 vehicle.
+    // One cell at a time shares the distance hardware across all nine cells.
+    // The cell centre is 4, 12 or 20 pixels from the vehicle's grid origin.
     always @* begin
-        calculated_damage_mask = {`LP_CELLS{1'b0}};
-        calculated_frame_mask = {`LP_CELLS{1'b0}};
-        selected_x_pixels = selected_tnt_x;
-        selected_y_pixels = selected_tnt_y;
-
-        for (cell_index = 0; cell_index < `LP_CELLS; cell_index = cell_index + 1) begin
-            cell_x_pixels = (current_x_fp >>> 8) +
-                            ((cell_index % `LP_GRID_COLS) * `LP_CELL_PIXELS) +
-                            (`LP_CELL_PIXELS / 2);
-            cell_y_pixels = (current_y_fp >>> 8) +
-                            ((cell_index / `LP_GRID_COLS) * `LP_CELL_PIXELS) +
-                            (`LP_CELL_PIXELS / 2);
-            delta_x = cell_x_pixels - (selected_x_pixels + TNT_SIZE_PIXELS / 2);
-            delta_y = cell_y_pixels - (selected_y_pixels + TNT_SIZE_PIXELS / 2);
-            distance_squared = (delta_x * delta_x) + (delta_y * delta_y);
-
-            if ((distance_squared <= BLAST_RADIUS_SQUARED) &&
-                intact_mask[cell_index] &&
-                (build_grid[cell_index*`LP_PART_BITS +: `LP_PART_BITS] !=
-                 `LP_PART_EMPTY))
-                calculated_damage_mask[cell_index] = 1'b1;
-
-            if ((distance_squared <= BLAST_RADIUS_SQUARED) &&
-                build_frames[cell_index] && frame_intact_mask[cell_index])
-                calculated_frame_mask[cell_index] = 1'b1;
-        end
+        case (cell_index)
+            0,3,6: cell_local_x=-5'sd8;
+            1,4,7: cell_local_x=0;
+            default: cell_local_x=5'sd8;
+        endcase
+        if (cell_index<3) cell_local_y=-5'sd8;
+        else if (cell_index<6) cell_local_y=0;
+        else cell_local_y=5'sd8;
+        cell_x_pixels=$signed(cell_world_x) >>> 8;
+        cell_y_pixels=$signed(cell_world_y) >>> 8;
+        delta_x=cell_x_position-(active_x+4);
+        delta_y=cell_y_position-(active_y+4);
     end
 
     always @(posedge clk) begin
         if (reset) begin
-            state <= IDLE;
-            tnt_intact <= {`LP_MAX_TNT{1'b0}};
-            damage_valid <= 1'b0;
-            damage_mask <= {`LP_CELLS{1'b0}};
-            damage_frame_mask <= {`LP_CELLS{1'b0}};
-            explosion_event <= 1'b0;
-            damage_complete <= 1'b0;
+            state<=IDLE; pending_triggers<=0; tnt_intact<={`LP_MAX_TNT{1'b1}};
+            saved_x<=0; saved_y<=0; active_tnt<=0; active_x<=0; active_y<=0; cell_index<=0;
+            saved_tilt<=0;
+            sweep_left_fp<=0; sweep_right_fp<=0; sweep_top_fp<=0; sweep_bottom_fp<=0;
+            saved_tnt_positions<=0; saved_tnt_count<=0; cell_x_position<=0; cell_y_position<=0;
+            distance_x<=0; distance_y<=0;
+            damage_valid<=0; damage_mask<=0; damage_frame_mask<=0;
+            explosion_event<=0; damage_complete<=0;
         end else begin
-            explosion_event <= 1'b0;
-            damage_complete <= 1'b0;
-
-            if (run_init && (game_state == `LP_INIT_RUN)) begin
-                state <= IDLE;
-                tnt_intact <= {`LP_MAX_TNT{1'b1}};
-                damage_valid <= 1'b0;
-                damage_mask <= {`LP_CELLS{1'b0}};
-                damage_frame_mask <= {`LP_CELLS{1'b0}};
+            explosion_event<=0; damage_complete<=0;
+            if (run_init && game_state==`LP_INIT_RUN) begin
+                state<=IDLE; pending_triggers<=0; tnt_intact<={`LP_MAX_TNT{1'b1}};
+                damage_valid<=0; damage_mask<=0; damage_frame_mask<=0;
+            end else if (game_state!=`LP_RUN) begin
+                state<=IDLE; pending_triggers<=0; damage_valid<=0;
+                if (game_state==`LP_BUILD) tnt_intact<={`LP_MAX_TNT{1'b1}};
             end else begin
                 case (state)
-                    IDLE: begin
-                        if ((game_state == `LP_RUN) && movement_committed &&
-                            trigger_found) begin
-                            tnt_intact[selected_tnt] <= 1'b0;
-                            damage_mask <= calculated_damage_mask;
-                            damage_frame_mask <= calculated_frame_mask;
-                            damage_valid <= 1'b1;
-                            explosion_event <= 1'b1;
-                            state <= WAIT_DAMAGE;
+                    IDLE: if (movement_committed) begin
+                        saved_x<=vehicle_x; saved_y<=vehicle_y;
+                        saved_tilt<=sanitize_tilt(vehicle_tilt);
+                        // Lookup/max, hull arithmetic and trigger comparisons
+                        // have separate clocks instead of one long path.
+                        sweep_left_fp<=next_sweep_left; sweep_right_fp<=next_sweep_right;
+                        sweep_top_fp<=next_sweep_top; sweep_bottom_fp<=next_sweep_bottom;
+                        saved_tnt_positions<=tnt_positions; saved_tnt_count<=tnt_count;
+                        state<=CAPTURE_TRIGGERS;
+                    end
+                    CAPTURE_TRIGGERS: begin
+                        pending_triggers<=trigger_mask;
+                        state<=SELECT_TNT;
+                    end
+                    SELECT_TNT: begin
+                        if (trigger_found) begin
+                            active_tnt<=selected_tnt;
+                            active_x<=saved_tnt_positions[selected_tnt*16 +: 8];
+                            active_y<=saved_tnt_positions[selected_tnt*16+8 +: 8];
+                            pending_triggers[selected_tnt]<=0;
+                            damage_mask<=0; damage_frame_mask<=0; cell_index<=0;
+                            state<=CELL_POSITION;
+                        end else begin
+                            // This clock follows the final damage transfer, so
+                            // the pig/count outputs have settled before world checks.
+                            damage_complete<=1; state<=IDLE;
                         end
                     end
-
-                    WAIT_DAMAGE: begin
-                        if (damage_ready) begin
-                            damage_valid <= 1'b0;
-                            damage_complete <= 1'b1;
-                            state <= COMPLETE;
+                    CELL_POSITION: begin
+                        cell_x_position<=cell_x_pixels; cell_y_position<=cell_y_pixels;
+                        state<=CELL_DISTANCE;
+                    end
+                    CELL_DISTANCE: begin
+                        distance_x<=delta_x<0 ? -delta_x : delta_x;
+                        distance_y<=delta_y<0 ? -delta_y : delta_y;
+                        state<=CHECK_CELL;
+                    end
+                    CHECK_CELL: begin
+                        // Exact circular radius of 12 pixels, measured at cell centres.
+                        if (distance_x<=12 && distance_y<=12 && distance_squared<=144) begin
+                            if (intact_mask[cell_index] &&
+                                build_grid[cell_index*`LP_PART_BITS +: `LP_PART_BITS]!=`LP_PART_EMPTY &&
+                                build_grid[cell_index*`LP_PART_BITS +: `LP_PART_BITS]!=`LP_PART_PIG)
+                                damage_mask[cell_index]<=1;
+                            // The pig and the frame directly supporting it are
+                            // indestructible in this game.  Other parts still
+                            // receive the same radius damage as before.
+                            if (build_frames[cell_index] && frame_intact_mask[cell_index] &&
+                                build_grid[cell_index*`LP_PART_BITS +: `LP_PART_BITS] != `LP_PART_PIG)
+                                damage_frame_mask[cell_index]<=1;
                         end
+                        if (cell_index==8) state<=SEND_DAMAGE;
+                        else begin cell_index<=cell_index+1; state<=CELL_POSITION; end
                     end
-
-                    COMPLETE: begin
-                        state <= IDLE;
+                    SEND_DAMAGE: begin
+                        tnt_intact[active_tnt]<=0;
+                        damage_valid<=1; explosion_event<=1; state<=WAIT_DAMAGE;
                     end
-
-                    default: state <= IDLE;
+                    WAIT_DAMAGE: if (damage_ready) begin
+                        damage_valid<=0; state<=SELECT_TNT;
+                    end
+                    default: state<=IDLE;
                 endcase
             end
         end

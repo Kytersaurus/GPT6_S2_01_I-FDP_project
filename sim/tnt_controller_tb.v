@@ -55,14 +55,16 @@ module tnt_controller_tb;
     endtask
 
     initial begin
-        // TNT 0 is at x=60,y=48. Cell 4 is close enough to be damaged.
+        // TNT 0 is at x=60,y=48. Cells 4 and 5 are close enough to be
+        // checked; cell 4 is the protected pig and cell 5 is a normal engine.
         tnt_count=1;
         tnt_positions={48'd0,8'd48,8'd60};
         build_grid=0;
         build_grid[4*3 +: 3]=`LP_PART_PIG;
-        build_frames=9'b000010000;
-        intact_mask=9'b000010000;
-        frame_intact_mask=9'b000010000;
+        build_grid[5*3 +: 3]=`LP_PART_ENGINE;
+        build_frames=9'b000110000;
+        intact_mask=9'b000110000;
+        frame_intact_mask=9'b000110000;
 
         clocks(3);
         reset=0;
@@ -80,12 +82,14 @@ module tnt_controller_tb;
         movement_committed=0;
 
         if (!explosion_event || tnt_intact[0] ||
-            !damage_valid || !damage_mask[4] || !damage_frame_mask[4])
-            $fatal(1, "TNT did not trigger or produce the expected damage masks");
+            !damage_valid || damage_mask[4] || damage_frame_mask[4] ||
+            !damage_mask[5] || !damage_frame_mask[5])
+            $fatal(1, "TNT did not trigger, protect the pig, or damage the engine");
 
         // The request must remain stable until Role 1 accepts it.
         clocks(2);
-        if (!damage_valid || !damage_mask[4] || !damage_frame_mask[4])
+        if (!damage_valid || damage_mask[4] || damage_frame_mask[4] ||
+            !damage_mask[5] || !damage_frame_mask[5])
             $fatal(1, "Damage request was not held under backpressure");
 
         damage_ready=1;

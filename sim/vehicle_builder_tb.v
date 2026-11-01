@@ -24,6 +24,7 @@ module vehicle_builder_tb;
 
     // Larger test-only stocks exercise all cells and the two-digit display.
     vehicle_builder #(.FRAME_LIMIT(9), .PIG_LIMIT(2), .WHEEL_LIMIT(3), .ENGINE_LIMIT(9)) dut (
+        .edit_facing_left(1'b0),
         .clk(clk), .reset(reset), .game_state(game_state), .run_init(run_init), .init_ready(init_ready),
         .edit_valid(edit_valid), .edit_op(edit_op), .edit_cell(edit_cell),.edit_source(4'd15), .edit_part(edit_part),
         .damage_valid(damage_valid), .damage_ready(damage_ready), .damage_mask(damage_mask),
@@ -35,7 +36,9 @@ module vehicle_builder_tb;
         .engines_left(engines_left), .balloons_left(balloons_left)
     );
     left_renderer view (
-        .pixel_index(pixel), .game_state(game_state), .build_grid(build_grid),
+        .build_facing_left(9'd0), .selected_left(1'b0), .inventory_page(1'b0), .rockets_left(4'd1), .fans_left(4'd1),
+        .pixel_index(pixel), .game_state(game_state), .build_grid(build_grid), .build_frames(build_frames),
+        .run_seconds(8'd0), .anim_phase(1'b0), .level_index(2'd0), .fail_reason(2'd0), .boost_active(1'b0),
         .intact_mask(intact_mask), .frame_intact_mask(frame_intact_mask),
         .build_valid(build_valid), .build_error(build_error), .engine_enabled(1'b1),
         .feedback_code(`LP_FEEDBACK_NONE), .feedback_cell(4'd0),
@@ -94,7 +97,9 @@ module vehicle_builder_tb;
         save_build();
         edit(`LP_EDIT_PLACE, 0, `LP_PART_PIG); check_unchanged();
         edit(`LP_EDIT_PLACE, 0, `LP_PART_ENGINE); check_unchanged();
-        edit(`LP_EDIT_PLACE, 0, `LP_PART_WHEEL); check_unchanged();
+        edit(`LP_EDIT_PLACE, 0, `LP_PART_WHEEL);
+        if (!build_valid || wheels!=3 || mass!=14) $fatal(1,"Wheel above frame rejected");
+        edit(`LP_EDIT_REMOVE,0,`LP_PART_EMPTY); check_unchanged();
         edit(`LP_EDIT_PLACE, 8, `LP_PART_BALLOON); check_unchanged();
         edit(`LP_EDIT_PLACE, 7, `LP_PART_BALLOON); check_unchanged();
         edit(`LP_EDIT_PLACE, 4, `LP_PART_WHEEL); check_unchanged();
@@ -160,16 +165,18 @@ module vehicle_builder_tb;
         save_build(); game_state = `LP_RUN;
         edit(`LP_EDIT_REMOVE, 3, `LP_PART_EMPTY); check_unchanged();
         damage_frame_mask = 9'b000001000; damage_valid = 1; clocks(1); damage_valid = 0; clocks(1);
-        if (frame_intact_mask[3] || !pig_alive || mass != 11 || build_frames !== saved_frames)
-            $fatal(1, "Frame damage incorrectly destroyed pig or saved frame");
-        pixel = 24*96+8; #1;
+        if (frame_intact_mask !== saved_frame_intact ||
+            intact_mask !== saved_intact || !pig_alive || mass != 13 || build_frames !== saved_frames)
+            $fatal(1, "Protected pig frame was damaged");
+        // RUN uses 12px cells at (4,12): cell3 begins at (4,24).
+        // The protected pig frame remains visible after a rejected frame hit.
+        pixel = 27*96+9; #1;
         if (colour != 16'h07e0) $fatal(1, "Surviving pig disappeared with its frame");
-        pixel = 24*96+5; #1;
-        if (colour != 16'h0841) $fatal(1, "Destroyed frame border still drawn");
+        if (!frame_intact_mask[3]) $fatal(1, "Protected pig frame disappeared");
         damage_frame_mask = 0; damage_mask = 9'b000101000;
         damage_valid = 1; clocks(1); damage_valid = 0; clocks(1);
-        if (build_grid !== saved_grid || pig_alive || engines != 0 || mass != 6)
-            $fatal(1, "Content damage changed saved build or wrong live properties");
+        if (build_grid !== saved_grid || !pig_alive || engines != 0 || mass != 10 || !intact_mask[3])
+            $fatal(1, "Content damage destroyed the protected pig or wrong live properties");
         if (!frame_intact_mask[5]) $fatal(1, "Engine damage incorrectly destroyed frame");
         game_state = `LP_INIT_RUN; run_init = 1; clocks(2);
         if (!init_ready || intact_mask !== saved_intact || frame_intact_mask !== saved_frame_intact ||

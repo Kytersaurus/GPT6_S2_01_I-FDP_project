@@ -11,10 +11,12 @@
 `define LP_GRID_BITS     27
 `define LP_CELL_BITS     4
 
-// Cell size and movement format are provisional starting values.
+// World positions are signed Q12.8; velocities retain signed 16-bit Q8.8.
 `define LP_CELL_PIXELS   8
-`define LP_COORD_BITS    16
+`define LP_COORD_BITS    20
 `define LP_FRAC_BITS     8
+// Vehicle tilt: signed 11.25 degree steps, -16..15 covers the full turn (-16 is upside down).
+`define LP_TILT_BITS     5
 `define LP_MAX_TERRAIN   4
 `define LP_RECT_BITS     32
 
@@ -23,8 +25,9 @@
 `define LP_PART_PIG      3'd2
 `define LP_PART_WHEEL    3'd3
 `define LP_PART_ENGINE   3'd4
-`define LP_PART_BOOSTER  3'd5  // Reserved ID; boost is planned as an engine ability.
+`define LP_PART_BOOSTER  3'd5  // Side-mounted rocket; finite horizontal burn.
 `define LP_PART_BALLOON  3'd6
+`define LP_PART_FAN      3'd7  // Fan; continuous horizontal thrust.
 
 `define LP_BUILD         3'd0
 `define LP_INIT_RUN      3'd1
@@ -32,6 +35,8 @@
 `define LP_SUCCESS       3'd3
 `define LP_FAIL          3'd4
 `define LP_GUIDE         3'd5
+`define LP_LEVEL_SELECT  3'd6
+`define LP_SETTINGS      3'd7
 
 `define LP_EDIT_PLACE    2'd0  // Includes replacement of an occupied cell.
 `define LP_EDIT_REMOVE   2'd1
@@ -63,21 +68,56 @@
 `define LP_SOUND_SUCCESS    3'd6
 `define LP_SOUND_FAILURE    3'd7
 
+// Collision impact directions.  A response may report more than one flag for
+// a corner contact, so the top level can damage both contacting edges.
+`define LP_IMPACT_FLOOR     4'b0001
+`define LP_IMPACT_CEILING   4'b0010
+`define LP_IMPACT_LEFT      4'b0100
+`define LP_IMPACT_RIGHT     4'b1000
+
 // Levels: Role 4 selects one in BUILD and holds it through the run.
 `define LP_LEVEL_COUNT   2
+`define LP_LEVEL_ARCH    2'd0
+`define LP_LEVEL_FLIGHT  2'd1
+`define LP_LEVEL_BITS    2
+
+// Block-RAM maps in level_map: one 3-bit class per world pixel. Sky and cave background are
+// open; the other classes are solid. Map 0 is Cave Arch (level 3), address {y[8:0], x[8:0]};
+// map 1 is Cave Flight (level 4, a flying level), address {y[7:0], x[9:0]}.
+`define LP_MAP_WIDTH     478
+`define LP_MAP_HEIGHT    291
+// Cave Arch world size once level_map shows it twice as large (map 478 by 291).
+`define LP_MAP_WORLD_WIDTH  956
+`define LP_MAP_WORLD_HEIGHT 582
+`define LP_FLIGHT_WIDTH  890
+`define LP_FLIGHT_HEIGHT 213
+`define LP_MAP_SKY       3'd0
+`define LP_MAP_CAVE      3'd1
+`define LP_MAP_ROCK      3'd2
+`define LP_MAP_GRASS     3'd3
+`define LP_MAP_ROAD      3'd4
+`define LP_MAP_DARK      3'd5
 `define LP_MAX_TNT       4   // Each TNT is {y[7:0], x[7:0]}; an 8 by 8 pixel block.
 `define LP_TNT_PIXELS    8
 `define LP_TNT_BITS      64
 `define LP_MAX_HAZARDS   2   // Same {height, width, y, x} packing as terrain.
 `define LP_HAZARD_BITS   64
 
-// Left OLED level button, clicked in BUILD; x=[82,95), y=[55,64).
-`define LP_LEVEL_BUTTON_X 82
+// Left OLED MAP button, clicked in BUILD; x=[78,96), y=[55,64).
+`define LP_LEVEL_BUTTON_X 78
 `define LP_LEVEL_BUTTON_Y 55
-`define LP_LEVEL_BUTTON_W 13
+`define LP_LEVEL_BUTTON_W 18
 `define LP_LEVEL_BUTTON_H 9
 
-// Why the last run failed; checked in this priority order.
+// Left OLED boost button, clicked in RUN; x=[56,72), y=[36,52).
+`define LP_BOOST_BUTTON_X 56
+`define LP_BOOST_BUTTON_Y 32
+`define LP_BOOST_BUTTON_W 39
+`define LP_BOOST_BUTTON_H 10
+
+// Why the last run failed; checked in this priority order.  LP_FAIL_PIG is
+// retained for display/backward compatibility, but the game never generates
+// it: the pig is protected from runtime damage in Bad Piggies mode.
 `define LP_FAIL_NONE     2'd0
 `define LP_FAIL_PIG      2'd1
 `define LP_FAIL_HAZARD   2'd2
