@@ -813,3 +813,73 @@ Verilog-2001. `tmp/momentum_final_build/validation.json` records per-stage evide
 source hashes, resources, timing and the bitstream SHA-256. The verified bitstream
 is `tmp/momentum_final_build/Laggy_Piggies_Momentum.bit`. The board was not
 programmed by the agent. Protected maps and `level_map.v` remain unchanged.
+
+
+### Shared vehicle physics review (1 November 2026)
+
+This revision supersedes the synthetic CoG slide and inventory-dependent angular
+paths described above. All production vehicles now use the same COM-aware solver;
+wheel drive remains translational and fans/rockets retain their specified moments.
+No map coordinates or level-specific cases enter the physics rules.
+
+| Defect found | Shared correction | Regression evidence |
+| --- | --- | --- |
+| CoG imbalance supplied an artificial horizontal force, self-starting a vehicle on flat ground | CoG affects contact support and angular response; horizontal force contains only engine, fan/rocket, measured slope gravity and friction | The old valid Flight cart accelerates 0, -15, -30 with its engine off. Four final configurations hold zero velocity and fixed COM for 300 updates each. |
+| Missing slope samples were indistinguishable from a measured flat floor | Collision publishes grade validity; unknown data does not force level alignment or invent a ramp force | Unknown-grade, flat-rest, and rough-floor checks |
+| Support used every nominal wheel rather than actual contacts; frames supplied no angular support | Collision publishes near-contact geometry and tyre count; support uses both frames and tyres; only contacting tyres drive | Upright, inverted, side-mounted, raised, destroyed and airborne wheel cases |
+| A vertical reaction was used on ramps | For dy/dx=s, the normal direction is (s,-1). The angular support lever is rx+s*ry, with magnitude normalized by 1/(1+s*s) | An over-rotated body on a 45-degree ramp changes from wrong +52 clockwise to restoring -106 counterclockwise angular acceleration. Mirrored and shallower-ramp cases pass. |
+| Contact-origin changes and rotation were checked separately; rejected turns retained their origin shift | Collision checks the combined rigid transform, then physical translation; rejection removes only the rejected pivot shift | 24 mirrored blocked/accepted pivot cases |
+| Signed floor rounding introduced phantom torque and positional creep | Lever projections truncate symmetrically; COM pivot corrections subtract separately quantized offsets | All 32 angular bins, balanced fans, mirrors and closed angle cycles |
+| Ground drag could preserve enough angular motion to overturn a newly balanced cart | Actual balanced support with no unbalanced actuator moment gives zero-angular-restitution rest; real jumps and unstable contacts retain their dynamics | 12 mirrored angular-impact cases |
+
+The balance scan allows nearby contacts within three pixels so a one- to
+three-pixel raster difference does not falsely classify an entire cart as a deep
+overhang. This tolerance does not create ground contact in the air: the actual
+solidity probe still resolves the accepted hull at 1/256 pixel. Support bounds
+round outward. Contact pivots use the matching endpoint and height; airborne
+rotation uses COM. Gravity and support projections reuse the existing serial
+multiplier/divider, with no independent block physics or new terrain storage.
+
+The force/divider audit found no reversal defect in friction or signed division.
+At a friction stop, the saved fraction cancels exactly with the stopping force,
+leaving zero velocity and zero remainder. Rocket axes, sign conventions, input
+sampling, one-shot fuel timing, and controller-drained menu pauses remain intact.
+Current rolling resistance is 6 per contacting tyre; frame scraping is 128.
+
+Accuracy limits remain explicit: this is discrete game physics for one occupied
+24-pixel body, with 11.25-degree angles, fixed mass-scaled inertia, axis-separated
+pixel collisions, floor following/step allowances, zero-resting-impact restitution,
+and deliberate speed caps. Rolling resistance is a tuned force rather than a
+Coulomb mu*N model; balloon lift remains a per-balloon acceleration and fan thrust
+remains world-horizontal per the original specification. Continuous angular-to-
+linear momentum transfer across contact-pivot/free-flight transitions remains
+approximate. The implementation enforces tested rest, sign, mirror and contact
+rules; it does not claim a complete continuous rigid-body impulse solver.
+
+Targeted validation covers 411 angular/support cases, 208 slope-force cases,
+152 invariance scenarios (10,376 accepted updates), 12 angular-impact cases,
+24 blocked-pivot cases, actual tyre contacts, real Flight rest in four build
+configurations, real ledge release, and the powered/unpowered first Arch downhill.
+The original deep-ledge fall distances and 100/120-update budgets are retained.
+Full regression and routed hardware sign-off are recorded separately below.
+
+
+Final sign-off: all 73 registered benches pass in three complete groups (14,
+29 and 30 benches). The final source snapshot also compiles as Verilog-2001.
+The real Arch drive reaches the flag in 1,711 updates with two reversals; the
+first two-wheel downhill peaks at tilt5 (56.25 degrees) during a damped airborne
+transition without overturning. All four real Flight rest configurations retain
+zero horizontal velocity and fixed COM for 300 updates each.
+
+Final routed resources: 20,144 / 20,800 LUTs (96.85%, 656 free), 4,943 registers,
+23 DSPs and 48 BRAM tiles. This is 514 LUTs above the previous momentum build;
+no DSP or BRAM was added. At 100 MHz, setup slack is +0.047 ns and hold slack
++0.052 ns, with zero failing endpoints. The margin remains narrow.
+
+The verified bitstream is
+`tmp/physics_model_review/build_final/Laggy_Piggies_PhysicsReview.bit`.
+`validation.json` beside it contains source and bitstream SHA-256 hashes,
+resource/timing results, all 73 per-bench names and the targeted evidence paths.
+The earlier `tmp/physics_model_review/build/` is a superseded intermediate
+without the slope-normal correction. Protected maps and `level_map.v` are
+unchanged. The board has not been programmed by the agent.

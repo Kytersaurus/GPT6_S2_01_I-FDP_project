@@ -10,10 +10,19 @@ module cg_falling_tb;
     wire signed [4:0] pt,nt,ct,tilt;
     wire signed [1:0] tip;
     wire signed [7:0] slope;
+    wire slope_valid,span_valid;
+    wire signed [9:0] left_q2,right_q2,support_y_q2;
     wire signed [10:0] qx,qy;
     reg [2:0] map_class=0;
     integer waited,updates,saw_tip;
+    wire signed [13:0] pivot_dx_q8,pivot_dy_q8;
+    wire [3:0] contact_wheels;
+    wire signed [9:0] left_y_q2,right_y_q2;
     always #5 clk=~clk;
+    always @(negedge clk) begin
+        if($test$plusargs("trace") && nt==8 && collision.u_rotated_map.phase==7)
+            $display("TURN8 hit%b work%0d,%0d pivot%0d,%0d support%0d,%0d,%0d attempts%0d hitpixel%0d,%0d",collision.u_rotated_map.scan_hit,collision.u_rotated_map.work_x,collision.u_rotated_map.work_y,pivot_dx_q8,pivot_dy_q8,left_q2,right_q2,support_y_q2,collision.u_rotated_map.attempts,collision.u_rotated_map.hit_x,collision.u_rotated_map.hit_y);
+    end
     always @(posedge clk) begin
         if(($signed(qy)>=160) || ($signed(qy)>=104 &&
             ((scene==0 && $signed(qx)<90) || (scene==1 && $signed(qx)>=114) ||
@@ -24,13 +33,17 @@ module cg_falling_tb;
         .spawn_x(spawn_x),.spawn_y(20'sd20480),.step_start(step),.update_release(release_step),
         .wheel_count(4'd0),.engine_count(4'd0),.balloon_count(4'd0),.mass_units(8'd20),
         .engine_enabled(1'b0),.engine_reverse(1'b0),.jump_press(1'b0),.boost_req(1'b0),
+        .moments_enabled(1'b1),.build_grid({12'd0,`LP_PART_PIG,12'd0}),
+        .build_frames(9'h1ff),.frame_intact_mask(9'h1ff),.intact_mask(9'b000010000),
+        .build_facing_left(9'd0),.rocket_vertical_mask(9'd0),
         .fan_balance(5'sd0),.rocket_balance(5'sd0),.rocket_count(4'd0),.fan_enabled(1'b0),.rocket_req(1'b0),
-        .tip_dir(tip),.support_unstable(unstable),.move_valid(move_valid),.move_ready(move_ready),
+        .tip_dir(tip),.support_unstable(unstable),.proposed_pivot_dx_q8(pivot_dx_q8),.proposed_pivot_dy_q8(pivot_dy_q8),.move_valid(move_valid),.move_ready(move_ready),
         .previous_x(px),.previous_y(py),.proposed_x(nx),.proposed_y(ny),.proposed_vx(vx),.proposed_vy(vy),
         .previous_tilt(pt),.proposed_tilt(nt),.response_valid(response_valid),.response_ready(response_ready),
         .corrected_x(cx),.corrected_y(cy),.corrected_vx(cvx),.corrected_vy(cvy),.corrected_tilt(ct),
-        .grounded(grounded),.ground_slope(slope),.movement_committed(committed),.vehicle_x(x),.vehicle_y(y),.vehicle_tilt(tilt));
-    collision_engine #(.ROTATION_ONLY(1)) collision(.clk(clk),.reset(reset),.move_valid(move_valid),.move_ready(move_ready),
+        .grounded(grounded),.ground_slope(slope),
+        .ground_slope_valid(slope_valid),.support_endpoint_y_valid(span_valid),.support_span_valid(span_valid),.support_wheel_count(contact_wheels),.support_left_q2(left_q2),.support_right_q2(right_q2),.support_y_q2(support_y_q2),.support_left_y_q2(left_y_q2),.support_right_y_q2(right_y_q2),.movement_committed(committed),.vehicle_x(x),.vehicle_y(y),.vehicle_tilt(tilt));
+    collision_engine #(.ROTATION_ONLY(1)) collision(.pivot_dx_q8(pivot_dx_q8),.pivot_dy_q8(pivot_dy_q8),.clk(clk),.reset(reset),.move_valid(move_valid),.move_ready(move_ready),
         .previous_x(px),.previous_y(py),.proposed_x(nx),.proposed_y(ny),.proposed_vx(vx),.proposed_vy(vy),
         .terrain_count(3'd0),.terrain_rects(128'd0),.map_level(1'b1),.rotation_enabled(1'b1),
         .previous_tilt(pt),.proposed_tilt(nt),.collision_mask(9'h1ff),.cg_enabled(1'b1),
@@ -38,6 +51,7 @@ module cg_falling_tb;
         .world_width(10'd192),.world_height(10'd192),.query_x(qx),.query_y(qy),.query_class(map_class),
         .response_valid(response_valid),.response_ready(response_ready),.corrected_x(cx),.corrected_y(cy),
         .corrected_vx(cvx),.corrected_vy(cvy),.corrected_tilt(ct),.grounded(grounded),.ground_slope(slope),
+        .ground_slope_valid(slope_valid),.support_span_valid(span_valid),.support_wheel_count(contact_wheels),.support_left_q2(left_q2),.support_right_q2(right_q2),.support_y_q2(support_y_q2),.support_left_y_q2(left_y_q2),.support_right_y_q2(right_y_q2),
         .tip_dir(tip),.support_unstable(unstable));
     task clocks;input integer n;begin repeat(n) @(negedge clk);end endtask
     task restart;begin init=1;state=`LP_INIT_RUN;clocks(2);init=0;state=`LP_RUN;saw_tip=0;end endtask
@@ -46,18 +60,22 @@ module cg_falling_tb;
         while(!committed && waited<150000) begin clocks(1);waited=waited+1;end
         if(!committed) $fatal(1,"CG movement timeout");
         if(unstable && tip!=0) saw_tip=1;
+        if(physics.step_slope_force!=0 || physics.step_air_force!=0)
+            $fatal(1,"Flat overhang generated artificial horizontal force: gravity%0d air%0d",physics.step_slope_force,physics.step_air_force);
+        if($test$plusargs("trace"))
+            $display("CGF scene%0d update%0d x%0d y%0d angle%0d unstable%b tip%0d gravity%0d omega%0d",scene,updates,x,y,tilt,unstable,tip,physics.gravity_tilt_q8,physics.angular_velocity_q8);
         release_step=1;clocks(1);release_step=0;clocks(1);
     end endtask
     initial begin
         clocks(3);reset=0;restart();updates=0;
         while(y<130*256 && updates<100) begin update();updates=updates+1;end
-        if(!saw_tip || y<130*256 || x<=80*256) $fatal(1,"Right overhang did not slide/fall: x%0d y%0d tilt%0d",x,y,tilt);
+        if(!saw_tip || y<130*256) $fatal(1,"Right overhang did not rotate/fall: x%0d y%0d tilt%0d",x,y,tilt);
         scene=1;spawn_x=100*256;restart();updates=0;
         while(y<130*256 && updates<100) begin update();updates=updates+1;end
-        if(!saw_tip || y<130*256 || x>=100*256) $fatal(1,"Left overhang did not slide/fall: x%0d y%0d tilt%0d",x,y,tilt);
+        if(!saw_tip || y<130*256) $fatal(1,"Left overhang did not rotate/fall: x%0d y%0d tilt%0d",x,y,tilt);
         scene=2;spawn_x=80*256;restart();repeat(20) update();
         if(saw_tip || x!=80*256 || y!=80*256 || tilt!=0) $fatal(1,"Bridging a gap caused false falling");
-        $display("PASS cg_falling_tb: unpowered left/right overhangs tip, slide and fall; two-contact bridge stays stable");$finish;
+        $display("PASS cg_falling_tb: unpowered left/right overhangs rotate and fall without fabricated horizontal force; two-contact bridge stays stable");$finish;
     end
     initial begin #100000000;$fatal(1,"CG falling timeout");end
 endmodule
