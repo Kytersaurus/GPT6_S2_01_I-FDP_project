@@ -157,6 +157,15 @@ module My_Top_Module #(
     wire [`LP_MAX_TNT-1:0] tnt_intact;
     wire tnt_damage_valid, tnt_complete;
     wire [8:0] tnt_damage_mask, tnt_frame_mask;
+    wire collision_impact_valid;
+    wire [3:0] collision_impact_flags;
+    // Edge masks use bit 0 as top-left and bit 8 as bottom-right.
+    wire [8:0] collision_impact_mask =
+        ((collision_impact_flags & `LP_IMPACT_FLOOR) != 0 ? 9'b111000000 : 9'b0) |
+        ((collision_impact_flags & `LP_IMPACT_CEILING) != 0 ? 9'b000000111 : 9'b0) |
+        ((collision_impact_flags & `LP_IMPACT_LEFT) != 0 ? 9'b001001001 : 9'b0) |
+        ((collision_impact_flags & `LP_IMPACT_RIGHT) != 0 ? 9'b100100100 : 9'b0);
+    wire [8:0] collision_impact_frame_mask = collision_impact_mask;
     wire move_valid, move_ready, response_valid, response_ready, grounded;
     wire signed [7:0] ground_slope;
     wire signed [`LP_TILT_BITS-1:0] previous_tilt, proposed_tilt, corrected_tilt, vehicle_tilt;
@@ -367,9 +376,12 @@ module My_Top_Module #(
         .build_facing_left(build_facing_left), .engine_balance(engine_balance),
         .fan_balance(fan_balance), .rocket_balance(rocket_balance),
         .rocket_count(rocket_count), .fan_count(fan_count), .rockets_left(rockets_left), .fans_left(fans_left),
-        .damage_valid(pop_valid || tnt_damage_valid), .damage_ready(damage_ready),
-        .damage_mask((pop_valid ? pop_mask : 9'd0) | (tnt_damage_valid ? tnt_damage_mask : 9'd0)),
-        .damage_frame_mask(tnt_damage_valid ? tnt_frame_mask : 9'd0),
+        .damage_valid(pop_valid || tnt_damage_valid || collision_impact_valid), .damage_ready(damage_ready),
+        .damage_mask((pop_valid ? pop_mask : 9'd0) |
+                     (tnt_damage_valid ? tnt_damage_mask : 9'd0) |
+                     (collision_impact_valid ? collision_impact_mask : 9'd0)),
+        .damage_frame_mask((tnt_damage_valid ? tnt_frame_mask : 9'd0) |
+                           (collision_impact_valid ? collision_impact_frame_mask : 9'd0)),
         .build_grid(build_grid), .build_frames(build_frames),
         .intact_mask(intact_mask), .frame_intact_mask(frame_intact_mask), .build_valid(build_valid),
         .build_error(build_error), .pig_alive(pig_alive), .wheel_count(wheel_count), .wheels_down(wheels_down), .wheels_up(wheels_up),
@@ -437,7 +449,8 @@ module My_Top_Module #(
         .query_x(collision_query_x), .query_y(collision_query_y), .query_class(collision_query_class),
         .response_valid(response_valid), .response_ready(response_ready), .corrected_x(corrected_x),
         .corrected_y(corrected_y), .corrected_vx(corrected_vx), .corrected_vy(corrected_vy), .grounded(grounded),
-        .ground_slope(ground_slope), .corrected_tilt(corrected_tilt), .tip_dir(tip_dir)
+        .ground_slope(ground_slope), .corrected_tilt(corrected_tilt), .tip_dir(tip_dir),
+         .impact_valid(collision_impact_valid), .impact_flags(collision_impact_flags)
     );
     // Finish TNT damage before checking the pig and goal for this movement.
     // Physics holds its committed pose until the world result is accepted.

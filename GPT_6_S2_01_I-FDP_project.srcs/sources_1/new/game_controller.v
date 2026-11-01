@@ -135,11 +135,12 @@ module game_controller #(
                     end
                     if (world_valid && world_ready) begin
                         step_busy <= 0; update_release <= 1;
-                        // Failure checks take priority over reaching the goal.
-                        if (!pig_alive || hazard_hit || out_of_bounds) begin
+                        // The pig is protected from runtime damage in this
+                        // Bad Piggies implementation.  Hazards and leaving the
+                        // world still fail; reaching the goal then succeeds.
+                        if (hazard_hit || out_of_bounds) begin
                             game_state <= `LP_FAIL; failure_event <= 1;
-                            if (!pig_alive) fail_reason <= `LP_FAIL_PIG;
-                            else if (hazard_hit) fail_reason <= `LP_FAIL_HAZARD;
+                            if (hazard_hit) fail_reason <= `LP_FAIL_HAZARD;
                             else fail_reason <= `LP_FAIL_BOUNDS;
                         end else if (goal_hit) begin game_state <= `LP_SUCCESS; success_event <= 1; end
                     end else if (physics_tick && !step_busy && !gameplay_pending) begin

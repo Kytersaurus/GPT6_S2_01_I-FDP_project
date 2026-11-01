@@ -176,19 +176,18 @@ module vehicle_builder_tb;
         save_build(); game_state = `LP_RUN;
         edit(`LP_EDIT_REMOVE, 3, `LP_PART_EMPTY); check_unchanged();
         damage_frame_mask = 9'b000001000; damage_valid = 1; clocks(1); damage_valid = 0; clocks(1);
-        if (frame_intact_mask !== (saved_frame_intact & ~9'b000001000) ||
-            intact_mask !== saved_intact || !pig_alive || mass != 11 || build_frames !== saved_frames)
-            $fatal(1, "Frame damage incorrectly destroyed pig or saved frame");
+        if (frame_intact_mask !== saved_frame_intact ||
+            intact_mask !== saved_intact || !pig_alive || mass != 13 || build_frames !== saved_frames)
+            $fatal(1, "Protected pig frame was damaged");
         // RUN uses 12px cells at (4,12): cell3 begins at (4,24).
-        // Check a green pig interior and a transparent former wood-border pixel.
+        // The protected pig frame remains visible after a rejected frame hit.
         pixel = 27*96+9; #1;
         if (colour != 16'h07e0) $fatal(1, "Surviving pig disappeared with its frame");
-        pixel = 25*96+5; #1;
-        if (colour != 16'h0841) $fatal(1, "Destroyed frame border still drawn");
+        if (!frame_intact_mask[3]) $fatal(1, "Protected pig frame disappeared");
         damage_frame_mask = 0; damage_mask = 9'b000101000;
         damage_valid = 1; clocks(1); damage_valid = 0; clocks(1);
-        if (build_grid !== saved_grid || pig_alive || engines != 0 || mass != 6)
-            $fatal(1, "Content damage changed saved build or wrong live properties");
+        if (build_grid !== saved_grid || !pig_alive || engines != 0 || mass != 10 || !intact_mask[3])
+            $fatal(1, "Content damage destroyed the protected pig or wrong live properties");
         if (!frame_intact_mask[5]) $fatal(1, "Engine damage incorrectly destroyed frame");
         game_state = `LP_INIT_RUN; run_init = 1; clocks(2);
         if (!init_ready || intact_mask !== saved_intact || frame_intact_mask !== saved_frame_intact ||

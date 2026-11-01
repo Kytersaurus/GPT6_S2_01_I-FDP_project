@@ -84,19 +84,24 @@ module tnt_integration_tb;
             dut.frames_left!=2 || dut.wheels_left!=0 || dut.balloons_left!=1)
             $fatal(1,"Runtime damage changed saved build or refunded inventory");
 
-        // Pig reaches the goal and is destroyed on the same movement. Failure wins.
+        // Pig reaches the goal while TNT overlaps its cell. The pig and its
+        // frame remain protected, so the goal succeeds.
+        // Force the goal flag in this integration fixture; the unit test is
+        // about TNT ordering and pig protection, not the selected map's flag.
+        force dut.goal_hit = 1'b1;
         begin_step(); commit_pose(80*256); finish_step();
-        if (explosions!=2 || dut.game_state!=`LP_FAIL || dut.fail_reason!=`LP_FAIL_PIG ||
-            dut.pig_alive || dut.frame_intact_mask[4])
-            $fatal(1,"Goal was decided before TNT pig/frame damage");
-        if (dut.active_sound!=`LP_SOUND_FAILURE) $fatal(1,"Pig death sound did not take priority");
+        release dut.goal_hit;
+        if (explosions!=2 || dut.game_state!=`LP_SUCCESS || !dut.pig_alive ||
+            !dut.intact_mask[4] || !dut.frame_intact_mask[4])
+            $fatal(1,"Goal did not succeed with protected TNT pig/frame");
+        if (dut.active_sound!=`LP_SOUND_SUCCESS) $fatal(1,"Success sound was not selected");
 
         // Retry restores both layers and TNT without a new explosion.
         press_c();
         if (dut.game_state!=`LP_RUN || !dut.pig_alive || dut.frame_intact_mask!==saved_frames ||
             !dut.intact_mask[0] || !dut.intact_mask[8] || dut.tnt_intact!=4'b1111 || explosions!=2)
             $fatal(1,"Retry did not restore the saved vehicle and TNT");
-        $display("PASS tnt_integration_tb: damage, queued pop, animation/audio, no-contact release, death before goal and retry");
+        $display("PASS tnt_integration_tb: damage, queued pop, pig protection, animation/audio, goal and retry");
         $finish;
     end
     initial begin #200000; $fatal(1,"TNT integration timed out"); end

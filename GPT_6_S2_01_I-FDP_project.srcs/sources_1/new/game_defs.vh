@@ -68,6 +68,13 @@
 `define LP_SOUND_SUCCESS    3'd6
 `define LP_SOUND_FAILURE    3'd7
 
+// Collision impact directions.  A response may report more than one flag for
+// a corner contact, so the top level can damage both contacting edges.
+`define LP_IMPACT_FLOOR     4'b0001
+`define LP_IMPACT_CEILING   4'b0010
+`define LP_IMPACT_LEFT      4'b0100
+`define LP_IMPACT_RIGHT     4'b1000
+
 // Levels: Role 4 selects one in BUILD and holds it through the run.
 `define LP_LEVEL_COUNT   2
 `define LP_LEVEL_ARCH    2'd0
@@ -108,7 +115,9 @@
 `define LP_BOOST_BUTTON_W 39
 `define LP_BOOST_BUTTON_H 10
 
-// Why the last run failed; checked in this priority order.
+// Why the last run failed; checked in this priority order.  LP_FAIL_PIG is
+// retained for display/backward compatibility, but the game never generates
+// it: the pig is protected from runtime damage in Bad Piggies mode.
 `define LP_FAIL_NONE     2'd0
 `define LP_FAIL_PIG      2'd1
 `define LP_FAIL_HAZARD   2'd2

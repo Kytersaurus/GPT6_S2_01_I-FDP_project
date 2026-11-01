@@ -32,9 +32,9 @@ All design files below are located in `GPT_6_S2_01_I-FDP_project.srcs/sources_1/
 | `physics_engine.v` | Role 2 - Kyle | Staged force/mass movement, fractional carry, ground friction/thrust, reverse, queued jumping, balloon lift, slope acceleration, tilt settling, alpha-beta camera smoothing (`display_y`), and anti-rollover tip guard |
 | `signed_divider16.v` | Role 2 - Kyle | 16-clock sequential signed 16-bit force divided by unsigned 8-bit mass |
 | `rotation_geometry.vh` | Shared - Roles 2, 3, and 4 | 32-angle (-16..15) trigonometric quarter-turn tables, vector rotation, and separating-axis extent functions |
-| `collision_engine.v` | Role 3 - Yap Ting | Top-level collision selector; delegates live cave levels to `rotating_map_collision_engine` (legacy rectangle engine pruned) |
+| `collision_engine.v` | Role 3 - Yap Ting | Top-level collision selector; delegates live cave levels to `rotating_map_collision_engine` and reports hard-contact impact directions |
 | `rotating_map_collision_engine.v` | Role 3 - Yap Ting; Role 2/3 integration | Swept occupied-cell 360-degree rotated collision against terrain BRAM ROM, 45-degree slope probes, step-up/snapping, and edge tip direction reporting |
-| `tnt_controller.v` | Role 3 - Yap Ting; shared integration with Role 1 | Swept TNT contact detection, queued explosions, separate frame/content blast masks, and explosion sound triggers |
+| `tnt_controller.v` | Role 3 - Yap Ting; shared integration with Role 1 | Swept TNT contact detection, queued explosions, non-pig frame/content blast masks, and explosion sound triggers |
 | `world_outcomes.v` | Role 3 - Yap Ting | Rotated pig-centre goal entry, out-of-bounds hull checks, hazard collisions, and prioritized fail reason encoding |
 | `game_controller.v` | Role 4 - Marcus | BUILD, INIT_RUN, RUN, SUCCESS, FAIL, GUIDE, LEVEL_SELECT state machine and update sequencing |
 | `level_data.v` | Role 4 - Marcus | 2 Cave levels (Level 0: Cave Arch 2x, Level 1: Cave Flight): spawn coordinates, world dimensions, flag goals, TNT locations, and map ROM IDs |
@@ -97,6 +97,7 @@ All 52 simulation benches are located in `sim/` and pass through `scripts/run_si
 | Testbench file | Purpose |
 | :--- | :--- |
 | `sim/collision_engine_tb.v` | Collision proposal capture, platform/slope response, signed coordinate boundaries, and backpressure |
+| `sim/collision_impact_tb.v` | Hard landing, left/right wall, ceiling, corner and impact-threshold checks |
 | `sim/map_collision_tb.v` | Synthetic registered-ROM fixtures isolating terrain geometry and read latency |
 | `sim/map_rom_collision_tb.v` | Real map ROM query verification against independent ROM models with independent draw/query |
 | `sim/occupied_map_collision_tb.v` | Occupied-cell terrain collision verifying empty cells do not snag against nearby terrain/roofs |
