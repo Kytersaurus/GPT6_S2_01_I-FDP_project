@@ -1,0 +1,187 @@
+`timescale 1ns / 1ps
+`include "game_defs.vh"
+
+module crash_impact_tb;
+    reg clk;
+    reg btnD;
+    reg [15:0] sw;
+    reg btnC, btnU, btnL, btnR;
+    wire [15:0] led;
+    wire [7:0] JA, JB;
+    tri1 PS2Clk, PS2Data;
+
+    My_Top_Module #(
+        .PHYSICS_CYCLES(24),
+        .BUTTON_DEBOUNCE_CYCLES(2),
+        .BUTTON_RELEASE_CYCLES(2)
+    ) dut (
+        .clk(clk),
+        .btnC(btnC),
+        .btnU(btnU),
+        .btnR(btnR),
+        .btnL(btnL),
+        .btnD(btnD),
+        .sw(sw),
+        .PS2Clk(PS2Clk),
+        .PS2Data(PS2Data),
+        .led(led),
+        .JA(JA),
+        .JB(JB)
+    );
+
+    always #5 clk = ~clk;
+
+    task clocks(input integer n);
+        integer i;
+        begin
+            for (i = 0; i < n; i = i + 1)
+                @(posedge clk);
+        end
+    endtask
+
+    initial begin
+        clk = 0;
+        btnD = 1; // reset active
+        sw = 16'h0000;
+        btnC = 0; btnU = 0; btnL = 0; btnR = 0;
+        clocks(10);
+        btnD = 0; // reset deasserted
+        // Wait for power_on_count (256 cycles) to expire
+        clocks(300);
+
+        // Put vehicle in LP_RUN
+        force dut.game_state = `LP_RUN;
+        force dut.run_init = 1'b0;
+
+        // Populate a simple vehicle in builder:
+        // cell 0 = WHEEL, cell 2 = WHEEL, cell 4 = PIG
+        force dut.u_builder.build_grid = {`LP_PART_EMPTY, `LP_PART_EMPTY, `LP_PART_EMPTY,
+                                          `LP_PART_EMPTY, `LP_PART_PIG,   `LP_PART_EMPTY,
+                                          `LP_PART_WHEEL, `LP_PART_EMPTY, `LP_PART_WHEEL};
+        force dut.u_builder.build_frames = 9'b111_111_111;
+        force dut.u_builder.runtime_intact = 9'b000_010_101;
+        force dut.u_builder.runtime_frames = 9'b111_111_111;
+        clocks(2);
+        release dut.u_builder.runtime_intact;
+        release dut.u_builder.runtime_frames;
+
+        // Test 1: Gentle landing (vy = 16'sd100 < 384)
+        force dut.audio_was_grounded = 1'b0;
+        force dut.response_valid = 1'b1;
+        force dut.response_ready = 1'b1;
+        force dut.grounded = 1'b1;
+        force dut.proposed_vy = 16'sd100;
+        force dut.vehicle_tilt = 5'sd0;
+        clocks(1);
+
+        if (dut.impact_damage_valid !== 1'b0)
+            $fatal(1, "Gentle landing triggered impact damage!");
+        release dut.response_valid;
+        release dut.response_ready;
+        release dut.grounded;
+        release dut.proposed_vy;
+        release dut.vehicle_tilt;
+        clocks(1);
+
+        if (dut.u_builder.runtime_intact !== 9'b000_010_101)
+            $fatal(1, "Gentle landing changed intact mask! Got %b", dut.u_builder.runtime_intact);
+
+        // Test 2: Hard landing upright (vy = 16'sd400 >= 384, tilt = 0)
+        // Upright landing damages bottom row: cells 6, 7, 8 (mask 9'b111_000_000)
+        force dut.u_builder.runtime_intact = 9'b111_010_101;
+        clocks(1);
+        release dut.u_builder.runtime_intact;
+
+        force dut.audio_was_grounded = 1'b0;
+        force dut.response_valid = 1'b1;
+        force dut.response_ready = 1'b1;
+        force dut.grounded = 1'b1;
+        force dut.proposed_vy = 16'sd400;
+        force dut.vehicle_tilt = 5'sd0;
+        clocks(1);
+
+        if (dut.impact_damage_valid !== 1'b1)
+            $fatal(1, "Hard landing failed to trigger impact damage!");
+        if (dut.impact_damage_mask !== 9'b111_000_000)
+            $fatal(1, "Hard landing mask expected bottom row (9'b111_000_000), got %b", dut.impact_damage_mask);
+
+        release dut.response_valid;
+        release dut.response_ready;
+        release dut.grounded;
+        release dut.proposed_vy;
+        release dut.vehicle_tilt;
+        clocks(1);
+
+        if ((dut.u_builder.runtime_intact & 9'b111_000_000) !== 9'b0)
+            $fatal(1, "Hard landing did not destroy bottom row intact parts!");
+        if ((dut.u_builder.runtime_frames & 9'b111_000_000) !== 9'b0)
+            $fatal(1, "Hard landing did not destroy bottom row frames!");
+        if (dut.pig_alive !== 1'b1)
+            $fatal(1, "Pig in cell 4 should survive bottom row impact!");
+
+        // Test 3: Hard landing upside-down (vy = 16'sd400, tilt = -16)
+        force dut.u_builder.runtime_intact = 9'b111_111_111;
+        force dut.u_builder.runtime_frames = 9'b111_111_111;
+        clocks(1);
+        release dut.u_builder.runtime_intact;
+        release dut.u_builder.runtime_frames;
+
+        force dut.audio_was_grounded = 1'b0;
+        force dut.response_valid = 1'b1;
+        force dut.response_ready = 1'b1;
+        force dut.grounded = 1'b1;
+        force dut.proposed_vy = 16'sd400;
+        force dut.vehicle_tilt = -5'sd16;
+        clocks(1);
+
+        if (dut.impact_damage_valid !== 1'b1)
+            $fatal(1, "Upside-down hard landing failed to trigger impact damage!");
+        if (dut.impact_damage_mask !== 9'b000_000_111)
+            $fatal(1, "Upside-down landing mask expected top row (9'b000_000_111), got %b", dut.impact_damage_mask);
+
+        release dut.response_valid;
+        release dut.response_ready;
+        release dut.grounded;
+        release dut.proposed_vy;
+        release dut.vehicle_tilt;
+        clocks(1);
+
+        if ((dut.u_builder.runtime_intact & 9'b000_000_111) !== 9'b0)
+            $fatal(1, "Upside-down landing did not destroy top row intact parts!");
+
+        // Test 4: Fatal terminal velocity crash (vy = 16'sd500 >= 480)
+        force dut.u_builder.runtime_intact = 9'b111_111_111;
+        force dut.u_builder.runtime_frames = 9'b111_111_111;
+        clocks(1);
+        release dut.u_builder.runtime_intact;
+        release dut.u_builder.runtime_frames;
+
+        force dut.audio_was_grounded = 1'b0;
+        force dut.response_valid = 1'b1;
+        force dut.response_ready = 1'b1;
+        force dut.grounded = 1'b1;
+        force dut.proposed_vy = 16'sd500;
+        force dut.vehicle_tilt = 5'sd0;
+        clocks(1);
+
+        if (dut.impact_damage_valid !== 1'b1)
+            $fatal(1, "Fatal crash failed to trigger impact damage!");
+        if (dut.impact_damage_mask !== 9'b111_111_111)
+            $fatal(1, "Fatal crash mask expected all cells (9'b111_111_111), got %b", dut.impact_damage_mask);
+
+        release dut.response_valid;
+        release dut.response_ready;
+        release dut.grounded;
+        release dut.proposed_vy;
+        release dut.vehicle_tilt;
+        clocks(1);
+
+        if (dut.u_builder.runtime_intact !== 9'b000_000_000)
+            $fatal(1, "Fatal crash did not destroy all intact parts!");
+        if (dut.pig_alive !== 1'b0)
+            $fatal(1, "Pig should die on fatal crash!");
+
+        $display("PASS crash_impact_tb: gentle landing, upright bottom breakage, flipped top breakage, and fatal crash demolition");
+        $finish;
+    end
+endmodule

@@ -15,13 +15,13 @@ module zoom_controls_tb;
     end endtask
     initial begin
         repeat(3) @(negedge clk);reset=0;check(0);
-        wheel(1);check(1);wheel(1);check(3);wheel(1);check(2);
+        wheel(1);check(1);wheel(1);check(2);
         wheel(1);check(2);wheel(0);check(2);
-        wheel(15);check(3);wheel(15);check(1);wheel(15);check(0);wheel(15);check(0);
+        wheel(15);check(1);wheel(15);check(0);wheel(15);check(0);
         sw=1;repeat(5) @(negedge clk);check(1);
         sw=0;repeat(5) @(negedge clk);check(0);
         wheel(1);wheel(1);wheel(1);reset=1;@(negedge clk);check(0);
-        $display("PASS zoom_controls_tb: wheel polarity, four scales, saturation, zero delta, switch and reset");
+        $display("PASS zoom_controls_tb: wheel polarity, three scales, saturation, zero delta, switch and reset");
         $finish;
     end
 endmodule

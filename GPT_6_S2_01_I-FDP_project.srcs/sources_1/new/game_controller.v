@@ -150,6 +150,10 @@ module game_controller #(
                 `LP_SUCCESS, `LP_FAIL: begin
                     step_busy <= 0;
                     if (guide_open_req) begin guide_return_state <= game_state; game_state <= `LP_GUIDE; end
+                    else if (level_open_req || level_select_req) begin
+                        map_from_start <= 0;
+                        game_state <= `LP_LEVEL_SELECT;
+                    end
                     else if (edit_req) begin
                         game_state <= `LP_BUILD; fail_reason <= `LP_FAIL_NONE;
                         if (game_state == `LP_SUCCESS) level_index <= next_level;

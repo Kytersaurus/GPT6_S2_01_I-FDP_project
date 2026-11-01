@@ -50,8 +50,10 @@ module level_data (
                 flag_x = 10'd600;
                 star_box_x = 10'd400; star_box_y = 10'd300;
                 flag_y = 10'd472;   // 14-pixel pole ends on the road at y=486
+                tnt_count = 3'd0;
+                tnt_positions = 0;
             end
-            default: begin
+            2'd1: begin
                 // Level 2, Cave Flight: a flying level. Start on the ground at the bottom left
                 // (surface y=202..205 for x=60..96); the flag stands on the grassy ledge at the
                 // top right (surface y=64). The car must fly up through the cave tunnels.
@@ -65,6 +67,38 @@ module level_data (
                 flag_x = 10'd769;
                 star_box_x = 10'd400; star_box_y = 10'd150;
                 flag_y = 10'd50;    // 14-pixel pole ends on the ledge at y=64
+                tnt_count = 3'd0;
+                tnt_positions = 0;
+            end
+            2'd2: begin
+                // Level 3, Cave Arch (TNT Hazard Challenge): Two explosive TNT crates
+                // at (x=248, y=180) and (x=150, y=210).
+                spawn_x = 20'sd53248;   // x=208
+                spawn_y = 20'sd19456;   // y=76
+                map_id = 1'b0;
+                par_time = 8'd30;
+                world_width = `LP_MAP_WORLD_WIDTH;
+                world_height = `LP_MAP_WORLD_HEIGHT;
+                flag_x = 10'd600;
+                star_box_x = 10'd400; star_box_y = 10'd300;
+                flag_y = 10'd472;
+                tnt_count = 3'd2;
+                tnt_positions = {32'd0, 8'd210, 8'd150, 8'd180, 8'd248};
+            end
+            default: begin
+                // Level 4, Cave Flight (TNT Hazard Challenge): Two explosive TNT crates
+                // at (x=120, y=140) and (x=180, y=100).
+                spawn_x = 20'sd17408;   // x=68
+                spawn_y = 20'sd45568;   // y=178
+                map_id = 1'b1;
+                par_time = 8'd45;
+                world_width = `LP_FLIGHT_WIDTH;
+                world_height = `LP_FLIGHT_HEIGHT;
+                flag_x = 10'd769;
+                star_box_x = 10'd400; star_box_y = 10'd150;
+                flag_y = 10'd50;
+                tnt_count = 3'd2;
+                tnt_positions = {32'd0, 8'd100, 8'd180, 8'd140, 8'd120};
             end
         endcase
     end

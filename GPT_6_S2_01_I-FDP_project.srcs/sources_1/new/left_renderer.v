@@ -51,6 +51,12 @@ module left_renderer #(parameter EDITOR_CELL_PIXELS = 16) (
     wire inventory_number_pixel;
     wire in_build = (game_state == `LP_BUILD);
     wire in_result = (game_state == `LP_SUCCESS || game_state == `LP_FAIL);
+    wire [6:0] sec_pos_y = in_result ? 7'd4 : 7'd6;
+    wire [6:0] sec_height = in_result ? 7'd12 : 7'd20;
+    wire [6:0] sec_width = in_result ? 7'd7 : 7'd10;
+    wire [6:0] sec_thick = in_result ? 7'd1 : 7'd2;
+    wire [6:0] sec_tens_x = in_result ? 7'd58 : 7'd56;
+    wire [6:0] sec_ones_x = in_result ? 7'd68 : 7'd68;
     reg [6:0] inventory_top, inventory_content_top, inventory_bottom;
     // Centre the 8 by 8 preview on the same cursor position, clamped to the OLED.
     wire [6:0] drag_left = (cursor_x < 4) ? 7'd0 : (cursor_x > 92) ? 7'd88 : cursor_x - 7'd4;
@@ -137,12 +143,12 @@ module left_renderer #(parameter EDITOR_CELL_PIXELS = 16) (
         .width_x(grid_size), .length_y(grid_size), .is_in_square(grid_pixel)
     );
     seven_seg_oled u_seconds_tens (
-        .x(x), .y({1'b0, y}), .pos_x(7'd56), .pos_y(7'd6), .number(seconds_tens),
-        .line_thickness(7'd2), .height(7'd20), .width(7'd10), .isDrawn(seconds_tens_pixel)
+        .x(x), .y({1'b0, y}), .pos_x(sec_tens_x), .pos_y(sec_pos_y), .number(seconds_tens),
+        .line_thickness(sec_thick), .height(sec_height), .width(sec_width), .isDrawn(seconds_tens_pixel)
     );
     seven_seg_oled u_seconds (
-        .x(x), .y({1'b0, y}), .pos_x(7'd68), .pos_y(7'd6), .number(seconds_ones),
-        .line_thickness(7'd2), .height(7'd20), .width(7'd10), .isDrawn(seconds_pixel)
+        .x(x), .y({1'b0, y}), .pos_x(sec_ones_x), .pos_y(sec_pos_y), .number(seconds_ones),
+        .line_thickness(sec_thick), .height(sec_height), .width(sec_width), .isDrawn(seconds_pixel)
     );
     seven_seg_oled u_part_count (
         .x(x), .y({1'b0, y}), .pos_x(7'd68), .pos_y(7'd36), .number(ones),
@@ -218,20 +224,52 @@ module left_renderer #(parameter EDITOR_CELL_PIXELS = 16) (
         if (!in_build) begin
             // Run time in seconds, then surviving parts during RUN or guidance after a result.
             if (seconds_pixel || (run_seconds >= 10 && seconds_tens_pixel)) pixel_data = 16'h07ff;
-            if (text_on("S               ", 7'd82, 6'd19, x, y)) pixel_data = 16'h07ff;
             if (in_result) begin
-                if (seconds_pixel || (run_seconds >= 10 && seconds_tens_pixel)) pixel_data = 16'h07ff;
-                if (text_on("S               ", 7'd82, 6'd19, x, y)) pixel_data = 16'h07ff;
+                if (text_on("S               ", 7'd78, 6'd8, x, y)) pixel_data = 16'h07ff;
                 stars = 1 + (star_box_collected ? 1 : 0) + ((run_seconds <= 30 && remaining_parts >= 2) ? 1 : 0);
-                  if (game_state == `LP_SUCCESS) begin
-                      if (stars >= 1 && ((x>=57 && x<=61 && y==24) || (x==59 && y>=22 && y<=26) || ((x==58||x==60)&&(y==23||y==25)))) pixel_data = 16'hffe0;
-                      if (stars >= 2 && ((x>=67 && x<=71 && y==24) || (x==69 && y>=22 && y<=26) || ((x==68||x==70)&&(y==23||y==25)))) pixel_data = 16'hffe0;
-                      if (stars >= 3 && ((x>=77 && x<=81 && y==24) || (x==79 && y>=22 && y<=26) || ((x==78||x==80)&&(y==23||y==25)))) pixel_data = 16'hffe0;
-                  end
-                  if (text_on("C RETRY         ", 54, 32, x, y)) pixel_data = 16'hffff;
+                // 3 Stars centered at x=59, 71, 83, y=25 (radiant gold fill, amber rim, white glint; unearned = slate/bronze outline)
+                if (y >= 22 && y <= 28) begin
+                    // Star 1 (cx = 59)
+                    if (x >= 56 && x <= 62) begin
+                        if ((x >= 59 ? x - 59 : 59 - x) + (y >= 25 ? y - 25 : 25 - y) == 3)
+                            pixel_data = (game_state == `LP_SUCCESS && stars >= 1) ? 16'hfed0 : 16'h4208;
+                        else if ((x >= 59 ? x - 59 : 59 - x) + (y >= 25 ? y - 25 : 25 - y) < 3) begin
+                            if (game_state == `LP_SUCCESS && stars >= 1)
+                                pixel_data = (x == 58 && y == 24) ? 16'hffff : 16'hffe0;
+                            else
+                                pixel_data = 16'h18c3;
+                        end
+                    end
+                    // Star 2 (cx = 71)
+                    if (x >= 68 && x <= 74) begin
+                        if ((x >= 71 ? x - 71 : 71 - x) + (y >= 25 ? y - 25 : 25 - y) == 3)
+                            pixel_data = (game_state == `LP_SUCCESS && stars >= 2) ? 16'hfed0 : 16'h4208;
+                        else if ((x >= 71 ? x - 71 : 71 - x) + (y >= 25 ? y - 25 : 25 - y) < 3) begin
+                            if (game_state == `LP_SUCCESS && stars >= 2)
+                                pixel_data = (x == 70 && y == 24) ? 16'hffff : 16'hffe0;
+                            else
+                                pixel_data = 16'h18c3;
+                        end
+                    end
+                    // Star 3 (cx = 83)
+                    if (x >= 80 && x <= 86) begin
+                        if ((x >= 83 ? x - 83 : 83 - x) + (y >= 25 ? y - 25 : 25 - y) == 3)
+                            pixel_data = (game_state == `LP_SUCCESS && stars >= 3) ? 16'hfed0 : 16'h4208;
+                        else if ((x >= 83 ? x - 83 : 83 - x) + (y >= 25 ? y - 25 : 25 - y) < 3) begin
+                            if (game_state == `LP_SUCCESS && stars >= 3)
+                                pixel_data = (x == 82 && y == 24) ? 16'hffff : 16'hffe0;
+                            else
+                                pixel_data = 16'h18c3;
+                        end
+                    end
+                end
+                if (text_on("C RETRY         ", 54, 32, x, y)) pixel_data = 16'hffff;
                 if (text_on(game_state == `LP_SUCCESS ? "U NEXT          " : "U EDIT          ", 54, 42, x, y))
                     pixel_data = 16'hffe0;
-            end else if (number_pixel || (remaining_parts >= 10 && tens_pixel)) pixel_data = 16'hffff;
+            end else begin
+                if (text_on("S               ", 7'd82, 6'd19, x, y)) pixel_data = 16'h07ff;
+                if (number_pixel || (remaining_parts >= 10 && tens_pixel)) pixel_data = 16'hffff;
+            end
         end else if (x >= 56 && x < 92 && y >= 4 && y < 54) begin
             pixel_data = 16'h18c3;
             if (selected_part == inventory_part &&
