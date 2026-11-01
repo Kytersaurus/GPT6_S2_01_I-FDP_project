@@ -172,7 +172,8 @@ public static class Classify {
     //     (nearest top within 3 rows); floor ends with fewer than 5 tops are left alone.
     //     This removes lumps and dips up to 4 columns wide but keeps real steps and slopes.
     //  2. Closing with a radius-3 disk fills notches; opening with a radius-2 disk removes
-    //     spikes and crumbs. Outside the map is open, except below its bottom edge.
+    //     spikes and crumbs. Above the map is open and below it solid; beyond the left and
+    //     right edges the edge column continues, so terrain is not eaten at the world sides.
     public static bool[] SmoothTerrain(int[] c, bool[] decor, int w, int h) {
         var solid = new bool[w * h];
         for (int i = 0; i < w * h; i++) solid[i] = c[i] >= ROCK && c[i] <= DARK && !decor[i];
@@ -238,8 +239,8 @@ public static class Classify {
                 bool v = false;
                 for (int dy = -r; dy <= r && !v; dy++)
                     for (int dx = -r; dx <= r && !v; dx++) {
-                        int j = y + dy, i = x + dx;
-                        v = InDisk(dx, dy, r) && j >= 0 && j < h && i >= 0 && i < w && m[j * w + i];
+                        int j = y + dy, i = Math.Min(w - 1, Math.Max(0, x + dx));
+                        v = InDisk(dx, dy, r) && j >= 0 && j < h && m[j * w + i];
                     }
                 o[y * w + x] = v;
             }
@@ -254,8 +255,8 @@ public static class Classify {
                 for (int dy = -r; dy <= r && v; dy++)
                     for (int dx = -r; dx <= r && v; dx++) {
                         if (!InDisk(dx, dy, r)) continue;
-                        int j = y + dy, i = x + dx;
-                        bool s = j >= h || (j >= 0 && i >= 0 && i < w && m[j * w + i]);
+                        int j = y + dy, i = Math.Min(w - 1, Math.Max(0, x + dx));
+                        bool s = j >= h || (j >= 0 && m[j * w + i]);
                         v = s;
                     }
                 o[y * w + x] = v;
@@ -267,5 +268,137 @@ public static class Classify {
         var o = new int[c.Length];
         for (int i = 0; i < c.Length; i++) o[i] = unchecked((int)0xFF000000) | Preview[c[i]];
         return o;
+    }
+
+    // Opens a flight corridor from (sx, sy) to (gx, gy): the path of disk centres (radius r)
+    // that removes the fewest solid pixels, each step costing 1 + penalty * (solid pixels
+    // in the disk). The world's left, right and bottom edges count as solid; above the map
+    // is open. Solid pixels inside any disk on the path become the class of the nearest
+    // open pixel (sky or cave background). Returns the number of pixels opened.
+    public static int CarveRoute(int[] c, int w, int h, int sx, int sy, int gx, int gy, int r, double penalty) {
+        Func<int, int, bool> solidAt = (x, y) =>
+            y < 0 ? false : (x < 0 || x >= w || y >= h) ? true : c[y * w + x] >= ROCK && c[y * w + x] <= DARK;
+        var cost = new double[w * h];
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++) {
+                int n = 0;
+                for (int dy = -r; dy <= r; dy++)
+                    for (int dx = -r; dx <= r; dx++)
+                        if (dx * dx + dy * dy <= r * r && solidAt(x + dx, y + dy)) n++;
+                cost[y * w + x] = 1 + penalty * n;
+            }
+        var dist = new double[w * h];
+        var from = new int[w * h];
+        for (int i = 0; i < w * h; i++) { dist[i] = double.MaxValue; from[i] = -1; }
+        var heap = new List<KeyValuePair<double, int>>();
+        int start = sy * w + sx, goal = gy * w + gx;
+        dist[start] = 0; HeapPush(heap, 0, start);
+        while (heap.Count > 0) {
+            var top = HeapPop(heap);
+            int p = top.Value;
+            if (top.Key > dist[p]) continue;
+            if (p == goal) break;
+            int x = p % w, y = p / w;
+            for (int dy = -1; dy <= 1; dy++)
+                for (int dx = -1; dx <= 1; dx++) {
+                    int nx = x + dx, ny = y + dy;
+                    if ((dx == 0 && dy == 0) || nx < 0 || nx >= w || ny < 0 || ny >= h) continue;
+                    int q = ny * w + nx;
+                    double d = dist[p] + (dx != 0 && dy != 0 ? 1.4142 : 1.0) * cost[q];
+                    if (d < dist[q]) { dist[q] = d; from[q] = p; HeapPush(heap, d, q); }
+                }
+        }
+        if (from[goal] < 0) throw new Exception("No route between the corridor ends");
+        var carve = new bool[w * h];
+        for (int p = goal; p >= 0; p = p == start ? -1 : from[p]) {
+            int x = p % w, y = p / w;
+            for (int dy = -r; dy <= r; dy++)
+                for (int dx = -r; dx <= r; dx++) {
+                    int i = x + dx, j = y + dy;
+                    if (dx * dx + dy * dy <= r * r && i >= 0 && i < w && j >= 0 && j < h && solidAt(i, j)) carve[j * w + i] = true;
+                }
+        }
+        var queue = new Queue<int>();
+        for (int i = 0; i < w * h; i++) if (!carve[i] && c[i] < ROCK) queue.Enqueue(i);
+        int opened = 0;
+        while (queue.Count > 0) {
+            int p = queue.Dequeue(), x = p % w, y = p / w;
+            foreach (var q in new[] { x > 0 ? p - 1 : -1, x < w - 1 ? p + 1 : -1, y > 0 ? p - w : -1, y < h - 1 ? p + w : -1 })
+                if (q >= 0 && carve[q]) { carve[q] = false; c[q] = c[p]; opened++; queue.Enqueue(q); }
+        }
+        return opened;
+    }
+
+    static void HeapPush(List<KeyValuePair<double, int>> heap, double key, int value) {
+        heap.Add(new KeyValuePair<double, int>(key, value));
+        for (int i = heap.Count - 1; i > 0; ) {
+            int parent = (i - 1) / 2;
+            if (heap[parent].Key <= heap[i].Key) break;
+            var t = heap[parent]; heap[parent] = heap[i]; heap[i] = t; i = parent;
+        }
+    }
+
+    static KeyValuePair<double, int> HeapPop(List<KeyValuePair<double, int>> heap) {
+        var top = heap[0];
+        heap[0] = heap[heap.Count - 1]; heap.RemoveAt(heap.Count - 1);
+        for (int i = 0; ; ) {
+            int l = 2 * i + 1, rt = l + 1, m = i;
+            if (l < heap.Count && heap[l].Key < heap[m].Key) m = l;
+            if (rt < heap.Count && heap[rt].Key < heap[m].Key) m = rt;
+            if (m == i) break;
+            var t = heap[m]; heap[m] = heap[i]; heap[i] = t; i = m;
+        }
+        return top;
+    }
+
+    // Textured preview with right_renderer's colours, one output pixel per world pixel.
+    // A map pixel covers scale by scale world pixels; at scale 2 each quarter follows
+    // level_map's Scale2x edge smoothing. Texture units are half world pixels, as on the
+    // board. The moon (texture-unit centre, negative to omit) shows through sky only, and
+    // the finish flag is drawn at its world top-left.
+    public static int[] Render(int[] c, int w, int h, int scale, int moonX, int moonY, int flagX, int flagY) {
+        int ow = w * scale, oh = h * scale;
+        var o = new int[ow * oh];
+        Func<int, int, int> at = (x, y) => (x < 0 || x >= w || y < 0) ? SKY : y >= h ? DARK : c[y * w + x];
+        for (int wy = 0; wy < oh; wy++)
+            for (int wx = 0; wx < ow; wx++) {
+                int mx = wx / scale, my = wy / scale, k = at(mx, my);
+                if (scale == 2) {
+                    int n = at(mx, my - 1), s = at(mx, my + 1), we = at(mx - 1, my), e = at(mx + 1, my);
+                    bool right = (wx & 1) == 1, down = (wy & 1) == 1;
+                    if (!down && !right && we == n && n != e && we != s) k = n;
+                    if (!down && right && n == e && n != we && e != s) k = e;
+                    if (down && !right && we == s && we != n && s != e) k = we;
+                    if (down && right && s == e && e != n && s != we) k = e;
+                }
+                int tx = 2 * wx, ty = 2 * wy, rgb;
+                switch (k) {
+                    case CAVE: rgb = Stone(tx, ty, 0x08a2, 0x2a88, 0x1985, 0x21c6, 0x2227); break;
+                    case ROCK: rgb = Stone(tx, ty, 0x1988, 0x6c97, 0x3af0, 0x4352, 0x4bd4); break;
+                    case GRASS: rgb = 0x4d86; break;
+                    case ROAD: rgb = ((tx * 3 ^ ty * 5) & 7) == 0 ? 0x4a89 : 0x3a28; break;
+                    case DARK: rgb = 0x1082; break;
+                    default:
+                        rgb = new[] { 0x322d, 0x3a8f, 0x4af1, 0x5b94, 0x6c57, 0x8d1a, 0xa5fd }[Math.Min(6, ty >> 6)];
+                        int dx = tx - moonX, dy = ty - moonY;
+                        if (moonX >= 0 && dx * dx + dy * dy <= 324) rgb = dx * dx + (dy + 6) * (dy + 6) <= 16 ? 0xc65a : 0xe75e;
+                        break;
+                }
+                int fx = tx - 2 * flagX, fy = ty - 2 * flagY;
+                if (fx >= 0 && fx < 3 && fy >= 0 && fy < 28) rgb = fx == 0 ? 0xfd8c : fx == 1 ? 0xec05 : 0xaa82;
+                else if (fx >= 3 && fx < 23 && fy >= 1 && fy < 17)
+                    rgb = (fx == 3 || fx == 22 || fy == 1 || fy == 16) ? 0x3186 : ((((fx - 3) >> 2) ^ ((fy - 1) >> 2)) & 1) == 1 ? 0x0000 : 0xffff;
+                o[wy * ow + wx] = unchecked((int)0xFF000000) | (((rgb >> 11) & 31) * 255 / 31) << 16 | (((rgb >> 5) & 63) * 255 / 63) << 8 | (rgb & 31) * 255 / 31;
+            }
+        return o;
+    }
+
+    // right_renderer's staggered stones: mortar, a lit top-left edge and three shades.
+    static int Stone(int fx, int fy, int mortar, int light, int a, int b, int c) {
+        int row = fy >> 3, shifted = fx + ((row * 5) & 15), lx = shifted & 15, ly = fy & 7;
+        int shade = ((shifted >> 4) ^ (row << 1) ^ (shifted >> 6) ^ row) & 3;
+        if (lx == 0 || ly == 0 || (lx == 1 && ly == 1)) return mortar;
+        if (lx == 1 || ly == 1) return light;
+        return shade == 0 ? a : shade == 2 ? c : b;
     }
 }

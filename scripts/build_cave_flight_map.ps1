@@ -28,11 +28,21 @@ $m = [Classify]::Down($c, $w, $h, 2, [ref]$mw, [ref]$mh)
 for ($y = 0; $y -lt 38; $y++) { for ($x = 590; $x -lt 640; $x++) { if ($m[$y*$mw+$x] -eq [Classify]::SKY) { $m[$y*$mw+$x] = [Classify]::ROCK } } }
 for ($y = 170; $y -lt 202; $y++) { for ($x = 58; $x -lt 96; $x++) { $m[$y*$mw+$x] = [Classify]::SKY } }   # Contraption and bush at the start
 
+# The traced passages are narrower than the 24-pixel vehicle (its tilted corners reach
+# 17 pixels from its centre). Open the cheapest corridor of radius 17 from above the spawn
+# (vehicle centre 80,190) to above the finish ledge (flag 769,50; ledge top y=64), so a
+# vehicle at any tilt fits the whole way. The ends sit clear of the floor and the ledge,
+# which stay as traced.
+$opened = [Classify]::CarveRoute($m, $mw, $mh, 80, 170, 777, 38, 17, 3.0)
+"Flight corridor: $opened pixels opened"
+
 $sb = New-Object System.Text.StringBuilder
 [void]$sb.AppendLine("// Cave Flight map: 1024 entries per row (x $mw..1023 unused), $mh rows. Classes: 0 sky, 1 cave, 2 rock, 3 grass, 4 road, 5 underground.")
 for ($y = 0; $y -lt $mh; $y++) { for ($x = 0; $x -lt 1024; $x++) { [void]$sb.AppendLine($(if ($x -lt $mw) { $m[$y*$mw+$x] } else { 0 })) } }
 [IO.File]::WriteAllText((Join-Path $root 'GPT_6_S2_01_I-FDP_project.srcs\sources_1\new\cave_flight_map.mem'), $sb.ToString())
 [MapTool]::Save((Join-Path $root 'docs\maps\cave_flight_classes.png'), [MapTool]::Crop([Classify]::Colour($m), $mw, 0, 0, $mw, $mh, 2), $mw*2, $mh*2)
+# Board-accurate preview (one map pixel per world pixel, no moon), shown at 2x like the classes image.
+[MapTool]::Save((Join-Path $root 'docs\maps\cave_flight_render.png'), [MapTool]::Crop([Classify]::Render($m, $mw, $mh, 1, -1, -1, 769, 50), $mw, 0, 0, $mw, $mh, 2), $mw*2, $mh*2)
 "Map ${mw} x $mh written"
 
 # Write the synthesis-safe one-bit collision ROM alongside the colour map.

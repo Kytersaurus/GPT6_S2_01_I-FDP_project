@@ -371,7 +371,7 @@ module role4_game_display_tb;
         // At 2x the spawn view starts lower, in the sky's second band.
         level=`LP_LEVEL_ARCH;
         expect_right(0, 0, 16'h4af1, "map sky");
-        expect_right(39, 51, 16'h2bc3, "plateau grass");
+        expect_right(39, 51, 16'h4d86, "plateau grass");
         // The camera follows the vehicle across the map, here to the finish flag.
         view_state=`LP_RUN; vehicle_x=570*256; vehicle_y=457*256;
         expect_right(76, 38, 16'hec05, "flag pole");
