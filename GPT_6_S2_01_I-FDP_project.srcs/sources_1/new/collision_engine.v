@@ -9,6 +9,7 @@ module collision_engine #(parameter ROTATION_ONLY = 0) (
     input wire signed [`LP_COORD_BITS-1:0] previous_x, previous_y,
     input wire signed [`LP_COORD_BITS-1:0] proposed_x, proposed_y,
     input wire signed [15:0] proposed_vx, proposed_vy,
+    input tri0 signed [13:0] pivot_dx_q8, pivot_dy_q8,
     input wire [2:0] terrain_count,
     input wire [127:0] terrain_rects,
     input wire map_level,
@@ -28,6 +29,11 @@ module collision_engine #(parameter ROTATION_ONLY = 0) (
     output wire signed [15:0] corrected_vx, corrected_vy,
     output wire grounded,
     output wire signed [7:0] ground_slope,
+    output wire ground_slope_valid,
+    output wire support_span_valid,
+    output wire [3:0] support_wheel_count,
+    output wire signed [9:0] support_left_q2, support_right_q2, support_y_q2,
+    output wire signed [9:0] support_left_y_q2, support_right_y_q2,
     output wire signed [`LP_TILT_BITS-1:0] corrected_tilt,
     output wire signed [1:0] tip_dir
 );
@@ -36,6 +42,10 @@ module collision_engine #(parameter ROTATION_ONLY = 0) (
     assign support_unstable=active_rotation && rot_unstable;
     wire use_rotation = ROTATION_ONLY || rotation_enabled;
     wire rot_ready, rot_valid, rot_ground;
+    wire rot_slope_valid, rot_span_valid, map_slope_valid;
+    wire [3:0] rot_wheel_count;
+    wire signed [9:0] rot_support_left_q2, rot_support_right_q2, rot_support_y_q2;
+    wire signed [9:0] rot_left_y_q2, rot_right_y_q2;
     wire signed [`LP_COORD_BITS-1:0] rot_x, rot_y;
     wire signed [15:0] rot_vx, rot_vy;
     wire signed [7:0] rot_slope;
@@ -58,6 +68,16 @@ module collision_engine #(parameter ROTATION_ONLY = 0) (
     assign corrected_vy = active_rotation ? rot_vy : map_vy;
     assign grounded = active_rotation ? rot_ground : map_ground;
     assign ground_slope = active_rotation ? rot_slope : map_slope;
+    assign ground_slope_valid = active_rotation ? rot_slope_valid : map_slope_valid;
+    // The upright reference has no occupied-cell contact span. Do not invent
+    // full-width support for an engine that has not measured it.
+    assign support_span_valid = active_rotation && rot_span_valid;
+    assign support_wheel_count = active_rotation ? rot_wheel_count : 4'd0;
+    assign support_left_q2 = active_rotation ? rot_support_left_q2 : 10'sd0;
+    assign support_right_q2 = active_rotation ? rot_support_right_q2 : 10'sd0;
+    assign support_y_q2 = active_rotation ? rot_support_y_q2 : 10'sd0;
+    assign support_left_y_q2 = active_rotation ? rot_left_y_q2 : 10'sd0;
+    assign support_right_y_q2 = active_rotation ? rot_right_y_q2 : 10'sd0;
     always @(posedge clk) begin
         if (reset) begin busy <= 0; active_rotation <= ROTATION_ONLY; end
         else begin
@@ -73,10 +93,10 @@ module collision_engine #(parameter ROTATION_ONLY = 0) (
         .query_x(upright_qx), .query_y(upright_qy), .query_class(query_class),
         .response_valid(map_valid), .response_ready(response_ready && busy && !active_rotation),
         .corrected_x(map_x), .corrected_y(map_y), .corrected_vx(map_vx), .corrected_vy(map_vy), .grounded(map_ground),
-        .ground_slope(map_slope)
+        .ground_slope(map_slope), .ground_slope_valid(map_slope_valid)
     );
     end else begin : g_rotation_only
-        assign map_ready=1'b0, map_valid=1'b0, map_ground=1'b0;
+        assign map_ready=1'b0, map_valid=1'b0, map_ground=1'b0, map_slope_valid=1'b0;
         assign map_x=0, map_y=0, map_vx=0, map_vy=0, map_slope=0;
         assign upright_qx=0, upright_qy=0;
     end endgenerate
@@ -84,6 +104,7 @@ module collision_engine #(parameter ROTATION_ONLY = 0) (
         .clk(clk), .reset(reset), .move_valid(move_valid && !busy && use_rotation), .move_ready(rot_ready),
         .previous_x(previous_x), .previous_y(previous_y), .proposed_x(proposed_x), .proposed_y(proposed_y),
         .previous_tilt(previous_tilt), .proposed_tilt(proposed_tilt),
+        .pivot_dx_q8(pivot_dx_q8), .pivot_dy_q8(pivot_dy_q8),
         .collision_mask(collision_mask), .cg_enabled(cg_enabled), .build_grid(build_grid),
         .part_intact_mask(part_intact_mask), .frame_intact_mask(frame_intact_mask),
         .support_unstable(rot_unstable),
@@ -91,7 +112,10 @@ module collision_engine #(parameter ROTATION_ONLY = 0) (
         .query_x(rot_qx), .query_y(rot_qy), .query_class(query_class),
         .response_valid(rot_valid), .response_ready(response_ready && busy && active_rotation),
         .corrected_x(rot_x), .corrected_y(rot_y), .corrected_vx(rot_vx), .corrected_vy(rot_vy), .grounded(rot_ground),
-        .ground_slope(rot_slope), .corrected_tilt(rot_tilt), .tip_dir(rot_tip)
+        .ground_slope(rot_slope), .ground_slope_valid(rot_slope_valid),
+        .support_left_y_q2(rot_left_y_q2), .support_right_y_q2(rot_right_y_q2),
+        .support_span_valid(rot_span_valid), .support_wheel_count(rot_wheel_count), .support_left_q2(rot_support_left_q2), .support_right_q2(rot_support_right_q2), .support_y_q2(rot_support_y_q2),
+        .corrected_tilt(rot_tilt), .tip_dir(rot_tip)
     );
 endmodule
 
@@ -117,7 +141,8 @@ module map_collision_engine #(
     output reg signed [`LP_COORD_BITS-1:0] corrected_x, corrected_y,
     output reg signed [15:0] corrected_vx, corrected_vy,
     output reg grounded,
-    output reg signed [7:0] ground_slope
+    output reg signed [7:0] ground_slope,
+    output reg ground_slope_valid
 );
     localparam IDLE=0, BODY=1, BODY_RESULT=2, SUPPORT=3, SUPPORT_RESULT=4,
         H_NEXT=5, H_SCAN=6, H_RESULT=7, V_SETUP=8, V_NEXT=9,
@@ -139,6 +164,7 @@ module map_collision_engine #(
     reg scan_hit;
     reg signed [12:0] support_x, support_y, slope_left_y;
     reg signed [7:0] result_slope;
+    reg result_slope_valid;
     wire signed [13:0] slope_rise = $signed(hit_y) - $signed(slope_left_y);
     wire signed [13:0] slope_mid_error = $signed(slope_left_y) + $signed(hit_y) -
                                                ($signed(support_y) <<< 1);
@@ -177,7 +203,7 @@ module map_collision_engine #(
     always @(posedge clk) begin
         if (reset) begin
             phase <= IDLE; response_valid <= 0; grounded <= 0;
-            ground_slope <= 0; result_slope <= 0;
+            ground_slope <= 0; result_slope <= 0; ground_slope_valid <= 0; result_slope_valid <= 0;
             support_x <= 0; support_y <= 0; slope_left_y <= 0;
             corrected_x <= 0; corrected_y <= 0; corrected_vx <= 0; corrected_vy <= 0;
             work_x <= 0; work_y <= 0; target_x <= 0; target_y <= 0;
@@ -197,7 +223,7 @@ module map_collision_engine #(
                     result_vx <= proposed_vx; result_vy <= proposed_vy;
                     moving_up <= proposed_vy < 0 || proposed_y < previous_y;
                     saved_width <= world_width; saved_height <= world_height;
-                    result_ground <= 0; result_slope <= 0; recovery_attempt <= 0; phase <= BODY;
+                    result_ground <= 0; result_slope <= 0; result_slope_valid <= 0; recovery_attempt <= 0; phase <= BODY;
                 end
                 BODY: scan_body(work_x, work_y, BODY_RESULT);
                 BODY_RESULT: begin
@@ -320,8 +346,10 @@ module map_collision_engine #(
                     // contact (one pixel of rounding tolerance). Otherwise an
                     // isolated bump above two lower floors looks like a ramp.
                     if (scan_hit && hit_y > support_y-8 && slope_rise >= -8 && slope_rise <= 8 &&
-                        slope_mid_error >= -2 && slope_mid_error <= 2)
+                        slope_mid_error >= -2 && slope_mid_error <= 2) begin
                         result_slope <= slope_rise * 2;
+                        result_slope_valid <= 1;
+                    end
                     phase <= RESPOND;
                 end
                 RESPOND: begin
@@ -329,6 +357,7 @@ module map_collision_engine #(
                     corrected_y <= work_y[`LP_COORD_BITS-1:0];
                     corrected_vx <= result_vx; corrected_vy <= result_vy;
                     grounded <= result_ground; ground_slope <= result_slope;
+                    ground_slope_valid <= result_ground && result_slope_valid;
                     response_valid <= 1; phase <= IDLE;
                 end
                 ISSUE: phase <= SAMPLE;

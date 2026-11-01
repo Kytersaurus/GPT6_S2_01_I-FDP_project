@@ -11,7 +11,7 @@
 // world_outcomes' map goal: the pig (centre cell) inside the box from the flag pole.
 // Each update must commit; the run fails if the vehicle leaves the world or stops
 // moving for 10 seconds of updates.
-module cave_arch_drive_tb #(parameter ENABLE_MOMENTS=0, parameter WHEEL_TORQUE_SHIFT=2, parameter CG_SUPPORT=1);
+module cave_arch_drive_tb #(parameter ENABLE_MOMENTS=1, parameter WHEEL_TORQUE_SHIFT=2, parameter CG_SUPPORT=1);
     reg clk=0, reset=1, run_init=0, step_start=0, update_release=0, engine_reverse=0;
     reg [2:0] game_state=`LP_BUILD;
     always #5 clk=~clk;
@@ -30,6 +30,10 @@ module cave_arch_drive_tb #(parameter ENABLE_MOMENTS=0, parameter WHEEL_TORQUE_S
     wire signed [7:0] ground_slope;
     wire signed [`LP_TILT_BITS-1:0] previous_tilt, proposed_tilt, corrected_tilt, vehicle_tilt;
     wire signed [1:0] tip_dir;
+    wire grade_valid, contact_valid;
+    wire [3:0] contact_wheels;
+    wire signed [13:0] pivot_dx, pivot_dy;
+    wire signed [9:0] contact_left, contact_right, contact_y, contact_left_y, contact_right_y;
     wire support_unstable;
     wire signed [10:0] qx, qy;
     wire [2:0] query_class;
@@ -48,6 +52,10 @@ module cave_arch_drive_tb #(parameter ENABLE_MOMENTS=0, parameter WHEEL_TORQUE_S
                      `LP_PART_WHEEL,`LP_PART_EMPTY,`LP_PART_WHEEL}),
         .build_frames(9'b000111000),.frame_intact_mask(9'b000111000),
         .intact_mask(9'b101011101),.build_facing_left(9'd0),.rocket_vertical_mask(9'd0),
+        .proposed_pivot_dx_q8(pivot_dx), .proposed_pivot_dy_q8(pivot_dy),
+        .support_endpoint_y_valid(contact_valid), .support_left_y_q2(contact_left_y), .support_right_y_q2(contact_right_y),
+        .ground_slope_valid(grade_valid), .support_span_valid(contact_valid), .support_wheel_count(contact_wheels),
+        .support_left_q2(contact_left), .support_right_q2(contact_right), .support_y_q2(contact_y),
         .clk(clk), .reset(reset), .game_state(game_state), .run_init(run_init), .init_ready(init_ready),
         .spawn_x(spawn_x), .spawn_y(spawn_y), .step_start(step_start), .update_release(update_release),
         .wheel_count(4'd4), .wheels_down(4'd2), .wheels_up(4'd2), .tip_dir(tip_dir), .support_unstable(support_unstable),
@@ -63,6 +71,10 @@ module cave_arch_drive_tb #(parameter ENABLE_MOMENTS=0, parameter WHEEL_TORQUE_S
         .vehicle_x(vehicle_x), .vehicle_y(vehicle_y)
     );
     collision_engine #(.ROTATION_ONLY(1)) u_collision (
+        .pivot_dx_q8(pivot_dx), .pivot_dy_q8(pivot_dy),
+        .support_left_y_q2(contact_left_y), .support_right_y_q2(contact_right_y),
+        .ground_slope_valid(grade_valid), .support_span_valid(contact_valid), .support_wheel_count(contact_wheels),
+        .support_left_q2(contact_left), .support_right_q2(contact_right), .support_y_q2(contact_y),
         .clk(clk), .reset(reset), .move_valid(move_valid), .move_ready(move_ready),
         .previous_x(previous_x), .previous_y(previous_y), .proposed_x(proposed_x), .proposed_y(proposed_y),
         .proposed_vx(proposed_vx), .proposed_vy(proposed_vy), .terrain_count(3'd0), .terrain_rects(128'd0),

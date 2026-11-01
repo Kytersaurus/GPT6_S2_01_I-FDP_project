@@ -64,11 +64,14 @@ module menu_fixes_tb;
         click(8,59);clocks(20);
         if(dut.game_state!=`LP_RUN || dut.engine_enabled || dut.ui_fan_on) $fatal(1,"Launch did not start with actuators OFF");
         click(48,59);if(dut.run_page!=0) $fatal(1,"Bottom gap activated hidden page");
-        if(dut.u_physics.moments_enabled) $fatal(1,"Wheel-only cart did not restore original turning");
+        // Every build uses the same CoG/support solver. Wheel drive stays
+        // translational; merely fitting an inactive jet cannot select another model.
+        if(!dut.u_physics.moments_enabled) $fatal(1,"Wheel-only cart bypassed shared COM support solver");
+        if(dut.u_physics.u_moments.wheel_force!==16'sd0) $fatal(1,"Wheel drive enabled angular force");
         force dut.fans_left=4'd0;clocks(1);
-        if(!dut.u_physics.moments_enabled) $fatal(1,"Fitted fan did not enable COM moments");
+        if(!dut.u_physics.moments_enabled) $fatal(1,"Inactive fan changed shared COM support solver");
         release dut.fans_left;force dut.rockets_left=4'd0;clocks(1);
-        if(!dut.u_physics.moments_enabled) $fatal(1,"Fitted rocket did not enable COM moments");
+        if(!dut.u_physics.moments_enabled) $fatal(1,"Inactive rocket changed shared COM support solver");
         release dut.rockets_left;
         // SW0 must inhibit both software toggles and actual output.
         click(20,16);if(dut.engine_enabled || dut.ui_engine_on) $fatal(1,"SW0 OFF bypassed by icon");

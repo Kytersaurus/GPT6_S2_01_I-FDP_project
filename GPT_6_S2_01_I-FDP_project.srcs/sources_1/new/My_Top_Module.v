@@ -61,6 +61,11 @@ module My_Top_Module #(
 `endif
     wire reset, oled_clk, oled_reset, physics_tick, start_press, edit_press, engine_enabled;
     wire support_unstable;
+    wire support_span_valid, ground_slope_valid;
+    wire [3:0] support_wheel_count;
+    wire signed [9:0] support_left_q2, support_right_q2, support_y_q2;
+    wire signed [9:0] support_left_y_q2, support_right_y_q2;
+    wire signed [13:0] pivot_dx_q8, pivot_dy_q8;
     wire engine_reverse, reverse_switch_enabled, jump_press, boost_req, boost_active;
     wire [1:0] run_page, draw_run_page;
     wire selected_left, edit_facing_left, draw_selected_left;
@@ -70,10 +75,9 @@ module My_Top_Module #(
     wire rocket_ready, rocket_active;
     wire [3:0] drive_engines = engine_balance<0 ? -engine_balance : engine_balance;
     wire [3:0] rocket_count, fan_count, rockets_left, fans_left, draw_rockets_left, draw_fans_left;
-    // Saved inventory selects the original turning model for motor-only carts.
-    // Damage cannot change this choice during a run.
-    wire air_moments_enabled = (ENABLE_MOMENTS != 0) &&
-        ((fans_left < FAN_LIMIT) || (rockets_left < ROCKET_LIMIT));
+    // Every production build uses the same COM-aware body. Wheel drive stays
+    // translational; adding an inactive fan must not change the physics model.
+    wire body_moments_enabled = (ENABLE_MOMENTS != 0);
     wire fan_available = fan_count != 0;
     wire rocket_available = rocket_count != 0;
     wire ui_fan_on, ui_rocket_req, ui_sound_muted;
@@ -408,7 +412,13 @@ module My_Top_Module #(
         .tnt_intact(tnt_intact), .blast_phase(blast_phase)
     );
     physics_engine #(.ENGINE_FORCE(ENGINE_FORCE), .ROCKET_FORCE_SHIFT(ROCKET_FORCE_SHIFT), .WHEEL_TORQUE_SHIFT(WHEEL_TORQUE_SHIFT)) u_physics (
-        .moments_enabled(air_moments_enabled),.build_grid(build_grid),.build_frames(build_frames),
+        .support_endpoint_y_valid(support_span_valid),
+        .support_left_y_q2(support_left_y_q2),.support_right_y_q2(support_right_y_q2),
+        .support_wheel_count(support_wheel_count),
+        .proposed_pivot_dx_q8(pivot_dx_q8),.proposed_pivot_dy_q8(pivot_dy_q8),
+        .ground_slope_valid(ground_slope_valid),.support_span_valid(support_span_valid),
+        .support_left_q2(support_left_q2),.support_right_q2(support_right_q2),.support_y_q2(support_y_q2),
+        .moments_enabled(body_moments_enabled),.build_grid(build_grid),.build_frames(build_frames),
         .intact_mask(intact_mask),.frame_intact_mask(frame_intact_mask),
         .build_facing_left(build_facing_left),.rocket_vertical_mask(9'd0),
         .fan_balance(fan_balance), .rocket_balance(rocket_balance), .rocket_count(rocket_count),
@@ -427,6 +437,11 @@ module My_Top_Module #(
         .movement_committed(movement_committed), .vehicle_x(vehicle_x), .vehicle_y(vehicle_y), .display_y(display_y)
     );
     collision_engine #(.ROTATION_ONLY(1)) u_collision (
+        .support_left_y_q2(support_left_y_q2),.support_right_y_q2(support_right_y_q2),
+        .support_wheel_count(support_wheel_count),
+        .pivot_dx_q8(pivot_dx_q8),.pivot_dy_q8(pivot_dy_q8),
+        .ground_slope_valid(ground_slope_valid),.support_span_valid(support_span_valid),
+        .support_left_q2(support_left_q2),.support_right_q2(support_right_q2),.support_y_q2(support_y_q2),
         .collision_mask(intact_mask | frame_intact_mask),
         .cg_enabled(1'b1), .build_grid(build_grid), .part_intact_mask(intact_mask),
         .frame_intact_mask(frame_intact_mask), .support_unstable(support_unstable),
