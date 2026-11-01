@@ -45,6 +45,10 @@ module mouse_adapter (
     reg [1:0] last_speed;
     reg [11:0] init_x_pos, init_y_pos;
 
+    reg engine_facing_left;
+    reg fan_facing_left;
+    reg rocket_facing_left;
+
     reg left_was_down, right_was_down;
     reg place_pending, inventory_armed;
     assign drag_active = place_pending && game_state == `LP_BUILD && input_enabled;
@@ -167,6 +171,9 @@ module mouse_adapter (
             drag_contents <= 0;
             selected_part <= `LP_PART_FRAME;
             selected_left <= 0;
+            engine_facing_left <= 0;
+            fan_facing_left <= 0;
+            rocket_facing_left <= 0;
             inventory_page <= 0;
             edit_facing_left <= 0;
             edit_valid <= 0;
@@ -241,14 +248,44 @@ module mouse_adapter (
                             inventory_armed <= 1;
                             // Basic parts use five rows; page two splits the panel between two parts.
                             if (inventory_page!=0) begin
-                                if (cur_y<28) selected_part<=`LP_PART_BOOSTER;
-                                else if (cur_y>28) selected_part<=`LP_PART_FAN;
-                                else begin place_pending<=0; inventory_armed<=0; end
-                            end else if (cur_y<14) selected_part<=`LP_PART_FRAME;
-                            else if (cur_y<24) selected_part<=`LP_PART_PIG;
-                            else if (cur_y<34) selected_part<=`LP_PART_WHEEL;
-                            else if (cur_y<44) selected_part<=`LP_PART_ENGINE;
-                            else selected_part<=`LP_PART_BALLOON;
+                                if (cur_y<28) begin
+                                    if (selected_part == `LP_PART_BOOSTER && cur_x >= 70) begin
+                                        rocket_facing_left <= !rocket_facing_left;
+                                        selected_left <= !rocket_facing_left;
+                                    end else begin
+                                        selected_part <= `LP_PART_BOOSTER;
+                                        selected_left <= rocket_facing_left;
+                                    end
+                                end else if (cur_y>28) begin
+                                    if (selected_part == `LP_PART_FAN && cur_x >= 70) begin
+                                        fan_facing_left <= !fan_facing_left;
+                                        selected_left <= !fan_facing_left;
+                                    end else begin
+                                        selected_part <= `LP_PART_FAN;
+                                        selected_left <= fan_facing_left;
+                                    end
+                                end else begin place_pending<=0; inventory_armed<=0; end
+                            end else if (cur_y<14) begin
+                                selected_part <= `LP_PART_FRAME;
+                                selected_left <= 0;
+                            end else if (cur_y<24) begin
+                                selected_part <= `LP_PART_PIG;
+                                selected_left <= 0;
+                            end else if (cur_y<34) begin
+                                selected_part <= `LP_PART_WHEEL;
+                                selected_left <= 0;
+                            end else if (cur_y<44) begin
+                                if (selected_part == `LP_PART_ENGINE && cur_x >= 70) begin
+                                    engine_facing_left <= !engine_facing_left;
+                                    selected_left <= !engine_facing_left;
+                                end else begin
+                                    selected_part <= `LP_PART_ENGINE;
+                                    selected_left <= engine_facing_left;
+                                end
+                            end else begin
+                                selected_part <= `LP_PART_BALLOON;
+                                selected_left <= 0;
+                            end
                         end else if (in_grid && !inventory_armed &&
                                      (hovered_frame || hovered_part != `LP_PART_EMPTY)) begin
                             // Existing parts are only transferred when a valid drop is accepted.
@@ -256,6 +293,12 @@ module mouse_adapter (
                             if (hovered_part != `LP_PART_EMPTY) begin
                                 selected_part <= hovered_part;
                                 selected_left <= hovered_facing_left;
+                                case (hovered_part)
+                                    `LP_PART_ENGINE:  engine_facing_left <= hovered_facing_left;
+                                    `LP_PART_BOOSTER: rocket_facing_left <= hovered_facing_left;
+                                    `LP_PART_FAN:     fan_facing_left    <= hovered_facing_left;
+                                    default: begin end
+                                endcase
                             end else selected_part <= `LP_PART_FRAME;
                         end
                     end else if (!mouse_left && left_was_down) begin
@@ -274,6 +317,12 @@ module mouse_adapter (
                             edit_valid<=1; edit_op<=`LP_EDIT_PLACE; edit_cell<=drag_source;
                             edit_part<=selected_part; edit_facing_left<=!selected_left;
                             selected_left<=!selected_left;
+                            case (selected_part)
+                                `LP_PART_ENGINE:  engine_facing_left <= !selected_left;
+                                `LP_PART_BOOSTER: rocket_facing_left <= !selected_left;
+                                `LP_PART_FAN:     fan_facing_left    <= !selected_left;
+                                default: begin end
+                            endcase
                         end else if (place_pending && in_grid && (!drag_from_grid || hovered_cell != drag_source)) begin
                             edit_valid <= 1; edit_op <= `LP_EDIT_PLACE;
                             edit_cell <= hovered_cell;
