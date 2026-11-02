@@ -194,5 +194,19 @@
         "source_commit":  "3bd523c",
         "description":  "Role 4 test build (role4): as 233028 (latest main merged, widened Cave Flight gaps, TNT on both cave levels, star boxes off) with the map drawn on the OLED clock and SMOOTH_DRAW off, fixing flickering map pixels. 100 MHz timing met (WNS +0.059 ns); 98.20% LUTs, 96% BRAM",
         "sha256":  "228db3d3a98355ba89ea8ae8f3c08c0a4eddd86808623e510231acba9b0da3fc"
+    },
+    {
+        "path":  "2026-11-03/032459_My_Top_Module.bit",
+        "built":  "2026-11-03T03:24:59",
+        "source_commit":  "ad5a982",
+        "description":  "Superseded by 033811 (same source): project impl_1 flow missed 100 MHz by 0.362 ns on 18 mouse -\u003e drag_source endpoints. Star boxes back (TNT-sized sprite), Cave Flight first hump filled, Cave Arch TNT 1 at (588,260), 3 TNT slots. 98.25% LUTs",
+        "sha256":  "a58b49f8f2b634d92b64f593a194011d48f20fae0c2697bc7668eb0f9b57a5ed"
+    },
+    {
+        "path":  "2026-11-03/033811_My_Top_Module.bit",
+        "built":  "2026-11-03T03:38:11",
+        "source_commit":  "ad5a982",
+        "description":  "Role 4 test build (role4): star boxes back on both cave levels as a TNT-sized pale blue box with a yellow star (Arch: second arch right of its TNT; Flight: middle ledge top deck); Cave Flight first hump filled; Cave Arch TNT 1 moved up the first arch wall to (588,260); 3 TNT slots. Built with scripts/build_bitstream.tcl (phys_opt AggressiveExplore, route Explore). 100 MHz timing met (WNS +0.014 ns); 98.26% LUTs, 96% BRAM",
+        "sha256":  "7e3d7426c32566bf2ebff38fa09e328e92033e382e46d0850c82d10c3f858672"
     }
 ]
