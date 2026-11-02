@@ -10,6 +10,7 @@ module tnt_integration_tb;
     integer waited, explosions=0;
     reg [26:0] saved_grid;
     reg [8:0] saved_frames;
+    reg [8:0] impact_intact, impact_frames;
     My_Top_Module #(.ENABLE_BGM(0),.BUTTON_DEBOUNCE_CYCLES(2),.BUTTON_RELEASE_CYCLES(2),.WHEEL_LIMIT(2),
         .AUDIO_BEEP_CYCLES(1024),.AUDIO_NOTE_CYCLES(1024),.AUDIO_FADE_CYCLES(8)) dut (
         .clk(clk),.btnD(btnD),.btnC(btnC),.btnU(1'b0),.btnL(1'b0),.btnR(1'b0),.sw(16'd1),
@@ -68,6 +69,19 @@ module tnt_integration_tb;
         if (!dut.build_valid) $fatal(1,"Fixture build invalid");
         press_c();
         if (dut.game_state!=`LP_RUN) $fatal(1,"Launch failed");
+
+        // A hard terrain impact is only a collision response. It must not
+        // clear any runtime content or frame; TNT is the destructive path.
+        impact_intact = dut.intact_mask;
+        impact_frames = dut.frame_intact_mask;
+        force dut.collision_impact_valid = 1'b1;
+        force dut.collision_impact_flags = `LP_IMPACT_FLOOR;
+        begin_step(); commit_pose(4*256); finish_step();
+        release dut.collision_impact_valid;
+        release dut.collision_impact_flags;
+        if (dut.intact_mask !== impact_intact || dut.frame_intact_mask !== impact_frames)
+            $fatal(1,"Terrain impact incorrectly removed vehicle parts: before=%b/%b after=%b/%b",
+                   impact_intact, impact_frames, dut.intact_mask, dut.frame_intact_mask);
 
         // No TNT contact must still release physics for the next movement.
         begin_step(); commit_pose(4*256); finish_step();
