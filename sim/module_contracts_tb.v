@@ -112,7 +112,7 @@ module module_contracts_tb;
         builder_state=`LP_RUN; damage_mask=9'b000100000; damage_valid=1; clocks(1); damage_valid=0; clocks(1);
         if (engines!=0 || mass!=10 || grid[17:15]!=`LP_PART_ENGINE) $fatal(1,"Damage corrupted original build/properties");
         damage_mask=9'b000010000; damage_valid=1; clocks(3); damage_valid=0;
-        if (pig_alive) $fatal(1,"Pig destruction not applied");
+        if (!pig_alive || !intact[4]) $fatal(1,"Pig was not protected from runtime damage");
         builder_state=`LP_INIT_RUN; builder_init=1; clocks(2);
         if (!builder_ready || !pig_alive || engines!=1 || intact!=9'b101110000 ||
             frame_intact!=9'b000111000) $fatal(1,"Retry did not restore build");
@@ -139,9 +139,9 @@ module module_contracts_tb;
         if (state!=`LP_RUN) $fatal(1,"Ready modules did not start RUN");
         tick=1; clocks(1); tick=0; clocks(1);
         goal=1; live=0; world_valid=1; clocks(1); world_valid=0;
-        if (state!=`LP_FAIL || !failure_event || success_event) $fatal(1,"Goal incorrectly outranked pig death");
-        clocks(1); if (failure_event) $fatal(1,"Result audio event repeated");
-        $display("PASS module_contracts_tb: damage/retry, pixels, landing, backpressure, invalid launch, readiness, failure priority");
+        if (state!=`LP_SUCCESS || !success_event || failure_event) $fatal(1,"Protected pig did not allow goal success");
+        clocks(1); if (success_event) $fatal(1,"Result audio event repeated");
+        $display("PASS module_contracts_tb: damage/retry, pig protection, pixels, landing, backpressure, invalid launch, readiness");
         $finish;
     end
     initial begin #1000000; $fatal(1,"Module contracts test timed out"); end

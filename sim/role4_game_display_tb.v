@@ -204,10 +204,10 @@ module role4_game_display_tb;
         clocks(2); pulse(LEVEL);
         if (level_index !== 1) $fatal(1,"Level changed outside BUILD");
 
-        // Fail reasons in priority order: pig, hazard, then bounds.
+        // The pig is protected; hazard still has priority over bounds and goal.
         pulse(TICK); live=0; hazard=1; bounds=1; world_valid=1; clocks(1);
         world_valid=0; live=1; hazard=0; bounds=0; clocks(1);
-        if (state !== `LP_FAIL || fail_reason !== `LP_FAIL_PIG) $fatal(1,"Pig loss not reported first");
+        if (state !== `LP_FAIL || fail_reason !== `LP_FAIL_HAZARD) $fatal(1,"Hazard was not reported for a protected pig");
         pulse(RETRY); clocks(2);
         if (fail_reason !== `LP_FAIL_NONE || level_index !== 1) $fatal(1,"Retry kept old reason or changed level");
         pulse(TICK); hazard=1; bounds=1; goal=1; world_valid=1; clocks(1);
@@ -230,7 +230,7 @@ module role4_game_display_tb;
         pulse(LAUNCH); clocks(2);
         for (index = 0; index < 9; index = index + 1) pulse(TICK);
         if (run_seconds !== 2) $fatal(1,"Run timer wrong: %0d",run_seconds);
-        live=0; world_valid=1; clocks(1); world_valid=0; live=1; clocks(1);
+        live=0; hazard=1; world_valid=1; clocks(1); world_valid=0; live=1; hazard=0; clocks(1);
         pulse(TICK); pulse(TICK); pulse(TICK); pulse(TICK);
         if (state !== `LP_FAIL || run_seconds !== 2) $fatal(1,"Timer did not freeze on the result");
         pulse(RETRY); clocks(2);
