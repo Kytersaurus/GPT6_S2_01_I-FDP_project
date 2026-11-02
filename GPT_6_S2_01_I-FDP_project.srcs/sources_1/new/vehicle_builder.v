@@ -48,6 +48,8 @@ module vehicle_builder #(
     reg [8:0] content_mask;
     reg [8:0] runtime_intact, runtime_frames;
     integer mask_index;
+    integer damage_index;
+    reg [8:0] safe_damage_mask, safe_damage_frame_mask;
     // BUILD always shows the saved construction. Only RUN needs stored damage.
     assign intact_mask = game_state == `LP_BUILD ? content_mask : runtime_intact;
     assign frame_intact_mask = game_state == `LP_BUILD ? build_frames : runtime_frames;
@@ -55,6 +57,20 @@ module vehicle_builder #(
         content_mask=0;
         for (mask_index=0; mask_index<9; mask_index=mask_index+1)
             content_mask[mask_index]=(build_grid[mask_index*3 +: 3] != `LP_PART_EMPTY);
+    end
+
+    // All runtime damage sources share this final safety gate.  Protecting the
+    // pig here prevents a future damage source from accidentally bypassing the
+    // TNT rule, and also keeps its supporting frame intact.
+    always @* begin
+        safe_damage_mask = damage_mask;
+        safe_damage_frame_mask = damage_frame_mask;
+        for (damage_index=0; damage_index<9; damage_index=damage_index+1) begin
+            if (build_grid[damage_index*`LP_PART_BITS +: `LP_PART_BITS] == `LP_PART_PIG) begin
+                safe_damage_mask[damage_index] = 1'b0;
+                safe_damage_frame_mask[damage_index] = 1'b0;
+            end
+        end
     end
     reg placement_valid, stock_valid;
     integer index, saved_frames, saved_pigs, saved_wheels, saved_engines, saved_balloons, saved_rockets, saved_fans;
@@ -230,8 +246,8 @@ module vehicle_builder #(
                 end
             end
             else if (damage_valid && damage_ready) begin
-                runtime_intact <= runtime_intact & ~damage_mask;
-                runtime_frames <= runtime_frames & ~damage_frame_mask;
+                runtime_intact <= runtime_intact & ~safe_damage_mask;
+                runtime_frames <= runtime_frames & ~safe_damage_frame_mask;
             end
         end
     end

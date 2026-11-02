@@ -3,7 +3,12 @@
 `include "game_defs.vh"
 // Capture the route for the whole request/response transaction.
 // All levels now use registered ROM reads (map collision).
-module collision_engine #(parameter ROTATION_ONLY = 0) (
+module collision_engine #(
+    parameter ROTATION_ONLY = 0,
+    // Velocities are Q8.8. 512 is two pixels per physics update, high enough
+    // to distinguish a hard crash from normal gravity/contact correction.
+    parameter integer IMPACT_THRESHOLD = 512
+) (
     input wire clk, reset, move_valid,
     output wire move_ready,
     input wire signed [`LP_COORD_BITS-1:0] previous_x, previous_y,
@@ -35,7 +40,9 @@ module collision_engine #(parameter ROTATION_ONLY = 0) (
     output wire signed [9:0] support_left_q2, support_right_q2, support_y_q2,
     output wire signed [9:0] support_left_y_q2, support_right_y_q2,
     output wire signed [`LP_TILT_BITS-1:0] corrected_tilt,
-    output wire signed [1:0] tip_dir
+    output wire signed [1:0] tip_dir,
+    output reg impact_valid,
+    output reg [3:0] impact_flags
 );
     reg busy, active_rotation;
     wire rot_unstable;
@@ -68,6 +75,26 @@ module collision_engine #(parameter ROTATION_ONLY = 0) (
     assign corrected_vy = active_rotation ? rot_vy : map_vy;
     assign grounded = active_rotation ? rot_ground : map_ground;
     assign ground_slope = active_rotation ? rot_slope : map_slope;
+    // Collision engines deliberately return only the corrected pose.  Detect
+    // a hard contact at the shared response handshake, then let the top level
+    // translate the direction into the 3x3 edge mask.  This keeps the map
+    // scanners small and also reports both axes at a corner.
+    wire hard_down = $signed(proposed_vy) >= IMPACT_THRESHOLD;
+    wire hard_up = $signed(proposed_vy) <= -IMPACT_THRESHOLD;
+    wire hard_left = $signed(proposed_vx) <= -IMPACT_THRESHOLD;
+    wire hard_right = $signed(proposed_vx) >= IMPACT_THRESHOLD;
+    wire pose_corrected = (corrected_x != proposed_x) ||
+                          (corrected_y != proposed_y) ||
+                          (corrected_vx != proposed_vx) ||
+                          (corrected_vy != proposed_vy);
+    wire floor_impact = grounded && hard_down && pose_corrected;
+    wire ceiling_impact = !grounded && hard_up && pose_corrected &&
+                          (corrected_vy == 0 || corrected_y != proposed_y);
+    wire left_impact = hard_left && pose_corrected &&
+                       (corrected_vx == 0 || corrected_x != proposed_x);
+    wire right_impact = hard_right && pose_corrected &&
+                        (corrected_vx == 0 || corrected_x != proposed_x);
+
     assign ground_slope_valid = active_rotation ? rot_slope_valid : map_slope_valid;
     // The upright reference has no occupied-cell contact span. Do not invent
     // full-width support for an engine that has not measured it.
@@ -79,10 +106,24 @@ module collision_engine #(parameter ROTATION_ONLY = 0) (
     assign support_left_y_q2 = active_rotation ? rot_left_y_q2 : 10'sd0;
     assign support_right_y_q2 = active_rotation ? rot_right_y_q2 : 10'sd0;
     always @(posedge clk) begin
-        if (reset) begin busy <= 0; active_rotation <= ROTATION_ONLY; end
+        if (reset) begin
+            busy <= 0;
+            active_rotation <= ROTATION_ONLY;
+            impact_valid <= 0;
+            impact_flags <= 0;
+        end
         else begin
+            impact_valid <= 0;
+            impact_flags <= 0;
             if (move_valid && move_ready) begin busy <= 1; active_rotation <= use_rotation; end
-            if (response_valid && response_ready) busy <= 0;
+            if (response_valid && response_ready) begin
+                busy <= 0;
+                impact_valid <= floor_impact || ceiling_impact || left_impact || right_impact;
+                impact_flags <= (floor_impact ? `LP_IMPACT_FLOOR : 4'b0) |
+                                (ceiling_impact ? `LP_IMPACT_CEILING : 4'b0) |
+                                (left_impact ? `LP_IMPACT_LEFT : 4'b0) |
+                                (right_impact ? `LP_IMPACT_RIGHT : 4'b0);
+            end
         end
     end
     generate if (!ROTATION_ONLY) begin : g_upright_reference
@@ -118,7 +159,6 @@ module collision_engine #(parameter ROTATION_ONLY = 0) (
         .corrected_tilt(rot_tilt), .tip_dir(rot_tip)
     );
 endmodule
-
 // Upright 24x24 body against the pixel map. Each candidate body is checked
 // completely, including fractional edge pixels. One-pixel axis substeps sweep
 // thin obstacles. The ROM address is held for ISSUE then consumed in SAMPLE.
@@ -377,4 +417,3 @@ module map_collision_engine #(
         end
     end
 endmodule
-

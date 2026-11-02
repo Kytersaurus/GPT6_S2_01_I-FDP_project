@@ -196,9 +196,14 @@ module tnt_controller (
                         // Exact circular radius of 12 pixels, measured at cell centres.
                         if (distance_x<=12 && distance_y<=12 && distance_squared<=144) begin
                             if (intact_mask[cell_index] &&
-                                build_grid[cell_index*`LP_PART_BITS +: `LP_PART_BITS]!=`LP_PART_EMPTY)
+                                build_grid[cell_index*`LP_PART_BITS +: `LP_PART_BITS]!=`LP_PART_EMPTY &&
+                                build_grid[cell_index*`LP_PART_BITS +: `LP_PART_BITS]!=`LP_PART_PIG)
                                 damage_mask[cell_index]<=1;
-                            if (build_frames[cell_index] && frame_intact_mask[cell_index])
+                            // The pig and the frame directly supporting it are
+                            // indestructible in this game.  Other parts still
+                            // receive the same radius damage as before.
+                            if (build_frames[cell_index] && frame_intact_mask[cell_index] &&
+                                build_grid[cell_index*`LP_PART_BITS +: `LP_PART_BITS] != `LP_PART_PIG)
                                 damage_frame_mask[cell_index]<=1;
                         end
                         if (cell_index==8) state<=SEND_DAMAGE;
