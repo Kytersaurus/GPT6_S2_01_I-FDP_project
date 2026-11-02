@@ -185,18 +185,29 @@ module My_Top_Module #(
     wire collision_sound_event = game_state == `LP_RUN && response_valid && response_ready &&
                                  grounded && !audio_was_grounded && $signed(proposed_vy) >= 16'sd128;
     wire explosion_sound_event;
+    reg [5:0] airborne_ticks;
     always @(posedge clk) begin
-        if (reset) begin audio_was_grounded <= 0; previous_game_state <= `LP_BUILD; end
+        if (reset) begin audio_was_grounded <= 0; previous_game_state <= `LP_BUILD; airborne_ticks <= 6'd0; end
         else begin
             previous_game_state <= game_state;
-            if (run_init || game_state != `LP_RUN) audio_was_grounded <= 0;
-            else if (response_valid && response_ready) audio_was_grounded <= grounded;
+            if (run_init || game_state != `LP_RUN) begin
+                audio_was_grounded <= 0;
+                airborne_ticks <= 6'd0;
+            end
+            else if (response_valid && response_ready) begin
+                audio_was_grounded <= grounded;
+                if (!grounded) begin
+                    if (airborne_ticks < 6'd63) airborne_ticks <= airborne_ticks + 1'b1;
+                end else begin
+                    airborne_ticks <= 6'd0;
+                end
+            end
         end
     end
 
     // Crash impact: vehicle breaking on landing if it falls too hard
-    localparam signed [15:0] CRASH_VELOCITY_THRESHOLD = 16'sd448;
-    localparam signed [15:0] CRASH_FATAL_THRESHOLD    = 16'sd513;
+    localparam signed [15:0] CRASH_VELOCITY_THRESHOLD = 16'sd768;
+    localparam signed [15:0] CRASH_FATAL_THRESHOLD    = 16'sd1280;
     wire vehicle_is_flipped = (vehicle_tilt > 5'sd8 || vehicle_tilt < -5'sd8);
     reg impact_damage_valid;
     reg [8:0] impact_damage_mask;
@@ -209,7 +220,7 @@ module My_Top_Module #(
             impact_damage_frame_mask <= 9'd0;
         end else begin
             impact_damage_valid <= 1'b0;
-            if (response_valid && response_ready && grounded && !audio_was_grounded &&
+            if (response_valid && response_ready && grounded && !audio_was_grounded && airborne_ticks >= 6'd12 &&
                 $signed(proposed_vy) >= CRASH_VELOCITY_THRESHOLD) begin
                 impact_damage_valid <= 1'b1;
                 if ($signed(proposed_vy) >= CRASH_FATAL_THRESHOLD) begin
@@ -223,7 +234,7 @@ module My_Top_Module #(
                 end else begin
                     // Upright landing: bottom row (cells 6, 7, 8) breaks
                     impact_damage_mask <= 9'b111_000_000;
-                    impact_damage_frame_mask <= 9'b111_000_000;
+                    impact_damage_frame_mask <= 9'd0;
                 end
             end
         end

@@ -42,7 +42,9 @@ module mouse_adapter (
     localparam RECONFIG_POS_Y = 3'd7;
 
     reg [2:0] setup_state;
-    reg [1:0] last_speed;
+    reg [1:0] active_speed;
+    reg [6:0] frozen_cursor_x, frozen_cursor_y;
+    reg is_reconfiguring;
     reg [11:0] init_x_pos, init_y_pos;
 
     reg engine_facing_left;
@@ -60,18 +62,18 @@ module mouse_adapter (
     // Speed 1 (Norm, 1.0x): MouseCtl ranges 0..95, 0..63   -> 1:1 direct mapping = 0..95, 0..63
     // Speed 2 (Fast, 2.0x): MouseCtl ranges 0..47, 0..31   -> shift left 1 bit  = 0..95, 0..63
     wire [6:0] scaled_x = 
-        (safe_speed == 2'd0) ? ((mouse_x >= 12'd191) ? 7'd95 : mouse_x[7:1]) :
-        (safe_speed == 2'd2) ? ((mouse_x >= 12'd47)  ? 7'd95 : {mouse_x[5:0], 1'b0}) :
+        (active_speed == 2'd0) ? ((mouse_x >= 12'd191) ? 7'd95 : mouse_x[7:1]) :
+        (active_speed == 2'd2) ? ((mouse_x >= 12'd47)  ? 7'd95 : {mouse_x[5:0], 1'b0}) :
                                ((mouse_x >= 12'd95)  ? 7'd95 : mouse_x[6:0]);
 
     wire [6:0] scaled_y = 
-        (safe_speed == 2'd0) ? ((mouse_y >= 12'd127) ? 7'd63 : mouse_y[6:1]) :
-        (safe_speed == 2'd2) ? ((mouse_y >= 12'd31)  ? 7'd63 : {mouse_y[4:0], 1'b0}) :
+        (active_speed == 2'd0) ? ((mouse_y >= 12'd127) ? 7'd63 : mouse_y[6:1]) :
+        (active_speed == 2'd2) ? ((mouse_y >= 12'd31)  ? 7'd63 : {mouse_y[4:0], 1'b0}) :
                                ((mouse_y >= 12'd63)  ? 7'd63 : mouse_y[5:0]);
 
     reg has_moved;
-    assign cursor_x = (has_moved || mouse_event) ? scaled_x : 7'd24;
-    assign cursor_y = (has_moved || mouse_event) ? scaled_y : 7'd24;
+    assign cursor_x = is_reconfiguring ? frozen_cursor_x : ((has_moved || mouse_event) ? scaled_x : 7'd24);
+    assign cursor_y = is_reconfiguring ? frozen_cursor_y : ((has_moved || mouse_event) ? scaled_y : 7'd24);
 
     wire [11:0] cur_x = {5'd0, cursor_x};
     wire [11:0] cur_y = {5'd0, cursor_y};
@@ -159,7 +161,10 @@ module mouse_adapter (
         if (reset) begin
             has_moved <= 1'b0;
             setup_state <= SETUP_SETMAX_X;
-            last_speed <= safe_speed;
+            active_speed <= safe_speed;
+            is_reconfiguring <= 1'b0;
+            frozen_cursor_x <= 7'd24;
+            frozen_cursor_y <= 7'd24;
             init_x_pos <= 12'd24;
             init_y_pos <= 12'd24;
             left_was_down <= 0;
@@ -198,8 +203,10 @@ module mouse_adapter (
                 SETUP_SETMAX_Y: setup_state <= SETUP_SET_XY;
                 SETUP_SET_XY:   setup_state <= SETUP_IDLE;
                 SETUP_IDLE: begin
-                    if (safe_speed != last_speed) begin
-                        last_speed <= safe_speed;
+                    if (safe_speed != active_speed) begin
+                        frozen_cursor_x <= cursor_x;
+                        frozen_cursor_y <= cursor_y;
+                        is_reconfiguring <= 1'b1;
                         init_x_pos <= (safe_speed == 2'd0) ? {4'd0, cursor_x, 1'b0} :
                                       (safe_speed == 2'd2) ? {6'd0, cursor_x[6:1]} :
                                                              {5'd0, cursor_x};
@@ -212,7 +219,11 @@ module mouse_adapter (
                 RECONFIG_MAX_X: setup_state <= RECONFIG_MAX_Y;
                 RECONFIG_MAX_Y: setup_state <= RECONFIG_POS_X;
                 RECONFIG_POS_X: setup_state <= RECONFIG_POS_Y;
-                RECONFIG_POS_Y: setup_state <= SETUP_IDLE;
+                RECONFIG_POS_Y: begin
+                    setup_state <= SETUP_IDLE;
+                    active_speed <= safe_speed;
+                    is_reconfiguring <= 1'b0;
+                end
                 default: setup_state <= SETUP_IDLE;
             endcase
 

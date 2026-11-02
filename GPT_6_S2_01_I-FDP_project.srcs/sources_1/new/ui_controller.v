@@ -79,7 +79,7 @@ module ui_controller (
                         end else if (mx>=70 && mx<=95 && my>=50 && my<=63) begin
                             home_req <= 1;
                         // Back button: [ ◀ ] in bottom left/center: y: 50..63
-                        end else if ((mx>=4 && mx<=68 && my>=50 && my<=63) ||
+                        end else if ((mx>=28 && mx<=68 && my>=50 && my<=63) ||
                                      (mx<=34 && my>=50 && my<=63)) begin
                             level_close_req <= 1;
                         end
@@ -90,8 +90,6 @@ module ui_controller (
                                  ((my>=12 && my<32) || (my>=34 && my<54))) begin
                             selected_level <= (my>=34) ? 2'd1 : 2'd0;
                             level_select_req <= 1;
-                        end else if (my>=50 && my<64) begin
-                            level_close_req <= 1;
                         end
                     end else if (game_state==`LP_BUILD && my>=52 && my<64) begin
                         if (mx<18) launch_req <= 1;

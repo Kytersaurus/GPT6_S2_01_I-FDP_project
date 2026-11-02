@@ -112,6 +112,108 @@ module ui_renderer (
         end
     endfunction
 
+    // -------------------------------------------------------------------------
+    // Icon Glyph Helpers (Pure distributed logic / LUT ROMs - 0 BRAM, Rule 3)
+    // -------------------------------------------------------------------------
+    function is_back_arrow;
+        input signed [6:0] cx, cy, px, py;
+        reg signed [4:0] lx, ly;
+        reg [3:0] aly;
+        begin
+            lx = px - cx;
+            ly = py - cy;
+            aly = (ly < 0) ? -ly[3:0] : ly[3:0];
+            is_back_arrow = (lx >= -3 + $signed({1'b0, aly}) && lx <= 0 && aly <= 3) ||
+                            (lx >= 0 && lx <= 3 && aly <= 1);
+        end
+    endfunction
+
+    function is_home_icon;
+        input signed [6:0] cx, cy, px, py;
+        reg signed [4:0] lx, ly;
+        begin
+            lx = px - cx;
+            ly = py - cy;
+            is_home_icon = (ly == -3 && lx == 0) ||
+                           (ly == -2 && lx >= -1 && lx <= 1) ||
+                           (ly == -1 && lx >= -2 && lx <= 2) ||
+                           (ly == 0  && lx >= -3 && lx <= 3) ||
+                           (ly >= 1 && ly <= 3 && lx >= -3 && lx <= 3 && !(lx == 0 && ly >= 2));
+        end
+    endfunction
+
+    function is_checkmark_icon;
+        input signed [6:0] cx, cy, px, py;
+        reg signed [4:0] lx, ly;
+        begin
+            lx = px - cx;
+            ly = py - cy;
+            is_checkmark_icon = (lx == -3 && (ly == -1 || ly == 0)) ||
+                                (lx == -2 && (ly == 0  || ly == 1)) ||
+                                (lx == -1 && (ly == 1  || ly == 2)) ||
+                                (lx == 0  && (ly == 0  || ly == 1)) ||
+                                (lx == 1  && (ly == -1 || ly == 0)) ||
+                                (lx == 2  && (ly == -2 || ly == -1)) ||
+                                (lx == 3  && (ly == -3 || ly == -2));
+        end
+    endfunction
+
+    function is_retry_icon;
+        input signed [6:0] cx, cy, px, py;
+        reg signed [4:0] lx, ly;
+        begin
+            lx = px - cx;
+            ly = py - cy;
+            is_retry_icon = (ly == -3 && (lx == -1 || lx == 0)) ||
+                            (ly == 3  && lx >= -1 && lx <= 1) ||
+                            (lx == -3 && ly >= -1 && ly <= 1) ||
+                            (lx == 3  && (ly == 0 || ly == 1)) ||
+                            (lx == -2 && (ly == -2 || ly == 2)) ||
+                            (lx == 2  && ly == 2) ||
+                            (lx == 2  && ly >= -3 && ly <= -1) ||
+                            (lx == 1  && ly == -2) ||
+                            (lx == 3  && ly == -2);
+        end
+    endfunction
+
+    function is_stop_icon;
+        input signed [6:0] cx, cy, px, py;
+        reg signed [4:0] lx, ly;
+        begin
+            lx = px - cx;
+            ly = py - cy;
+            is_stop_icon = (lx >= -2 && lx <= 2 && ly >= -2 && ly <= 2);
+        end
+    endfunction
+
+    function is_wrench_icon;
+        input signed [6:0] cx, cy, px, py;
+        reg signed [4:0] lx, ly;
+        begin
+            lx = px - cx;
+            ly = py - cy;
+            is_wrench_icon = (lx >= 1 && lx <= 3 && ly >= -3 && ly <= -1 && !(lx == 2 && ly == -2)) ||
+                             (lx >= -2 && lx <= 1 && (lx == -ly || lx == -ly - 1)) ||
+                             ((lx == -3 && (ly == 2 || ly == 3)) || (lx == -2 && ly == 3));
+        end
+    endfunction
+
+    function is_play_icon;
+        input signed [6:0] cx, cy, px, py;
+        reg signed [4:0] lx, ly;
+        begin
+            lx = px - cx;
+            ly = py - cy;
+            is_play_icon = (lx == -3 && ly >= -3 && ly <= 3) ||
+                           (lx == -2 && ly >= -3 && ly <= 3) ||
+                           (lx == -1 && ly >= -2 && ly <= 2) ||
+                           (lx == 0  && ly >= -2 && ly <= 2) ||
+                           (lx == 1  && ly >= -1 && ly <= 1) ||
+                           (lx == 2  && ly >= -1 && ly <= 1) ||
+                           (lx == 3  && ly == 0);
+        end
+    endfunction
+
     // Run grid coordinates: 16x16 cells using shifts and masks (Rule 2: zero division/modulo)
     wire [1:0] run_col = (x - 7'd24) >> 4;
     wire [1:0] run_row = (y - 6'd2) >> 4;
@@ -227,7 +329,7 @@ module ui_renderer (
                 if (x <= 27) begin
                     if (x == 0 || x == 27 || y == 55 || y == 63) pixel_data = 16'h04b4;
                     else pixel_data = 16'h18e5;
-                    if (text_on("BACK            ", 2, 56, x, y)) pixel_data = 16'hffff;
+                    if (is_back_arrow(7'd14, 6'd59, x, y)) pixel_data = 16'hffff;
                 end else if (text_on("PICK A MAP      ", 32, 56, x, y)) pixel_data = 16'h7bef;
             end
         end else if (game_state == `LP_SETTINGS) begin
@@ -345,8 +447,8 @@ module ui_renderer (
                     pixel_data = 16'h0432;
                 else
                     pixel_data = 16'h18e5;
+                if (is_back_arrow(7'd48, 6'd57, x, y)) pixel_data = 16'hffff;
             end
-            if (text_on("BACK            ", 40, 54, x, y)) pixel_data = 16'hffff;
 
             // Bottom Right [ HOME ] Button (x: 70..95, y: 52..62)
             if (x >= 70 && x <= 95 && y >= 52 && y <= 62) begin
@@ -356,7 +458,7 @@ module ui_renderer (
                     pixel_data = 16'h0432;
                 else
                     pixel_data = 16'h18e5;
-                if (text_on("HOME            ", 72, 54, x, y)) pixel_data = 16'hffff;
+                if (is_home_icon(7'd82, 6'd57, x, y)) pixel_data = 16'hffff;
             end
 
         end else if (game_state == `LP_GUIDE) begin
@@ -455,7 +557,7 @@ module ui_renderer (
                 if (x <= 27) begin
                     if (x == 0 || x == 27 || y == 55 || y == 63) pixel_data = 16'h04b4;
                     else pixel_data = 16'h18e5;
-                    if (text_on("BACK            ", 2, 56, x, y)) pixel_data = 16'hffff;
+                    if (is_back_arrow(7'd14, 6'd59, x, y)) pixel_data = 16'hffff;
                 end else if (diary_page != 3) begin
                     if (x >= 32 && x <= 51) begin
                         if (x == 32 || x == 51 || y == 55 || y == 63)
@@ -486,7 +588,7 @@ module ui_renderer (
                     if (x == 0 || x == 17 || y == 55 || y == 63)
                         pixel_data = build_valid ? 16'h07e0 : 16'h4208;
                     else pixel_data = build_valid ? 16'h18e5 : 16'h18c3;
-                    if (text_on("GO              ", 4, 56, x, y)) pixel_data = build_valid ? 16'hffff : 16'h7bef;
+                    if (is_checkmark_icon(7'd8, 6'd59, x, y)) pixel_data = build_valid ? 16'h07e0 : 16'h7bef;
                 end
                 // Inventory Page 1 / 2 Buttons
                 else if (x >= 20 && x < 62) begin
@@ -585,7 +687,7 @@ module ui_renderer (
                         if (x == 2 || x == 22 || y == 53 || y == 63) pixel_data = 16'h04b4;
                         else if (cursor_x >= 2 && cursor_x <= 22 && cursor_y >= 54 && cursor_y <= 63) pixel_data = 16'h0351;
                         else pixel_data = 16'h18e5;
-                        if (text_on("TRY             ", 4, 55, x, y)) pixel_data = 16'hffff;
+                        if (is_retry_icon(7'd12, 6'd58, x, y)) pixel_data = 16'hffff;
                     end
 
                     // Button 2: [ END TRY ] (x: 26..44)
@@ -593,7 +695,7 @@ module ui_renderer (
                         if (x == 26 || x == 44 || y == 53 || y == 63) pixel_data = 16'h04b4;
                         else if (cursor_x >= 26 && cursor_x <= 44 && cursor_y >= 54 && cursor_y <= 63) pixel_data = 16'h0351;
                         else pixel_data = 16'h18e5;
-                        if (text_on("END             ", 27, 55, x, y)) pixel_data = 16'hf800; // Red text
+                        if (is_stop_icon(7'd35, 6'd58, x, y)) pixel_data = 16'hf800; // Red stop icon
                     end
 
                     // Button 3: [ EDIT ] (x: 48..72)
@@ -601,7 +703,7 @@ module ui_renderer (
                         if (x == 48 || x == 72 || y == 53 || y == 63) pixel_data = 16'h04b4;
                         else if (cursor_x >= 48 && cursor_x <= 72 && cursor_y >= 54 && cursor_y <= 63) pixel_data = 16'h0351;
                         else pixel_data = 16'h18e5;
-                        if (text_on("EDIT            ", 49, 55, x, y)) pixel_data = 16'h07ff;
+                        if (is_wrench_icon(7'd60, 6'd58, x, y)) pixel_data = 16'h07ff;
                     end
 
                     // Button 4: [ GEAR ] (x: 74..94)
@@ -615,27 +717,55 @@ module ui_renderer (
             end
         end else if (game_state == `LP_SUCCESS || game_state == `LP_FAIL) begin
             // -----------------------------------------------------------------
-            // RESULT SCREEN
+            // RESULT SCREEN: Pure Icon Toolbar
             // -----------------------------------------------------------------
-            if (y >= 55) begin
-                pixel_data = 16'h0841;
-                // TRY button
-                if (x < 28) begin
-                    if (x == 0 || x == 27 || y == 55 || y == 63) pixel_data = 16'h04b4;
-                    else pixel_data = 16'h18e5;
-                    if (text_on("HOME            ", 2, 56, x, y)) pixel_data = 16'hffff;
-                end
-                // NEXT / EDIT button
-                else if (x >= 32 && x < 60) begin
-                    if (x == 32 || x == 59 || y == 55 || y == 63) pixel_data = 16'h04b4;
-                    else pixel_data = 16'h18e5;
-                    if (text_on(game_state == `LP_SUCCESS ? "NEXT            " : "EDIT            ", 34, 56, x, y)) pixel_data = 16'hffff;
-                end
-                // DIARY button
-                else if (x >= 64) begin
-                    if (x == 64 || x == 95 || y == 55 || y == 63) pixel_data = 16'h04b4;
-                    else pixel_data = 16'h18e5;
-                    if (text_on("DIARY           ", 65, 56, x, y)) pixel_data = 16'hffff;
+            if (y >= 53) begin
+                if (y == 53) pixel_data = 16'h04b4; // Top separator line
+                else begin
+                    // Button 1: [ HOME ] (x: 2..22)
+                    if (x >= 2 && x <= 22) begin
+                        if (x == 2 || x == 22 || y == 54 || y == 63) pixel_data = 16'h04b4;
+                        else if (cursor_x >= 2 && cursor_x <= 22 && cursor_y >= 54 && cursor_y <= 63) pixel_data = 16'h0351;
+                        else pixel_data = 16'h18e5;
+                        if (is_home_icon(7'd12, 6'd58, x, y)) pixel_data = 16'hffff;
+                    end
+                    // Button 2: [ MAP SELECT ] (x: 26..46)
+                    else if (x >= 26 && x <= 46) begin
+                        if (x == 26 || x == 46 || y == 54 || y == 63) pixel_data = 16'h04b4;
+                        else if (cursor_x >= 26 && cursor_x <= 46 && cursor_y >= 54 && cursor_y <= 63) pixel_data = 16'h0351;
+                        else pixel_data = 16'h18e5;
+                        // Folded Parchment Map Icon at center (36, 58)
+                        if (x >= 32 && x <= 40 && y >= 55 && y <= 61) begin
+                            if (y == 55 || y == 61 || x == 32 || x == 40) pixel_data = 16'h8a22;
+                            else if (x == 35 || x == 37) pixel_data = 16'hb530;
+                            else if (x == 36 && y == 58) pixel_data = 16'hf800;
+                            else pixel_data = 16'hffdf;
+                        end
+                    end
+                    // Button 3: [ NEXT / EDIT ] (x: 50..70)
+                    else if (x >= 50 && x <= 70) begin
+                        if (x == 50 || x == 70 || y == 54 || y == 63) pixel_data = 16'h04b4;
+                        else if (cursor_x >= 50 && cursor_x <= 70 && cursor_y >= 54 && cursor_y <= 63) pixel_data = 16'h0351;
+                        else pixel_data = 16'h18e5;
+                        if (game_state == `LP_SUCCESS) begin
+                            if (is_play_icon(7'd60, 6'd58, x, y)) pixel_data = 16'h07e0; // Bright green play triangle
+                        end else begin
+                            if (is_wrench_icon(7'd60, 6'd58, x, y)) pixel_data = 16'h07ff; // Cyan wrench
+                        end
+                    end
+                    // Button 4: [ GUIDE ] (x: 74..94)
+                    else if (x >= 74 && x <= 94) begin
+                        if (x == 74 || x == 94 || y == 54 || y == 63) pixel_data = 16'h04b4;
+                        else if (cursor_x >= 74 && cursor_x <= 94 && cursor_y >= 54 && cursor_y <= 63) pixel_data = 16'h0351;
+                        else pixel_data = 16'h18e5;
+                        // Open Book Icon at center (84, 58)
+                        if (x >= 79 && x <= 89 && y >= 55 && y <= 61) begin
+                            if (x == 84) pixel_data = 16'h8a22; // Spine
+                            else if (y == 55 || y == 61 || x == 79 || x == 89) pixel_data = 16'h8a22; // Cover
+                            else if (y == 57 || y == 59) pixel_data = 16'h0010; // Text lines
+                            else pixel_data = 16'hffff; // Pages
+                        end
+                    end
                 end
             end
         end

@@ -1,5 +1,12 @@
 [
     {
+        "path": "2026-11-02/113538_My_Top_Module.bit",
+        "built": "2026-11-02T11:35:38",
+        "source_commit": "de54989",
+        "description": "LATEST & RECOMMENDED: Integrated with Physics Rework PR #9. Fixed mouse cursor teleportation across sensitivity adjustments via coordinate freeze & active speed switching. Calibrated landing impact damage with airborne ticks filter (>=12 ticks, v_y>=768 upright, v_y>=1280 fatal) and frame preservation on minor impact. Replaced legacy UI text with pure icon glyphs across Build, Run, Settings, Level Select, and Guide/Diary screens at 0 extra BRAM. All 74 simulations passed (100%); 100 MHz timing met with +0.003 ns WNS, +0.045 ns WHS, 19,677 LUTs (94.60%), exactly 48/50 BRAM tiles (96.00%, zero extra BRAM).",
+        "sha256": "d20010414921fd1de5a51f8e57cd5581ffeb4fb4d19d6667d37f8a77e25a6bb5"
+    },
+    {
         "path": "2026-11-01/210620_My_Top_Module.bit",
         "built": "2026-11-01T21:06:20",
         "source_commit": "70f19c8",
