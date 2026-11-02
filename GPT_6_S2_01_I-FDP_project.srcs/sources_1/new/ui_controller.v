@@ -56,9 +56,8 @@ module ui_controller (
                 left_was_down<=mouse_left;
                 if (input_enabled && mouse_left && !left_was_down && !mouse_right) begin
                     if (start_screen_active) begin
-                        // Play button: centered at (48, 40)
-                        if ((mx >= 36 && mx <= 60 && my >= 28 && my <= 52) ||
-                            (mx >= 24 && mx <= 71 && my >= 26 && my <= 54))
+                        // Play button: centered at (48, 40), radius 9
+                        if (mx >= 38 && mx <= 58 && my >= 30 && my <= 50)
                             launch_req <= 1;
                         // Settings [ GEAR ]: bottom-left (2..22, 44..62) or legacy top-right (82..94, 2..14)
                         else if ((mx >= 2 && mx <= 22 && my >= 44 && my <= 62) ||
@@ -103,7 +102,7 @@ module ui_controller (
                                 master_volume <= master_volume + 1;
                         end
                         if (my>=50 && my<64) begin
-                            if (mx<32 || diary_page==3) guide_close_req <= 1;
+                            if (mx<32) guide_close_req <= 1;
                             else if (diary_page!=3 && mx>=32 && mx<95)
                                 diary_page <= mx<53 ? 2'd0 : mx<74 ? 2'd1 : 2'd2;
                         end

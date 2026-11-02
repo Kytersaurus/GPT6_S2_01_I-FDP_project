@@ -164,15 +164,14 @@ module ui_renderer (
         begin
             lx = px - cx;
             ly = py - cy;
-            is_retry_icon = (ly == -3 && (lx == -1 || lx == 0)) ||
-                            (ly == 3  && lx >= -1 && lx <= 1) ||
+            // Clean, uncluttered circular refresh arrow
+            is_retry_icon = (ly == -3 && lx >= -1 && lx <= 1) ||
                             (lx == -3 && ly >= -1 && ly <= 1) ||
-                            (lx == 3  && (ly == 0 || ly == 1)) ||
-                            (lx == -2 && (ly == -2 || ly == 2)) ||
-                            (lx == 2  && ly == 2) ||
-                            (lx == 2  && ly >= -3 && ly <= -1) ||
-                            (lx == 1  && ly == -2) ||
-                            (lx == 3  && ly == -2);
+                            (ly == 3  && lx >= -1 && lx <= 1) ||
+                            (lx == 3  && ly >= 0  && ly <= 1) ||
+                            ((lx == -2 || lx == 2) && (ly == -2 || ly == 2) && !(lx == 2 && ly == -2)) ||
+                            (lx == 2 && ly == -3) ||
+                            (lx == 1 && (ly == -4 || ly == -2));
         end
     endfunction
 
@@ -186,15 +185,46 @@ module ui_renderer (
         end
     endfunction
 
-    function is_wrench_icon;
+    function [15:0] cartoon_pencil;
+        input signed [6:0] cx, cy, px, py;
+        input [15:0] bg;
+        reg signed [4:0] lx, ly;
+        begin
+            lx = px - cx;
+            ly = py - cy;
+            // 45-degree angled pencil: graphite tip at (-3, 3), pink eraser at (3, -3)
+            if (lx == -3 && ly == 3)
+                cartoon_pencil = 16'h0000; // Graphite lead tip
+            else if ((lx == -2 && ly == 2) || (lx == -3 && ly == 2) || (lx == -2 && ly == 3))
+                cartoon_pencil = 16'hfdf0; // Wood sharpened collar
+            else if ((lx == -1 && (ly == 0 || ly == 1)) ||
+                     (lx == 0  && (ly == -1 || ly == 0 || ly == 1)) ||
+                     (lx == 1  && (ly == -2 || ly == -1 || ly == 0)) ||
+                     (lx == 2  && (ly == -2 || ly == -1)))
+                cartoon_pencil = 16'hffe0; // Yellow pencil shaft
+            else if ((lx == 2 && ly == -3) || (lx == 3 && ly == -2))
+                cartoon_pencil = 16'hc618; // Silver ferrule band
+            else if (lx == 3 && ly == -3)
+                cartoon_pencil = 16'hfcee; // Pink eraser
+            else
+                cartoon_pencil = bg;
+        end
+    endfunction
+
+    function is_pencil_icon;
         input signed [6:0] cx, cy, px, py;
         reg signed [4:0] lx, ly;
         begin
             lx = px - cx;
             ly = py - cy;
-            is_wrench_icon = (lx >= 1 && lx <= 3 && ly >= -3 && ly <= -1 && !(lx == 2 && ly == -2)) ||
-                             (lx >= -2 && lx <= 1 && (lx == -ly || lx == -ly - 1)) ||
-                             ((lx == -3 && (ly == 2 || ly == 3)) || (lx == -2 && ly == 3));
+            is_pencil_icon = (cartoon_pencil(cx, cy, px, py, 16'h1111) != 16'h1111);
+        end
+    endfunction
+
+    function is_wrench_icon;
+        input signed [6:0] cx, cy, px, py;
+        begin
+            is_wrench_icon = is_pencil_icon(cx, cy, px, py);
         end
     endfunction
 
@@ -359,24 +389,25 @@ module ui_renderer (
                     (x == 24 && (y == 19 || y == 25)))
                     pixel_data = 16'hffe0;
 
-                // Red mute slash across speaker if muted (Rule 2: zero division)
-                if (audio_muted && ((x == 11 && y == 17) || (x == 12 && y == 18) || (x == 13 && y == 19) ||
-                                    (x == 14 && y == 20) || (x == 15 && y == 21) || (x == 16 && y == 21) ||
-                                    (x == 17 && y == 22) || (x == 18 && y == 23) || (x == 19 && y == 24) ||
-                                    (x == 20 && y == 24) || (x == 21 && y == 25) || (x == 22 && y == 26) ||
-                                    (x == 23 && y == 27) || (x == 24 && y == 28)))
+                // Red mute slash across speaker if muted (3-pixel thick diagonal slash)
+                if (audio_muted && (x >= 10 && x <= 25 && y >= 16 && y <= 29 &&
+                                    (x - y + 6 >= 0 && x - y + 6 <= 2)))
                     pixel_data = 16'hf800;
 
-                // 4 Stepped Volume Bars (x: 10..25, y: 33..44)
+                // 4 Stepped Volume Bars (x: 10..25, y: 33..44) or "MUTE" status
                 if (y >= 33 && y <= 44) begin
-                    if (x >= 11 && x <= 13 && y >= 42)
-                        pixel_data = (!audio_muted && master_volume >= 1) ? 16'h07e0 : 16'h2945;
-                    else if (x >= 15 && x <= 17 && y >= 39)
-                        pixel_data = (!audio_muted && master_volume >= 2) ? 16'h07e0 : 16'h2945;
-                    else if (x >= 19 && x <= 21 && y >= 36)
-                        pixel_data = (!audio_muted && master_volume >= 3) ? 16'h07e0 : 16'h2945;
-                    else if (x >= 23 && x <= 25 && y >= 33)
-                        pixel_data = (!audio_muted && master_volume >= 4) ? 16'h07e0 : 16'h2945;
+                    if (audio_muted) begin
+                        if (text_on("MUTE            ", 8, 36, x, y)) pixel_data = 16'hf800;
+                    end else begin
+                        if (x >= 11 && x <= 13 && y >= 42)
+                            pixel_data = (master_volume >= 1) ? 16'h07e0 : 16'h2945;
+                        else if (x >= 15 && x <= 17 && y >= 39)
+                            pixel_data = (master_volume >= 2) ? 16'h07e0 : 16'h2945;
+                        else if (x >= 19 && x <= 21 && y >= 36)
+                            pixel_data = (master_volume >= 3) ? 16'h07e0 : 16'h2945;
+                        else if (x >= 23 && x <= 25 && y >= 33)
+                            pixel_data = (master_volume >= 4) ? 16'h07e0 : 16'h2945;
+                    end
                 end
             end
 
@@ -532,16 +563,17 @@ module ui_renderer (
                     end
                     if (text_on(" -              ", 12, 28, x, y)) pixel_data = 16'hffff;
 
-                    // Volume readout: wide layout x: 38..56, y: 28
-                    case (master_volume)
-                        0: if (text_on("0/4             ", 40, 28, x, y)) pixel_data = 16'h07ff;
-                        1: if (text_on("1/4             ", 40, 28, x, y)) pixel_data = 16'h07ff;
-                        2: if (text_on("2/4             ", 40, 28, x, y)) pixel_data = 16'h07ff;
-                        3: if (text_on("3/4             ", 40, 28, x, y)) pixel_data = 16'h07ff;
-                        default: if (text_on("4/4             ", 40, 28, x, y)) pixel_data = 16'h07ff;
-                    endcase
+                    // 4 Stepped Volume Indicator Bars (x: 34..58, y: 25..37)
+                    if (x >= 34 && x <= 37 && y >= 34 && y <= 37)
+                        pixel_data = (!audio_muted && master_volume >= 1) ? 16'h07e0 : 16'h2945;
+                    else if (x >= 41 && x <= 44 && y >= 31 && y <= 37)
+                        pixel_data = (!audio_muted && master_volume >= 2) ? 16'h07e0 : 16'h2945;
+                    else if (x >= 48 && x <= 51 && y >= 28 && y <= 37)
+                        pixel_data = (!audio_muted && master_volume >= 3) ? 16'h07e0 : 16'h2945;
+                    else if (x >= 55 && x <= 58 && y >= 25 && y <= 37)
+                        pixel_data = (!audio_muted && master_volume >= 4) ? 16'h07e0 : 16'h2945;
 
-                    // Button [+]: x: 64..84, y: 24..37 (never overlaps 4/4 readout)
+                    // Button [+]: x: 64..84, y: 24..37
                     if (x >= 64 && x <= 84 && y >= 24 && y <= 37) begin
                         if (x == 64 || x == 84 || y == 24 || y == 37) pixel_data = 16'h04b4;
                         else if (cursor_x >= 64 && cursor_x <= 84 && cursor_y >= 24 && cursor_y <= 37) pixel_data = 16'h0351;
@@ -549,14 +581,24 @@ module ui_renderer (
                     end
                     if (text_on(" +              ", 68, 28, x, y)) pixel_data = 16'hffff;
 
+                    // Switch 1 (Mute) Status Banner
+                    if (audio_muted) begin
+                        if (text_on("SW1: MUTED      ", 12, 43, x, y)) pixel_data = 16'hf800; // Red
+                    end else begin
+                        if (text_on("SW1: ACTIVE     ", 12, 43, x, y)) pixel_data = 16'h07e0; // Green
+                    end
                 end
             endcase
 
             // Bottom toolbar: [BACK] [ 1 ] [ 2 ] [ 3 ]
             if (y >= 55) begin
                 if (x <= 27) begin
-                    if (x == 0 || x == 27 || y == 55 || y == 63) pixel_data = 16'h04b4;
-                    else pixel_data = 16'h18e5;
+                    if (x == 0 || x == 27 || y == 55 || y == 63)
+                        pixel_data = (cursor_x <= 27 && cursor_y >= 55) ? 16'hffe0 : 16'h04b4;
+                    else if (cursor_x <= 27 && cursor_y >= 55)
+                        pixel_data = 16'h0432; // Ocean teal hover glow
+                    else
+                        pixel_data = 16'h18e5;
                     if (is_back_arrow(7'd14, 6'd59, x, y)) pixel_data = 16'hffff;
                 end else if (diary_page != 3) begin
                     if (x >= 32 && x <= 51) begin
@@ -622,9 +664,20 @@ module ui_renderer (
             // -----------------------------------------------------------------
             pixel_data = 16'h0841;
 
-            // 1. Left Panel (x: 0..23, y: 0..50): Clean background
+            // 1. Left Panel (x: 0..23, y: 0..50): Engine SW0 Status Banner
             if (x < 24 && y <= 50) begin
-                pixel_data = 16'h0841;
+                if (engine_available && !sw0_engine) begin
+                    // Warning Box: Engine OFF by SW0
+                    if (x >= 1 && x <= 22 && y >= 10 && y <= 42) begin
+                        if (x == 1 || x == 22 || y == 10 || y == 42) pixel_data = 16'hf800;
+                        else pixel_data = 16'h3000;
+                    end
+                    if (text_on("ENG             ", 3, 13, x, y)) pixel_data = 16'hf800;
+                    if (text_on("OFF             ", 3, 23, x, y)) pixel_data = 16'hffe0;
+                    if (text_on("SW0             ", 3, 33, x, y)) pixel_data = 16'hffff;
+                end else begin
+                    pixel_data = 16'h0841;
+                end
             end
 
             // 2. Middle Panel (x: 24..71, y: 2..49): Big 16x16 Interactive Vehicle Grid
@@ -651,7 +704,7 @@ module ui_renderer (
                     // Part sprite layer with active / dimmed rendering
                     if (intact_mask[run_cell_index] && run_part != `LP_PART_EMPTY) begin
                         if (run_part == `LP_PART_ENGINE) begin
-                            if (engine_enabled) begin
+                            if (engine_enabled && sw0_engine) begin
                                 pixel_data = part_sprite_facing(run_part, run_cell_x, run_cell_y, 16, build_facing_left[run_cell_index], anim_phase, pixel_data);
                             end else begin
                                 // Grayed out / dimmed inactive engine
@@ -678,93 +731,87 @@ module ui_renderer (
                 pixel_data = 16'h0841;
             end
 
-            // 4. Bottom Action Bar (y: 52..63): [ TRY ] | [ END ] | [ EDIT ] | [ GEAR ]
-            if (y >= 52) begin
-                if (y == 52) pixel_data = 16'h04b4; // Separator line
-                else begin
-                    // Button 1: [ TRY ] (x: 2..22)
-                    if (x >= 2 && x <= 22) begin
-                        if (x == 2 || x == 22 || y == 53 || y == 63) pixel_data = 16'h04b4;
-                        else if (cursor_x >= 2 && cursor_x <= 22 && cursor_y >= 54 && cursor_y <= 63) pixel_data = 16'h0351;
-                        else pixel_data = 16'h18e5;
-                        if (is_retry_icon(7'd12, 6'd58, x, y)) pixel_data = 16'hffff;
-                    end
+            // 4. Bottom Action Bar (y: 53..63): [ TRY ] | [ END ] | [ EDIT ] | [ GEAR ]
+            if (y >= 53) begin
+                // Button 1: [ TRY ] (x: 2..22)
+                if (x >= 2 && x <= 22) begin
+                    if (x == 2 || x == 22 || y == 53 || y == 63) pixel_data = 16'h04b4;
+                    else if (cursor_x >= 2 && cursor_x <= 22 && cursor_y >= 54 && cursor_y <= 63) pixel_data = 16'h0351;
+                    else pixel_data = 16'h18e5;
+                    if (is_retry_icon(7'd12, 6'd58, x, y)) pixel_data = 16'hffff;
+                end
 
-                    // Button 2: [ END TRY ] (x: 26..44)
-                    else if (x >= 26 && x <= 44) begin
-                        if (x == 26 || x == 44 || y == 53 || y == 63) pixel_data = 16'h04b4;
-                        else if (cursor_x >= 26 && cursor_x <= 44 && cursor_y >= 54 && cursor_y <= 63) pixel_data = 16'h0351;
-                        else pixel_data = 16'h18e5;
-                        if (is_stop_icon(7'd35, 6'd58, x, y)) pixel_data = 16'hf800; // Red stop icon
-                    end
+                // Button 2: [ END TRY ] (x: 26..44)
+                else if (x >= 26 && x <= 44) begin
+                    if (x == 26 || x == 44 || y == 53 || y == 63) pixel_data = 16'h04b4;
+                    else if (cursor_x >= 26 && cursor_x <= 44 && cursor_y >= 54 && cursor_y <= 63) pixel_data = 16'h0351;
+                    else pixel_data = 16'h18e5;
+                    if (is_stop_icon(7'd35, 6'd58, x, y)) pixel_data = 16'hf800; // Red stop icon
+                end
 
-                    // Button 3: [ EDIT ] (x: 48..72)
-                    else if (x >= 50 && x <= 72) begin
-                        if (x == 50 || x == 72 || y == 53 || y == 63) pixel_data = 16'h04b4;
-                        else if (cursor_x >= 50 && cursor_x <= 72 && cursor_y >= 54 && cursor_y <= 63) pixel_data = 16'h0351;
-                        else pixel_data = 16'h18e5;
-                        if (is_wrench_icon(7'd60, 6'd58, x, y)) pixel_data = 16'h07ff;
-                    end
+                // Button 3: [ EDIT ] (x: 50..72) - Pencil Icon
+                else if (x >= 50 && x <= 72) begin
+                    if (x == 50 || x == 72 || y == 53 || y == 63) pixel_data = 16'h04b4;
+                    else if (cursor_x >= 50 && cursor_x <= 72 && cursor_y >= 54 && cursor_y <= 63) pixel_data = 16'h0351;
+                    else pixel_data = 16'h18e5;
+                    pixel_data = cartoon_pencil(7'd60, 6'd58, x, y, pixel_data);
+                end
 
-                    // Button 4: [ GEAR ] (x: 74..94)
-                    else if (x >= 74 && x <= 94) begin
-                        if (x == 74 || x == 94 || y == 53 || y == 63) pixel_data = 16'h04b4;
-                        else if (cursor_x >= 74 && cursor_x <= 94 && cursor_y >= 54 && cursor_y <= 63) pixel_data = 16'h0351;
-                        else pixel_data = 16'h18e5;
-                        pixel_data = cartoon_gear(7'd84, 6'd58, x, y, pixel_data);
-                    end
+                // Button 4: [ GEAR ] (x: 74..94)
+                else if (x >= 74 && x <= 94) begin
+                    if (x == 74 || x == 94 || y == 53 || y == 63) pixel_data = 16'h04b4;
+                    else if (cursor_x >= 74 && cursor_x <= 94 && cursor_y >= 54 && cursor_y <= 63) pixel_data = 16'h0351;
+                    else pixel_data = 16'h18e5;
+                    pixel_data = cartoon_gear(7'd84, 6'd58, x, y, pixel_data);
                 end
             end
         end else if (game_state == `LP_SUCCESS || game_state == `LP_FAIL) begin
             // -----------------------------------------------------------------
             // RESULT SCREEN: Pure Icon Toolbar
             // -----------------------------------------------------------------
-            if (y >= 53) begin
-                if (y == 53) pixel_data = 16'h04b4; // Top separator line
-                else begin
-                    // Button 1: [ HOME ] (x: 2..22)
-                    if (x >= 2 && x <= 22) begin
-                        if (x == 2 || x == 22 || y == 54 || y == 63) pixel_data = 16'h04b4;
-                        else if (cursor_x >= 2 && cursor_x <= 22 && cursor_y >= 54 && cursor_y <= 63) pixel_data = 16'h0351;
-                        else pixel_data = 16'h18e5;
-                        if (is_home_icon(7'd12, 6'd58, x, y)) pixel_data = 16'hffff;
+            if (y >= 54) begin
+                // Button 1: [ HOME ] (x: 2..22)
+                if (x >= 2 && x <= 22) begin
+                    if (x == 2 || x == 22 || y == 54 || y == 63) pixel_data = 16'h04b4;
+                    else if (cursor_x >= 2 && cursor_x <= 22 && cursor_y >= 54 && cursor_y <= 63) pixel_data = 16'h0351;
+                    else pixel_data = 16'h18e5;
+                    if (is_home_icon(7'd12, 6'd58, x, y)) pixel_data = 16'hffff;
+                end
+                // Button 2: [ MAP SELECT ] (x: 26..46)
+                else if (x >= 26 && x <= 46) begin
+                    if (x == 26 || x == 46 || y == 54 || y == 63) pixel_data = 16'h04b4;
+                    else if (cursor_x >= 26 && cursor_x <= 46 && cursor_y >= 54 && cursor_y <= 63) pixel_data = 16'h0351;
+                    else pixel_data = 16'h18e5;
+                    // Folded Parchment Map Icon at center (36, 58)
+                    if (x >= 32 && x <= 40 && y >= 55 && y <= 61) begin
+                        if (y == 55 || y == 61 || x == 32 || x == 40) pixel_data = 16'h8a22;
+                        else if (x == 35 || x == 37) pixel_data = 16'hb530;
+                        else if (x == 36 && y == 58) pixel_data = 16'hf800;
+                        else pixel_data = 16'hffdf;
                     end
-                    // Button 2: [ MAP SELECT ] (x: 26..46)
-                    else if (x >= 26 && x <= 46) begin
-                        if (x == 26 || x == 46 || y == 54 || y == 63) pixel_data = 16'h04b4;
-                        else if (cursor_x >= 26 && cursor_x <= 46 && cursor_y >= 54 && cursor_y <= 63) pixel_data = 16'h0351;
-                        else pixel_data = 16'h18e5;
-                        // Folded Parchment Map Icon at center (36, 58)
-                        if (x >= 32 && x <= 40 && y >= 55 && y <= 61) begin
-                            if (y == 55 || y == 61 || x == 32 || x == 40) pixel_data = 16'h8a22;
-                            else if (x == 35 || x == 37) pixel_data = 16'hb530;
-                            else if (x == 36 && y == 58) pixel_data = 16'hf800;
-                            else pixel_data = 16'hffdf;
-                        end
+                end
+                // Button 3: [ NEXT / EDIT ] (x: 50..70) - Pencil Icon on Fail
+                else if (x >= 50 && x <= 70) begin
+                    if (x == 50 || x == 70 || y == 54 || y == 63) pixel_data = 16'h04b4;
+                    else if (cursor_x >= 50 && cursor_x <= 70 && cursor_y >= 54 && cursor_y <= 63) pixel_data = 16'h0351;
+                    else pixel_data = 16'h18e5;
+                    if (game_state == `LP_SUCCESS) begin
+                        if (is_play_icon(7'd60, 6'd58, x, y)) pixel_data = 16'h07e0; // Bright green play triangle
+                    end else begin
+                        pixel_data = cartoon_pencil(7'd60, 6'd58, x, y, pixel_data);
                     end
-                    // Button 3: [ NEXT / EDIT ] (x: 50..70)
-                    else if (x >= 50 && x <= 70) begin
-                        if (x == 50 || x == 70 || y == 54 || y == 63) pixel_data = 16'h04b4;
-                        else if (cursor_x >= 50 && cursor_x <= 70 && cursor_y >= 54 && cursor_y <= 63) pixel_data = 16'h0351;
-                        else pixel_data = 16'h18e5;
-                        if (game_state == `LP_SUCCESS) begin
-                            if (is_play_icon(7'd60, 6'd58, x, y)) pixel_data = 16'h07e0; // Bright green play triangle
-                        end else begin
-                            if (is_wrench_icon(7'd60, 6'd58, x, y)) pixel_data = 16'h07ff; // Cyan wrench
-                        end
-                    end
-                    // Button 4: [ GUIDE ] (x: 74..94)
-                    else if (x >= 74 && x <= 94) begin
-                        if (x == 74 || x == 94 || y == 54 || y == 63) pixel_data = 16'h04b4;
-                        else if (cursor_x >= 74 && cursor_x <= 94 && cursor_y >= 54 && cursor_y <= 63) pixel_data = 16'h0351;
-                        else pixel_data = 16'h18e5;
-                        // Open Book Icon at center (84, 58)
-                        if (x >= 79 && x <= 89 && y >= 55 && y <= 61) begin
-                            if (x == 84) pixel_data = 16'h8a22; // Spine
-                            else if (y == 55 || y == 61 || x == 79 || x == 89) pixel_data = 16'h8a22; // Cover
-                            else if (y == 57 || y == 59) pixel_data = 16'h0010; // Text lines
-                            else pixel_data = 16'hffff; // Pages
-                        end
+                end
+                // Button 4: [ GUIDE ] (x: 74..94)
+                else if (x >= 74 && x <= 94) begin
+                    if (x == 74 || x == 94 || y == 54 || y == 63) pixel_data = 16'h04b4;
+                    else if (cursor_x >= 74 && cursor_x <= 94 && cursor_y >= 54 && cursor_y <= 63) pixel_data = 16'h0351;
+                    else pixel_data = 16'h18e5;
+                    // Open Book Icon at center (84, 58)
+                    if (x >= 79 && x <= 89 && y >= 55 && y <= 61) begin
+                        if (x == 84) pixel_data = 16'h8a22; // Spine
+                        else if (y == 55 || y == 61 || x == 79 || x == 89) pixel_data = 16'h8a22; // Cover
+                        else if (y == 57 || y == 59) pixel_data = 16'h0010; // Text lines
+                        else pixel_data = 16'hffff; // Pages
                     end
                 end
             end

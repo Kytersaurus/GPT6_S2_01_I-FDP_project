@@ -90,17 +90,25 @@ module menu_fixes_tb;
         if(dut.game_state!=`LP_FAIL) $fatal(1,"End try did not reach result");
         click(12,59);
         if(!dut.start_screen_active) $fatal(1,"Result Home retried run");
-        // Verify actual 4/4 glyph pixels, including the previously missing level.
+        // Verify stepped volume indicator bars at levels 0..4
         force dut.draw_start_screen_active=1'b0;force dut.draw_state=`LP_GUIDE;
         force dut.draw_diary_page=2'd3;force dut.draw_master_volume=volume;
+        force dut.draw_audio_muted=1'b0;
         force dut.left_pixel_index=13'd6143-pixel;
         for(v=0;v<=4;v=v+1) begin
             volume=v;
-            for(j=0;j<7;j=j+1) for(i=0;i<5;i=i+1) begin
-                pixel=(28+j)*96+40+i;#1;
-                if((dut.left_pixel_data==16'h07ff)!==text_on({8'd48+volume,"/4             "},40,28,40+i,28+j))
-                    $fatal(1,"Volume glyph mismatch at level %0d",v);
-            end
+            // Bar 1 at (35, 35) lit if v >= 1
+            pixel=35*96+35;#1;
+            if((dut.left_pixel_data==16'h07e0)!==(v>=1)) $fatal(1,"Volume bar 1 mismatch at level %0d",v);
+            // Bar 2 at (42, 35) lit if v >= 2
+            pixel=35*96+42;#1;
+            if((dut.left_pixel_data==16'h07e0)!==(v>=2)) $fatal(1,"Volume bar 2 mismatch at level %0d",v);
+            // Bar 3 at (49, 35) lit if v >= 3
+            pixel=35*96+49;#1;
+            if((dut.left_pixel_data==16'h07e0)!==(v>=3)) $fatal(1,"Volume bar 3 mismatch at level %0d",v);
+            // Bar 4 at (56, 35) lit if v >= 4
+            pixel=35*96+56;#1;
+            if((dut.left_pixel_data==16'h07e0)!==(v>=4)) $fatal(1,"Volume bar 4 mismatch at level %0d",v);
         end
         $display("PASS menu_fixes_tb: default/max volume, mute/sensitivity isolation, map Back, Home, SW0, launch and timer gating");$finish;
     end

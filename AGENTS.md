@@ -13,7 +13,7 @@ This document serves as the single source of truth for **all human teammates (Ka
   - Dual OLED displays: Two 96×64 RGB OLEDs (SSD1331 via SPI at **6.25 MHz**) on PMOD JA (Left) and PMOD JB (Right).
   - Audio: 8-bit PWM sound effects and dual-voice music driving Pmod AMP2 on JXADC.
   - PS/2 Mouse: Standard PS/2 streaming interface on PMOD JC.
-  - Basys 3 onboard I/O: 4-digit active-low 7-segment display (M.SS timer), switches (SW0 engine, SW1 reverse, SW4 free look), and buttons.
+  - Basys 3 onboard I/O: 4-digit active-low 7-segment display (M.SS timer), switches (SW0 engine, SW1 audio mute, SW2 reverse, SW4 free look), and buttons.
 * **Team Roles & Responsibilities:**
   - **Role 1 (Kaushal):** Vehicle Builder, Inventory/Stock Validation, Mouse Input & Drag-and-Drop, Audio Pipeline (BGM + SFX), 7-Segment Timer, Left OLED UI Layouts.
   - **Role 2 (Kyle):** Physics Engine, Newtonian Kinematics, Fixed-Point Arithmetic (Q12.8), 16-Cycle Signed Divider, Tilt Dynamics & Settling.
