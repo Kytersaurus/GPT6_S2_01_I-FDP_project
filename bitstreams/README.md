@@ -23,7 +23,9 @@ This directory organizes all verified programming bitstreams generated for the B
    - Left OLED to **Pmod JA** (pin 1 facing up).
    - Right OLED to **Pmod JB** (optional for dual-OLED mode; SW15 up enables single-OLED mode on JA).
 3. Connect your **PS/2 Mouse** to the USB-HID port via adapter.
-4. Connect the **Pmod AMP2 speaker** to **JXADC** (pins 1–6).
+4. Connect the **Pmod AMP2 speaker** to **JXADC** (pins 1–6):
+   > [!CAUTION]
+   > **HARDWARE SAFETY WARNING:** JXADC has 12 pins (2 rows of 6). Plug AMP2 into the **TOP ROW (pins 1–6) ONLY** with Pin 1 on the left and Pin 6 on the right. **DO NOT** plug into the bottom row (pins 7–12) or upside down (swapping VCC and GND), or the module will short-circuit and burn! Connect an **8-ohm mono speaker only**; do not plug stereo headphones into the mono BTL amplifier jack.
 5. Open **Vivado > Hardware Manager > Open Target > Program Device**.
 6. Select **`bitstreams/2026-11-02/113538_My_Top_Module.bit`** and click **Program**.
 
