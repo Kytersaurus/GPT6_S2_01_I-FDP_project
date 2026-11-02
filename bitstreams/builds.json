@@ -1,5 +1,12 @@
 [
   {
+    "path": "2026-11-02/181025_My_Top_Module.bit",
+    "built": "2026-11-02T18:10:25",
+    "source_commit": "69b4635",
+    "description": "LATEST & RECOMMENDED: Integrated Yap Ting collision impact and TNT updates with complete UI polish: cartoon pencil edit icon, clean circular refresh retry icon, 4 stepped volume indicator bars, SW1 audio mute indicator in sound settings and main settings, 3px thick mute slash, back button ocean-teal hover glow, bottom row hitbox fix, SW0 permanent off banner & dimmed sprite, and removed separator line. WNS +0.007 ns, WHS +0.026 ns, 19,778 LUTs (95.09%), exactly 48/50 BRAM tiles (96.00%, zero extra BRAM).",
+    "sha256": "7cdc1222c4d566f38bbbcbba5b31fc1a756f4ce44fabbdc2f3520b85e0cb47f2"
+  },
+  {
     "path": "2026-11-02/131100_My_Top_Module.bit",
     "built": "2026-11-02T13:11:00",
     "source_commit": "81264b7",

@@ -8,14 +8,14 @@ This directory organizes all verified programming bitstreams generated for the B
 
 | Property | Value |
 | :--- | :--- |
-| **Bitstream File** | **[2026-11-02/113538_My_Top_Module.bit](2026-11-02/113538_My_Top_Module.bit)** |
+| **Bitstream File** | **[2026-11-02/181025_My_Top_Module.bit](2026-11-02/181025_My_Top_Module.bit)** |
 | **Pointer File** | [LATEST.txt](LATEST.txt) |
-| **Source Commit** | `de54989` |
-| **Build Timestamp**| 2026-11-02 11:35:38 (SGT) |
-| **Timing Slack** | **WNS = +0.003 ns**, **WHS = +0.045 ns**, **TNS = 0.000 ns** (Timing cleanly MET at 100 MHz) |
-| **Resource Utilization** | **94.60% LUTs** (19,677 / 20,800), **96.00% BRAM** (48 / 50 tiles — zero extra BRAM), **25.56% DSPs** (23 / 90) |
+| **Source Commit** | `69b4635` |
+| **Build Timestamp**| 2026-11-02 18:10:25 (SGT) |
+| **Timing Slack** | **WNS = +0.007 ns**, **WHS = +0.026 ns**, **TNS = 0.000 ns** (Timing cleanly MET at 100 MHz) |
+| **Resource Utilization** | **95.09% LUTs** (19,778 / 20,800), **96.00% BRAM** (48 / 50 tiles — zero extra BRAM), **25.56% DSPs** (23 / 90) |
 | **Simulation Suite** | **74 / 74 testbenches passing (100%)** |
-| **Key Features** | • **Physics Rework Integration**: Merged PR #9 contact kinematics and collision resolution.<br>• **Mouse Sensitivity Freeze**: Zero cursor jumping across speed toggles via coordinate freezing & active speed switching.<br>• **Calibrated Landing Physics**: Airborne ticks filter (>=12) preventing ground chatter damage, raised velocity thresholds, and wood frame survival on upright drop.<br>• **Complete UI Iconification**: Pure geometric icons (Back, Home, Play, Retry, Stop, Wrench) across all screens in 0 extra BRAM.<br>• **Tightened Hitboxes**: Clean, responsive button boundaries with zero accidental misclicks. |
+| **Key Features** | • **Yap Ting Collision & TNT Integration**: Merged role 3 collision engine impact corrections and TNT damage mask pipeline.<br>• **UI Iconification Polish**: Cartoon pencil edit icon, clean circular refresh arrow for retry, 4 stepped volume indicator bars in sound settings.<br>• **Audio Switch Mute Indicators**: Added 'SW1: MUTED' in sound settings and 'MUTE' in settings box 1 with a 3px thick red mute slash.<br>• **Button Glow & Hitbox Fixes**: Ocean-teal hover glow with bright yellow border for back button; tightened Start Screen Play button hitbox and restricted sound settings exit hitbox to mx < 32.<br>• **SW0 Engine Warning**: Left-panel 'ENG OFF SW0' alert banner in RUN mode, dimmed engine sprite, and click lockout when SW0 is low.<br>• **Clean Layout**: Removed 1px separating line above action buttons. |
 
 ### How Teammates Can Test on the Hardware:
 1. Connect your **Basys3 board** via USB and power it on.
@@ -27,7 +27,7 @@ This directory organizes all verified programming bitstreams generated for the B
    > [!CAUTION]
    > **HARDWARE SAFETY WARNING:** JXADC has 12 pins (2 rows of 6). Plug AMP2 into the **TOP ROW (pins 1–6) ONLY** with Pin 1 on the left and Pin 6 on the right. **DO NOT** plug into the bottom row (pins 7–12) or upside down (swapping VCC and GND), or the module will short-circuit and burn! Connect an **8-ohm mono speaker only**; do not plug stereo headphones into the mono BTL amplifier jack.
 5. Open **Vivado > Hardware Manager > Open Target > Program Device**.
-6. Select **`bitstreams/2026-11-02/113538_My_Top_Module.bit`** and click **Program**.
+6. Select **`bitstreams/2026-11-02/181025_My_Top_Module.bit`** and click **Program**.
 
 ---
 
@@ -35,6 +35,7 @@ This directory organizes all verified programming bitstreams generated for the B
 
 | Build Date & Time (SGT) | File Link | Source Commit | Description & Milestone |
 | :--- | :--- | :--- | :--- |
+| **2026-11-02 18:10:25** | [2026-11-02/181025_My_Top_Module.bit](2026-11-02/181025_My_Top_Module.bit) | `69b4635` | Integrated Yap Ting collision impact and TNT updates with complete UI polish: cartoon pencil edit icon, clean circular refresh retry icon, 4 stepped volume indicator bars, SW1 audio mute indicator in sound settings and main settings, 3px thick mute slash, back button ocean-teal hover glow, bottom row hitbox fix, SW0 permanent off banner & dimmed sprite, and removed separator line. WNS +0.007 ns, WHS +0.026 ns, 19,778 LUTs (95.09%), 48 BRAMs (96.00%). |
 | **2026-11-02 11:35:38** | [2026-11-02/113538_My_Top_Module.bit](2026-11-02/113538_My_Top_Module.bit) | `de54989` | Integrated Physics Rework PR #9, mouse sensitivity teleport fix, calibrated crash impact physics (airborne filter >= 12, upright frame preservation), full UI iconification with tightened hitboxes (0 extra BRAM). All 74 tests passing; WNS +0.003 ns, 94.60% LUTs, 48 BRAMs. |
 | **2026-10-31 16:56:01** | [2026-10-31/165601_My_Top_Module.bit](2026-10-31/165601_My_Top_Module.bit) | 98ca1e1 | Option B Bad Piggies title screen ('LAGGY PIGGIES' bubble font, Play & Gear buttons), Right OLED live world view, 20s negative countdown timer on 7-seg only, big 16x16 interactive grid with part toggles, SW0 engine status box, 3 centered icon boxes in Settings with mouse speed scaling, wide sound layout with SW1 mute banner, transposed static-free BGM with boosted gain, and LEDs tied to switches. WNS +0.142 ns, 90.89% LUTs, 48 BRAMs (96%). |
 | **2026-10-31 16:56:01** | [2026-10-31/165601_My_Top_Module.bit](2026-10-31/165601_My_Top_Module.bit) | `98ca1e1` | Bulletproof dividers, animated moving cave Start Screen, blanked Right OLED during Title, centered run damage diagram, squarish action buttons. WNS +0.253 ns, 79.87% LUTs, 48 BRAMs. |
