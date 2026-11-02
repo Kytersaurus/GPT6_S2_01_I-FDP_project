@@ -16,7 +16,7 @@ module team_controls_tb;
         .PS2Clk(PS2Clk),.PS2Data(PS2Data),.led(led),.JA(JA),.JB(JB),.JXADC(JXADC));
     always @(posedge clk) if(!dut.reset) begin
         if(dut.jump_press) jump_pulses=jump_pulses+1;
-        if(dut.sound_start && dut.sound_id==`LP_SOUND_TEST) beep_pulses=beep_pulses+1;
+        if(dut.sound_start) beep_pulses=beep_pulses+1;
     end
     // Test-only gameplay fixture; the hardware builder starts empty.
     task build_test_vehicle;

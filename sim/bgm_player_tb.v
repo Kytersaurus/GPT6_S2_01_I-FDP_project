@@ -28,7 +28,7 @@ module bgm_player_tb;
         if(music.half_cycles!=170262 || music.volume!=4 || sample!=-6 || effects.pwm_level!=122)
             $fatal(1,"First melody pitch/quiet amplitude/PWM routing incorrect");
         saved_note=music.note_index;saved_count=music.note_count;
-        sound_id=`LP_SOUND_TEST;start=1;clocks(1);start=0;
+        sound_id=`LP_SOUND_POP;start=1;clocks(1);start=0;
         clocks(200);
         if(!busy || sample!=0 || music.note_index!=saved_note || music.note_count!=saved_count)
             $fatal(1,"Sound effect failed to pause music without losing its position");

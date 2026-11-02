@@ -182,8 +182,18 @@ module My_Top_Module #(
     wire audio_cancel = run_init || (game_state == `LP_BUILD && previous_game_state != `LP_BUILD);
     wire pop_sound_event = pop_valid && damage_ready && (|pop_mask);
     // Ignore the first gentle contact at spawn and continuous rolling contact.
+    localparam signed [15:0] CRASH_VELOCITY_THRESHOLD = 16'sd768;
+    localparam signed [15:0] CRASH_FATAL_THRESHOLD    = 16'sd1280;
+
+    wire wall_crash_right = ($signed(proposed_vx) >= CRASH_VELOCITY_THRESHOLD && $signed(corrected_vx) <= 0);
+    wire wall_crash_left  = ($signed(proposed_vx) <= -CRASH_VELOCITY_THRESHOLD && $signed(corrected_vx) >= 0);
+    wire wall_crash_event = (wall_crash_right || wall_crash_left);
+
+    // Ignore the first gentle contact at spawn and continuous rolling contact.
+    // Trigger on hard landings or high-speed wall collisions.
     wire collision_sound_event = game_state == `LP_RUN && response_valid && response_ready &&
-                                 grounded && !audio_was_grounded && $signed(proposed_vy) >= 16'sd128;
+                                 ((grounded && !audio_was_grounded && $signed(proposed_vy) >= 16'sd128) ||
+                                  wall_crash_event);
     wire explosion_sound_event;
     reg [5:0] airborne_ticks;
     always @(posedge clk) begin
@@ -205,10 +215,47 @@ module My_Top_Module #(
         end
     end
 
-    // Crash impact: vehicle breaking on landing if it falls too hard
-    localparam signed [15:0] CRASH_VELOCITY_THRESHOLD = 16'sd768;
-    localparam signed [15:0] CRASH_FATAL_THRESHOLD    = 16'sd1280;
+    // Crash impact: vehicle breaking on landing if it falls too hard, or slamming into walls
     wire vehicle_is_flipped = (vehicle_tilt > 5'sd8 || vehicle_tilt < -5'sd8);
+    wire vert_crash_event = (grounded && !audio_was_grounded && airborne_ticks >= 6'd12 &&
+                             $signed(proposed_vy) >= CRASH_VELOCITY_THRESHOLD);
+    wire vert_crash_fatal = ($signed(proposed_vy) >= CRASH_FATAL_THRESHOLD);
+    wire wall_crash_fatal = ($signed(proposed_vx) >= CRASH_FATAL_THRESHOLD || $signed(proposed_vx) <= -CRASH_FATAL_THRESHOLD);
+
+    reg [8:0] next_impact_mask;
+    reg [8:0] next_frame_mask;
+
+    always @* begin
+        next_impact_mask = 9'd0;
+        next_frame_mask = 9'd0;
+        if ((vert_crash_event && vert_crash_fatal) || (wall_crash_event && wall_crash_fatal)) begin
+            // Catastrophic crash at terminal velocity: destroys all cells and wooden frames
+            next_impact_mask = 9'b111_111_111;
+            next_frame_mask  = 9'b111_111_111;
+        end else begin
+            // Vertical landing impact: bottom row (upright) or top row (flipped)
+            if (vert_crash_event) begin
+                if (vehicle_is_flipped) begin
+                    next_impact_mask = next_impact_mask | 9'b000_000_111;
+                    next_frame_mask  = next_frame_mask  | 9'b000_000_111;
+                end else begin
+                    next_impact_mask = next_impact_mask | 9'b111_000_000;
+                    // Wood frame survives moderate upright landing
+                end
+            end
+            // Horizontal wall impact: right column (cells 2, 5, 8) or left column (cells 0, 3, 6)
+            if (wall_crash_event) begin
+                if (wall_crash_right) begin
+                    next_impact_mask = next_impact_mask | 9'b100_100_100;
+                end
+                if (wall_crash_left) begin
+                    next_impact_mask = next_impact_mask | 9'b001_001_001;
+                end
+                // Wood frame survives moderate horizontal wall impact
+            end
+        end
+    end
+
     reg impact_damage_valid;
     reg [8:0] impact_damage_mask;
     reg [8:0] impact_damage_frame_mask;
@@ -220,22 +267,10 @@ module My_Top_Module #(
             impact_damage_frame_mask <= 9'd0;
         end else begin
             impact_damage_valid <= 1'b0;
-            if (response_valid && response_ready && grounded && !audio_was_grounded && airborne_ticks >= 6'd12 &&
-                $signed(proposed_vy) >= CRASH_VELOCITY_THRESHOLD) begin
+            if (response_valid && response_ready && (vert_crash_event || wall_crash_event)) begin
                 impact_damage_valid <= 1'b1;
-                if ($signed(proposed_vy) >= CRASH_FATAL_THRESHOLD) begin
-                    // Catastrophic crash: destroys all cells and frames
-                    impact_damage_mask <= 9'b111_111_111;
-                    impact_damage_frame_mask <= 9'b111_111_111;
-                end else if (vehicle_is_flipped) begin
-                    // Flipped landing: top row (cells 0, 1, 2) breaks
-                    impact_damage_mask <= 9'b000_000_111;
-                    impact_damage_frame_mask <= 9'b000_000_111;
-                end else begin
-                    // Upright landing: bottom row (cells 6, 7, 8) breaks
-                    impact_damage_mask <= 9'b111_000_000;
-                    impact_damage_frame_mask <= 9'd0;
-                end
+                impact_damage_mask <= next_impact_mask;
+                impact_damage_frame_mask <= next_frame_mask;
             end
         end
     end
@@ -354,13 +389,12 @@ module My_Top_Module #(
     );
     sound_controller u_sound_control (
         .clk(clk), .reset(reset), .mute(audio_muted), .cancel(audio_cancel),
-        .test_event(1'b0), .launch_event(launch_event), .pop_event(pop_sound_event),
+        .launch_event(launch_event), .pop_event(pop_sound_event),
         .collision_event(collision_sound_event), .explosion_event(explosion_sound_event),
         .success_event(success_event), .failure_event(failure_event),
         .busy(audio_busy), .active_sound(active_sound), .sound_start(sound_start), .sound_id(sound_id)
     );
     sound_generator #(
-        .TONE_HALF_CYCLES(AUDIO_TONE_HALF_CYCLES), .BEEP_CYCLES(AUDIO_BEEP_CYCLES),
         .NOTE_CYCLES(AUDIO_NOTE_CYCLES), .FADE_CYCLES(AUDIO_FADE_CYCLES),
         .GAIN_SHIFT(2)
     ) u_audio (

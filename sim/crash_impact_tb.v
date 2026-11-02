@@ -209,7 +209,132 @@ module crash_impact_tb;
         if (dut.pig_alive !== 1'b0)
             $fatal(1, "Pig should die on fatal crash!");
 
-        $display("PASS crash_impact_tb: gentle landing, bump filtering, upright bottom breakage with frame survival, flipped top breakage, and fatal crash demolition");
+        // Test 5: Moderate horizontal right wall crash (vx = 800 >= 768, corrected_vx = 0)
+        // Right column (cells 2, 5, 8: 9'b100_100_100) breaks, frames survive!
+        force dut.u_builder.runtime_intact = 9'b111_111_111;
+        force dut.u_builder.runtime_frames = 9'b111_111_111;
+        clocks(1);
+        release dut.u_builder.runtime_intact;
+        release dut.u_builder.runtime_frames;
+
+        force dut.response_valid = 1'b1;
+        force dut.response_ready = 1'b1;
+        force dut.grounded = 1'b1;
+        force dut.audio_was_grounded = 1'b1; // already grounded rolling
+        force dut.airborne_ticks = 6'd0;
+        force dut.proposed_vy = 16'sd0;
+        force dut.proposed_vx = 16'sd800;
+        force dut.corrected_vx = 16'sd0;
+        clocks(1);
+
+        if (dut.impact_damage_valid !== 1'b1)
+            $fatal(1, "Right wall crash failed to trigger impact damage!");
+        if (dut.impact_damage_mask !== 9'b100_100_100)
+            $fatal(1, "Right wall crash mask expected right column (9'b100_100_100), got %b", dut.impact_damage_mask);
+        if (dut.impact_damage_frame_mask !== 9'd0)
+            $fatal(1, "Moderate wall crash should preserve wooden frames!");
+
+        release dut.response_valid;
+        release dut.response_ready;
+        release dut.grounded;
+        release dut.audio_was_grounded;
+        release dut.airborne_ticks;
+        release dut.proposed_vy;
+        release dut.proposed_vx;
+        release dut.corrected_vx;
+        clocks(1);
+
+        if ((dut.u_builder.runtime_intact & 9'b100_100_100) !== 9'b0)
+            $fatal(1, "Right wall crash did not destroy right column intact parts!");
+        if (dut.u_builder.runtime_frames !== 9'b111_111_111)
+            $fatal(1, "Right wall crash damaged frames unexpectedly!");
+        if (dut.pig_alive !== 1'b1)
+            $fatal(1, "Pig in cell 4 should survive right column wall impact!");
+
+        // Test 6: Moderate horizontal left wall crash (vx = -800 <= -768, corrected_vx = 0)
+        // Left column (cells 0, 3, 6: 9'b001_001_001) breaks, frames survive!
+        force dut.u_builder.runtime_intact = 9'b111_111_111;
+        force dut.u_builder.runtime_frames = 9'b111_111_111;
+        clocks(1);
+        release dut.u_builder.runtime_intact;
+        release dut.u_builder.runtime_frames;
+
+        force dut.response_valid = 1'b1;
+        force dut.response_ready = 1'b1;
+        force dut.grounded = 1'b1;
+        force dut.audio_was_grounded = 1'b1;
+        force dut.airborne_ticks = 6'd0;
+        force dut.proposed_vy = 16'sd0;
+        force dut.proposed_vx = -16'sd800;
+        force dut.corrected_vx = 16'sd0;
+        clocks(1);
+
+        if (dut.impact_damage_valid !== 1'b1)
+            $fatal(1, "Left wall crash failed to trigger impact damage!");
+        if (dut.impact_damage_mask !== 9'b001_001_001)
+            $fatal(1, "Left wall crash mask expected left column (9'b001_001_001), got %b", dut.impact_damage_mask);
+        if (dut.impact_damage_frame_mask !== 9'd0)
+            $fatal(1, "Moderate wall crash should preserve wooden frames!");
+
+        release dut.response_valid;
+        release dut.response_ready;
+        release dut.grounded;
+        release dut.audio_was_grounded;
+        release dut.airborne_ticks;
+        release dut.proposed_vy;
+        release dut.proposed_vx;
+        release dut.corrected_vx;
+        clocks(1);
+
+        if ((dut.u_builder.runtime_intact & 9'b001_001_001) !== 9'b0)
+            $fatal(1, "Left wall crash did not destroy left column intact parts!");
+        if (dut.u_builder.runtime_frames !== 9'b111_111_111)
+            $fatal(1, "Left wall crash damaged frames unexpectedly!");
+        if (dut.pig_alive !== 1'b1)
+            $fatal(1, "Pig in cell 4 should survive left column wall impact!");
+
+        // Test 7: Fatal horizontal wall crash (vx = 1300 >= 1280, corrected_vx = 0)
+        force dut.u_builder.runtime_intact = 9'b111_111_111;
+        force dut.u_builder.runtime_frames = 9'b111_111_111;
+        clocks(1);
+        release dut.u_builder.runtime_intact;
+        release dut.u_builder.runtime_frames;
+
+        force dut.response_valid = 1'b1;
+        force dut.response_ready = 1'b1;
+        force dut.grounded = 1'b1;
+        force dut.audio_was_grounded = 1'b1;
+        force dut.airborne_ticks = 6'd0;
+        force dut.proposed_vy = 16'sd0;
+        force dut.proposed_vx = 16'sd1300;
+        force dut.corrected_vx = 16'sd0;
+        clocks(1);
+
+        if (dut.impact_damage_valid !== 1'b1)
+            $fatal(1, "Fatal wall crash failed to trigger impact damage!");
+        if (dut.impact_damage_mask !== 9'b111_111_111)
+            $fatal(1, "Fatal wall crash mask expected all cells (9'b111_111_111), got %b", dut.impact_damage_mask);
+        if (dut.impact_damage_frame_mask !== 9'b111_111_111)
+            $fatal(1, "Fatal wall crash frame mask expected all frames (9'b111_111_111), got %b", dut.impact_damage_frame_mask);
+
+        release dut.response_valid;
+        release dut.response_ready;
+        release dut.grounded;
+        release dut.audio_was_grounded;
+        release dut.airborne_ticks;
+        release dut.proposed_vy;
+        release dut.proposed_vx;
+        release dut.corrected_vx;
+        clocks(1);
+
+        if (dut.u_builder.runtime_intact !== 9'b000_000_000)
+            $fatal(1, "Fatal wall crash did not destroy all intact parts!");
+        if (dut.u_builder.runtime_frames !== 9'b000_000_000)
+            $fatal(1, "Fatal wall crash did not destroy all frames!");
+        if (dut.pig_alive !== 1'b0)
+            $fatal(1, "Pig should die on fatal wall crash!");
+
+        $display("PASS crash_impact_tb: vertical landings (upright/flipped/fatal) and horizontal wall impacts (left/right/fatal) verified");
         $finish;
     end
 endmodule
