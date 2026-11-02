@@ -3,7 +3,7 @@
 `include "game_defs.vh"
 // The camera centres on the vehicle and stops at the world edges. The map view (the default)
 // shows 64 by 43 world pixels at 1.5x with 12 by 12 sprites; normal zoom-out shows 96 by 64
-// at 1x, overview shows 128 by 86 at 0.75x, and wide overview shows 192 by 128 at 0.5x. In free look (SW4) the
+// at 1.0x with 8 by 8 sprites, and overview shows 192 by 128 at 0.5x. In free look (SW4) the
 // cursor position picks the camera instead, so the whole map can be explored without driving.
 // Drawing order: background (map, or sky and terrain), hazards, goal, flag, TNT, vehicle,
 // explosions, then the result border. Before launch the vehicle is drawn at the spawn point.
@@ -14,6 +14,8 @@
 module right_renderer (
     input wire clk,
     input wire [12:0] pixel_index,
+    input wire [6:0] in_x,
+    input wire [5:0] in_y,
     input wire zoomed_out,
     input wire overview,
     // Free look: the camera follows the mouse cursor (0..95, 0..63) across the whole world.
@@ -45,6 +47,8 @@ module right_renderer (
     input wire map_id,  // 0 Cave Arch (has the moon), 1 Cave Flight
     input wire [9:0] world_width, world_height,
     input wire [9:0] flag_x, flag_y,
+    input wire [9:0] star_box_x, star_box_y,
+    input wire star_box_collected,
     output reg signed [10:0] map_x, map_y,
     input wire [2:0] map_class,
     output reg [15:0] pixel_data
@@ -52,6 +56,8 @@ module right_renderer (
     `include "part_sprites.vh"
     `include "ui_font.vh"
     `include "rotation_geometry.vh"
+    wire [6:0] x = (pixel_index != 13'd0) ? (pixel_index % 96) : (in_x === 7'bzzzzzzz ? 7'd0 : in_x);
+    wire [5:0] y = (pixel_index != 13'd0) ? (pixel_index / 96) : (in_y === 6'bzzzzzz ? 6'd0 : in_y);
 
     wire before_launch = (game_state == `LP_BUILD || game_state == `LP_GUIDE);
     // Vehicle (or spawn) top-left in whole world pixels.
@@ -64,10 +70,9 @@ module right_renderer (
     integer sx, sy, view_w, view_h, cam_x, cam_y, max_x, max_y;
     integer next_fx, next_fy, next_wx, next_wy, next_tx, next_ty;
     always @* begin
-        sx = pixel_index % 96;
-        sy = pixel_index / 96;
-        view_w = (overview && !zoomed_out) ? 192 : overview ? 128 : (zoomed_out ? 96 : 64);
-        view_h = (overview && !zoomed_out) ? 128 : overview ? 86 : (zoomed_out ? 64 : 43);
+        sx = x; sy = y;
+        view_w = overview ? 192 : (zoomed_out ? 96 : 64);
+        view_h = overview ? 128 : (zoomed_out ? 64 : 43);
         // Signed limits: a camera left of or above the world must clamp to zero, not wrap.
         max_x = world_width;
         max_y = world_height;
@@ -85,16 +90,12 @@ module right_renderer (
         if (cam_y > max_y) cam_y = max_y;
         if (cam_x < 0) cam_x = 0;
         if (cam_y < 0) cam_y = 0;
-        if (overview && !zoomed_out) begin
+        if (overview) begin
             // Half scale uses shifts and the existing sprite data, with no new image ROM.
             cam_x=cam_x & ~1; cam_y=cam_y & ~1;
             next_wx=cam_x+2*sx; next_wy=cam_y+2*sy;
             next_fx=(cam_x >>> 1)+sx; next_fy=(cam_y >>> 1)+sy;
             next_tx=2*next_wx; next_ty=2*next_wy;
-        end else if (overview) begin
-            next_wx = cam_x + (4*sx)/3;           next_wy = cam_y + (4*sy)/3;
-            next_fx = (3*cam_x)/4 + sx;           next_fy = (3*cam_y)/4 + sy;
-            next_tx = 2*next_wx;                  next_ty = 2*next_wy;
         end else if (zoomed_out) begin
             next_wx = cam_x + sx;                  next_wy = cam_y + sy;
             next_fx = next_wx;                     next_fy = next_wy;
@@ -229,6 +230,40 @@ module right_renderer (
                 if (dx == 3 || dx == 22 || dy == 1 || dy == 16) pixel_data = 16'h3186;
                 else pixel_data = ((((dx-3) >>> 2) ^ ((dy-1) >>> 2)) & 1) ? 16'h0000 : 16'hffff;
             end
+            if (!star_box_collected) begin
+                dx = tex_x - 2*star_box_x; dy = tex_y - 2*star_box_y;
+                if (dx >= 0 && dx < 40 && dy >= 0 && dy < 40) begin
+                    // Outer dark iron rim
+                    if (dx == 0 || dx == 39 || dy == 0 || dy == 39)
+                        pixel_data = 16'h2104;
+                    // Four iron corner reinforcement brackets with silver rivets
+                    else if ((dx < 6 || dx >= 34) && (dy < 6 || dy >= 34)) begin
+                        if ((dx == 2 || dx == 37) && (dy == 2 || dy == 37))
+                            pixel_data = 16'hce59; // Silver rivet
+                        else
+                            pixel_data = 16'h52aa; // Iron bracket
+                    end
+                    // Radiant Gold Star Stamp centered at (20, 20)
+                    else if ((dx >= 20 ? dx - 20 : 20 - dx) + (dy >= 20 ? dy - 20 : 20 - dy) <= 6) begin
+                        if ((dx >= 20 ? dx - 20 : 20 - dx) + (dy >= 20 ? dy - 20 : 20 - dy) == 6)
+                            pixel_data = 16'hfed0; // Amber rim
+                        else if (dx >= 18 && dx <= 19 && dy >= 18 && dy <= 19)
+                            pixel_data = 16'hffff; // White sparkle glint
+                        else
+                            pixel_data = 16'hffe0; // Radiant gold star
+                    end
+                    // Diagonal wood X-brace
+                    else if (dx == dy || dx == dy+1 || dx+1 == dy ||
+                             dx + dy == 39 || dx + dy == 40 || dx + dy == 38)
+                        pixel_data = 16'h9aa0; // Dark timber brace
+                    // Horizontal cedar plank seams
+                    else if (dy == 13 || dy == 26)
+                        pixel_data = 16'h5140; // Plank seam
+                    // Cedar wood plank body
+                    else
+                        pixel_data = 16'hc3a0;
+                end
+            end
         end
         // TNT: 12 by 12 close, 8 by 8 normal/overview (overview naturally samples it smaller).
         for (index = 0; index < `LP_MAX_TNT; index = index + 1) begin
@@ -238,10 +273,10 @@ module right_renderer (
                 pixel_data = (zoomed_out_q || overview_q) ? tnt_sprite(wx - tx, wy - ty, pixel_data)
                                           : tnt_sprite12(fx - scaled(tx, 1'b0), fy - scaled(ty, 1'b0), pixel_data);
         end
-        // Vehicle: three cells of 12, 8, 6 or 4 screen pixels, using existing sprites.
-        cell_px = (overview_q && !zoomed_out_q) ? 4 : overview_q ? 6 : (zoomed_out_q ? 8 : 12);
-        rel_x = fx - ((overview_q && !zoomed_out_q) ? (vx >>> 1) : overview_q ? (3*vx)/4 : scaled(vx, zoomed_out_q));
-        rel_y = fy - ((overview_q && !zoomed_out_q) ? (vy >>> 1) : overview_q ? (3*vy)/4 : scaled(vy, zoomed_out_q));
+        // Vehicle: three cells of 12, 8, or 4 screen pixels, using existing sprites.
+        cell_px = overview_q ? 4 : (zoomed_out_q ? 8 : 12);
+        rel_x = fx - (overview_q ? (vx >>> 1) : scaled(vx, zoomed_out_q));
+        rel_y = fy - (overview_q ? (vy >>> 1) : scaled(vy, zoomed_out_q));
         // Inverse-map every destination pixel through the body's rotation.
         // Zero tilt retains the original sprite lookup exactly at every zoom.
         if (tilt_q != 0) begin
@@ -264,9 +299,8 @@ module right_renderer (
             cell_index = cell_row*3 + cell_col;
             part = build_grid >> (cell_index*3);
             if (overview_q) begin
-                // Share one sprite lookup for both overview scales.
-                rel_x=zoomed_out_q ? (4*rel_x)/3 : 2*rel_x;
-                rel_y=zoomed_out_q ? (4*rel_y)/3 : 2*rel_y;
+                rel_x=2*rel_x;
+                rel_y=2*rel_y;
                 if (frame_intact_mask[cell_index]) pixel_data = part_sprite(`LP_PART_FRAME, rel_x, rel_y, 1'b0, pixel_data);
                 if (intact_mask[cell_index]) pixel_data = part_sprite_facing(part, rel_x, rel_y, 8, build_facing_left[cell_index], anim_phase, pixel_data);
             end else if (zoomed_out_q) begin
@@ -307,3 +341,6 @@ module right_renderer (
         end
     end
 endmodule
+
+
+

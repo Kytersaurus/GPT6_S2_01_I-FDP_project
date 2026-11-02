@@ -18,7 +18,7 @@ foreach repair_dcp [get_files -quiet -all *My_Top_Module.dcp] {
 }
 source [file join $repair_root scripts add_team_sources.tcl]
 reset_run synth_1
-launch_runs impl_1 -to_step write_bitstream -jobs 4
+launch_runs impl_1 -to_step write_bitstream -jobs 8
 wait_on_run impl_1
 puts "BITSTREAM_REBUILD_STATUS: [get_property STATUS [get_runs impl_1]]"
 if {![string match {*Complete*} [get_property STATUS [get_runs impl_1]]]} {

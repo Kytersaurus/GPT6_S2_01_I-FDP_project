@@ -14,11 +14,11 @@ All game modules live beside `My_Top_Module.v` in the existing design source fol
 | `clock_control` | `game_controller` | `physics_tick` requests an update approximately 60 times per second |
 | `input_controller` | `game_controller` | `start_press` connects to both `launch_req` and `retry_req`; the current state chooses the action. `edit_press` connects to `edit_req` |
 | `input_controller` | `physics_engine` | SW0 `engine_enabled`, SW2 `engine_reverse` and debounced BTNL `jump_press`, sampled/queued at the movement boundary |
-| `input_controller`, accepted game events | `sound_controller` | BTNR test, launch, applied pop, landing, success and failure; SW1 supplies mute |
+| `input_controller`, accepted game events | `sound_controller` | Launch, applied pop, collision/landing, success and failure; SW1 supplies mute (BTNR reserved) |
 | `sound_controller` | `sound_generator` | Chosen three-bit sound ID and start; busy/active ID return for priority decisions |
 | `sound_generator`, reset/mute wiring | Pmod AMP2 on JXADC | `JXADC[0]` PWM audio, `JXADC[1]` high for 6 dB gain, `JXADC[2]` zero/NC, `JXADC[3]` high only outside reset/mute |
 | `vehicle_builder` | `physics_engine` | Four-bit `wheel_count`, `engine_count`, `balloon_count` and eight-bit `mass_units` describe surviving parts |
-| `vehicle_builder` | `game_controller` | `build_valid` gates launch; the top masks it while `edit_valid` is high so concurrent edits cannot launch using old validity. `pig_alive` participates in the final outcome |
+| `vehicle_builder` | `game_controller` | `build_valid` gates launch; the top masks it while `edit_valid` is high so concurrent edits cannot launch using old validity. `pig_alive` is retained for status/display compatibility; runtime damage protects the pig |
 | `MouseCtl` | `mouse_adapter` | Completed `new_event` packets supply 12-bit x/y positions and held button levels |
 | `mouse_adapter` | `MouseCtl` | `value`, `setx/y` and `setmax_x/y` configure 96 by 64 coordinates and the initial cursor |
 | `mouse_adapter` | `vehicle_builder` | One-cycle `edit_valid` plus operation, cell and part; place on left release, remove on right press |
@@ -32,7 +32,7 @@ All game modules live beside `My_Top_Module.v` in the existing design source fol
 | `game_controller` | Builder, physics, world outcomes | `run_init` stays high in INIT_RUN; each module returns one bit of the three-bit `init_ready` bus |
 | `game_controller` | `physics_engine` | `step_start` samples properties, followed by staged force/division/velocity/position calculation clocks; `update_release` allows the following update after world checks finish |
 | `physics_engine` | `collision_engine` | `move_valid`/`move_ready` transfer `previous_x/y`, `proposed_x/y` and `proposed_vx/vy` |
-| `collision_engine` | `physics_engine` | `response_valid`/`response_ready` transfer `corrected_x/y`, `corrected_vx/vy` and `grounded` |
+| `collision_engine` | `physics_engine` | `response_valid`/`response_ready` transfer `corrected_x/y`, `corrected_vx/vy` and `grounded`; an accepted hard contact also pulses directional impact flags to the top |
 | `physics_engine` | `world_outcomes` | `movement_committed` pulses after `vehicle_x/y` have been updated; the world module samples those committed coordinates |
 | `vehicle_builder`, `level_data` | `world_outcomes` | `build_grid`, `intact_mask` and `goal_rect` locate the surviving pig and test the goal |
 | `world_outcomes` | `game_controller` | `world_valid`/`world_ready` transfer `goal_hit`, `hazard_hit` and `out_of_bounds`; failure outranks success |
@@ -41,7 +41,7 @@ Every movement coordinate and velocity is signed with eight fractional bits: 256
 
 `input_controller` instantiates the user's `button_debouncer` for BTNC, BTNU, BTNR and BTNL. Each uses the shared 100 MHz clock, `freq_count=19,999,999` for 200 ms of lockout, and `RELEASE_CYCLES=2,000,000` for a stable 20 ms release before rearming. The module adds reset handling to the user's code and includes the optional release check without the hold timer. The top exposes cycle-count parameters so simulations can use short intervals. SW1 uses two sampling registers, with mute asserted during reset. The hardware top now accepts `sw[15:0]`, BTNR, BTNL and four JXADC outputs; test fixtures tie unused button/mute inputs low explicitly.
 
-Audio uses accepted launch/pop/landing/success/failure events, with TNT explosion events also connected. Failure outranks success, explosion, landing, pop, launch and the BTNR test. Higher priority interrupts; held/equal/lower requests do not replay or queue. The generator plays short tone sequences with quiet amplitude fades and complete PWM frames. Mute/reset/retry/edit cancel old playback; the carrier and enabled amplifier remain running between sounds. The XDC enables JXADC pins 1-4 and disables the old JC outputs. See [audio setup](audio_setup.md).
+Audio uses accepted launch/pop/landing/success/failure events, with TNT explosion events also connected. Failure outranks success, explosion, collision/landing, pop, and launch. Higher priority interrupts; held/equal/lower requests do not replay or queue. The generator plays short tone sequences with instant attack and complete PWM frames. Mute/reset/retry/edit cancel old playback; the carrier and enabled amplifier remain running between sounds. The XDC enables JXADC pins 1-4 and disables the old JC outputs. See [audio setup](audio_setup.md).
 
 ## Connected drawing path
 
@@ -62,9 +62,9 @@ During BUILD the left renderer shows five inventory rows at x=56..91 and y=4..53
 | Boundary | Current starter behaviour | Next owner task |
 | --- | --- | --- |
 | Builder edit inputs | Connected to mouse selection/place/remove actions with inventory checks | Role 1 adds later input refinements |
-| Builder damage inputs | Content masks combine accepted balloon pops and TNT; frames receive TNT damage | Verify damage, property changes and retry on the board |
+| Builder damage inputs | Content/frame masks combine accepted balloon pops, TNT and hard-impact edge damage; the pig cell/frame are protected | Verify damage, property changes and retry on the board |
 | Game guide requests | Tied inactive | Roles 1 and 4 agree navigation inputs and instruction screens |
-| Audio events | Launch, applied balloon pops, landing, success/failure and BTNR connected; priorities and duplicate suppression implemented | TNT explosion events connected; separate wall/ceiling impact cues remain optional |
+| Audio events | Launch, applied balloon pops, landing, success/failure, TNT explosion and collision events connected; priorities and duplicate suppression implemented | Verify hard-impact audio on the board |
 | Mouse | Supplied controller unchanged; construction and balloon clicks connected | Role 1 adds guide controls and verifies new gameplay input on the Basys3 |
 | Balloon popping | Fresh RUN clicks queue surviving balloons and clear their intact bits between updates | Verify queued clicks and pop sounds during TNT damage on the board |
 | Collision | Platform, wall and ceiling handling; floor edges do not block driving | Role 3 tunes collisions after hardware testing |
@@ -99,4 +99,4 @@ Background music connects `bgm_player.audio_sample` to `sound_generator.bgm_samp
 
 ## TNT update sequence
 
-`movement_committed` starts `tnt_controller`. Every touched TNT is handled once, with content/frame masks held until the builder accepts them. Only after all damage is applied does `damage_complete` start `world_outcomes`; no-contact movements also complete. Physics holds the committed pose throughout. The game therefore sees updated `pig_alive` before choosing success/failure. Balloon clicks queue while the movement is busy and apply on the next idle clock. Damage masks are ORed if both sources are valid together. TNT intact bits feed animation and the display snapshot; explosion pulses feed the existing audio priority controller.
+`movement_committed` starts `tnt_controller`. Every touched TNT is handled once, with content/frame masks held until the builder accepts them. Only after all damage is applied does `damage_complete` start `world_outcomes`; no-contact movements also complete. Physics holds the committed pose throughout. Balloon, TNT and hard-impact masks share the builder transfer and are ORed when simultaneous. The builder removes only non-pig parts, so the pig remains available for goal checks. TNT intact bits feed animation and the display snapshot; explosion pulses feed the existing audio priority controller.

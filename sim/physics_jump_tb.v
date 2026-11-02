@@ -48,9 +48,12 @@ module physics_jump_tb;
         finish_step();
         jump=1;clocks(1);jump=0;clocks(3);begin_step();wait_request();
         if(nvy!=-512 || ny!=7680) $fatal(1,"Queued grounded jump was lost");
+        // Keep contact asserted after firing: another press must not fire until release.
+        finish_step();jump=1;begin_step();jump=0;wait_request();
+        if(nvy!=32) $fatal(1,"Spring repeated during continuous contact");
         contact=0;finish_step();
         jump=1;begin_step();jump=0;wait_request();
-        if(nvy!=-480) $fatal(1,"Airborne jump reset vertical velocity");
+        if(nvy!=64) $fatal(1,"Airborne jump reset vertical velocity");
         finish_step();
         begin_step();wait_request();contact=1;finish_step();
         // A grounded press arriving while arithmetic is busy is kept for the next update.

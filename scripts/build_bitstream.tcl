@@ -21,6 +21,9 @@ opt_design
 place_design
 phys_opt_design
 route_design
+# Repair the last short setup paths after final routing.
+phys_opt_design -directive AggressiveExplore
+route_design -directive Explore
 
 # Reports
 report_utilization -file [file join $lp_output_dir utilization_routed.rpt]

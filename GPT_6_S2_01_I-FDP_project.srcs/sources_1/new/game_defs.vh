@@ -25,9 +25,9 @@
 `define LP_PART_PIG      3'd2
 `define LP_PART_WHEEL    3'd3
 `define LP_PART_ENGINE   3'd4
-`define LP_PART_BOOSTER  3'd5  // Side-mounted rocket; thrust integration belongs to Role 2.
+`define LP_PART_BOOSTER  3'd5  // Side-mounted rocket; finite horizontal burn.
 `define LP_PART_BALLOON  3'd6
-`define LP_PART_FAN      3'd7  // Fan; thrust integration belongs to Role 2.
+`define LP_PART_FAN      3'd7  // Fan; continuous horizontal thrust.
 
 `define LP_BUILD         3'd0
 `define LP_INIT_RUN      3'd1
@@ -60,25 +60,29 @@
 
 // Increasing IDs also give the sound priority; NONE is silence.
 `define LP_SOUND_NONE       3'd0
-`define LP_SOUND_TEST       3'd1
-`define LP_SOUND_LAUNCH     3'd2
-`define LP_SOUND_POP        3'd3
-`define LP_SOUND_COLLISION  3'd4
-`define LP_SOUND_EXPLOSION  3'd5
-`define LP_SOUND_SUCCESS    3'd6
-`define LP_SOUND_FAILURE    3'd7
+`define LP_SOUND_LAUNCH     3'd1
+`define LP_SOUND_POP        3'd2
+`define LP_SOUND_COLLISION  3'd3
+`define LP_SOUND_EXPLOSION  3'd4
+`define LP_SOUND_SUCCESS    3'd5
+`define LP_SOUND_FAILURE    3'd6
 
-// Levels: Role 4 selects one in BUILD and holds it through the run. Level 1 is the
-// rectangle track; levels 2 and 3 are the Cave Arch and Cave Flight maps. The former
-// level 2 (spiked TNT pit) was removed to free FPGA logic for the maps.
-`define LP_LEVEL_COUNT   3
+// Collision impact directions.  A response may report more than one flag for
+// a corner contact, so the top level can damage both contacting edges.
+`define LP_IMPACT_FLOOR     4'b0001
+`define LP_IMPACT_CEILING   4'b0010
+`define LP_IMPACT_LEFT      4'b0100
+`define LP_IMPACT_RIGHT     4'b1000
+
+// Levels: Role 4 selects one in BUILD and holds it through the run.
+`define LP_LEVEL_COUNT   2
+`define LP_LEVEL_ARCH    2'd0
+`define LP_LEVEL_FLIGHT  2'd1
 `define LP_LEVEL_BITS    2
-`define LP_LEVEL_ARCH    2'd1
-`define LP_LEVEL_FLIGHT  2'd2
 
 // Block-RAM maps in level_map: one 3-bit class per world pixel. Sky and cave background are
-// open; the other classes are solid. Map 0 is Cave Arch (level 2), address {y[8:0], x[8:0]};
-// map 1 is Cave Flight (level 3, a flying level), address {y[7:0], x[9:0]}.
+// open; the other classes are solid. Map 0 is Cave Arch (level 1), address {y[8:0], x[8:0]};
+// map 1 is Cave Flight (level 2, a flying level), address {y[7:0], x[9:0]}.
 `define LP_MAP_WIDTH     478
 `define LP_MAP_HEIGHT    291
 // Cave Arch world size once level_map shows it twice as large (map 478 by 291).
@@ -110,7 +114,9 @@
 `define LP_BOOST_BUTTON_W 39
 `define LP_BOOST_BUTTON_H 10
 
-// Why the last run failed; checked in this priority order.
+// Why the last run failed; checked in this priority order.  LP_FAIL_PIG is
+// retained for display/backward compatibility, but the game never generates
+// it: the pig is protected from runtime damage in Bad Piggies mode.
 `define LP_FAIL_NONE     2'd0
 `define LP_FAIL_PIG      2'd1
 `define LP_FAIL_HAZARD   2'd2

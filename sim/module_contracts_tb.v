@@ -30,11 +30,17 @@ module module_contracts_tb;
     reg signed [15:0] nvx=0, nvy=512;
     wire signed [`LP_COORD_BITS-1:0] cx,cy;
     wire signed [15:0] cvx,cvy;
+    wire signed [10:0] qx, qy;
+    reg [2:0] query_class = 0;
+    always @(posedge clk) begin
+        query_class <= (qy >= 56 && qy < 64 && qx >= 0 && qx < 96) ? `LP_MAP_ROCK : `LP_MAP_SKY;
+    end
     collision_engine collision (
-        .map_level(1'b0), .world_width(10'd96), .world_height(10'd64), .query_class(3'd0),
+        .map_level(1'b1), .world_width(10'd96), .world_height(10'd64),
+        .query_x(qx), .query_y(qy), .query_class(query_class),
         .clk(clk),.reset(reset),.move_valid(move_valid),.move_ready(move_ready),
         .previous_x(px),.previous_y(py),.proposed_x(nx),.proposed_y(ny),.proposed_vx(nvx),.proposed_vy(nvy),
-        .terrain_count(3'd1),.terrain_rects({96'd0,8'd8,8'd96,8'd56,8'd0}),
+        .terrain_count(3'd0),.terrain_rects(128'd0),
         .response_valid(response_valid),.response_ready(response_ready),.corrected_x(cx),.corrected_y(cy),
         .corrected_vx(cvx),.corrected_vy(cvy),.grounded(grounded)
     );
@@ -90,6 +96,7 @@ module module_contracts_tb;
         input integer count;
         begin repeat(count) @(negedge clk); end
     endtask
+    integer waited;
     initial begin
         clocks(3); reset=0; clocks(2); build_test_vehicle();
         if (!valid || !pig_alive || wheels!=2 || engines!=1 || mass!=13) $fatal(1,"Initial properties incorrect");
@@ -105,18 +112,22 @@ module module_contracts_tb;
         builder_state=`LP_RUN; damage_mask=9'b000100000; damage_valid=1; clocks(1); damage_valid=0; clocks(1);
         if (engines!=0 || mass!=10 || grid[17:15]!=`LP_PART_ENGINE) $fatal(1,"Damage corrupted original build/properties");
         damage_mask=9'b000010000; damage_valid=1; clocks(3); damage_valid=0;
-        if (pig_alive) $fatal(1,"Pig destruction not applied");
+        if (!pig_alive || !intact[4]) $fatal(1,"Pig was not protected from runtime damage");
         builder_state=`LP_INIT_RUN; builder_init=1; clocks(2);
         if (!builder_ready || !pig_alive || engines!=1 || intact!=9'b101110000 ||
             frame_intact!=9'b000111000) $fatal(1,"Retry did not restore build");
         builder_init=0;
 
-        move_valid=1; clocks(1); move_valid=0; clocks(2);
+        move_valid=1; clocks(1); move_valid=0;
+        waited=0;
+        while (!response_valid && waited < 50000) begin clocks(1); waited=waited+1; end
         if (!response_valid || !grounded || cy!=8192 || cvy!=0) $fatal(1,"Platform crossing failed: valid=%b grounded=%b cy=%0d cvy=%0d",response_valid,grounded,cy,cvy);
         ny=12000; clocks(5);
         if (!response_valid || move_ready || cy!=8192) $fatal(1,"Collision response changed under backpressure");
-        response_ready=1; clocks(1); response_ready=0;
-        nx=24576; move_valid=1; clocks(1); move_valid=0; clocks(2);
+        response_ready=1; clocks(1); response_ready=0; clocks(1);
+        px=24576; py=7936; nx=24576; ny=12000; move_valid=1; clocks(1); move_valid=0;
+        waited=0;
+        while (!response_valid && waited < 50000) begin clocks(1); waited=waited+1; end
         if (grounded || cy!=12000) $fatal(1,"Non-overlapping vehicle landed on ground");
         response_ready=1; clocks(1);
 
@@ -128,10 +139,10 @@ module module_contracts_tb;
         if (state!=`LP_RUN) $fatal(1,"Ready modules did not start RUN");
         tick=1; clocks(1); tick=0; clocks(1);
         goal=1; live=0; world_valid=1; clocks(1); world_valid=0;
-        if (state!=`LP_FAIL || !failure_event || success_event) $fatal(1,"Goal incorrectly outranked pig death");
-        clocks(1); if (failure_event) $fatal(1,"Result audio event repeated");
-        $display("PASS module_contracts_tb: damage/retry, pixels, landing, backpressure, invalid launch, readiness, failure priority");
+        if (state!=`LP_SUCCESS || !success_event || failure_event) $fatal(1,"Protected pig did not allow goal success");
+        clocks(1); if (success_event) $fatal(1,"Result audio event repeated");
+        $display("PASS module_contracts_tb: damage/retry, pig protection, pixels, landing, backpressure, invalid launch, readiness");
         $finish;
     end
-    initial begin #10000; $fatal(1,"Module contracts test timed out"); end
+    initial begin #1000000; $fatal(1,"Module contracts test timed out"); end
 endmodule

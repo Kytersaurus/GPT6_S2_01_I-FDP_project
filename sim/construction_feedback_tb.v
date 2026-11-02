@@ -181,7 +181,7 @@ module construction_feedback_tb;
         save_build(); act(`LP_EDIT_PLACE,7,`LP_PART_WHEEL);
         if (feedback!=`LP_FEEDBACK_NONE) $fatal(1,"Same unsupported part produced feedback");
         unchanged(); act(`LP_EDIT_PLACE,4,`LP_PART_WHEEL);
-        expect_feedback(`LP_FEEDBACK_FRAME_ABOVE,4,"FRAME UP/DOWN   "); unchanged();
+        expect_feedback(`LP_FEEDBACK_NO_STOCK,4,"NO STOCK        "); unchanged();
         act(`LP_EDIT_PLACE,4,`LP_PART_BALLOON);
         expect_feedback(`LP_FEEDBACK_FRAME_BELOW,4,"FRAME BELOW     "); unchanged();
         act(`LP_EDIT_PLACE,4,`LP_PART_FRAME);

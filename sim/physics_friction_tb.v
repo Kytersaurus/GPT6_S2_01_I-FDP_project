@@ -17,6 +17,9 @@ module physics_friction_tb;
     wire signed [15:0] nvx, nvy;
     reg [4*`LP_COORD_BITS+31:0] held_request;
     integer steps, previous_velocity, wait_cycles;
+    reg check_static_hold = 0;
+    wire weak_move_valid;
+    wire signed [15:0] weak_nvx;
 
     always #5 clk = ~clk;
 
@@ -35,6 +38,21 @@ module physics_friction_tb;
         .corrected_x(cx), .corrected_y(cy),
         .corrected_vx(cvx), .corrected_vy(cvy), .ground_slope(8'sd0), .grounded(grounded),
         .movement_committed(committed), .vehicle_x(x), .vehicle_y(y)
+    );
+
+    // A smaller motor tests static friction even after rolling drag is tuned
+    // below the default motor's force for every supported wheel count.
+    physics_engine #(.ENGINE_FORCE(32)) weak_motor (
+        .clk(clk), .reset(reset), .game_state(game_state), .run_init(run_init),
+        .spawn_x(20'sd1024), .spawn_y(20'sd8192),
+        .step_start(step_start), .update_release(update_release),
+        .wheel_count(wheels), .engine_count(engines), .balloon_count(4'd0),
+        .mass_units(mass), .engine_enabled(engine_enabled), .engine_reverse(engine_reverse),
+        .jump_press(1'b0), .boost_req(1'b0),
+        .move_valid(weak_move_valid), .move_ready(move_ready),
+        .proposed_vx(weak_nvx), .response_valid(response_valid),
+        .corrected_x(cx), .corrected_y(cy), .corrected_vx(weak_nvx),
+        .corrected_vy(16'sd0), .ground_slope(8'sd0), .grounded(grounded)
     );
 
     task clocks;
@@ -92,6 +110,8 @@ module physics_friction_tb;
             begin_step;
             if ($signed(nvx) !== expected_velocity)
                 $fatal(1, "Expected vx=%0d, got %0d", expected_velocity, $signed(nvx));
+            if (check_static_hold && (!weak_move_valid || weak_nvx!==16'sd0))
+                $fatal(1, "Static friction did not hold the smaller motor at rest");
             // Keep a flat-ground fixture while accepting horizontal proposals.
             cx = nx; cy = 8192; cvx = nvx; cvy = 0;
             finish_step;
@@ -100,30 +120,36 @@ module physics_friction_tb;
 
     initial begin
         // Coasting loses speed gradually and stops without reversing.
-        seed_state(7, 1); expect_step(6); expect_step(4); expect_step(2); expect_step(0); expect_step(0);
-        seed_state(-7, 1); expect_step(-6); expect_step(-4); expect_step(-2); expect_step(0); expect_step(0);
+        seed_state(7, 1); expect_step(6); expect_step(5); expect_step(4); expect_step(3);
+        expect_step(2); expect_step(1); expect_step(0); expect_step(0);
+        seed_state(-7, 1); expect_step(-6); expect_step(-5); expect_step(-4); expect_step(-3);
+        expect_step(-2); expect_step(-1); expect_step(0); expect_step(0);
 
-        // Wheel count changes resistance: ten force units per wheel.
-        wheels = 1; seed_state(100, 1); expect_step(100);
+        // Wheel count changes resistance: six force units per wheel.
+        wheels = 1; seed_state(100, 1); expect_step(100); expect_step(99);
         wheels = 2; seed_state(100, 1); expect_step(99);
         wheels = 0; seed_state(100, 1); expect_step(100);
 
         // The same net force produces more acceleration after mass falls.
         wheels = 2; engine_enabled = 1;
-        seed_state(0, 1); expect_step(6);
-        mass = 8; expect_step(15);
+        seed_state(0, 1); expect_step(7);
+        mass = 8; expect_step(17);
         mass = 11; engine_reverse = 1;
-        seed_state(0, 1); expect_step(-6);
+        seed_state(0, 1); expect_step(-7);
 
         // Reverse thrust first brakes, then produces opposite movement.
-        seed_state(20, 1); expect_step(10); expect_step(0); expect_step(-6);
+        seed_state(20, 1); expect_step(11); expect_step(1); expect_step(-7);
         engine_reverse = 0;
-        seed_state(-20, 1); expect_step(-10); expect_step(0); expect_step(6);
+        seed_state(-20, 1); expect_step(-11); expect_step(-1); expect_step(7);
 
-        // At rest, friction can balance an engine but cannot move the body.
-        wheels = 10; seed_state(0, 1); expect_step(0);
-        wheels = 15; seed_state(0, 1); expect_step(0);
+        // The 96-unit motor overcomes 10*6 resistance; a 32-unit motor
+        // stays at rest. At 15 wheels the main motor's 6-unit net force
+        // accumulates through the divider remainder instead of disappearing.
+        check_static_hold=1;
+        wheels = 10; seed_state(0, 1); expect_step(3);
+        wheels = 15; seed_state(0, 1); expect_step(0); expect_step(1);
         engine_enabled = 0; seed_state(0, 1); expect_step(0);
+        check_static_hold=0;
 
         // Airborne wheels produce no ground friction or ground-engine thrust.
         wheels = 9; engine_enabled = 1;
@@ -133,7 +159,7 @@ module physics_friction_tb;
 
         // More engines increase thrust; horizontal speed remains capped.
         wheels = 2; engines = 2; engine_reverse = 0;
-        seed_state(0, 1); expect_step(15);
+        seed_state(0, 1); expect_step(16);
         wheels = 0; engines = 1; mass = 1;
         seed_state(250, 1); expect_step(256);
         engine_reverse = 1;
@@ -146,7 +172,7 @@ module physics_friction_tb;
         mass = 11; wheels = 2; engine_enabled = 0; engine_reverse = 0;
         seed_state(256, 1);
         steps = 0; previous_velocity = 256;
-        while (previous_velocity != 0 && steps < 200) begin
+        while (previous_velocity != 0 && steps < 256) begin
             begin_step;
             if ($signed(nvx) < 0 || $signed(nvx) >= previous_velocity)
                 $fatal(1, "Coasting failed to slow monotonically");
@@ -155,7 +181,8 @@ module physics_friction_tb;
             finish_step;
             steps = steps + 1;
         end
-        if (previous_velocity != 0) $fatal(1, "Coasting never stopped");
+        if (previous_velocity != 0 || steps!=235)
+            $fatal(1, "Coasting stop distance in time was wrong: %0d updates",steps);
 
         // Inputs may change while stalled, but published requests must not.
         seed_state(40, 1); begin_step;

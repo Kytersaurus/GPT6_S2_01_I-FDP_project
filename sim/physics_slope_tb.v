@@ -10,13 +10,16 @@ module physics_slope_tb;
     reg engine_enabled=0, engine_reverse=0, jump=0;
     reg move_ready=0, response_valid=0, grounded=1;
     reg signed [7:0] slope=0;
+    reg slope_valid=1;
+    reg unstable=0;
+    reg signed [1:0] tip=0;
     reg signed [`LP_COORD_BITS-1:0] cx=0, cy=0;
     reg signed [15:0] cvx=0, cvy=0;
     wire initialized, move_valid, response_ready, committed;
     wire signed [`LP_COORD_BITS-1:0] px, py, nx, ny, x, y;
     wire signed [15:0] nvx, nvy;
     reg [4*`LP_COORD_BITS+31:0] held_request;
-    integer waited, cases=0;
+    integer waited, cases=0, test_slope, test_sign, test_tip, reference_velocity;
     always #5 clk=~clk;
 
     physics_engine dut (
@@ -32,7 +35,9 @@ module physics_slope_tb;
         .proposed_vx(nvx), .proposed_vy(nvy),
         .response_valid(response_valid), .response_ready(response_ready),
         .corrected_x(cx), .corrected_y(cy), .corrected_vx(cvx), .corrected_vy(cvy),
-        .grounded(grounded), .ground_slope(slope),
+        .grounded(grounded), .ground_slope(slope), .ground_slope_valid(slope_valid),
+        .corrected_tilt(5'sd0),
+        .support_unstable(unstable), .tip_dir(tip),
         .movement_committed(committed), .vehicle_x(x), .vehicle_y(y)
     );
 
@@ -110,8 +115,67 @@ module physics_slope_tb;
         mass=11; wheels=2; seed_state(0,1,16); expect_step(14);
         seed_state(0,1,-16); expect_step(-14);
         // Static wheel friction can hold a sufficiently heavy resistance.
-        mass=1; wheels=2; seed_state(0,1,16); expect_step(0);
+        mass=1; wheels=3; seed_state(0,1,16); expect_step(0);
         wheels=0; mass=0; seed_state(0,1,16); expect_step(0);
+
+        // Raster stair contacts can put the CoG outside a narrow contact span.
+        // Its edge hint must not replace a measured downhill gravity force.
+        // In particular, an uphill hint must not erase engine-gained momentum.
+        mass=11; wheels=2; unstable=1; tip=-1;
+        seed_state(200,1,16); expect_step(214); expect_step(229);
+        tip=1; seed_state(-200,1,-16); expect_step(-214); expect_step(-229);
+        wheels=0;
+        // A shallow ramp keeps its own acceleration, even if the edge hint
+        // agrees with it; substituting the stronger fallback would add energy.
+        tip=1; seed_state(100,1,2); expect_step(104);
+        tip=-1; seed_state(-100,1,-2); expect_step(-104);
+        tip=-1; seed_state(100,1,2); expect_step(104);
+        tip=1; seed_state(-100,1,-2); expect_step(-104);
+        // A CoG hint changes support/tilt, never horizontal flat-ground force.
+        tip=1; seed_state(0,1,0); expect_step(0); expect_step(0);
+        tip=-1; seed_state(0,1,0); expect_step(0); expect_step(0);
+        // Every hint direction receives the same ordinary rolling resistance.
+        wheels=2;
+        tip=-1; seed_state(80,1,0); expect_step(79); expect_step(78);
+        tip=1; seed_state(-80,1,0); expect_step(-79); expect_step(-78);
+        tip=1; seed_state(0,1,0); expect_step(0); expect_step(0);
+        tip=-1; seed_state(0,1,0); expect_step(0); expect_step(0);
+        tip=1; seed_state(80,1,0); expect_step(79); expect_step(78);
+        tip=-1; seed_state(-80,1,0); expect_step(-79); expect_step(-78);
+        wheels=0;
+        // Airborne state cannot receive any cached support force.
+        tip=-1; seed_state(100,0,16); expect_step(100);
+        tip=1; seed_state(-100,0,-16); expect_step(-100);
+        // Build speed with the motor, then switch it off on a known ramp.
+        mass=12; engine_enabled=1; tip=-1;
+        seed_state(0,1,16); expect_step(24); expect_step(48);
+        engine_enabled=0; expect_step(64); expect_step(80);
+        engine_enabled=1; engine_reverse=1; tip=1;
+        seed_state(0,1,-16); expect_step(-24); expect_step(-48);
+        engine_enabled=0; expect_step(-64); expect_step(-80);
+        engine_reverse=0; wheels=2; mass=11;
+        // General property: every accepted gradient, including flat ground,
+        // has the same force with or without either CoG edge hint.
+        for(test_slope=-16;test_slope<=16;test_slope=test_slope+1) begin
+            begin
+                for(test_sign=-1;test_sign<=1;test_sign=test_sign+2) begin
+                    for(test_tip=-1;test_tip<=1;test_tip=test_tip+2) begin
+                        unstable=0;tip=0;seed_state(test_sign*80,1,test_slope);
+                        begin_step;reference_velocity=$signed(nvx);
+                        unstable=1;tip=test_tip;seed_state(test_sign*80,1,test_slope);
+                        expect_step(reference_velocity);
+                    end
+                end
+            end
+        end
+        // The same no-CoG comparison applies to opposing flat ledge hints.
+        for(test_sign=-1;test_sign<=1;test_sign=test_sign+2) begin
+            unstable=0;tip=0;seed_state(test_sign*80,1,0);
+            begin_step;reference_velocity=$signed(nvx);
+            unstable=1;tip=-test_sign;seed_state(test_sign*80,1,0);
+            expect_step(reference_velocity);
+        end
+        unstable=0; tip=0; wheels=0;
 
         // Engine direction combines with the downhill force before division.
         mass=12; engine_enabled=1;
@@ -132,6 +196,15 @@ module physics_slope_tb;
         seed_state(40,1,0); expect_step(40);
         seed_state(0,1,16); grounded=0; expect_step(16); expect_step(16);
         seed_state(0,1,16); slope=0; expect_step(16); expect_step(16);
+
+        // A failed grade probe is not evidence of a ramp. Stale/raw bus
+        // values marked invalid must not add force or turn flat rest into drift.
+        slope_valid=0;
+        seed_state(0,1,16); expect_step(0);
+        seed_state(0,1,-16); expect_step(0);
+        seed_state(40,1,16); expect_step(40);
+        seed_state(-40,1,-16); expect_step(-40);
+        slope_valid=1;
 
         // A jump leaves the slope without receiving an extra downhill impulse.
         seed_state(0,1,16); jump=1; begin_step; jump=0;
@@ -157,7 +230,7 @@ module physics_slope_tb;
             $fatal(1,"Retry retained slope movement");
         run_init=0; game_state=`LP_RUN; expect_step(0);
 
-        $display("PASS physics_slope_tb: %0d cases, downhill/uphill forces, mass, friction, engine direction, balloons, jumps, contact sampling, backpressure and retry",cases);
+        $display("PASS physics_slope_tb: %0d cases, downhill/uphill forces, mass, friction, engine direction, CoG force invariance, flat rest, balloons, jumps, contact sampling, backpressure and retry",cases);
         $finish;
     end
     initial begin #1000000; $fatal(1,"Slope arithmetic test timed out"); end

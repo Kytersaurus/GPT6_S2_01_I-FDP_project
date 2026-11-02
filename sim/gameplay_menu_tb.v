@@ -51,37 +51,39 @@ module gameplay_menu_tb;
         move(3,8);move(8,3);
         if(!dut.build_frames[3] || dut.build_frames[8]) $fatal(1,"Empty frame did not move independently");
         place(2,6);place(2,7);place(4,0);
-        click(40,59);
+        click(50,59);
         if(!dut.inventory_page) $fatal(1,"Extra inventory page did not open");
         click(74,8);click(44,28);click(44,28);
         if(!dut.build_facing_left[5]) $fatal(1,"Rocket click did not flip");
         click(44,28);
         if(dut.build_grid[17:15]!=`LP_PART_BOOSTER || dut.build_facing_left[5] || dut.rockets_left!=0)
             $fatal(1,"Right-facing side rocket not placed/accounted");
-        click(54,59);place(0,2);
+        place(3,2);
         if(dut.fan_count!=1 || dut.fans_left!=0 || !dut.build_valid) $fatal(1,"Side fan placement failed");
         // Side attachment cannot wrap from the end of one row to the next.
         saved_grid=dut.build_grid;move(2,8);
         if(dut.build_grid!==saved_grid) $fatal(1,"Unsupported fan move accepted");
         saved_frames=dut.build_frames;saved_direction=dut.build_facing_left;
         click(8,59);clocks(30);
-        if(dut.game_state!=`LP_RUN || dut.run_page!=0 || !dut.engine_reverse || dut.drive_engines!=1)
+        if(dut.game_state!=`LP_RUN || dut.run_page!=0 || !dut.engine_reverse || dut.drive_engines!=1 || dut.engine_enabled)
             $fatal(1,"DRIVE default or left-engine physics contract incorrect");
         sw=5;clocks(5);if(dut.engine_reverse) $fatal(1,"SW2 failed to reverse saved engine direction");sw=1;clocks(5);
-        click(20,16);if(dut.engine_enabled) $fatal(1,"Engine OFF menu missing");
+        click(20,16);if(!dut.engine_enabled) $fatal(1,"Engine OFF menu missing");
         packet(20,16,1,0);packet(20,16,1,0);packet(20,16,0,0);
-        if(!dut.engine_enabled) $fatal(1,"Held engine menu repeated");
+        if(dut.engine_enabled) $fatal(1,"Held engine menu repeated");
         if(dut.balloon_count!=1) $fatal(1,"DRIVE clicks reached balloon controls");
-        click(48,59);if(dut.run_page!=1) $fatal(1,"POP page did not open");
-        click(12,12);clocks(3);
-        if(dut.balloon_count!=0 || dut.balloons_left!=1) $fatal(1,"POP did not use the vehicle view");
-        click(80,59);click(20,35);
-        if(dut.run_page!=2 || dut.master_volume!=3) $fatal(1,"RUN sound controls missing");
+        click(48,59);if(dut.run_page!=0) $fatal(1,"Navigation gap entered hidden page");
+        click(32,10);clocks(3);
+        if(dut.balloon_count!=0 || dut.balloons_left!=1) $fatal(1,"Balloon sprite did not pop");
+        click(84,59);click(20,35);click(20,35);
+        if(dut.game_state!=`LP_GUIDE || dut.master_volume!=1) $fatal(1,"RUN sound settings missing");
+        click(12,59);click(40,59);
+        if(dut.game_state!=`LP_RUN || dut.run_page!=0) $fatal(1,"Settings Back lost RUN");
         click(86,4);clocks(40);
-        if(dut.game_state!=`LP_RUN || dut.run_page!=0 || dut.balloon_count!=1 || dut.master_volume!=3 ||
+        if(dut.game_state!=`LP_RUN || dut.run_page!=0 || dut.balloon_count!=1 || dut.master_volume!=1 ||
            dut.build_facing_left!==saved_direction || dut.build_frames!==saved_frames)
             $fatal(1,"Round-arrow retry lost build, controls or volume");
-        click(55,4);clocks(3);
+        click(12,0);clocks(3);
         if(dut.game_state!=`LP_BUILD || dut.level_index!=0 || dut.balloon_count!=1)
             $fatal(1,"RUN edit changed level or failed to restore construction");
         btnC=1;clocks(14);btnC=0;clocks(30);

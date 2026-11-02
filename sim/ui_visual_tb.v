@@ -65,7 +65,7 @@ module ui_visual_tb;
         state=`LP_GUIDE;frame("ui_diary_1");page=1;frame("ui_diary_2");page=2;frame("ui_diary_3");
         page=3;frame("ui_sound");
         state=`LP_SETTINGS;frame("ui_settings");state=`LP_LEVEL_SELECT;frame("ui_levels");
-        force dut.draw_level=`LP_LEVEL_FLIGHT;frame("ui_levels_l3");force dut.draw_level=2'd0;
+        force dut.draw_level=`LP_LEVEL_FLIGHT;frame("ui_levels_l2");force dut.draw_level=2'd0;
         state=`LP_RUN;frame("ui_run");
         force dut.draw_run_page=2'd1;grid[2:0]=`LP_PART_BALLOON;intact[0]=1;frame("ui_pop");grid[2:0]=0;intact[0]=0;
         force dut.draw_run_page=2'd2;frame("ui_run_sound");force dut.draw_run_page=2'd0;go=1;frame("ui_launch");go=0;

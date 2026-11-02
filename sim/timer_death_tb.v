@@ -49,14 +49,17 @@ module timer_death_tb;
                     4'b1101:active_digit=1;
                     4'b1011:active_digit=2;
                     4'b0111:active_digit=3;
-                    default:$fatal(1,"Timer scan did not enable exactly one digit");
+                    4'b1111:active_digit=-1;
+                    default:$fatal(1,"Invalid timer anode pattern");
                 endcase
+                if(active_digit>=0) begin
                 if(seg!==digit_segments(expected_digits[active_digit*4 +: 4]) || dp!==(active_digit!=2))
                     $fatal(1,"Timer value%0d digit%0d: seg=%b dp=%b expected digit%0d",
                         value,active_digit,seg,dp,expected_digits[active_digit*4 +: 4]);
                 seen[active_digit]=1;
+                end else if(!dp) $fatal(1,"Blank digit lit decimal point");
             end
-            if(seen!==4'b1111) $fatal(1,"Not all timer digits scanned at value%0d",value);
+            if(seen!==(value<60 ? 4'b0011 : 4'b0111)) $fatal(1,"Not all timer digits scanned at value%0d",value);
         end
     endtask
     initial begin

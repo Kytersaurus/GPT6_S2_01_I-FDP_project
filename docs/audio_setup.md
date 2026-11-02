@@ -38,7 +38,7 @@ Effects pause both music voices and their shared beat. After the effect, both re
 | Failure / pig death | 440, 330, 220 Hz falling sequence | 420 ms | Accepted `failure_event` |
 | Success | 660, 880, 1320 Hz rising sequence | 300 ms | Accepted `success_event` |
 | Explosion | 160, 110, 70 Hz low falling sequence | 240 ms | Connected to accepted TNT explosions |
-| Landing | 220 Hz low bump | 60 ms | First accepted grounded response after airborne, impact >=0.5 pixel/update |
+| Collision / Impact | 400 Hz -> 200 Hz -> 100 Hz falling crunch | 60 ms | Hard terrain landing (impact >=0.5 px/upd) or horizontal wall ramming |
 | Balloon pop | 1600 Hz short tone | 40 ms | Non-empty pop mask accepted by builder |
 | Launch / retry | 660, 990 Hz rising pair | 160 ms | Accepted `launch_event` |
 

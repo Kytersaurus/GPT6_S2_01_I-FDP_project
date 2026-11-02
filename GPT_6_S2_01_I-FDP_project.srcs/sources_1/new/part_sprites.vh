@@ -406,7 +406,7 @@ function [15:0] part_sprite_facing;
         if (part==`LP_PART_BOOSTER) begin
             ix=facing_left ? size-1-y : y;
             iy=facing_left ? x : size-1-x;
-        end else if (part==`LP_PART_ENGINE && facing_left) ix=size-1-x;
+        end else if ((part==`LP_PART_ENGINE || part==`LP_PART_FAN) && facing_left) ix=size-1-x;
         if (size==16) part_sprite_facing=part_sprite16(part,ix,iy,phase,background);
         else if (size==12) part_sprite_facing=part_sprite12(part,ix,iy,phase,background);
         else part_sprite_facing=part_sprite(part,ix,iy,phase,background);

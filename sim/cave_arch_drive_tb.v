@@ -11,7 +11,7 @@
 // world_outcomes' map goal: the pig (centre cell) inside the box from the flag pole.
 // Each update must commit; the run fails if the vehicle leaves the world or stops
 // moving for 10 seconds of updates.
-module cave_arch_drive_tb;
+module cave_arch_drive_tb #(parameter ENABLE_MOMENTS=1, parameter WHEEL_TORQUE_SHIFT=2, parameter CG_SUPPORT=1);
     reg clk=0, reset=1, run_init=0, step_start=0, update_release=0, engine_reverse=0;
     reg [2:0] game_state=`LP_BUILD;
     always #5 clk=~clk;
@@ -30,6 +30,11 @@ module cave_arch_drive_tb;
     wire signed [7:0] ground_slope;
     wire signed [`LP_TILT_BITS-1:0] previous_tilt, proposed_tilt, corrected_tilt, vehicle_tilt;
     wire signed [1:0] tip_dir;
+    wire grade_valid, contact_valid;
+    wire [3:0] contact_wheels;
+    wire signed [13:0] pivot_dx, pivot_dy;
+    wire signed [9:0] contact_left, contact_right, contact_y, contact_left_y, contact_right_y;
+    wire support_unstable;
     wire signed [10:0] qx, qy;
     wire [2:0] query_class;
     wire query_solid;
@@ -40,10 +45,20 @@ module cave_arch_drive_tb;
     // The game feeds collision the solid mask as ROCK/SKY, as My_Top_Module does.
     assign query_class = query_solid ? `LP_MAP_ROCK : `LP_MAP_SKY;
     // The game's engine strength (My_Top_Module ENGINE_FORCE).
-    physics_engine #(.ENGINE_FORCE(320)) u_physics (
+    physics_engine #(.ENGINE_FORCE(320),.WHEEL_TORQUE_SHIFT(WHEEL_TORQUE_SHIFT),.ROCKET_FORCE_SHIFT(10)) u_physics (
+        .moments_enabled(ENABLE_MOMENTS != 0),
+        .build_grid({`LP_PART_WHEEL,`LP_PART_EMPTY,`LP_PART_WHEEL,
+                     `LP_PART_EMPTY,`LP_PART_PIG,`LP_PART_ENGINE,
+                     `LP_PART_WHEEL,`LP_PART_EMPTY,`LP_PART_WHEEL}),
+        .build_frames(9'b000111000),.frame_intact_mask(9'b000111000),
+        .intact_mask(9'b101011101),.build_facing_left(9'd0),.rocket_vertical_mask(9'd0),
+        .proposed_pivot_dx_q8(pivot_dx), .proposed_pivot_dy_q8(pivot_dy),
+        .support_endpoint_y_valid(contact_valid), .support_left_y_q2(contact_left_y), .support_right_y_q2(contact_right_y),
+        .ground_slope_valid(grade_valid), .support_span_valid(contact_valid), .support_wheel_count(contact_wheels),
+        .support_left_q2(contact_left), .support_right_q2(contact_right), .support_y_q2(contact_y),
         .clk(clk), .reset(reset), .game_state(game_state), .run_init(run_init), .init_ready(init_ready),
         .spawn_x(spawn_x), .spawn_y(spawn_y), .step_start(step_start), .update_release(update_release),
-        .wheel_count(4'd4), .wheels_down(4'd2), .wheels_up(4'd2), .tip_dir(tip_dir),
+        .wheel_count(4'd4), .wheels_down(4'd2), .wheels_up(4'd2), .tip_dir(tip_dir), .support_unstable(support_unstable),
         .engine_count(4'd1), .balloon_count(4'd0), .mass_units(8'd15),
         .engine_enabled(1'b1), .engine_reverse(engine_reverse), .jump_press(1'b0), .boost_req(1'b0),
         .boost_active(), .move_valid(move_valid), .move_ready(move_ready),
@@ -56,10 +71,19 @@ module cave_arch_drive_tb;
         .vehicle_x(vehicle_x), .vehicle_y(vehicle_y)
     );
     collision_engine #(.ROTATION_ONLY(1)) u_collision (
+        .pivot_dx_q8(pivot_dx), .pivot_dy_q8(pivot_dy),
+        .support_left_y_q2(contact_left_y), .support_right_y_q2(contact_right_y),
+        .ground_slope_valid(grade_valid), .support_span_valid(contact_valid), .support_wheel_count(contact_wheels),
+        .support_left_q2(contact_left), .support_right_q2(contact_right), .support_y_q2(contact_y),
         .clk(clk), .reset(reset), .move_valid(move_valid), .move_ready(move_ready),
         .previous_x(previous_x), .previous_y(previous_y), .proposed_x(proposed_x), .proposed_y(proposed_y),
         .proposed_vx(proposed_vx), .proposed_vy(proposed_vy), .terrain_count(3'd0), .terrain_rects(128'd0),
         .map_level(map_level), .rotation_enabled(1'b1), .previous_tilt(previous_tilt), .proposed_tilt(proposed_tilt),
+        .cg_enabled(CG_SUPPORT!=0), .support_unstable(support_unstable),
+        .build_grid({`LP_PART_WHEEL,`LP_PART_EMPTY,`LP_PART_WHEEL,
+                     `LP_PART_EMPTY,`LP_PART_PIG,`LP_PART_ENGINE,
+                     `LP_PART_WHEEL,`LP_PART_EMPTY,`LP_PART_WHEEL}),
+        .part_intact_mask(9'b101011101), .frame_intact_mask(9'b000111000),
         .collision_mask(9'b101111101), .world_width(world_width), .world_height(world_height),
         .query_x(qx), .query_y(qy), .query_class(query_class),
         .response_valid(response_valid), .response_ready(response_ready), .corrected_x(corrected_x),

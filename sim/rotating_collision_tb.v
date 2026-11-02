@@ -183,9 +183,9 @@ module rotating_collision_tb;
         scene=6;
         move(64*256,76*256,64*256,76*256+32,0,32,0,-1,1,-1);
         if(slope!==-16) $fatal(1,"Rotated contact lost uphill slope measurement");
-        // A later rectangle transaction must clear the rotated response route.
-        scene=1;map_level=0;
-        move(64*256,116*256,64*256,116*256+32,0,32,4,4,1,0);
+        // An unrotated transaction lands upright on flat ground.
+        scene=1;map_level=1;
+        move(64*256,116*256,64*256,116*256+32,0,32,0,0,1,0);
         if(cy!==116*256 || slope!==0) $fatal(1,"Rectangle response inherited rotation");
         // Reset during a live terrain read cancels the pending orientation.
         scene=0;map_level=1;rotation_enabled=1;width=192;height=192;

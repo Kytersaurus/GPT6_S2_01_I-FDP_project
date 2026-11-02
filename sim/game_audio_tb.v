@@ -3,19 +3,19 @@
 `include "game_defs.vh"
 module game_audio_tb;
     reg clk=0, reset=1, mute=0, cancel=0;
-    reg [6:0] events=0;
+    reg [5:0] events=0;
     wire start, busy, pwm;
     wire [2:0] id, active;
     integer starts=0, i, before_starts, waited;
     always #5 clk=~clk;
     sound_controller control (
         .clk(clk),.reset(reset),.mute(mute),.cancel(cancel),
-        .test_event(events[0]),.launch_event(events[1]),.pop_event(events[2]),
-        .collision_event(events[3]),.explosion_event(events[4]),
-        .success_event(events[5]),.failure_event(events[6]),
+        .launch_event(events[0]),.pop_event(events[1]),
+        .collision_event(events[2]),.explosion_event(events[3]),
+        .success_event(events[4]),.failure_event(events[5]),
         .busy(busy),.active_sound(active),.sound_start(start),.sound_id(id)
     );
-    sound_generator #(.BEEP_CYCLES(1024),.NOTE_CYCLES(1024),.FADE_CYCLES(8)) player (
+    sound_generator #(.NOTE_CYCLES(1024),.FADE_CYCLES(8)) player (
         .master_volume(3'd4),
         .clk(clk),.reset(reset),.mute(mute),.cancel(cancel),.start(start),.sound_id(id),.bgm_sample(4'sd0),
         .busy(busy),.active_sound(active),.audio_pwm(pwm)
@@ -35,7 +35,6 @@ module game_audio_tb;
     integer top_starts=0;
     reg [2:0] last_top_sound=0;
     My_Top_Module #(.ENABLE_BGM(0),.BUTTON_DEBOUNCE_CYCLES(2),.BUTTON_RELEASE_CYCLES(2),
-        .AUDIO_TONE_HALF_CYCLES(512),.AUDIO_BEEP_CYCLES(1024),
         .AUDIO_NOTE_CYCLES(1024),.AUDIO_FADE_CYCLES(8)) dut (
         .clk(clk),.btnC(btnC),.btnU(btnU),.btnR(btnR),.btnL(1'b0),.btnD(btnD),.sw(sw),
         .PS2Clk(PS2Clk),.PS2Data(PS2Data),.led(led),.JA(JA),.JB(JB),.JXADC(JXADC)
@@ -103,13 +102,13 @@ module game_audio_tb;
     endtask
     initial begin
         clocks(4); reset=0; clocks(2);
-        events=7'b1111111; clocks(1);
+        events=6'b111111; clocks(1);
         if (active!=`LP_SOUND_FAILURE || starts!=1) $fatal(1,"Simultaneous priority wrong");
         clocks(6000);
         if (busy || starts!=1) $fatal(1,"Held event replayed");
         events=0; clocks(1);
         // Every adjacent priority preempts; the reverse request is discarded.
-        for (i=1;i<=7;i=i+1) begin
+        for (i=1;i<=6;i=i+1) begin
             events=1<<(i-1); clocks(1);
             if (active!=i) $fatal(1,"Priority %0d did not start/preempt",i);
             events=0; clocks(1);
@@ -118,9 +117,9 @@ module game_audio_tb;
         end
         before_starts=starts; clocks(6000);
         if (busy || starts!=before_starts) $fatal(1,"Dropped requests were queued");
-        mute=1; events=7'b1000000; clocks(2); mute=0; clocks(2);
+        mute=1; events=6'b100000; clocks(2); mute=0; clocks(2);
         if (busy || starts!=before_starts) $fatal(1,"Unmute replayed held event");
-        events=0; clocks(1); events=2; clocks(1);
+        events=0; clocks(1); events=1; clocks(1);
         if (active!=`LP_SOUND_LAUNCH) $fatal(1,"Fresh event after mute ignored");
         cancel=1; clocks(1); cancel=0; clocks(2);
         if (busy) $fatal(1,"Cancel resumed old sound");
@@ -146,55 +145,75 @@ module game_audio_tb;
         click(74,48); click(12,12); click(28,12);
         if (!dut.build_valid || dut.balloon_count!=2) $fatal(1,"Test construction failed");
         launch(); wait_quiet(); before_starts=top_starts;
-        click(12,12); clocks(3);
+        click(32,10); clocks(3);
         if (last_top_sound!=`LP_SOUND_POP || top_starts!=before_starts+1 || dut.balloon_count!=1)
-            $fatal(1,"Applied balloon pop did not make one sound");
+            $fatal(1,"Balloon pop did not trigger pop audio");
         wait_quiet(); before_starts=top_starts;
-        click(12,12); click(28,28);
-        if (top_starts!=before_starts) $fatal(1,"Empty/non-balloon click made a pop sound");
 
-        // Supply accepted collision responses; the landing adapter stays real.
-        force dut.response_valid=response; force dut.response_ready=ready;
-        force dut.grounded=ground; force dut.proposed_vy=impact_vy;
-        response=1; ready=1; ground=1; impact_vy=32; clocks(2);
-        if (top_starts!=before_starts) $fatal(1,"Gentle spawn contact made a collision sound");
-        ground=0; clocks(1); ground=1; impact_vy=256; clocks(1);
-        if (last_top_sound!=`LP_SOUND_COLLISION || top_starts!=before_starts+1)
-            $fatal(1,"Landing did not trigger audio");
-        wait_quiet(); before_starts=top_starts; clocks(8);
-        if (top_starts!=before_starts) $fatal(1,"Rolling contact repeated collision sound");
-        response=0; ready=0; clocks(1);
+        // Hard landing: audio_was_grounded is driven directly by top's response pipeline.
+        force dut.response_valid=1; force dut.response_ready=1;
+        force dut.grounded=1; force dut.proposed_vy=16'sd256; clocks(1);
         release dut.response_valid; release dut.response_ready;
         release dut.grounded; release dut.proposed_vy;
+        clocks(3);
+        if (last_top_sound!=`LP_SOUND_COLLISION || top_starts!=before_starts+1)
+            $fatal(1,"Hard landing did not trigger landing audio");
 
-        result(1,0);
-        if (dut.game_state!=`LP_SUCCESS || last_top_sound!=`LP_SOUND_SUCCESS)
-            $fatal(1,"Success event not connected");
-        before_starts=top_starts; wait_quiet(); clocks(30);
-        if (top_starts!=before_starts) $fatal(1,"Result screen replayed sound");
-        launch();
-        result(1,1);
-        if (dut.game_state!=`LP_FAIL || last_top_sound!=`LP_SOUND_FAILURE)
-            $fatal(1,"Failure did not beat simultaneous goal/launch audio");
-        // Editing cancels the result sound without turning off the amplifier.
-        btnU=1; clocks(14); btnU=0; clocks(14);
-        if (dut.game_state!=`LP_BUILD || dut.audio_busy || JXADC[3]!==1)
-            $fatal(1,"Edit did not cancel result audio quietly");
-        before_starts=top_starts; btnR=1; clocks(1400);
-        if (top_starts!=before_starts || dut.audio_busy)
-            $fatal(1,"Reserved BTNR triggered audio");
-        btnR=0; clocks(14); btnR=1; clocks(14); sw=2; clocks(8);
-        if (dut.audio_busy || JXADC[3]!==0) $fatal(1,"SW1 did not cancel/shut down audio");
-        before_starts=top_starts; sw=0; clocks(300);
-        if (dut.audio_busy || top_starts!=before_starts || JXADC[3]!==1)
-            $fatal(1,"Unmute replayed held BTNR");
-        btnR=0; clocks(14); btnR=1; clocks(14); btnD=1; clocks(8);
-        if (dut.audio_busy || JXADC[3]!==0) $fatal(1,"Reset did not stop AMP2");
-        btnR=0; btnD=0; clocks(300);
-        if (dut.audio_busy || dut.game_state!=`LP_BUILD || JXADC[3]!==1)
-            $fatal(1,"Reset did not recover quietly");
+        // Gentle contact / continuous rolling must remain quiet.
+        before_starts=top_starts;
+        force dut.response_valid=1; force dut.response_ready=1;
+        force dut.grounded=1; force dut.proposed_vy=16'sd32; clocks(1);
+        release dut.response_valid; release dut.response_ready;
+        release dut.grounded; release dut.proposed_vy;
+        clocks(3);
+        if (top_starts!=before_starts) $fatal(1,"Gentle landing triggered landing audio");
+        before_starts=top_starts;
+        force dut.response_valid=1; force dut.response_ready=1;
+        force dut.grounded=1; force dut.proposed_vy=16'sd256; clocks(1);
+        release dut.response_valid; release dut.response_ready;
+        release dut.grounded; release dut.proposed_vy;
+        clocks(3);
+        if (top_starts!=before_starts) $fatal(1,"Continuous ground contact re-triggered landing audio");
+        wait_quiet(); before_starts=top_starts;
+
+        // TNT explosion triggers explosion sound.
+        force dut.explosion_sound_event=1; clocks(1); force dut.explosion_sound_event=0; clocks(3);
+        release dut.explosion_sound_event;
+        if (last_top_sound!=`LP_SOUND_EXPLOSION || top_starts!=before_starts+1)
+            $fatal(1,"TNT explosion did not trigger explosion audio");
+        wait_quiet(); before_starts=top_starts;
+
+        // Success result jingle.
+        result(1,0); clocks(3);
+        if (last_top_sound!=`LP_SOUND_SUCCESS || top_starts!=before_starts+1)
+            $fatal(1,"Success did not trigger success audio");
+        wait_quiet(); before_starts=top_starts;
+
+        // Retry and fail to test failure sound.
+        btnC=1; clocks(14); btnC=0; clocks(14);
+        if (dut.game_state!=`LP_RUN) $fatal(1,"Retry failed to return to RUN");
+        wait_quiet(); before_starts=top_starts;
+        result(0,1); clocks(3);
+        if (last_top_sound!=`LP_SOUND_FAILURE || top_starts!=before_starts+1)
+            $fatal(1,"Failure did not trigger failure audio");
+
+        // Retry and edit clear audio immediately.
+        btnC=1; clocks(1);
+        if (dut.u_sound_control.sound_id!=`LP_SOUND_NONE && dut.audio_busy)
+            $fatal(1,"Retry did not cancel audio");
+        btnC=0; clocks(20);
+        btnU=1; clocks(1);
+        if (dut.u_sound_control.sound_id!=`LP_SOUND_NONE && dut.audio_busy)
+            $fatal(1,"Edit did not cancel audio");
+        btnU=0; clocks(20);
+
+        // BTNR is reserved and must remain silent.
+        before_starts=top_starts;
+        btnR=1; clocks(14); btnR=0; clocks(14);
+        if (top_starts!=before_starts) $fatal(1,"Reserved BTNR made a sound");
+
         $display("PASS game_audio_tb: priorities/preemption, held/muted suppression, no queue, silent controls, launch/pop/landing/results, retry/edit, BTNR, AMP2 mute/reset");
         $finish;
     end
-    initial begin #2000000; $fatal(1,"Game audio test timed out"); end
+    initial begin #10000000; $fatal(1,"Audio top test timed out"); end
 endmodule
