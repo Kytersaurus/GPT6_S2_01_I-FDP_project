@@ -185,7 +185,14 @@
         "path":  "2026-11-02/233028_My_Top_Module.bit",
         "built":  "2026-11-02T23:30:28",
         "source_commit":  "48c4fe5",
-        "description":  "Role 4 test build (role4): latest main merged in; Cave Flight gaps widened to 45 px (upper and lower around the middle ledge) and floating scenery rock removed; TNT on both cave levels (Arch: behind spawn, both arches; Flight: ditch, lower gap, finish slope); star boxes off. 98.46% LUTs, 96% BRAM; 100 MHz timing misses by 0.042 ns on one TNT blast-cell path",
+        "description":  "Superseded by 000954: map pixels flicker on the board (SMOOTH_DRAW reads ran out of margin across the untimed OLED clock). Role 4 test build (role4): latest main merged in; Cave Flight gaps widened to 45 px (upper and lower around the middle ledge) and floating scenery rock removed; TNT on both cave levels (Arch: behind spawn, both arches; Flight: ditch, lower gap, finish slope); star boxes off. 98.46% LUTs, 96% BRAM; 100 MHz timing misses by 0.042 ns on one TNT blast-cell path",
         "sha256":  "c72d7f0e147ab5f1f0fa9cd949469539b03fe5d84a5f4a14031f8fcf2dff4590"
+    },
+    {
+        "path":  "2026-11-03/000954_My_Top_Module.bit",
+        "built":  "2026-11-03T00:09:54",
+        "source_commit":  "3bd523c",
+        "description":  "Role 4 test build (role4): as 233028 (latest main merged, widened Cave Flight gaps, TNT on both cave levels, star boxes off) with the map drawn on the OLED clock and SMOOTH_DRAW off, fixing flickering map pixels. 100 MHz timing met (WNS +0.059 ns); 98.20% LUTs, 96% BRAM",
+        "sha256":  "228db3d3a98355ba89ea8ae8f3c08c0a4eddd86808623e510231acba9b0da3fc"
     }
 ]
