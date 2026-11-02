@@ -170,7 +170,7 @@ flowchart TD
   - *Run Screen:* Centered 12px damage diagram, direct balloon popping, top buttons (`[RETRY]`, `[GEAR]`, `[EDIT]`), bottom squarish buttons (`ENG`, `FAN`, `RCKT`, `BOOST`).
 * **JB (Right OLED):**
   - Completely blanked (`16'h0000`) on Title Screen and Level Select screen.
-  - World follow-camera with 4 zoom levels (1.5x, 1.0x, 0.75x, 0.5x) or mouse Free Look (SW4).
+  - World follow-camera with 3 zoom levels (1.5x, 1.0x, 0.5x) or mouse Free Look (SW4).
 * **Port B BRAM Multiplexing:** During the Title Screen, because Right OLED is turned off, Port B of the terrain BRAM (`level_map.v`) is routed to the Left OLED pipeline with an offset scroll counter. This produces a live moving cave background at **0% extra BRAM cost**.
 
 ### 4.9 7-Segment Run Timer ([`seven_seg_timer.v`](file:///c:/Users/kaush/EE2026Labs/GPT6_S2_01_I-FDP_project/GPT_6_S2_01_I-FDP_project.srcs/sources_1/new/seven_seg_timer.v))

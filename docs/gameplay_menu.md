@@ -26,13 +26,13 @@ The top-right RETRY button (x66..95, y0..9) retries the current level. It restor
 
 Physical controls remain as lab/debug fallbacks: C launches/retries, U opens/closes the diary in BUILD or edits during RUN, D fully resets, L jumps, SW1 mutes, SW2 reverses, SW3 sets normal zoom, SW4 enables free look, SW15 selects JA map view. Result-screen NEXT after success still advances a level. BTNR remains reserved and silent.
 
-The timer on the Basys3 displays M.SS and runs through 4:15. Mouse-wheel steps select close (12-pixel), normal (8-pixel), overview (6-pixel), and wide overview (4-pixel) scales. Positive wheel deltas zoom out; negative deltas zoom in. Wide overview covers 192 by 128 world pixels and samples the existing sprites; it adds no sprite ROM. The existing two zoom bits encode all four scales: {overview,zoomed_out} = 00, 01, 11, 10. SW3 still selects close/normal. Zoom changes are latched at frame boundaries.
+The timer on the Basys3 displays M.SS and runs through 4:15. Mouse-wheel steps select close (1.5x / 12-pixel sprites), normal (1.0x / 8-pixel sprites), and overview (0.5x / 4-pixel sprites) views. Positive wheel deltas zoom out; negative deltas zoom in. Overview covers 192 by 128 world pixels and subsamples the existing sprites with zero extra ROM. The two zoom bits encode the three hardware scales: {overview, zoomed_out} = 2'b00 (close), 2'b01 (normal), 2'b10 (overview). SW3 selects close/normal. Zoom changes are latched at frame boundaries.
 
 ## Physics integration
 
 Engine direction already feeds the existing physics inputs without modifying Kyle's arithmetic. `engine_balance` is the number of surviving right-facing engines minus surviving left-facing engines. The top supplies its absolute value as the effective engine count and XORs its sign with SW2 for reverse. Thus opposing engines cancel thrust, SW2 reverses the entire engine balance, and damage immediately updates the next movement sample. Existing ground-only thrust, boost, friction and jump rules remain.
 
-Fan/rocket construction, sprites, stock and rocket direction storage are present. Their DRIVE controls display WAIT and stay disabled in the connected top until Kyle connects physics availability/readiness. `ui_controller.fan_available`, `rocket_available` and `rocket_ready` gate `fan_on` and the one-clock `rocket_req`; `ui_fan_on` and `ui_rocket_req` are named top wires for that integration. Do not enable these gates until physics consumes the outputs. The global frame snapshot is 239 + 4*(LP_COORD_BITS-16) bits, including two bits for the inventory page.
+Fan/rocket construction, sprites, stock and rocket direction storage are present. Their DRIVE controls display WAIT and stay disabled in the connected top until Kyle connects physics availability/readiness. `ui_controller.fan_available`, `rocket_available` and `rocket_ready` gate `fan_on` and the one-clock `rocket_req`; `ui_fan_on` and `ui_rocket_req` are named top wires for that integration. Do not enable these gates until physics consumes the outputs. The global frame snapshot is 268 bits (SNAPSHOT_WIDTH = 251 + 4*(LP_COORD_BITS-16) + (LP_TILT_BITS-4)).
 
 ## Validation
 

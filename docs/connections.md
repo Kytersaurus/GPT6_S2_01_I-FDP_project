@@ -14,7 +14,7 @@ All game modules live beside `My_Top_Module.v` in the existing design source fol
 | `clock_control` | `game_controller` | `physics_tick` requests an update approximately 60 times per second |
 | `input_controller` | `game_controller` | `start_press` connects to both `launch_req` and `retry_req`; the current state chooses the action. `edit_press` connects to `edit_req` |
 | `input_controller` | `physics_engine` | SW0 `engine_enabled`, SW2 `engine_reverse` and debounced BTNL `jump_press`, sampled/queued at the movement boundary |
-| `input_controller`, accepted game events | `sound_controller` | BTNR test, launch, applied pop, landing, success and failure; SW1 supplies mute |
+| `input_controller`, accepted game events | `sound_controller` | Launch, applied pop, collision/landing, success and failure; SW1 supplies mute (BTNR reserved) |
 | `sound_controller` | `sound_generator` | Chosen three-bit sound ID and start; busy/active ID return for priority decisions |
 | `sound_generator`, reset/mute wiring | Pmod AMP2 on JXADC | `JXADC[0]` PWM audio, `JXADC[1]` high for 6 dB gain, `JXADC[2]` zero/NC, `JXADC[3]` high only outside reset/mute |
 | `vehicle_builder` | `physics_engine` | Four-bit `wheel_count`, `engine_count`, `balloon_count` and eight-bit `mass_units` describe surviving parts |
@@ -41,7 +41,7 @@ Every movement coordinate and velocity is signed with eight fractional bits: 256
 
 `input_controller` instantiates the user's `button_debouncer` for BTNC, BTNU, BTNR and BTNL. Each uses the shared 100 MHz clock, `freq_count=19,999,999` for 200 ms of lockout, and `RELEASE_CYCLES=2,000,000` for a stable 20 ms release before rearming. The module adds reset handling to the user's code and includes the optional release check without the hold timer. The top exposes cycle-count parameters so simulations can use short intervals. SW1 uses two sampling registers, with mute asserted during reset. The hardware top now accepts `sw[15:0]`, BTNR, BTNL and four JXADC outputs; test fixtures tie unused button/mute inputs low explicitly.
 
-Audio uses accepted launch/pop/landing/success/failure events, with TNT explosion events also connected. Failure outranks success, explosion, landing, pop, launch and the BTNR test. Higher priority interrupts; held/equal/lower requests do not replay or queue. The generator plays short tone sequences with quiet amplitude fades and complete PWM frames. Mute/reset/retry/edit cancel old playback; the carrier and enabled amplifier remain running between sounds. The XDC enables JXADC pins 1-4 and disables the old JC outputs. See [audio setup](audio_setup.md).
+Audio uses accepted launch/pop/landing/success/failure events, with TNT explosion events also connected. Failure outranks success, explosion, collision/landing, pop, and launch. Higher priority interrupts; held/equal/lower requests do not replay or queue. The generator plays short tone sequences with instant attack and complete PWM frames. Mute/reset/retry/edit cancel old playback; the carrier and enabled amplifier remain running between sounds. The XDC enables JXADC pins 1-4 and disables the old JC outputs. See [audio setup](audio_setup.md).
 
 ## Connected drawing path
 

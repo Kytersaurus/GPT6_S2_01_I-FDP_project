@@ -61,6 +61,11 @@ module My_Top_Module #(
 `endif
     wire reset, oled_clk, oled_reset, physics_tick, start_press, edit_press, engine_enabled;
     wire support_unstable;
+    wire support_span_valid, ground_slope_valid;
+    wire [3:0] support_wheel_count;
+    wire signed [9:0] support_left_q2, support_right_q2, support_y_q2;
+    wire signed [9:0] support_left_y_q2, support_right_y_q2;
+    wire signed [13:0] pivot_dx_q8, pivot_dy_q8;
     wire engine_reverse, reverse_switch_enabled, jump_press, boost_req, boost_active;
     wire [1:0] run_page, draw_run_page;
     wire selected_left, edit_facing_left, draw_selected_left;
@@ -70,10 +75,9 @@ module My_Top_Module #(
     wire rocket_ready, rocket_active;
     wire [3:0] drive_engines = engine_balance<0 ? -engine_balance : engine_balance;
     wire [3:0] rocket_count, fan_count, rockets_left, fans_left, draw_rockets_left, draw_fans_left;
-    // Saved inventory selects the original turning model for motor-only carts.
-    // Damage cannot change this choice during a run.
-    wire air_moments_enabled = (ENABLE_MOMENTS != 0) &&
-        ((fans_left < FAN_LIMIT) || (rockets_left < ROCKET_LIMIT));
+    // Every production build uses the same COM-aware body. Wheel drive stays
+    // translational; adding an inactive fan must not change the physics model.
+    wire body_moments_enabled = (ENABLE_MOMENTS != 0);
     wire fan_available = fan_count != 0;
     wire rocket_available = rocket_count != 0;
     wire ui_fan_on, ui_rocket_req, ui_sound_muted;
@@ -159,13 +163,6 @@ module My_Top_Module #(
     wire [8:0] tnt_damage_mask, tnt_frame_mask;
     wire collision_impact_valid;
     wire [3:0] collision_impact_flags;
-    // Edge masks use bit 0 as top-left and bit 8 as bottom-right.
-    wire [8:0] collision_impact_mask =
-        ((collision_impact_flags & `LP_IMPACT_FLOOR) != 0 ? 9'b111000000 : 9'b0) |
-        ((collision_impact_flags & `LP_IMPACT_CEILING) != 0 ? 9'b000000111 : 9'b0) |
-        ((collision_impact_flags & `LP_IMPACT_LEFT) != 0 ? 9'b001001001 : 9'b0) |
-        ((collision_impact_flags & `LP_IMPACT_RIGHT) != 0 ? 9'b100100100 : 9'b0);
-    wire [8:0] collision_impact_frame_mask = collision_impact_mask;
     wire move_valid, move_ready, response_valid, response_ready, grounded;
     wire signed [7:0] ground_slope;
     wire signed [`LP_TILT_BITS-1:0] previous_tilt, proposed_tilt, corrected_tilt, vehicle_tilt;
@@ -187,15 +184,96 @@ module My_Top_Module #(
     wire audio_cancel = run_init || (game_state == `LP_BUILD && previous_game_state != `LP_BUILD);
     wire pop_sound_event = pop_valid && damage_ready && (|pop_mask);
     // Ignore the first gentle contact at spawn and continuous rolling contact.
+    localparam signed [15:0] CRASH_VELOCITY_THRESHOLD = 16'sd768;
+    localparam signed [15:0] CRASH_FATAL_THRESHOLD    = 16'sd1280;
+
+    wire wall_crash_right = ($signed(proposed_vx) >= CRASH_VELOCITY_THRESHOLD && $signed(corrected_vx) <= 0);
+    wire wall_crash_left  = ($signed(proposed_vx) <= -CRASH_VELOCITY_THRESHOLD && $signed(corrected_vx) >= 0);
+    wire wall_crash_event = (wall_crash_right || wall_crash_left);
+
+    // Ignore the first gentle contact at spawn and continuous rolling contact.
+    // Trigger on hard landings or high-speed wall collisions.
     wire collision_sound_event = game_state == `LP_RUN && response_valid && response_ready &&
-                                 grounded && !audio_was_grounded && $signed(proposed_vy) >= 16'sd128;
+                                 ((grounded && !audio_was_grounded && $signed(proposed_vy) >= 16'sd128) ||
+                                  wall_crash_event);
     wire explosion_sound_event;
+    reg [5:0] airborne_ticks;
     always @(posedge clk) begin
-        if (reset) begin audio_was_grounded <= 0; previous_game_state <= `LP_BUILD; end
+        if (reset) begin audio_was_grounded <= 0; previous_game_state <= `LP_BUILD; airborne_ticks <= 6'd0; end
         else begin
             previous_game_state <= game_state;
-            if (run_init || game_state != `LP_RUN) audio_was_grounded <= 0;
-            else if (response_valid && response_ready) audio_was_grounded <= grounded;
+            if (run_init || game_state != `LP_RUN) begin
+                audio_was_grounded <= 0;
+                airborne_ticks <= 6'd0;
+            end
+            else if (response_valid && response_ready) begin
+                audio_was_grounded <= grounded;
+                if (!grounded) begin
+                    if (airborne_ticks < 6'd63) airborne_ticks <= airborne_ticks + 1'b1;
+                end else begin
+                    airborne_ticks <= 6'd0;
+                end
+            end
+        end
+    end
+
+    // Crash impact: vehicle breaking on landing if it falls too hard, or slamming into walls
+    wire vehicle_is_flipped = (vehicle_tilt > 5'sd8 || vehicle_tilt < -5'sd8);
+    wire vert_crash_event = (grounded && !audio_was_grounded && airborne_ticks >= 6'd12 &&
+                             $signed(proposed_vy) >= CRASH_VELOCITY_THRESHOLD);
+    wire vert_crash_fatal = ($signed(proposed_vy) >= CRASH_FATAL_THRESHOLD);
+    wire wall_crash_fatal = ($signed(proposed_vx) >= CRASH_FATAL_THRESHOLD || $signed(proposed_vx) <= -CRASH_FATAL_THRESHOLD);
+
+    reg [8:0] next_impact_mask;
+    reg [8:0] next_frame_mask;
+
+    always @* begin
+        next_impact_mask = 9'd0;
+        next_frame_mask = 9'd0;
+        if ((vert_crash_event && vert_crash_fatal) || (wall_crash_event && wall_crash_fatal)) begin
+            // Catastrophic crash at terminal velocity: destroys all cells and wooden frames
+            next_impact_mask = 9'b111_111_111;
+            next_frame_mask  = 9'b111_111_111;
+        end else begin
+            // Vertical landing impact: bottom row (upright) or top row (flipped)
+            if (vert_crash_event) begin
+                if (vehicle_is_flipped) begin
+                    next_impact_mask = next_impact_mask | 9'b000_000_111;
+                    next_frame_mask  = next_frame_mask  | 9'b000_000_111;
+                end else begin
+                    next_impact_mask = next_impact_mask | 9'b111_000_000;
+                    // Wood frame survives moderate upright landing
+                end
+            end
+            // Horizontal wall impact: right column (cells 2, 5, 8) or left column (cells 0, 3, 6)
+            if (wall_crash_event) begin
+                if (wall_crash_right) begin
+                    next_impact_mask = next_impact_mask | 9'b100_100_100;
+                end
+                if (wall_crash_left) begin
+                    next_impact_mask = next_impact_mask | 9'b001_001_001;
+                end
+                // Wood frame survives moderate horizontal wall impact
+            end
+        end
+    end
+
+    reg impact_damage_valid;
+    reg [8:0] impact_damage_mask;
+    reg [8:0] impact_damage_frame_mask;
+
+    always @(posedge clk) begin
+        if (reset || run_init || game_state != `LP_RUN) begin
+            impact_damage_valid <= 1'b0;
+            impact_damage_mask <= 9'd0;
+            impact_damage_frame_mask <= 9'd0;
+        end else begin
+            impact_damage_valid <= 1'b0;
+            if (response_valid && response_ready && (vert_crash_event || wall_crash_event)) begin
+                impact_damage_valid <= 1'b1;
+                impact_damage_mask <= next_impact_mask;
+                impact_damage_frame_mask <= next_frame_mask;
+            end
         end
     end
 
@@ -313,13 +391,12 @@ module My_Top_Module #(
     );
     sound_controller u_sound_control (
         .clk(clk), .reset(reset), .mute(audio_muted), .cancel(audio_cancel),
-        .test_event(1'b0), .launch_event(launch_event), .pop_event(pop_sound_event),
+        .launch_event(launch_event), .pop_event(pop_sound_event),
         .collision_event(collision_sound_event), .explosion_event(explosion_sound_event),
         .success_event(success_event), .failure_event(failure_event),
         .busy(audio_busy), .active_sound(active_sound), .sound_start(sound_start), .sound_id(sound_id)
     );
     sound_generator #(
-        .TONE_HALF_CYCLES(AUDIO_TONE_HALF_CYCLES), .BEEP_CYCLES(AUDIO_BEEP_CYCLES),
         .NOTE_CYCLES(AUDIO_NOTE_CYCLES), .FADE_CYCLES(AUDIO_FADE_CYCLES),
         .GAIN_SHIFT(2)
     ) u_audio (
@@ -376,12 +453,13 @@ module My_Top_Module #(
         .build_facing_left(build_facing_left), .engine_balance(engine_balance),
         .fan_balance(fan_balance), .rocket_balance(rocket_balance),
         .rocket_count(rocket_count), .fan_count(fan_count), .rockets_left(rockets_left), .fans_left(fans_left),
-        .damage_valid(pop_valid || tnt_damage_valid || collision_impact_valid), .damage_ready(damage_ready),
+        // Collision impacts correct the pose and velocity but never remove
+        // vehicle parts. Runtime damage comes from TNT (and explicit balloon
+        // popping) only.
+        .damage_valid(pop_valid || tnt_damage_valid), .damage_ready(damage_ready),
         .damage_mask((pop_valid ? pop_mask : 9'd0) |
-                     (tnt_damage_valid ? tnt_damage_mask : 9'd0) |
-                     (collision_impact_valid ? collision_impact_mask : 9'd0)),
-        .damage_frame_mask((tnt_damage_valid ? tnt_frame_mask : 9'd0) |
-                           (collision_impact_valid ? collision_impact_frame_mask : 9'd0)),
+                     (tnt_damage_valid ? tnt_damage_mask : 9'd0)),
+        .damage_frame_mask(tnt_damage_valid ? tnt_frame_mask : 9'd0),
         .build_grid(build_grid), .build_frames(build_frames),
         .intact_mask(intact_mask), .frame_intact_mask(frame_intact_mask), .build_valid(build_valid),
         .build_error(build_error), .pig_alive(pig_alive), .wheel_count(wheel_count), .wheels_down(wheels_down), .wheels_up(wheels_up),
@@ -420,7 +498,13 @@ module My_Top_Module #(
         .tnt_intact(tnt_intact), .blast_phase(blast_phase)
     );
     physics_engine #(.ENGINE_FORCE(ENGINE_FORCE), .ROCKET_FORCE_SHIFT(ROCKET_FORCE_SHIFT), .WHEEL_TORQUE_SHIFT(WHEEL_TORQUE_SHIFT)) u_physics (
-        .moments_enabled(air_moments_enabled),.build_grid(build_grid),.build_frames(build_frames),
+        .support_endpoint_y_valid(support_span_valid),
+        .support_left_y_q2(support_left_y_q2),.support_right_y_q2(support_right_y_q2),
+        .support_wheel_count(support_wheel_count),
+        .proposed_pivot_dx_q8(pivot_dx_q8),.proposed_pivot_dy_q8(pivot_dy_q8),
+        .ground_slope_valid(ground_slope_valid),.support_span_valid(support_span_valid),
+        .support_left_q2(support_left_q2),.support_right_q2(support_right_q2),.support_y_q2(support_y_q2),
+        .moments_enabled(body_moments_enabled),.build_grid(build_grid),.build_frames(build_frames),
         .intact_mask(intact_mask),.frame_intact_mask(frame_intact_mask),
         .build_facing_left(build_facing_left),.rocket_vertical_mask(9'd0),
         .fan_balance(fan_balance), .rocket_balance(rocket_balance), .rocket_count(rocket_count),
@@ -439,6 +523,11 @@ module My_Top_Module #(
         .movement_committed(movement_committed), .vehicle_x(vehicle_x), .vehicle_y(vehicle_y), .display_y(display_y)
     );
     collision_engine #(.ROTATION_ONLY(1)) u_collision (
+        .support_left_y_q2(support_left_y_q2),.support_right_y_q2(support_right_y_q2),
+        .support_wheel_count(support_wheel_count),
+        .pivot_dx_q8(pivot_dx_q8),.pivot_dy_q8(pivot_dy_q8),
+        .ground_slope_valid(ground_slope_valid),.support_span_valid(support_span_valid),
+        .support_left_q2(support_left_q2),.support_right_q2(support_right_q2),.support_y_q2(support_y_q2),
         .collision_mask(intact_mask | frame_intact_mask),
         .cg_enabled(1'b1), .build_grid(build_grid), .part_intact_mask(intact_mask),
         .frame_intact_mask(frame_intact_mask), .support_unstable(support_unstable),

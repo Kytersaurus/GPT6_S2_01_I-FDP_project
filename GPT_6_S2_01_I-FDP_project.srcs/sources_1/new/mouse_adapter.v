@@ -42,8 +42,14 @@ module mouse_adapter (
     localparam RECONFIG_POS_Y = 3'd7;
 
     reg [2:0] setup_state;
-    reg [1:0] last_speed;
+    reg [1:0] active_speed;
+    reg [6:0] frozen_cursor_x, frozen_cursor_y;
+    reg is_reconfiguring;
     reg [11:0] init_x_pos, init_y_pos;
+
+    reg engine_facing_left;
+    reg fan_facing_left;
+    reg rocket_facing_left;
 
     reg left_was_down, right_was_down;
     reg place_pending, inventory_armed;
@@ -56,18 +62,18 @@ module mouse_adapter (
     // Speed 1 (Norm, 1.0x): MouseCtl ranges 0..95, 0..63   -> 1:1 direct mapping = 0..95, 0..63
     // Speed 2 (Fast, 2.0x): MouseCtl ranges 0..47, 0..31   -> shift left 1 bit  = 0..95, 0..63
     wire [6:0] scaled_x = 
-        (safe_speed == 2'd0) ? ((mouse_x >= 12'd191) ? 7'd95 : mouse_x[7:1]) :
-        (safe_speed == 2'd2) ? ((mouse_x >= 12'd47)  ? 7'd95 : {mouse_x[5:0], 1'b0}) :
+        (active_speed == 2'd0) ? ((mouse_x >= 12'd191) ? 7'd95 : mouse_x[7:1]) :
+        (active_speed == 2'd2) ? ((mouse_x >= 12'd47)  ? 7'd95 : {mouse_x[5:0], 1'b0}) :
                                ((mouse_x >= 12'd95)  ? 7'd95 : mouse_x[6:0]);
 
     wire [6:0] scaled_y = 
-        (safe_speed == 2'd0) ? ((mouse_y >= 12'd127) ? 7'd63 : mouse_y[6:1]) :
-        (safe_speed == 2'd2) ? ((mouse_y >= 12'd31)  ? 7'd63 : {mouse_y[4:0], 1'b0}) :
+        (active_speed == 2'd0) ? ((mouse_y >= 12'd127) ? 7'd63 : mouse_y[6:1]) :
+        (active_speed == 2'd2) ? ((mouse_y >= 12'd31)  ? 7'd63 : {mouse_y[4:0], 1'b0}) :
                                ((mouse_y >= 12'd63)  ? 7'd63 : mouse_y[5:0]);
 
     reg has_moved;
-    assign cursor_x = (has_moved || mouse_event) ? scaled_x : 7'd24;
-    assign cursor_y = (has_moved || mouse_event) ? scaled_y : 7'd24;
+    assign cursor_x = is_reconfiguring ? frozen_cursor_x : ((has_moved || mouse_event) ? scaled_x : 7'd24);
+    assign cursor_y = is_reconfiguring ? frozen_cursor_y : ((has_moved || mouse_event) ? scaled_y : 7'd24);
 
     wire [11:0] cur_x = {5'd0, cursor_x};
     wire [11:0] cur_y = {5'd0, cursor_y};
@@ -155,7 +161,10 @@ module mouse_adapter (
         if (reset) begin
             has_moved <= 1'b0;
             setup_state <= SETUP_SETMAX_X;
-            last_speed <= safe_speed;
+            active_speed <= safe_speed;
+            is_reconfiguring <= 1'b0;
+            frozen_cursor_x <= 7'd24;
+            frozen_cursor_y <= 7'd24;
             init_x_pos <= 12'd24;
             init_y_pos <= 12'd24;
             left_was_down <= 0;
@@ -167,6 +176,9 @@ module mouse_adapter (
             drag_contents <= 0;
             selected_part <= `LP_PART_FRAME;
             selected_left <= 0;
+            engine_facing_left <= 0;
+            fan_facing_left <= 0;
+            rocket_facing_left <= 0;
             inventory_page <= 0;
             edit_facing_left <= 0;
             edit_valid <= 0;
@@ -191,8 +203,10 @@ module mouse_adapter (
                 SETUP_SETMAX_Y: setup_state <= SETUP_SET_XY;
                 SETUP_SET_XY:   setup_state <= SETUP_IDLE;
                 SETUP_IDLE: begin
-                    if (safe_speed != last_speed) begin
-                        last_speed <= safe_speed;
+                    if (safe_speed != active_speed) begin
+                        frozen_cursor_x <= cursor_x;
+                        frozen_cursor_y <= cursor_y;
+                        is_reconfiguring <= 1'b1;
                         init_x_pos <= (safe_speed == 2'd0) ? {4'd0, cursor_x, 1'b0} :
                                       (safe_speed == 2'd2) ? {6'd0, cursor_x[6:1]} :
                                                              {5'd0, cursor_x};
@@ -205,7 +219,11 @@ module mouse_adapter (
                 RECONFIG_MAX_X: setup_state <= RECONFIG_MAX_Y;
                 RECONFIG_MAX_Y: setup_state <= RECONFIG_POS_X;
                 RECONFIG_POS_X: setup_state <= RECONFIG_POS_Y;
-                RECONFIG_POS_Y: setup_state <= SETUP_IDLE;
+                RECONFIG_POS_Y: begin
+                    setup_state <= SETUP_IDLE;
+                    active_speed <= safe_speed;
+                    is_reconfiguring <= 1'b0;
+                end
                 default: setup_state <= SETUP_IDLE;
             endcase
 
@@ -241,14 +259,44 @@ module mouse_adapter (
                             inventory_armed <= 1;
                             // Basic parts use five rows; page two splits the panel between two parts.
                             if (inventory_page!=0) begin
-                                if (cur_y<28) selected_part<=`LP_PART_BOOSTER;
-                                else if (cur_y>28) selected_part<=`LP_PART_FAN;
-                                else begin place_pending<=0; inventory_armed<=0; end
-                            end else if (cur_y<14) selected_part<=`LP_PART_FRAME;
-                            else if (cur_y<24) selected_part<=`LP_PART_PIG;
-                            else if (cur_y<34) selected_part<=`LP_PART_WHEEL;
-                            else if (cur_y<44) selected_part<=`LP_PART_ENGINE;
-                            else selected_part<=`LP_PART_BALLOON;
+                                if (cur_y<28) begin
+                                    if (selected_part == `LP_PART_BOOSTER && cur_x >= 70) begin
+                                        rocket_facing_left <= !rocket_facing_left;
+                                        selected_left <= !rocket_facing_left;
+                                    end else begin
+                                        selected_part <= `LP_PART_BOOSTER;
+                                        selected_left <= rocket_facing_left;
+                                    end
+                                end else if (cur_y>28) begin
+                                    if (selected_part == `LP_PART_FAN && cur_x >= 70) begin
+                                        fan_facing_left <= !fan_facing_left;
+                                        selected_left <= !fan_facing_left;
+                                    end else begin
+                                        selected_part <= `LP_PART_FAN;
+                                        selected_left <= fan_facing_left;
+                                    end
+                                end else begin place_pending<=0; inventory_armed<=0; end
+                            end else if (cur_y<14) begin
+                                selected_part <= `LP_PART_FRAME;
+                                selected_left <= 0;
+                            end else if (cur_y<24) begin
+                                selected_part <= `LP_PART_PIG;
+                                selected_left <= 0;
+                            end else if (cur_y<34) begin
+                                selected_part <= `LP_PART_WHEEL;
+                                selected_left <= 0;
+                            end else if (cur_y<44) begin
+                                if (selected_part == `LP_PART_ENGINE && cur_x >= 70) begin
+                                    engine_facing_left <= !engine_facing_left;
+                                    selected_left <= !engine_facing_left;
+                                end else begin
+                                    selected_part <= `LP_PART_ENGINE;
+                                    selected_left <= engine_facing_left;
+                                end
+                            end else begin
+                                selected_part <= `LP_PART_BALLOON;
+                                selected_left <= 0;
+                            end
                         end else if (in_grid && !inventory_armed &&
                                      (hovered_frame || hovered_part != `LP_PART_EMPTY)) begin
                             // Existing parts are only transferred when a valid drop is accepted.
@@ -256,6 +304,12 @@ module mouse_adapter (
                             if (hovered_part != `LP_PART_EMPTY) begin
                                 selected_part <= hovered_part;
                                 selected_left <= hovered_facing_left;
+                                case (hovered_part)
+                                    `LP_PART_ENGINE:  engine_facing_left <= hovered_facing_left;
+                                    `LP_PART_BOOSTER: rocket_facing_left <= hovered_facing_left;
+                                    `LP_PART_FAN:     fan_facing_left    <= hovered_facing_left;
+                                    default: begin end
+                                endcase
                             end else selected_part <= `LP_PART_FRAME;
                         end
                     end else if (!mouse_left && left_was_down) begin
@@ -274,6 +328,12 @@ module mouse_adapter (
                             edit_valid<=1; edit_op<=`LP_EDIT_PLACE; edit_cell<=drag_source;
                             edit_part<=selected_part; edit_facing_left<=!selected_left;
                             selected_left<=!selected_left;
+                            case (selected_part)
+                                `LP_PART_ENGINE:  engine_facing_left <= !selected_left;
+                                `LP_PART_BOOSTER: rocket_facing_left <= !selected_left;
+                                `LP_PART_FAN:     fan_facing_left    <= !selected_left;
+                                default: begin end
+                            endcase
                         end else if (place_pending && in_grid && (!drag_from_grid || hovered_cell != drag_source)) begin
                             edit_valid <= 1; edit_op <= `LP_EDIT_PLACE;
                             edit_cell <= hovered_cell;

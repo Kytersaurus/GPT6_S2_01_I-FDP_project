@@ -3,17 +3,17 @@
 `include "game_defs.vh"
 module sound_controller (
     input wire clk, reset, mute, cancel,
-    input wire test_event, launch_event, pop_event, collision_event,
+    input wire launch_event, pop_event, collision_event,
     input wire explosion_event, success_event, failure_event,
     input wire busy,
     input wire [2:0] active_sound,
     output wire sound_start,
     output reg [2:0] sound_id
 );
-    wire [6:0] events = {failure_event, success_event, explosion_event,
-                         collision_event, pop_event, launch_event, test_event};
-    reg [6:0] previous_events;
-    wire [6:0] fresh_events = events & ~previous_events;
+    wire [5:0] events = {failure_event, success_event, explosion_event,
+                         collision_event, pop_event, launch_event};
+    reg [5:0] previous_events;
+    wire [5:0] fresh_events = events & ~previous_events;
 
     // Remember held events even while muted, so unmuting cannot replay them.
     always @(posedge clk) begin
@@ -23,13 +23,12 @@ module sound_controller (
 
     always @* begin
         sound_id = `LP_SOUND_NONE;
-        if (fresh_events[6]) sound_id = `LP_SOUND_FAILURE;
-        else if (fresh_events[5]) sound_id = `LP_SOUND_SUCCESS;
-        else if (fresh_events[4]) sound_id = `LP_SOUND_EXPLOSION;
-        else if (fresh_events[3]) sound_id = `LP_SOUND_COLLISION;
-        else if (fresh_events[2]) sound_id = `LP_SOUND_POP;
-        else if (fresh_events[1]) sound_id = `LP_SOUND_LAUNCH;
-        else if (fresh_events[0]) sound_id = `LP_SOUND_TEST;
+        if (fresh_events[5]) sound_id = `LP_SOUND_FAILURE;
+        else if (fresh_events[4]) sound_id = `LP_SOUND_SUCCESS;
+        else if (fresh_events[3]) sound_id = `LP_SOUND_EXPLOSION;
+        else if (fresh_events[2]) sound_id = `LP_SOUND_COLLISION;
+        else if (fresh_events[1]) sound_id = `LP_SOUND_POP;
+        else if (fresh_events[0]) sound_id = `LP_SOUND_LAUNCH;
     end
     // IDs are in priority order. Equal/lower priority requests are discarded.
     // This is combinational so the player sees the chosen ID on the same edge.

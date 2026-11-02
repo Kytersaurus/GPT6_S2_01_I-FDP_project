@@ -43,12 +43,19 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
     output reg signed [`LP_COORD_BITS-1:0] previous_x, previous_y,
     output reg signed [`LP_COORD_BITS-1:0] proposed_x, proposed_y,
     output reg signed [15:0] proposed_vx, proposed_vy,
+    output wire signed [13:0] proposed_pivot_dx_q8, proposed_pivot_dy_q8,
     input wire response_valid,
     output wire response_ready,
     input wire signed [`LP_COORD_BITS-1:0] corrected_x, corrected_y,
     input wire signed [15:0] corrected_vx, corrected_vy,
     input wire grounded,
     input wire signed [7:0] ground_slope,
+    input tri1 ground_slope_valid,
+    input tri0 support_span_valid,
+    input tri0 [3:0] support_wheel_count,
+    input tri0 signed [9:0] support_left_q2, support_right_q2, support_y_q2,
+    input tri0 support_endpoint_y_valid,
+    input tri0 signed [9:0] support_left_y_q2, support_right_y_q2,
     input wire signed [`LP_TILT_BITS-1:0] corrected_tilt,
     // Collision's report that the body is balanced past a supporting edge.
     input tri0 signed [1:0] tip_dir,
@@ -103,23 +110,46 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
     reg signed [17:0] step_vy_sum;
     reg signed [15:0] step_air_force;
     wire menu_paused = game_state==`LP_SETTINGS || game_state==`LP_GUIDE;
-    reg step_moments_enabled, wheel_force_valid;
+    reg step_moments_enabled, wheel_force_valid, sampled_spring;
+    reg signed [15:0] step_vy;
+    reg step_support_unstable;
+    reg last_support_span_valid, last_ground_slope_valid;
+    reg [3:0] last_support_wheel_count;
+    reg signed [9:0] last_support_left_q2, last_support_right_q2, last_support_y_q2;
+    reg last_support_endpoint_y_valid;
+    reg signed [9:0] last_support_left_y_q2, last_support_right_y_q2;
+    reg signed [7:0] last_ground_slope, sampled_slope;
+    reg signed [1:0] last_tip;
     reg signed [13:0] angular_velocity_q8;
     reg signed [12:0] moment_angle_remainder;
     reg signed [17:0] step_angular_sum;
     reg signed [13:0] step_pivot_x, step_pivot_y;
+    assign proposed_pivot_dx_q8=step_moments_enabled ? step_pivot_x : 14'sd0;
+    assign proposed_pivot_dy_q8=step_moments_enabled ? step_pivot_y : 14'sd0;
     wire moment_valid, pivot_valid;
     wire signed [15:0] moment_accel;
+    wire signed [15:0] gravity_tilt_q8;
+    wire contact_support_unstable;
     wire [15:0] support_negative_q8, support_positive_q8;
     reg signed [15:0] supported_moment_accel;
     wire signed [13:0] pivot_dx, pivot_dy;
     wire signed [13:0] clamped_angular_velocity=step_angular_sum>18'sd4096 ? 14'sd4096 :
         step_angular_sum< -18'sd4096 ? -14'sd4096 : step_angular_sum[13:0];
-    // Air drag removes an eighth of angular speed per accepted update.
+    wire pivot_about_contact = was_grounded && !sampled_spring && step_vy>=0 && last_support_span_valid &&
+                               (step_support_unstable || supported_moment_accel!=0);
+    wire signed [`LP_TILT_BITS-1:0] pivot_turn=proposed_tilt-vehicle_tilt;
+    wire signed [1:0] pivot_direction = pivot_turn>0 ? 2'sd1 : pivot_turn<0 ? -2'sd1 : last_tip;
+    // Take drag from the magnitude, then restore its sign. Arithmetic shifts
+    // of negative speeds would otherwise damp the two directions differently.
+    wire [13:0] angular_speed = angular_velocity_q8<0 ? -angular_velocity_q8 : angular_velocity_q8;
+    wire signed [13:0] air_drag_q8 = $signed({1'b0,angular_speed[13:3]});
+    wire signed [13:0] ground_drag_q8 = $signed({1'b0,angular_speed[13:2]});
+    wire signed [13:0] ground_angular_velocity = angular_velocity_q8<0 ?
+        angular_velocity_q8+ground_drag_q8 : angular_velocity_q8-ground_drag_q8;
     // With no torque, snap the last sub-pixel motion to rest.
     wire signed [13:0] air_angular_velocity =
-        (moment_accel==0 && angular_velocity_q8<14'sd64 && angular_velocity_q8> -14'sd64) ?
-        14'sd0 : $signed(angular_velocity_q8)-($signed(angular_velocity_q8) >>> 3);
+        (moment_accel==0 && (!contact_support_unstable || gravity_tilt_q8==0 || step_vy<0) && angular_speed<14'd64) ? 14'sd0 :
+        (angular_velocity_q8<0 ? angular_velocity_q8+air_drag_q8 : angular_velocity_q8-air_drag_q8);
     wire signed [15:0] force_angle_sum=$signed(moment_angle_remainder)+$signed(clamped_angular_velocity);
     vehicle_moments #(.ROCKET_FORCE_SHIFT(ROCKET_FORCE_SHIFT), .WHEEL_TORQUE_SHIFT(WHEEL_TORQUE_SHIFT)) u_moments (
         .clk(clk),.reset(reset || run_init || game_state!=`LP_RUN),
@@ -128,8 +158,16 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
         .frame_intact_mask(frame_intact_mask),.facing_left(build_facing_left),
         .rocket_vertical_mask(rocket_vertical_mask),.fan_on(fan_enabled),.rocket_on(rocket_active),
         .grounded(was_grounded),.tilt(vehicle_tilt),.wheel_force_valid(wheel_force_valid),
+        .contact_span_valid(last_support_span_valid),
+        .contact_left_q2(last_support_left_q2),.contact_right_q2(last_support_right_q2),
+        .contact_y_q2(last_support_y_q2),.pivot_about_contact(pivot_about_contact),.pivot_direction(pivot_direction),
+        .contact_endpoint_y_valid(last_support_endpoint_y_valid),
+        .contact_left_y_q2(last_support_left_y_q2),.contact_right_y_q2(last_support_right_y_q2),
+        .ground_slope(last_ground_slope),.ground_slope_valid(last_ground_slope_valid),
+        .grounded_support_unstable(contact_support_unstable),
         .wheel_force(16'sd0),.result_valid(moment_valid),.result_ready(phase==MOMENT_WAIT),
         .angular_accel_q8(moment_accel),.support_negative_q8(support_negative_q8),.support_positive_q8(support_positive_q8),.com_x_q2(),.com_y_q2(),.body_mass(),.torque_q10(),
+        .gravity_tilt_q8(gravity_tilt_q8),
         .pivot_start(phase==PIVOT_START),.next_tilt(proposed_tilt),.pivot_valid(pivot_valid),
         .pivot_ready(phase==PIVOT_WAIT),.pivot_dx(pivot_dx),.pivot_dy(pivot_dy)
     );
@@ -148,7 +186,6 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
             rocket_fuel <= rocket_fuel - 1'b1;
     end
     // Accepted terrain gradient in Q4.4 dy/dx; positive descends to the right.
-    reg signed [7:0] last_ground_slope, sampled_slope;
     // An upside-down body settles onto the slope with its top row down.
     // Terrain contact is committed before WAIT_WORLD. Cache its angle here,
     // ready before the next IDLE/step_start, rather than chaining the slope
@@ -166,7 +203,7 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
     // would otherwise rock the body back and forth.
     reg signed [`LP_TILT_BITS-1:0] held_target;
     reg [1:0] held_count;
-    wire target_steady=desired_tilt==held_target && held_count==2'd2;
+    wire target_steady=last_ground_slope_valid && desired_tilt==held_target && held_count==2'd2;
     // Once aligned, ignore a neighboring non-flat slope bin. Change target
     // only for a larger grade change; a flat floor still returns fully level.
     wire hold_ground_target=held_count==2'd2 && vehicle_tilt==held_target && desired_tilt!=0 &&
@@ -175,16 +212,14 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
     wire signed [`LP_COORD_BITS+1:0] display_guess=$signed(display_y)+$signed(display_vy);
     wire signed [`LP_COORD_BITS+1:0] display_error=$signed(corrected_y)-display_guess;
     reg signed [5:0] spin;
-    reg signed [1:0] last_tip;
-    reg [3:0] spin_frac;
+    reg signed [4:0] spin_frac;
     // A grounded body already three steps past the ground's angle in the tip direction rests
     // on its corner: it stops tipping and settles back (a tip reported on a steep slope's
     // stairs must not roll the body over while it sits on the slope).
     wire tip_overdone=(last_tip > 0 && settle_error <= -3) || (last_tip < 0 && settle_error >= 3);
-    reg last_support_unstable, sampled_support_unstable;
-    reg signed [1:0] sampled_tip;
-    // CoG overhangs release through translation, not repeated spin impulses.
-    // The usual slope alignment remains in charge of pitch on these contacts.
+    reg last_support_unstable;
+    // Production uses the common moments solver. Legacy geometric tipping
+    // remains available to arithmetic fixtures without CoG contact geometry.
     wire signed [1:0] active_tip=(last_support_unstable || tip_overdone) ? 2'sd0 : last_tip;
     wire signed [6:0] tip_spin=spin+(active_tip > 0 ? TIP_ACCEL : active_tip < 0 ? -TIP_ACCEL : 6'sd0);
     wire signed [5:0] next_tip_spin=tip_spin > MAX_SPIN ? MAX_SPIN : tip_spin < -MAX_SPIN ? -MAX_SPIN : tip_spin[5:0];
@@ -194,10 +229,11 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
         if (spin>1) air_spin=spin-6'sd1;
         else if (spin< -1) air_spin=spin+6'sd1;
     end
-    wire signed [7:0] spin_sum=$signed({1'b0,spin_frac})+(was_grounded ? next_tip_spin : air_spin);
+    wire signed [7:0] spin_sum=$signed(spin_frac)+(was_grounded ? next_tip_spin : air_spin);
     // The wheels touching the ground decide grip and drive.
-    wire [3:0] contact_wheels=(wheels_down|wheels_up)==0 ? wheel_count :
-                              tilt_flipped(vehicle_tilt) ? wheels_up : wheels_down;
+    wire [3:0] wheel_side=tilt_flipped(vehicle_tilt) ? wheels_up : wheels_down;
+    wire [3:0] legacy_contact_wheels=(wheels_down|wheels_up)==0 ? wheel_count : wheel_side;
+    wire [3:0] contact_wheels=last_support_span_valid ? last_support_wheel_count : legacy_contact_wheels;
     reg [15:0] step_slope_product;
     reg signed [15:0] step_slope_force;
     reg [27:0] boost_timer; // 1.5 seconds at 100MHz is 150_000_000 cycles
@@ -206,13 +242,13 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
     reg sampled_boosting;
     reg [3:0] sampled_wheels, sampled_engines, sampled_balloons;
     reg sampled_sided;
-    reg sampled_engine_enabled, sampled_engine_reverse, sampled_spring;
+    reg sampled_engine_enabled, sampled_engine_reverse;
     wire spring_now;
     assign spring_now = (game_state == `LP_RUN) && was_grounded && !spring_fired &&
                       (spring_pending || jump_press);
     always @* begin
         supported_moment_accel=moment_accel;
-        if(was_grounded && !sampled_spring && active_tip==0) begin
+        if(was_grounded && !sampled_spring && step_vy>=0 && active_tip==0) begin
             if(moment_accel>0)
                 supported_moment_accel=$signed({1'b0,moment_accel})>$signed({1'b0,support_positive_q8}) ?
                     moment_accel-$signed(support_positive_q8) : 16'sd0;
@@ -230,7 +266,7 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
     reg [15:0] step_friction_limit;
     reg signed [15:0] step_friction, total_force;
     reg signed [`LP_COORD_BITS-1:0] step_x, step_y;
-    reg signed [15:0] step_vx, step_vy, step_result_vx;
+    reg signed [15:0] step_vx, step_result_vx;
     reg signed [24:0] step_momentum, step_free_momentum;
     reg signed [16:0] step_vx_sum;
     reg signed [`LP_COORD_BITS:0] step_x_sum, step_y_sum;
@@ -238,11 +274,6 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
     localparam signed [`LP_COORD_BITS:0] POSITION_MIN = -(1 << (`LP_COORD_BITS-1));
 
     wire signed [15:0] engine_magnitude, lift;
-    // A bounded gravity-driven slide only while COM lies beyond the contacts.
-    // The existing mass divider gives half-gravity acceleration (16 or 4),
-    // small enough that an ordinary motor can still drive against the slide.
-    wire signed [15:0] edge_slide_force=sampled_balloons==0 ? {4'd0,step_mass,4'd0} :
-        sampled_balloons==1 ? {6'd0,step_mass,2'd0} : 16'sd0;
     wire [15:0] wheel_resistance;
     wire signed [16:0] vertical_sum;
     assign engine_magnitude = $signed({1'b0, sampled_engines}) * engine_force;
@@ -308,7 +339,10 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
             remainder_y <= 0; pending_remainder_y <= 0; step_vertical_base <= 0; step_vy_sum <= 0;
             sampled_fans <= 0; sampled_rockets <= 0; step_air_force <= 0;
             last_ground_slope <= 0; sampled_slope <= 0; last_support_unstable<=0;
-            sampled_support_unstable<=0; sampled_tip<=0;
+            step_support_unstable<=0; last_ground_slope_valid<=0;
+            last_support_span_valid<=0; last_support_wheel_count<=0;
+            last_support_left_q2<=0; last_support_right_q2<=0; last_support_y_q2<=0;
+            last_support_endpoint_y_valid<=0; last_support_left_y_q2<=0; last_support_right_y_q2<=0;
             previous_tilt <= 0; proposed_tilt <= 0; vehicle_tilt <= 0;
             spin <= 0; spin_frac <= 0; last_tip <= 0; held_target <= 0; held_count <= 0;
             step_slope_product <= 0; step_slope_force <= 0;
@@ -336,6 +370,9 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
             if (run_init && !init_ready) begin
                 angular_velocity_q8<=0; moment_angle_remainder<=0; wheel_force_valid<=0;
                 phase <= IDLE; init_ready <= 1; was_grounded <= 0; spring_fired <= 0; last_support_unstable<=0;
+                last_ground_slope_valid<=0; last_support_span_valid<=0; last_support_wheel_count<=0; step_support_unstable<=0;
+                last_support_left_q2<=0; last_support_right_q2<=0; last_support_y_q2<=0;
+                last_support_endpoint_y_valid<=0; last_support_left_y_q2<=0; last_support_right_y_q2<=0;
                 remainder_y <= 0; pending_remainder_y <= 0;
                 last_ground_slope <= 0;
                 previous_tilt <= 0; proposed_tilt <= 0; vehicle_tilt <= 0;
@@ -353,6 +390,7 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
                 angular_velocity_q8<=0; moment_angle_remainder<=0; wheel_force_valid<=0;
                 phase <= IDLE;
                 last_ground_slope <= 0; was_grounded <= 0; spring_fired <= 0; last_support_unstable<=0;
+                last_ground_slope_valid<=0; last_support_span_valid<=0; step_support_unstable<=0;
                 spin <= 0; spin_frac <= 0; last_tip <= 0; held_target <= 0; held_count <= 0;
                 display_y <= vehicle_y; display_vy <= 0;
             end else case (phase)
@@ -363,18 +401,18 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
                     previous_tilt <= vehicle_tilt;
                     // A supported body tipping over an edge gains spin; otherwise it
                     // settles one angle step per update onto the ground under it.
-                    // Airborne, the body keeps the spin it left the ground with.
+                    // Airborne angular drag brings unpowered spin to rest.
                     step_moments_enabled<=moments_enabled; wheel_force_valid<=0;
+                    step_support_unstable<=was_grounded && last_support_unstable && !spring_now;
                     step_pivot_x<=0; step_pivot_y<=0;
                     if (moments_enabled) begin
                         proposed_tilt<=vehicle_tilt;
-                        if (was_grounded && !spring_now && active_tip==0) begin
-                            if (desired_tilt!=held_target && !hold_ground_target) begin held_target<=desired_tilt; held_count<=0; end
-                            else if (held_count!=2'd2) held_count<=held_count+1'b1;
-                        end else held_count<=0;
-                    end else if (was_grounded && !spring_now && active_tip == 0) begin
+                        // Confirm support after the common solver has projected
+                        // its contact normal onto the accepted terrain grade.
+                    end else if (was_grounded && !spring_now && active_tip == 0 && !last_support_unstable) begin
                         spin <= 0; spin_frac <= 0;
-                        if (desired_tilt != held_target && !hold_ground_target) begin held_target <= desired_tilt; held_count <= 0; end
+                        if (!last_ground_slope_valid) held_count<=0;
+                        else if (desired_tilt != held_target && !hold_ground_target) begin held_target <= desired_tilt; held_count <= 0; end
                         else if (held_count != 2'd2) held_count <= held_count+1'b1;
                         if (target_steady && settle_error > 0) proposed_tilt <= vehicle_tilt+1'b1;
                         else if (target_steady && settle_error < 0) proposed_tilt <= vehicle_tilt-1'b1;
@@ -383,16 +421,19 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
                         held_count <= 0;
                         if (was_grounded && !spring_now) spin <= next_tip_spin;
                         else spin<=air_spin;
-                        if (!was_grounded && air_spin==0) spin_frac<=0;
-                        else spin_frac <= spin_sum[3:0];
-                        proposed_tilt <= vehicle_tilt+(spin_sum >>> 4);
+                        if (!was_grounded && air_spin==0) begin spin_frac<=0; proposed_tilt<=vehicle_tilt; end
+                        else if (spin_sum>=8'sd16) begin
+                            spin_frac<=spin_sum-8'sd16; proposed_tilt<=vehicle_tilt+1'b1;
+                        end else if (spin_sum<= -8'sd16) begin
+                            spin_frac<=spin_sum+8'sd16; proposed_tilt<=vehicle_tilt-1'b1;
+                        end else begin spin_frac<=spin_sum[4:0]; proposed_tilt<=vehicle_tilt; end
                     end
                     step_x <= vehicle_x; step_y <= vehicle_y;
                     step_vx <= velocity_x; step_mass <= mass_units;
                     step_remainder <= remainder_x;
                     pending_remainder_x <= 0; pending_remainder_y <= 0;
                     sampled_wheels <= contact_wheels; sampled_engines <= engine_count;
-                    sampled_sided <= (wheels_down|wheels_up)!=0;
+                    sampled_sided <= last_support_span_valid || (wheels_down|wheels_up)!=0;
                     sampled_balloons <= balloon_count;
                     sampled_engine_enabled <= engine_enabled; sampled_engine_reverse <= engine_reverse;
                     sampled_spring <= spring_now;
@@ -403,8 +444,6 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
                     sampled_rocket_cos<=rotation_cos(vehicle_tilt);
                     sampled_rocket_sin<=rotation_sin(vehicle_tilt);
                     sampled_slope <= last_ground_slope;
-                    sampled_support_unstable<=was_grounded && last_support_unstable && !spring_now;
-                    sampled_tip<=last_tip;
                     sampled_boosting <= is_boosting;
                     phase <= CALC_FORCE;
                 end
@@ -469,15 +508,9 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
                 SLOPE_FORCE: begin
                     // Convert acceleration to force before the existing mass
                     // division. Wheel resistance can balance it at rest.
-                    // The artificial ledge nudge releases a resting overhang.
-                    // A known ramp keeps its real downhill gravity. When the
-                    // ramp probe misses a stair, never let that nudge brake
-                    // momentum already carrying the body the other way.
-                    if (sampled_support_unstable && sampled_slope==0 &&
-                        (step_vx==0 || (step_vx>0 && sampled_tip>0) ||
-                         (step_vx<0 && sampled_tip<0)))
-                        step_slope_force<=sampled_tip>0 ? edge_slide_force : -edge_slide_force;
-                    else if (sampled_slope < 0)
+                    // CoG imbalance changes angular support, never propulsion.
+                    // Only a valid measured gradient projects gravity onto x.
+                    if (sampled_slope < 0)
                         step_slope_force <= -($signed({1'b0,step_mass}) *
                                               $signed({1'b0,step_slope_product[15:8]}));
                     else
@@ -586,12 +619,19 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
                 MOMENT_WAIT: begin
                     if (!step_moments_enabled) phase<=POSITION;
                     else if (moment_valid) begin
+                        step_support_unstable<=contact_support_unstable;
+                        if (was_grounded && !sampled_spring && step_vy>=0 &&
+                            !contact_support_unstable && last_ground_slope_valid) begin
+                            if (desired_tilt!=held_target && !hold_ground_target) begin held_target<=desired_tilt; held_count<=0; end
+                            else if (held_count!=2'd2) held_count<=held_count+1'b1;
+                        end else held_count<=0;
                         // Ground loses a quarter of spin; air loses an eighth.
                         // Active fan/rocket torque can still accelerate rotation.
                         step_angular_sum<=
-                            (was_grounded && !sampled_spring ?
-                            $signed(angular_velocity_q8)-($signed(angular_velocity_q8) >>> 2) :
+                            (was_grounded && !sampled_spring && step_vy>=0 && !contact_support_unstable ?
+                            $signed(ground_angular_velocity) :
                             $signed(air_angular_velocity))+$signed(supported_moment_accel)+
+                            (contact_support_unstable && step_vy>=0 ? $signed(gravity_tilt_q8) : 18'sd0)+
                             (was_grounded && !sampled_spring ?
                             (active_tip>0 ? 18'sd256 : active_tip<0 ? -18'sd256 : 18'sd0) : 18'sd0);
                         phase<=ROTATE_FORCE;
@@ -600,8 +640,8 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
                 ROTATE_FORCE: begin
                     // Ground contact can settle a quiet body; otherwise integrate
                     // signed fractional angle symmetrically in both directions.
-                    if (was_grounded && !sampled_spring && active_tip==0 && supported_moment_accel==0 &&
-                        clamped_angular_velocity<14'sd256 && clamped_angular_velocity> -14'sd256) begin
+                    if (was_grounded && !sampled_spring && step_vy>=0 && !step_support_unstable && active_tip==0 && supported_moment_accel==0 &&
+                        (last_support_span_valid || (clamped_angular_velocity<14'sd256 && clamped_angular_velocity> -14'sd256))) begin
                         angular_velocity_q8<=0; moment_angle_remainder<=0; spin<=0; spin_frac<=0;
                         if (target_steady && settle_error>0) proposed_tilt<=vehicle_tilt+1'b1;
                         else if (target_steady && settle_error<0) proposed_tilt<=vehicle_tilt-1'b1;
@@ -673,6 +713,13 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
                     vehicle_tilt <= sanitize_tilt(corrected_tilt);
                     last_tip <= grounded ? tip_dir : 2'sd0;
                     last_support_unstable<=grounded && support_unstable;
+                    last_support_span_valid<=grounded && support_span_valid;
+                    last_support_wheel_count<=support_wheel_count;
+                    last_support_left_q2<=support_left_q2; last_support_right_q2<=support_right_q2;
+                    last_support_y_q2<=support_y_q2;
+                    last_support_endpoint_y_valid<=grounded && support_endpoint_y_valid;
+                    last_support_left_y_q2<=support_left_y_q2; last_support_right_y_q2<=support_right_y_q2;
+                    last_ground_slope_valid<=grounded && ground_slope_valid && ground_slope>=-8'sd16 && ground_slope<=8'sd16;
                     // A wall or roof that blocks an airborne turn stops the spin.
                     if ((step_moments_enabled || !grounded) && corrected_tilt != proposed_tilt) begin
                         spin<=0; spin_frac<=0; angular_velocity_q8<=0; moment_angle_remainder<=0;
@@ -682,7 +729,7 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
                     // A spring may fire once per continuous contact. Re-arm
                     // only when an accepted collision response releases it.
                     if (!grounded) spring_fired <= 0;
-                    if (grounded && ground_slope >= -8'sd16 && ground_slope <= 8'sd16)
+                    if (grounded && ground_slope_valid && ground_slope >= -8'sd16 && ground_slope <= 8'sd16)
                         last_ground_slope <= ground_slope;
                     else last_ground_slope <= 0;
                     // A wall/contact correction must discard pre-contact carry.
@@ -717,16 +764,29 @@ module vehicle_moments #(parameter integer ROCKET_FORCE_SHIFT = 9,
     input wire [8:0] facing_left, rocket_vertical_mask,
     input wire fan_on, rocket_on, grounded,
     input wire signed [`LP_TILT_BITS-1:0] tilt,
+    // Accepted terrain contacts in world x, relative to the grid centre (Q2).
+    // Omitted ports retain the inferred-wheel fallback for legacy callers.
+    input tri0 contact_span_valid,
+    input tri0 signed [9:0] contact_left_q2, contact_right_q2,
+    input tri0 signed [9:0] contact_y_q2,
+    input tri0 contact_endpoint_y_valid,
+    input tri0 signed [9:0] contact_left_y_q2, contact_right_y_q2,
+    input tri0 signed [7:0] ground_slope,
+    input tri0 ground_slope_valid,
     input wire wheel_force_valid,
     input wire signed [15:0] wheel_force,
     output reg result_valid,
     input wire result_ready,
     output reg signed [15:0] angular_accel_q8,
+    output reg signed [15:0] gravity_tilt_q8,
+    output reg grounded_support_unstable,
     output reg [15:0] support_negative_q8, support_positive_q8,
     output reg signed [6:0] com_x_q2, com_y_q2,
     output reg [7:0] body_mass,
     input wire pivot_start,
     input wire signed [`LP_TILT_BITS-1:0] next_tilt,
+    input tri0 pivot_about_contact,
+    input tri0 signed [1:0] pivot_direction,
     output reg pivot_valid,
     input wire pivot_ready,
     output reg signed [13:0] pivot_dx, pivot_dy,
@@ -741,15 +801,28 @@ module vehicle_moments #(parameter integer ROCKET_FORCE_SHIFT = 9,
         MUL=20, MUL_SIGN=21, WAIT_PIVOT=22, PIVOT_OLD_X_SECOND=23,
         PIVOT_OLD_Y_FIRST=24, PIVOT_OLD_Y_SECOND=25, PIVOT_NEW_X_FIRST=26,
         PIVOT_NEW_X_SECOND=27, PIVOT_NEW_Y_FIRST=28, PIVOT_NEW_Y_SECOND=29,
-        PIVOT_FINISH=30, PIVOT_DONE=31, SUPPORT_FIRST=32, SUPPORT_SECOND=33, SUPPORT_FINISH=34;
+        PIVOT_FINISH=30, PIVOT_DONE=31, SUPPORT_FIRST=32, SUPPORT_SECOND=33, SUPPORT_FINISH=34,
+        CONTACT_COM_FIRST=35, CONTACT_COM_SECOND=36, CONTACT_COM_RESULT=37,
+        CONTACT_COM_Y_SECOND=38, CONTACT_COM_Y_RESULT=39,
+        NORMAL_LEFT_START=40, NORMAL_LEFT_RESULT=41,
+        NORMAL_RIGHT_START=42, NORMAL_RIGHT_RESULT=43,
+        NORMAL_CAP_LEFT_START=44, NORMAL_CAP_LEFT_RESULT=45, NORMAL_CAP_RIGHT_RESULT=46;
     reg [5:0] phase, mul_return;
     reg [3:0] index, wheel_contacts, balloons;
     reg signed [9:0] support_min, support_max;
+    reg actual_span_valid;
+    reg signed [9:0] actual_left, actual_right, actual_y;
+    reg actual_endpoint_y_valid;
+    reg signed [9:0] actual_left_y, actual_right_y, world_com_x, world_com_y, slope_q4;
+    reg [8:0] normal_scale;
+    reg signed [18:0] normal_left_product;
     reg [26:0] grid;
     reg [8:0] frames, alive, frame_alive, direction, vertical, contact_mask;
     reg fans_active, rockets_active, on_ground, flipped;
     reg signed [9:0] cosine, sine, next_cosine, next_sine;
-    reg signed [25:0] old_com_x, old_com_y;
+    reg signed [`LP_TILT_BITS-1:0] saved_tilt;
+    reg signed [9:0] pivot_point_x, pivot_point_y;
+    reg signed [13:0] old_com_x, old_com_y;
     reg signed [11:0] mass_x, mass_y;
     reg signed [15:0] force_cell;
     reg is_wheel, axis_y;
@@ -821,15 +894,89 @@ module vehicle_moments #(parameter integer ROCKET_FORCE_SHIFT = 9,
             phase <= MUL;
         end
     endtask
+    // Truncate signed projections toward zero. Arithmetic shifts alone round
+    // negative values down, making mirrored arms create unequal moments.
+    function signed [9:0] projection_q2;
+        input signed [25:0] value;
+        begin
+            projection_q2=$signed(value[17:8]);
+            if(value[25] && |value[7:0]) projection_q2=projection_q2+10'sd1;
+        end
+    endfunction
+    function signed [13:0] offset_q8;
+        input signed [25:0] value;
+        begin
+            offset_q8=$signed(value[15:2]);
+            if(value[25] && |value[1:0]) offset_q8=offset_q8+14'sd1;
+        end
+    endfunction
+    function signed [9:0] slope_component_q2;
+        input signed [25:0] value;
+        begin
+            slope_component_q2=$signed(value[13:4]);
+            if(value[25] && |value[3:0]) slope_component_q2=slope_component_q2+10'sd1;
+        end
+    endfunction
+    // round(256/(1+s*s)), s is the supported Q4.4 terrain gradient.
+    function [8:0] normal_factor;
+        input [4:0] q;
+        begin
+            case(q)
+                0:normal_factor=256; 1:normal_factor=255; 2:normal_factor=252;
+                3:normal_factor=247; 4:normal_factor=241; 5:normal_factor=233;
+                6:normal_factor=224; 7:normal_factor=215; 8:normal_factor=205;
+                9:normal_factor=194; 10:normal_factor=184; 11:normal_factor=174;
+                12:normal_factor=164; 13:normal_factor=154; 14:normal_factor=145;
+                15:normal_factor=136; default:normal_factor=128;
+            endcase
+        end
+    endfunction
+    function [15:0] normalized_magnitude;
+        input [18:0] magnitude;
+        input [3:0] lift_count;
+        begin
+            normalized_magnitude=0;
+            if(lift_count==0) normalized_magnitude=magnitude >> 6;
+            else if(lift_count==1) normalized_magnitude=magnitude >> 8;
+        end
+    endfunction
     wire signed [23:0] accel_dividend=torque_sum >>> 3;
-    wire signed [25:0] rotated_arm=rotation_sum >>> 8;
-    wire signed [25:0] support_x=(rot_first-product) >>> 8;
-    wire support_balanced=wheel_contacts!=0 && support_min<=0 && support_max>=0;
+    wire signed [9:0] rotated_arm=projection_q2(rotation_sum);
+    wire signed [9:0] support_x=projection_q2(rot_first-product);
+    wire support_balanced=(actual_span_valid || wheel_contacts!=0) && support_min<=0 && support_max>=0;
+    // Stability bounds include a one-pixel tolerance. The actual contact edge
+    // anchors a toppling body, so undo that margin before selecting the point.
+    wire signed [9:0] contact_pivot_x=pivot_direction>0 ? actual_right-10'sd4 : actual_left+10'sd4;
+    reg signed [9:0] contact_pivot_y;
+    wire signed [9:0] left_delta_y=(actual_endpoint_y_valid ? actual_left_y : actual_y)-world_com_y;
+    wire signed [9:0] right_delta_y=(actual_endpoint_y_valid ? actual_right_y : actual_y)-world_com_y;
+    wire signed [18:0] normal_product=product[18:0];
+    wire [18:0] normal_product_magnitude=normal_product<0 ? -normal_product : normal_product;
+    wire [15:0] reaction_capacity=normalized_magnitude(normal_product_magnitude,balloons);
+    wire signed [18:0] normal_margin=$signed({8'd0,normal_scale,2'd0});
+    reg [18:0] gravity_product;
+    wire [15:0] gravity_magnitude=normalized_magnitude(gravity_product,balloons);
+    always @* begin
+        contact_pivot_y=actual_y;
+        if(actual_endpoint_y_valid) begin
+            if(pivot_direction>0) contact_pivot_y=actual_right_y;
+            else contact_pivot_y=actual_left_y;
+        end
+        // Normal torque uses L=rx+s*ry. Undo the stability margin in x
+        // before projecting its physical edge; its product is 4*factor.
+        gravity_product=0;
+        if(support_max<0) gravity_product=-normal_product+normal_margin;
+        else if(support_min>0) gravity_product=normal_left_product+normal_margin;
+    end
     always @(posedge clk) begin
         if (reset) begin
-            phase<=IDLE; result_valid<=0; angular_accel_q8<=0;
+            phase<=IDLE; result_valid<=0; angular_accel_q8<=0; gravity_tilt_q8<=0; grounded_support_unstable<=0;
             support_negative_q8<=0; support_positive_q8<=0; support_min<=0; support_max<=0; balloons<=0;
+            actual_span_valid<=0; actual_left<=0; actual_right<=0; actual_y<=0;
+            actual_endpoint_y_valid<=0;actual_left_y<=0;actual_right_y<=0;
+            world_com_x<=0;world_com_y<=0;slope_q4<=0;normal_scale<=9'd256;normal_left_product<=0;
             pivot_valid<=0; pivot_dx<=0; pivot_dy<=0; next_cosine<=0; next_sine<=0; old_com_x<=0; old_com_y<=0;
+            saved_tilt<=0; pivot_point_x<=0; pivot_point_y<=0;
             com_x_q2<=0; com_y_q2<=0; body_mass<=0;
             index<=0; wheel_contacts<=0; contact_mask<=0;
             grid<=0; frames<=0; alive<=0; frame_alive<=0; direction<=0; vertical<=0;
@@ -847,11 +994,20 @@ module vehicle_moments #(parameter integer ROCKET_FORCE_SHIFT = 9,
                     grid<=build_grid; frames<=build_frames; alive<=intact_mask;
                     frame_alive<=frame_intact_mask; direction<=facing_left; vertical<=rocket_vertical_mask;
                     fans_active<=fan_on; rockets_active<=rocket_on; on_ground<=grounded;
+                    actual_span_valid<=contact_span_valid;
+                    actual_left<=contact_left_q2; actual_right<=contact_right_q2; actual_y<=contact_y_q2;
+                    actual_endpoint_y_valid<=contact_endpoint_y_valid;
+                    actual_left_y<=contact_left_y_q2;actual_right_y<=contact_right_y_q2;
+                    if(contact_span_valid && ground_slope_valid && ground_slope>=-8'sd16 && ground_slope<=8'sd16) begin
+                        slope_q4<={{2{ground_slope[7]}},ground_slope};
+                        normal_scale<=normal_factor(ground_slope<0 ? -ground_slope : ground_slope);
+                    end else begin slope_q4<=0;normal_scale<=9'd256;end
                     flipped<=tilt_flipped(tilt); cosine<=rotation_cos(tilt); sine<=rotation_sin(tilt);
+                    saved_tilt<=tilt;
                     index<=0; body_mass<=0; mass_x<=0; mass_y<=0;
                     contact_mask<=0; wheel_contacts<=0; torque_sum<=0;
                     balloons<=0; support_min<=10'sd511; support_max<=-10'sd512;
-                    result_valid<=0;
+                    result_valid<=0; gravity_tilt_q8<=0;grounded_support_unstable<=0;
                     phase<=SCAN;
                 end
                 SCAN: begin
@@ -875,7 +1031,42 @@ module vehicle_moments #(parameter integer ROCKET_FORCE_SHIFT = 9,
                     dividend<={{4{mass_y[11]}},mass_y}; divisor<=body_mass;
                     divider_start<=1; phase<=MASS_Y_WAIT;
                 end
-                MASS_Y_WAIT: if(divider_done) begin com_y_q2<=quotient[6:0]; phase<=WAIT_FORCE; end
+                MASS_Y_WAIT: if(divider_done) begin com_y_q2<=quotient[6:0]; phase<=CONTACT_COM_FIRST; end
+                CONTACT_COM_FIRST: begin
+                    if(actual_span_valid)
+                        multiply({{9{com_x_q2[6]}},com_x_q2},cosine,CONTACT_COM_SECOND);
+                    else phase<=WAIT_FORCE;
+                end
+                CONTACT_COM_SECOND: begin
+                    rot_first<=product;
+                    multiply({{9{com_y_q2[6]}},com_y_q2},sine,CONTACT_COM_RESULT);
+                end
+                CONTACT_COM_RESULT: begin
+                    world_com_x<=projection_q2(rot_first-product);
+                    multiply({{9{com_x_q2[6]}},com_x_q2},sine,CONTACT_COM_Y_SECOND);
+                end
+                CONTACT_COM_Y_SECOND: begin
+                    rot_first<=product;
+                    multiply({{9{com_y_q2[6]}},com_y_q2},cosine,CONTACT_COM_Y_RESULT);
+                end
+                CONTACT_COM_Y_RESULT: begin
+                    world_com_y<=projection_q2(rot_first+product);
+                    phase<=NORMAL_LEFT_START;
+                end
+                NORMAL_LEFT_START:
+                    multiply({{6{left_delta_y[9]}},left_delta_y},slope_q4,NORMAL_LEFT_RESULT);
+                NORMAL_LEFT_RESULT: begin
+                    // On y=s*x, the normal is proportional to (s,-1).
+                    // Its lever is rx+s*ry, not just horizontal distance rx.
+                    support_min<=$signed(actual_left)-world_com_x+slope_component_q2(product);
+                    phase<=NORMAL_RIGHT_START;
+                end
+                NORMAL_RIGHT_START:
+                    multiply({{6{right_delta_y[9]}},right_delta_y},slope_q4,NORMAL_RIGHT_RESULT);
+                NORMAL_RIGHT_RESULT: begin
+                    support_max<=$signed(actual_right)-world_com_x+slope_component_q2(product);
+                    phase<=WAIT_FORCE;
+                end
                 WAIT_FORCE: if(wheel_force_valid) begin
                     // Wheel drive remains translational; only jets add torque.
                     index<=0; phase<=CELL;
@@ -887,7 +1078,7 @@ module vehicle_moments #(parameter integer ROCKET_FORCE_SHIFT = 9,
                     // drive torque; fans/rockets act at their cell centres.
                     arm_y<=$signed(cell_y)-$signed(com_y_q2)+
                            (cell_is_wheel ? (flipped ? -9'sd16 : 9'sd16) : 9'sd0);
-                    phase<=cell_force==0 && !cell_is_wheel ? ADVANCE : ROT_FIRST;
+                    phase<=cell_force==0 && (!cell_is_wheel || actual_span_valid) ? ADVANCE : ROT_FIRST;
                 end
                 ROT_FIRST: begin
                     if(part==`LP_PART_BOOSTER) begin
@@ -914,8 +1105,8 @@ module vehicle_moments #(parameter integer ROCKET_FORCE_SHIFT = 9,
                     // A small tyre contact patch supplies a bounded normal
                     // reaction moment about COM. Translation's normal response
                     // remains owned by the existing collision engine.
-                    if(support_x-26'sd16<support_min) support_min<=support_x-26'sd16;
-                    if(support_x+26'sd16>support_max) support_max<=support_x+26'sd16;
+                    if(support_x-10'sd16<support_min) support_min<=support_x-10'sd16;
+                    if(support_x+10'sd16>support_max) support_max<=support_x+10'sd16;
                     phase<=TORQUE;
                 end
                 TORQUE: begin
@@ -943,51 +1134,82 @@ module vehicle_moments #(parameter integer ROCKET_FORCE_SHIFT = 9,
                 end
                 ACCEL_WAIT: if(divider_done) begin
                     angular_accel_q8<=quotient;
-                    // Weight is mass*(32-24*balloons). After the same inertia
-                    // scaling, mass cancels: support arm times 4, 1, or 0.
-                    if(on_ground && support_balanced && balloons<2) begin
-                        support_negative_q8<=balloons==0 ? (-support_min <<< 2) : -support_min;
-                        support_positive_q8<=balloons==0 ? (support_max <<< 2) : support_max;
-                    end else begin support_negative_q8<=0; support_positive_q8<=0; end
+                    support_negative_q8<=0;support_positive_q8<=0;gravity_tilt_q8<=0;
+                    grounded_support_unstable<=actual_span_valid && on_ground && body_mass!=0 && !support_balanced;
+                    if(on_ground && body_mass!=0 && balloons<2 && (actual_span_valid || wheel_contacts!=0))
+                        phase<=NORMAL_CAP_LEFT_START;
+                    else begin result_valid<=1;phase<=DONE;end
+                end
+                NORMAL_CAP_LEFT_START:
+                    multiply({{6{support_min[9]}},support_min},$signed({1'b0,normal_scale}),NORMAL_CAP_LEFT_RESULT);
+                NORMAL_CAP_LEFT_RESULT: begin
+                    normal_left_product<=normal_product;
+                    support_negative_q8<=reaction_capacity;
+                    multiply({{6{support_max[9]}},support_max},$signed({1'b0,normal_scale}),NORMAL_CAP_RIGHT_RESULT);
+                end
+                NORMAL_CAP_RIGHT_RESULT: begin
+                    if(support_balanced) support_positive_q8<=reaction_capacity;
+                    else begin support_negative_q8<=0;support_positive_q8<=0;end
+                    if(actual_span_valid && support_max<0) begin
+                        if(gravity_magnitude>16'd256) gravity_tilt_q8<=16'sd256;
+                        else gravity_tilt_q8<=$signed(gravity_magnitude);
+                    end else if(actual_span_valid && support_min>0) begin
+                        if(gravity_magnitude>16'd256) gravity_tilt_q8<=-16'sd256;
+                        else gravity_tilt_q8<=-$signed(gravity_magnitude);
+                    end
                     result_valid<=1; phase<=DONE;
                 end
                 DONE: if(result_ready) begin result_valid<=0; phase<=WAIT_PIVOT; end
-                // Keep COM world motion unchanged by the grid-centre rotation:
-                // origin correction = R(old)*COM - R(new)*COM.
+                // Free rotation keeps COM world motion unchanged. A grounded
+                // toppling body instead rotates about its real contact edge.
                 WAIT_PIVOT: if(pivot_start) begin
-                    next_cosine<=rotation_cos(next_tilt); next_sine<=rotation_sin(next_tilt);
-                    multiply({{9{com_x_q2[6]}},com_x_q2},cosine,PIVOT_OLD_X_SECOND);
+                    if(pivot_about_contact && actual_span_valid) begin
+                        // Contact r is already in world coordinates:
+                        // origin correction = r - R(angle change)*r.
+                        pivot_point_x<=contact_pivot_x; pivot_point_y<=contact_pivot_y;
+                        cosine<=10'sd256; sine<=0;
+                        next_cosine<=rotation_cos(next_tilt-saved_tilt);
+                        next_sine<=rotation_sin(next_tilt-saved_tilt);
+                        multiply({{6{contact_pivot_x[9]}},contact_pivot_x},10'sd256,PIVOT_OLD_X_SECOND);
+                    end else begin
+                        pivot_point_x<={{3{com_x_q2[6]}},com_x_q2};
+                        pivot_point_y<={{3{com_y_q2[6]}},com_y_q2};
+                        next_cosine<=rotation_cos(next_tilt); next_sine<=rotation_sin(next_tilt);
+                        multiply({{9{com_x_q2[6]}},com_x_q2},cosine,PIVOT_OLD_X_SECOND);
+                    end
                 end
                 PIVOT_OLD_X_SECOND: begin
                     rot_first<=product;
-                    multiply({{9{com_y_q2[6]}},com_y_q2},sine,PIVOT_OLD_Y_FIRST);
+                    multiply({{6{pivot_point_y[9]}},pivot_point_y},sine,PIVOT_OLD_Y_FIRST);
                 end
                 PIVOT_OLD_Y_FIRST: begin
-                    old_com_x<=rot_first-product;
-                    multiply({{9{com_x_q2[6]}},com_x_q2},sine,PIVOT_OLD_Y_SECOND);
+                    old_com_x<=offset_q8(rot_first-product);
+                    multiply({{6{pivot_point_x[9]}},pivot_point_x},sine,PIVOT_OLD_Y_SECOND);
                 end
                 PIVOT_OLD_Y_SECOND: begin
                     rot_first<=product;
-                    multiply({{9{com_y_q2[6]}},com_y_q2},cosine,PIVOT_NEW_X_FIRST);
+                    multiply({{6{pivot_point_y[9]}},pivot_point_y},cosine,PIVOT_NEW_X_FIRST);
                 end
                 PIVOT_NEW_X_FIRST: begin
-                    old_com_y<=rot_first+product;
-                    multiply({{9{com_x_q2[6]}},com_x_q2},next_cosine,PIVOT_NEW_X_SECOND);
+                    old_com_y<=offset_q8(rot_first+product);
+                    multiply({{6{pivot_point_x[9]}},pivot_point_x},next_cosine,PIVOT_NEW_X_SECOND);
                 end
                 PIVOT_NEW_X_SECOND: begin
                     rot_first<=product;
-                    multiply({{9{com_y_q2[6]}},com_y_q2},next_sine,PIVOT_NEW_Y_FIRST);
+                    multiply({{6{pivot_point_y[9]}},pivot_point_y},next_sine,PIVOT_NEW_Y_FIRST);
                 end
                 PIVOT_NEW_Y_FIRST: begin
-                    pivot_dx<=(old_com_x-(rot_first-product)) >>> 2;
-                    multiply({{9{com_x_q2[6]}},com_x_q2},next_sine,PIVOT_NEW_Y_SECOND);
+                    // Quantize each absolute offset before subtraction. Closed
+                    // angle cycles then telescope exactly instead of drifting.
+                    pivot_dx<=old_com_x-offset_q8(rot_first-product);
+                    multiply({{6{pivot_point_x[9]}},pivot_point_x},next_sine,PIVOT_NEW_Y_SECOND);
                 end
                 PIVOT_NEW_Y_SECOND: begin
                     rot_first<=product;
-                    multiply({{9{com_y_q2[6]}},com_y_q2},next_cosine,PIVOT_FINISH);
+                    multiply({{6{pivot_point_y[9]}},pivot_point_y},next_cosine,PIVOT_FINISH);
                 end
                 PIVOT_FINISH: begin
-                    pivot_dy<=(old_com_y-(rot_first+product)) >>> 2;
+                    pivot_dy<=old_com_y-offset_q8(rot_first+product);
                     pivot_valid<=1; phase<=PIVOT_DONE;
                 end
                 PIVOT_DONE: if(pivot_ready) begin pivot_valid<=0; phase<=IDLE; end

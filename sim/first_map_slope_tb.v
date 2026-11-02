@@ -2,10 +2,11 @@
 `timescale 1ns / 1ps
 `include "game_defs.vh"
 // A powered cart must traverse the first Cave Arch downhill without rolling onto its back.
-module first_map_slope_tb #(parameter TWO_SIDED=0);
-    localparam ENABLE_MOMENTS=0, WHEEL_TORQUE_SHIFT=2;
-    localparam [26:0] CART_GRID={(`LP_PART_WHEEL & {3{TWO_SIDED!=0}}),`LP_PART_EMPTY,(`LP_PART_WHEEL & {3{TWO_SIDED!=0}}),
-        `LP_PART_EMPTY,`LP_PART_PIG,`LP_PART_ENGINE,`LP_PART_WHEEL,`LP_PART_EMPTY,`LP_PART_WHEEL};
+module first_map_slope_tb #(parameter TWO_SIDED=0, parameter ENABLE_MOMENTS=1);
+    localparam WHEEL_TORQUE_SHIFT=2;
+    localparam [26:0] CART_GRID={`LP_PART_WHEEL,`LP_PART_EMPTY,`LP_PART_WHEEL,
+        `LP_PART_EMPTY,`LP_PART_PIG,`LP_PART_ENGINE,
+        (`LP_PART_WHEEL & {3{TWO_SIDED!=0}}),`LP_PART_EMPTY,(`LP_PART_WHEEL & {3{TWO_SIDED!=0}})};
     localparam [8:0] CART_PARTS=TWO_SIDED ? 9'b101011101 : 9'b101011000;
     reg clk=0, reset=1, run_init=0, step_start=0, update_release=0, engine_reverse=0;
     reg [2:0] game_state=`LP_BUILD;
@@ -25,6 +26,10 @@ module first_map_slope_tb #(parameter TWO_SIDED=0);
     wire signed [7:0] ground_slope;
     wire signed [`LP_TILT_BITS-1:0] previous_tilt, proposed_tilt, corrected_tilt, vehicle_tilt;
     wire signed [1:0] tip_dir;
+    wire grade_valid, contact_valid;
+    wire [3:0] contact_wheels;
+    wire signed [13:0] pivot_dx, pivot_dy;
+    wire signed [9:0] contact_left, contact_right, contact_y, contact_left_y, contact_right_y;
     wire unstable;
     wire signed [10:0] qx, qy;
     wire [2:0] query_class;
@@ -41,6 +46,10 @@ module first_map_slope_tb #(parameter TWO_SIDED=0);
         .build_grid(CART_GRID),
         .build_frames(9'b000111000),.frame_intact_mask(9'b000111000),
         .intact_mask(CART_PARTS),.build_facing_left(9'd0),.rocket_vertical_mask(9'd0),
+        .proposed_pivot_dx_q8(pivot_dx), .proposed_pivot_dy_q8(pivot_dy),
+        .support_endpoint_y_valid(contact_valid), .support_left_y_q2(contact_left_y), .support_right_y_q2(contact_right_y),
+        .ground_slope_valid(grade_valid), .support_span_valid(contact_valid), .support_wheel_count(contact_wheels),
+        .support_left_q2(contact_left), .support_right_q2(contact_right), .support_y_q2(contact_y),
         .clk(clk), .reset(reset), .game_state(game_state), .run_init(run_init), .init_ready(init_ready),
         .spawn_x(spawn_x), .spawn_y(spawn_y), .step_start(step_start), .update_release(update_release),
         .wheel_count(TWO_SIDED ? 4'd4 : 4'd2), .wheels_down(4'd2), .wheels_up(TWO_SIDED ? 4'd2 : 4'd0), .tip_dir(tip_dir), .support_unstable(unstable),
@@ -56,6 +65,10 @@ module first_map_slope_tb #(parameter TWO_SIDED=0);
         .vehicle_x(vehicle_x), .vehicle_y(vehicle_y)
     );
     collision_engine #(.ROTATION_ONLY(1)) u_collision (
+        .pivot_dx_q8(pivot_dx), .pivot_dy_q8(pivot_dy),
+        .support_left_y_q2(contact_left_y), .support_right_y_q2(contact_right_y),
+        .ground_slope_valid(grade_valid), .support_span_valid(contact_valid), .support_wheel_count(contact_wheels),
+        .support_left_q2(contact_left), .support_right_q2(contact_right), .support_y_q2(contact_y),
         .clk(clk), .reset(reset), .move_valid(move_valid), .move_ready(move_ready),
         .previous_x(previous_x), .previous_y(previous_y), .proposed_x(proposed_x), .proposed_y(proposed_y),
         .proposed_vx(proposed_vx), .proposed_vy(proposed_vy), .terrain_count(3'd0), .terrain_rects(128'd0),
@@ -70,7 +83,7 @@ module first_map_slope_tb #(parameter TWO_SIDED=0);
         .ground_slope(ground_slope), .corrected_tilt(corrected_tilt), .tip_dir(tip_dir)
     );
 
-    integer updates,waited,peak_tilt=0,angle;
+    integer updates,waited,peak_tilt=0,angle,air_speed,last_air_speed=0;
     reg last_air=0;
     reg signed [4:0] air_tilt=0;
     task clocks;input integer n;begin repeat(n) @(negedge clk);end endtask
@@ -84,9 +97,12 @@ module first_map_slope_tb #(parameter TWO_SIDED=0);
             angle=vehicle_tilt;if(angle<0) angle=-angle;
             if(angle>peak_tilt) peak_tilt=angle;
             if(angle>=8) $fatal(1,"Cart flipped on first downhill: step%0d x%0d y%0d tilt%0d spin%0d",updates,vehicle_x,vehicle_y,vehicle_tilt,u_physics.spin);
-            if(!grounded && last_air && vehicle_tilt!=air_tilt)
-                $fatal(1,"Ledge-induced spin continued in flight: tilt%0d -> %0d",air_tilt,vehicle_tilt);
-            last_air=!grounded;air_tilt=vehicle_tilt;
+            air_speed=u_physics.angular_velocity_q8;if(air_speed<0) air_speed=-air_speed;
+            if(!grounded && last_air && air_speed>last_air_speed)
+                $fatal(1,"Unpowered airborne angular speed grew: %0d -> %0d",last_air_speed,air_speed);
+            if(!grounded && last_air && air_speed==0 && last_air_speed==0 && vehicle_tilt!=air_tilt)
+                $fatal(1,"Stopped airborne angle changed");
+            last_air=!grounded;air_tilt=vehicle_tilt;last_air_speed=air_speed;
             update_release=1;clocks(1);update_release=0;clocks(1);updates=updates+1;
         end
         if(vehicle_x<450*256 || vehicle_y<180*256) $fatal(1,"Cart failed downhill progress: x%0d y%0d",vehicle_x,vehicle_y);

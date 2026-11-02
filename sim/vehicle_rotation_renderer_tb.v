@@ -97,13 +97,12 @@ module vehicle_rotation_renderer_tb;
 
     initial begin
         repeat(2) @(negedge clk);
-        for (scale_index=0; scale_index<4; scale_index=scale_index+1) begin
-            overview=scale_index>=2;
-            zoomed_out=scale_index==1 || scale_index==2;
+        for (scale_index=0; scale_index<3; scale_index=scale_index+1) begin
+            overview=scale_index==2;
+            zoomed_out=scale_index==1;
             case(scale_index)
                 0: cell_size=12;
                 1: cell_size=8;
-                2: cell_size=6;
                 default: cell_size=4;
             endcase
             for (angle_index=0; angle_index<9; angle_index=angle_index+1) begin
@@ -130,7 +129,7 @@ module vehicle_rotation_renderer_tb;
             tilt=7; check_raster(7);
             tilt=-16; check_raster(-16);
         end
-        $display("PASS vehicle_rotation_renderer_tb: %0d rasters, %0d pixels; +/- tilt, zero identity, four zooms, facing, damage, build and invalid inputs",
+        $display("PASS vehicle_rotation_renderer_tb: %0d rasters, %0d pixels; +/- tilt, zero identity, three zooms, facing, damage, build and invalid inputs",
                  raster_count,tested);
         $finish;
     end
