@@ -76,7 +76,7 @@ module tnt_controller_tb;
         // TNT 0 is at x=60,y=48. Cells 4 and 5 are close enough to be
         // checked; cell 4 is the protected pig and cell 5 is a normal engine.
         tnt_count=1;
-        tnt_positions={60'd0,10'd48,10'd60};
+        tnt_positions={40'd0,10'd48,10'd60};
         build_grid=0;
         build_grid[4*3 +: 3]=`LP_PART_PIG;
         build_grid[5*3 +: 3]=`LP_PART_ENGINE;
@@ -134,7 +134,7 @@ module tnt_controller_tb;
         // Both TNT in the same sweep must be processed before releasing world checks.
         start_run();
         tnt_count=2;
-        tnt_positions={40'd0,10'd48,10'd61,10'd48,10'd60};
+        tnt_positions={20'd0,10'd48,10'd61,10'd48,10'd60};
         movement_committed=1;
         clocks(1); movement_committed=0;
         wait_damage();

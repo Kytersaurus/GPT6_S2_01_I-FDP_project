@@ -31,7 +31,7 @@ module ui_visual_tb;
         force dut.draw_rockets_left=4'd1; force dut.draw_fans_left=4'd1; force dut.draw_run_page=2'd0;
         force dut.draw_x=16'sd5120;force dut.draw_y=16'sd8192;
         force dut.draw_death_phase=death;force dut.draw_death_x=16'sd8192;force dut.draw_death_y=16'sd11264;
-        force dut.draw_launch_flash=go;force dut.draw_tnt_intact=4'b1111;force dut.draw_blast=8'd0;
+        force dut.draw_launch_flash=go;force dut.draw_tnt_intact={`LP_MAX_TNT{1'b1}};force dut.draw_blast=0;
         force dut.draw_fail_reason=`LP_FAIL_PIG;
     end
     task frame;

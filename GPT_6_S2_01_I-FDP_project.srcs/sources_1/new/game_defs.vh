@@ -98,13 +98,13 @@
 `define LP_MAP_DARK      3'd5
 // Each TNT is {y[9:0], x[9:0]} in world pixels, entry 0 lowest: an 8 by 8 block, one cart
 // cell, so it is drawn at the cart's cell size at every zoom. 10 bits reach the cave worlds.
-`define LP_MAX_TNT       4
+`define LP_MAX_TNT       3   // Each cave level has three; a fourth slot cost logic the device lacks.
 `define LP_TNT_PIXELS    8
 `define LP_TNT_COORD_BITS 10
 `define LP_TNT_ENTRY_BITS 20
 `define LP_TNT_BITS      (`LP_MAX_TNT*`LP_TNT_ENTRY_BITS)
-// Wooden star boxes are disabled for now: not drawn and never collected.
-`define LP_STAR_BOX_ENABLED 0
+// Star boxes: one per cave level, an 8 by 8 block like a TNT; 0 hides them and stops pickup.
+`define LP_STAR_BOX_ENABLED 1
 `define LP_MAX_HAZARDS   2   // Same {height, width, y, x} packing as terrain.
 `define LP_HAZARD_BITS   64
 

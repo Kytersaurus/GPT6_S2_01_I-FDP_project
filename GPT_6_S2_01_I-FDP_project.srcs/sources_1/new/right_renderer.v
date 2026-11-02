@@ -230,40 +230,12 @@ module right_renderer (
                 if (dx == 3 || dx == 22 || dy == 1 || dy == 16) pixel_data = 16'h3186;
                 else pixel_data = ((((dx-3) >>> 2) ^ ((dy-1) >>> 2)) & 1) ? 16'h0000 : 16'hffff;
             end
-            if (`LP_STAR_BOX_ENABLED && !star_box_collected) begin
-                dx = tex_x - 2*star_box_x; dy = tex_y - 2*star_box_y;
-                if (dx >= 0 && dx < 40 && dy >= 0 && dy < 40) begin
-                    // Outer dark iron rim
-                    if (dx == 0 || dx == 39 || dy == 0 || dy == 39)
-                        pixel_data = 16'h2104;
-                    // Four iron corner reinforcement brackets with silver rivets
-                    else if ((dx < 6 || dx >= 34) && (dy < 6 || dy >= 34)) begin
-                        if ((dx == 2 || dx == 37) && (dy == 2 || dy == 37))
-                            pixel_data = 16'hce59; // Silver rivet
-                        else
-                            pixel_data = 16'h52aa; // Iron bracket
-                    end
-                    // Radiant Gold Star Stamp centered at (20, 20)
-                    else if ((dx >= 20 ? dx - 20 : 20 - dx) + (dy >= 20 ? dy - 20 : 20 - dy) <= 6) begin
-                        if ((dx >= 20 ? dx - 20 : 20 - dx) + (dy >= 20 ? dy - 20 : 20 - dy) == 6)
-                            pixel_data = 16'hfed0; // Amber rim
-                        else if (dx >= 18 && dx <= 19 && dy >= 18 && dy <= 19)
-                            pixel_data = 16'hffff; // White sparkle glint
-                        else
-                            pixel_data = 16'hffe0; // Radiant gold star
-                    end
-                    // Diagonal wood X-brace
-                    else if (dx == dy || dx == dy+1 || dx+1 == dy ||
-                             dx + dy == 39 || dx + dy == 40 || dx + dy == 38)
-                        pixel_data = 16'h9aa0; // Dark timber brace
-                    // Horizontal cedar plank seams
-                    else if (dy == 13 || dy == 26)
-                        pixel_data = 16'h5140; // Plank seam
-                    // Cedar wood plank body
-                    else
-                        pixel_data = 16'hc3a0;
-                end
-            end
+            // Star box: an 8 by 8 world-pixel block like a TNT. It is drawn from world
+            // coordinates at every zoom (1.5x pixel repeats when close), which costs far
+            // less logic than a separate 12 by 12 close-view sprite.
+            tx = star_box_x; ty = star_box_y;
+            if (`LP_STAR_BOX_ENABLED && !star_box_collected)
+                pixel_data = star_sprite(wx - tx, wy - ty, pixel_data);
         end
         // TNT: 12 by 12 close, 8 by 8 normal/overview (overview naturally samples it smaller).
         for (index = 0; index < `LP_MAX_TNT; index = index + 1) begin

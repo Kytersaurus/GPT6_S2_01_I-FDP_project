@@ -19,7 +19,7 @@ module rotation_interactions_tb;
     reg tnt_committed=0, damage_ready=0;
     wire damage_valid, damage_complete, explosion_event;
     wire [8:0] damage_mask, frame_mask;
-    wire [3:0] tnt_intact;
+    wire [`LP_MAX_TNT-1:0] tnt_intact;
     integer cases=0, waited;
     reg [2:0] held_flags;
     always #5 clk=~clk;
@@ -41,7 +41,7 @@ module rotation_interactions_tb;
         .clk(clk),.reset(reset),.run_init(run_init),.game_state(state),.init_ready(),
         .movement_committed(tnt_committed),.previous_x(x),.previous_y(y),.vehicle_x(x),.vehicle_y(y),
         .previous_tilt(previous_tilt),.vehicle_tilt(tilt),
-        .tnt_count(3'd1),.tnt_positions({60'd0,10'd48,10'd60}),
+        .tnt_count(3'd1),.tnt_positions({40'd0,10'd48,10'd60}),
         .build_grid({9{`LP_PART_ENGINE}}),.build_frames(9'h1ff),
         .intact_mask(9'h1ff),.frame_intact_mask(9'h1ff),.tnt_intact(tnt_intact),
         .damage_valid(damage_valid),.damage_ready(damage_ready),.damage_mask(damage_mask),

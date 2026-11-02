@@ -27,6 +27,10 @@ $m = [Classify]::Down($c, $w, $h, 2, [ref]$mw, [ref]$mh)
 [Classify]::CleanThin($m, $mw, $mh, [Classify]::SKY, 3)            # Seams along the UI edges
 for ($y = 0; $y -lt 38; $y++) { for ($x = 590; $x -lt 640; $x++) { if ($m[$y*$mw+$x] -eq [Classify]::SKY) { $m[$y*$mw+$x] = [Classify]::ROCK } } }
 for ($y = 170; $y -lt 202; $y++) { for ($x = 58; $x -lt 96; $x++) { $m[$y*$mw+$x] = [Classify]::SKY } }   # Contraption and bush at the start
+# The first hump (x 170..277) traced background bushes as cave background inside its rock
+# shell: a hollow in its left side and a pocket at its foot. Both are enclosed, so filling
+# them with rock changes the colours only; the surface the vehicle drives on stays the same.
+for ($y = 150; $y -lt $mh; $y++) { for ($x = 170; $x -le 277; $x++) { if ($m[$y*$mw+$x] -eq [Classify]::CAVE) { $m[$y*$mw+$x] = [Classify]::ROCK } } }
 # The contraption's shadow left a shallow pit under the spawn; the vehicle (y 178..201) starts on a flat floor.
 for ($y = 202; $y -lt $mh; $y++) { for ($x = 58; $x -lt 96; $x++) { if ($m[$y*$mw+$x] -lt [Classify]::ROCK -or $m[$y*$mw+$x] -eq [Classify]::GRASS) { $m[$y*$mw+$x] = [Classify]::ROCK } } }
 
