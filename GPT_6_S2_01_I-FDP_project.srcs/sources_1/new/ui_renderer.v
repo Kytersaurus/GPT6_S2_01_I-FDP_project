@@ -699,9 +699,9 @@ module ui_renderer (
                     end
 
                     // Button 3: [ EDIT ] (x: 48..72)
-                    else if (x >= 48 && x <= 72) begin
-                        if (x == 48 || x == 72 || y == 53 || y == 63) pixel_data = 16'h04b4;
-                        else if (cursor_x >= 48 && cursor_x <= 72 && cursor_y >= 54 && cursor_y <= 63) pixel_data = 16'h0351;
+                    else if (x >= 50 && x <= 72) begin
+                        if (x == 50 || x == 72 || y == 53 || y == 63) pixel_data = 16'h04b4;
+                        else if (cursor_x >= 50 && cursor_x <= 72 && cursor_y >= 54 && cursor_y <= 63) pixel_data = 16'h0351;
                         else pixel_data = 16'h18e5;
                         if (is_wrench_icon(7'd60, 6'd58, x, y)) pixel_data = 16'h07ff;
                     end
