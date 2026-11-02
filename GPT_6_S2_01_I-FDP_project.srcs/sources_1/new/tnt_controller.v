@@ -4,7 +4,7 @@
 
 // TNT controller for the run phase.
 //
-// TNT positions are stored as {y[7:0], x[7:0]} pixel coordinates.  Vehicle
+// TNT positions are stored as {y[9:0], x[9:0]} pixel coordinates.  Vehicle
 // positions use the shared Q12.8 format and the vehicle footprint is 24 by
 // 24 pixels.  A swept vehicle rectangle is used so a fast movement cannot
 // pass through a TNT between two committed positions.
@@ -48,7 +48,7 @@ module tnt_controller (
     reg signed [`LP_COORD_BITS-1:0] saved_x, saved_y;
     reg signed [`LP_TILT_BITS-1:0] saved_tilt;
     reg [1:0] active_tnt;
-    reg [7:0] active_x, active_y;
+    reg [`LP_TNT_COORD_BITS-1:0] active_x, active_y;
     reg [3:0] cell_index;
     reg [`LP_MAX_TNT-1:0] trigger_mask;
     reg trigger_found;
@@ -106,8 +106,8 @@ module tnt_controller (
         next_sweep_bottom = (previous_y_fp > current_y_fp ? previous_y_fp : current_y_fp)+22'sd3072+sweep_extent;
         trigger_mask=0; trigger_found=0; selected_tnt=0;
         for (tnt_index=0; tnt_index<`LP_MAX_TNT; tnt_index=tnt_index+1) begin
-            tnt_x_pixels=saved_tnt_positions[tnt_index*16 +: 8];
-            tnt_y_pixels=saved_tnt_positions[tnt_index*16+8 +: 8];
+            tnt_x_pixels=saved_tnt_positions[tnt_index*`LP_TNT_ENTRY_BITS +: `LP_TNT_COORD_BITS];
+            tnt_y_pixels=saved_tnt_positions[tnt_index*`LP_TNT_ENTRY_BITS+`LP_TNT_COORD_BITS +: `LP_TNT_COORD_BITS];
             if (tnt_index<saved_tnt_count && tnt_intact[tnt_index] &&
                 sweep_right_fp > tnt_x_pixels*256 && sweep_left_fp < (tnt_x_pixels+8)*256 &&
                 sweep_bottom_fp > tnt_y_pixels*256 && sweep_top_fp < (tnt_y_pixels+8)*256)
@@ -172,8 +172,8 @@ module tnt_controller (
                     SELECT_TNT: begin
                         if (trigger_found) begin
                             active_tnt<=selected_tnt;
-                            active_x<=saved_tnt_positions[selected_tnt*16 +: 8];
-                            active_y<=saved_tnt_positions[selected_tnt*16+8 +: 8];
+                            active_x<=saved_tnt_positions[selected_tnt*`LP_TNT_ENTRY_BITS +: `LP_TNT_COORD_BITS];
+                            active_y<=saved_tnt_positions[selected_tnt*`LP_TNT_ENTRY_BITS+`LP_TNT_COORD_BITS +: `LP_TNT_COORD_BITS];
                             pending_triggers[selected_tnt]<=0;
                             damage_mask<=0; damage_frame_mask<=0; cell_index<=0;
                             state<=CELL_POSITION;

@@ -41,7 +41,7 @@ module rotation_interactions_tb;
         .clk(clk),.reset(reset),.run_init(run_init),.game_state(state),.init_ready(),
         .movement_committed(tnt_committed),.previous_x(x),.previous_y(y),.vehicle_x(x),.vehicle_y(y),
         .previous_tilt(previous_tilt),.vehicle_tilt(tilt),
-        .tnt_count(3'd1),.tnt_positions({48'd0,8'd48,8'd60}),
+        .tnt_count(3'd1),.tnt_positions({60'd0,10'd48,10'd60}),
         .build_grid({9{`LP_PART_ENGINE}}),.build_frames(9'h1ff),
         .intact_mask(9'h1ff),.frame_intact_mask(9'h1ff),.tnt_intact(tnt_intact),
         .damage_valid(damage_valid),.damage_ready(damage_ready),.damage_mask(damage_mask),

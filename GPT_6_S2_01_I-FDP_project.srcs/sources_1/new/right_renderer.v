@@ -230,7 +230,7 @@ module right_renderer (
                 if (dx == 3 || dx == 22 || dy == 1 || dy == 16) pixel_data = 16'h3186;
                 else pixel_data = ((((dx-3) >>> 2) ^ ((dy-1) >>> 2)) & 1) ? 16'h0000 : 16'hffff;
             end
-            if (!star_box_collected) begin
+            if (`LP_STAR_BOX_ENABLED && !star_box_collected) begin
                 dx = tex_x - 2*star_box_x; dy = tex_y - 2*star_box_y;
                 if (dx >= 0 && dx < 40 && dy >= 0 && dy < 40) begin
                     // Outer dark iron rim
@@ -267,8 +267,8 @@ module right_renderer (
         end
         // TNT: 12 by 12 close, 8 by 8 normal/overview (overview naturally samples it smaller).
         for (index = 0; index < `LP_MAX_TNT; index = index + 1) begin
-            tx = tnt_positions[index*16 +: 8];
-            ty = tnt_positions[index*16+8 +: 8];
+            tx = tnt_positions[index*`LP_TNT_ENTRY_BITS +: `LP_TNT_COORD_BITS];
+            ty = tnt_positions[index*`LP_TNT_ENTRY_BITS+`LP_TNT_COORD_BITS +: `LP_TNT_COORD_BITS];
             if (index < tnt_count && tnt_intact[index])
                 pixel_data = (zoomed_out_q || overview_q) ? tnt_sprite(wx - tx, wy - ty, pixel_data)
                                           : tnt_sprite12(fx - scaled(tx, 1'b0), fy - scaled(ty, 1'b0), pixel_data);
@@ -313,8 +313,8 @@ module right_renderer (
         end
         // Explosions grow over three phases: yellow flash, orange fireball, grey smoke.
         for (index = 0; index < `LP_MAX_TNT; index = index + 1) begin
-            dx = tex_x - 2*tnt_positions[index*16 +: 8] - `LP_TNT_PIXELS;
-            dy = tex_y - 2*tnt_positions[index*16+8 +: 8] - `LP_TNT_PIXELS;
+            dx = tex_x - 2*tnt_positions[index*`LP_TNT_ENTRY_BITS +: `LP_TNT_COORD_BITS] - `LP_TNT_PIXELS;
+            dy = tex_y - 2*tnt_positions[index*`LP_TNT_ENTRY_BITS+`LP_TNT_COORD_BITS +: `LP_TNT_COORD_BITS] - `LP_TNT_PIXELS;
             distance = dx*dx + dy*dy;
             radius = 2*(2 + 3*blast_phase[index*2 +: 2]);
             if (index < tnt_count && blast_phase[index*2 +: 2] != 0 && distance <= radius*radius) case (blast_phase[index*2 +: 2])

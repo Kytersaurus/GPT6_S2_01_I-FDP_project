@@ -186,13 +186,19 @@ module role4_game_display_tb;
             $fatal(1,"Level 1 is not Cave Arch");
         if (spawn_x !== 20'sd53248 || spawn_y !== 20'sd19456 || flag_x != 600 || flag_y != 472)
             $fatal(1,"Level 1 spawn or flag moved");
-        if (tnt_count != 0 || hazard_count != 0 || map_id) $fatal(1,"Level 1 has unexpected objects or map");
+        if (hazard_count != 0 || map_id) $fatal(1,"Level 1 has unexpected objects or map");
+        // Three TNT: behind the spawn and one in each arch; unused entries stay zero.
+        if (tnt_count != 3 || tnt_positions !== {20'd0, 10'd390, 10'd156, 10'd271, 10'd580, 10'd92, 10'd194})
+            $fatal(1,"Level 1 TNT moved");
         level=1; #1;
         if (!map_level || !map_id || world_width != `LP_FLIGHT_WIDTH || world_height != `LP_FLIGHT_HEIGHT)
             $fatal(1,"Level 2 is not Cave Flight");
         if (spawn_x !== 20'sd17408 || spawn_y !== 20'sd45568 || flag_x != 769 || flag_y != 50)
             $fatal(1,"Level 2 spawn or flag moved");
-        if (tnt_count != 0 || hazard_count != 0) $fatal(1,"Level 2 has unexpected objects");
+        if (hazard_count != 0) $fatal(1,"Level 2 has unexpected objects");
+        // Three TNT: in the ditch, in the lower gap under the ledge, and on the slope to the finish.
+        if (tnt_count != 3 || tnt_positions !== {20'd0, 10'd68, 10'd710, 10'd158, 10'd541, 10'd191, 10'd316})
+            $fatal(1,"Level 2 TNT moved");
 
         clocks(3); reset=0; clocks(2);
         // Level select: only in BUILD, and launch on the same clock wins.

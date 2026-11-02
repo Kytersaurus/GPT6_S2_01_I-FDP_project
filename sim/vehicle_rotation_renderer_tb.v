@@ -29,7 +29,7 @@ module vehicle_rotation_renderer_tb;
         .frame_intact_mask(frames), .vehicle_x(20'sd6144), .vehicle_y(20'sd4096),
         .vehicle_tilt(tilt), .spawn_x(20'sd6144), .spawn_y(20'sd4096),
         .terrain_count(3'd0), .terrain_rects(128'd0), .goal_rect(32'd0),
-        .tnt_count(3'd0), .tnt_positions(64'd0), .tnt_intact(4'd0),
+        .tnt_count(3'd0), .tnt_positions({`LP_TNT_BITS{1'b0}}), .tnt_intact(4'd0),
         .hazard_count(2'd0), .hazard_rects(64'd0), .blast_phase(8'd0),
         .death_phase(2'd0), .death_x(20'sd0), .death_y(20'sd0),
         .launch_flash(1'b0), .anim_phase(1'b1), .map_level(1'b0), .map_id(1'b0),

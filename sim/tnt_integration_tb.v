@@ -27,7 +27,7 @@ module tnt_integration_tb;
         force dut.vehicle_x=x; force dut.vehicle_y=y;
         force dut.previous_x=old_x; force dut.previous_y=old_y;
         force dut.tnt_count=3'd2;
-        force dut.tnt_positions={32'd0,8'd32,8'd88,8'd48,8'd60};
+        force dut.tnt_positions={40'd0,10'd32,10'd88,10'd48,10'd60};
         force dut.pop_req=pop; force dut.pop_cell=4'd0;
     end
     task clocks;
