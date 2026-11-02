@@ -12,7 +12,9 @@
 // stay identical and no block RAM is added. The world is then
 // LP_MAP_WORLD_WIDTH by LP_MAP_WORLD_HEIGHT. Asset checks use ARCH_SCALED=0.
 // SMOOTH_DRAW smooths the drawn 2x Cave Arch: draw_clk must then run many times faster
-// than draw_x/draw_y change (the game uses 100 MHz against 16 clocks per OLED pixel). The
+// than draw_x/draw_y change, and all five reads must land inside one pixel. The top leaves
+// it off: driven at 100 MHz from the untimed OLED clock domain it ran out of margin and
+// map pixels flickered on the board. The
 // draw port reads the centre map pixel and its four neighbours in turn, repeating while the
 // coordinate is held, and each world pixel (a quarter of a map pixel) takes a neighbour's
 // class by the Scale2x rule where two neighbours agree across its corner. Stair steps in

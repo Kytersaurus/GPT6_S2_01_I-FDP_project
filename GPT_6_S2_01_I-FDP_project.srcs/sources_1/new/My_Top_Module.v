@@ -734,9 +734,11 @@ module My_Top_Module #(
     wire signed [10:0] map_draw_x = right_map_x;
     wire signed [10:0] map_draw_y = right_map_y;
     wire [2:0] map_draw_class;
-    // The draw port runs at 100 MHz, 16 reads per OLED pixel, for level_map's edge smoothing.
-    level_map #(.SMOOTH_DRAW(1)) u_level_map (
-        .map_id(draw_map_id), .draw_clk(clk), .draw_x(map_draw_x), .draw_y(map_draw_y), .draw_class(map_draw_class),
+    // The draw port reads on the OLED clock, beside the renderer's own register. level_map's
+    // SMOOTH_DRAW (100 MHz neighbour reads) is off: its reads had to finish inside one OLED
+    // pixel across the untimed OLED clock boundary, and on the board map pixels flickered.
+    level_map u_level_map (
+        .map_id(draw_map_id), .draw_clk(oled_clk), .draw_x(map_draw_x), .draw_y(map_draw_y), .draw_class(map_draw_class),
         .query_clk(clk), .query_map_id(map_id),
         .query_x(collision_query_x), .query_y(collision_query_y),
         .query_class(), .query_solid(collision_query_solid)
