@@ -3,7 +3,7 @@
 `include "game_defs.vh"
 // The camera centres on the vehicle and stops at the world edges. The map view (the default)
 // shows 64 by 43 world pixels at 1.5x with 12 by 12 sprites; normal zoom-out shows 96 by 64
-// at 1x, overview shows 128 by 86 at 0.75x, and wide overview shows 192 by 128 at 0.5x. In free look (SW4) the
+// at 1.0x with 8 by 8 sprites, and overview shows 192 by 128 at 0.5x. In free look (SW4) the
 // cursor position picks the camera instead, so the whole map can be explored without driving.
 // Drawing order: background (map, or sky and terrain), hazards, goal, flag, TNT, vehicle,
 // explosions, then the result border. Before launch the vehicle is drawn at the spawn point.

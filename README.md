@@ -12,7 +12,7 @@ The design integrates interactive mouse-driven vehicle construction, a 3×3 grid
 * **Logic Clock:** 100 MHz onboard oscillator
 * **Dual OLED Displays:** Two 96×64 RGB OLEDs (SSD1331 controller via SPI at 6.25 MHz)
   - **Left OLED (PMOD JA):** Builder grid, inventory pages, minimal run-screen damage diagram, action buttons, and animated Title Screen. Rotated 180° in hardware (`95 - x`, `63 - y`) to compensate for the Basys 3 upside-down PMOD JA socket.
-  - **Right OLED (PMOD JB):** World follower camera with 4 zoom levels (1.5x, 1.0x, 0.75x, 0.5x), terrain rendering, vehicle rotation, dynamic smoke/explosion particles, and goal flag. Blanked on Title Screen and Level Select.
+  - **Right OLED (PMOD JB):** World follower camera with 3 zoom levels (1.5x, 1.0x, 0.5x), terrain rendering, vehicle rotation, dynamic smoke/explosion particles, and goal flag. Blanked on Title Screen and Level Select.
 * **Audio:** 8-bit PWM driving Pmod AMP2 on header JXADC (gain on `JXADC[1]`, active shutdown on `JXADC[3]`).
 * **Input Interface:** Standard PS/2 streaming mouse on PMOD JC (scaled coordinate clamping $[0..95, 0..63]$).
 * **Onboard I/O:** 4-digit active-low 7-segment display (M.SS run timer), slide switches (SW0–SW4, SW15), pushbuttons (BTNC, BTNU, BTNL, BTNR, BTND), and 16 LEDs.
@@ -39,7 +39,7 @@ The codebase is organized into modular subsystems developed by four team members
 | :--- | :--- | :--- |
 | **Mouse Left-Click / Drag** | Part Placement / Balloon Pop | During **BUILD**: Drag parts from inventory pages or grid onto 3×3 cells. Releasing drops the part.<br>During **RUN**: Click surviving balloons on the Left OLED diagram or action bar to pop them. |
 | **Mouse Right-Click** | Part Removal | During **BUILD**: First click clears cell contents (pig, engine, wheel, etc.); second click clears the wooden frame. Cancels active drag. |
-| **Mouse Scroll Wheel** | Follow-Camera Zoom | Steps through 4 zoom levels: Close (1.5x) $\leftrightarrow$ Normal (1.0x) $\leftrightarrow$ Mid (0.75x) $\leftrightarrow$ Overview (0.5x). |
+| **Mouse Scroll Wheel** | Follow-Camera Zoom | Steps through 3 zoom levels: Close (1.5x) $\leftrightarrow$ Normal (1.0x) $\leftrightarrow$ Overview (0.5x). |
 | **SW0** | Engine Throttle | Enables ground wheel motor thrust. |
 | **SW1** | Audio Mute | `1` mutes all BGM and sound effects instantly; `0` enables audio. |
 | **SW2** | Engine Reverse | Reverses engine drive torque (`1` = reverse, `0` = forward). |
