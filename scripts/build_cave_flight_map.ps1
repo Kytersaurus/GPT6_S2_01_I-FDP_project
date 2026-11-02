@@ -27,14 +27,46 @@ $m = [Classify]::Down($c, $w, $h, 2, [ref]$mw, [ref]$mh)
 [Classify]::CleanThin($m, $mw, $mh, [Classify]::SKY, 3)            # Seams along the UI edges
 for ($y = 0; $y -lt 38; $y++) { for ($x = 590; $x -lt 640; $x++) { if ($m[$y*$mw+$x] -eq [Classify]::SKY) { $m[$y*$mw+$x] = [Classify]::ROCK } } }
 for ($y = 170; $y -lt 202; $y++) { for ($x = 58; $x -lt 96; $x++) { $m[$y*$mw+$x] = [Classify]::SKY } }   # Contraption and bush at the start
+# The contraption's shadow left a shallow pit under the spawn; the vehicle (y 178..201) starts on a flat floor.
+for ($y = 202; $y -lt $mh; $y++) { for ($x = 58; $x -lt 96; $x++) { if ($m[$y*$mw+$x] -lt [Classify]::ROCK -or $m[$y*$mw+$x] -eq [Classify]::GRASS) { $m[$y*$mw+$x] = [Classify]::ROCK } } }
+
+# The rock ledge in the middle cave (x 521..569, y 112..120) splits the passage from the
+# middle sky bubble to the right-hand sky into an upper and a lower gap; it stays.
+$ledgeX0 = 521; $ledgeY0 = 112; $ledgeX1 = 569; $ledgeY1 = 120
+# Floating solid bits are background hills, crystal edges and bushes the tracer read as
+# rock or grass; the vehicle would collide with them in open air.
+$cleared = [Classify]::RemoveIslands($m, $mw, $mh, 1000, $ledgeX0, $ledgeY0, $ledgeX1, $ledgeY1)
+"Floating scenery: $cleared pixels opened"
 
 # The traced passages are narrower than the 24-pixel vehicle (its tilted corners reach
-# 17 pixels from its centre). Open the cheapest corridor of radius 17 from above the spawn
-# (vehicle centre 80,190) to above the finish ledge (flag 769,50; ledge top y=64), so a
-# vehicle at any tilt fits the whole way. The ends sit clear of the floor and the ledge,
-# which stay as traced.
-$opened = [Classify]::CarveRoute($m, $mw, $mh, 80, 170, 777, 38, 17, 3.0)
-"Flight corridor: $opened pixels opened"
+# 17 pixels from its centre). Open the cheapest corridors of radius 22, so a vehicle at any
+# tilt has 5 pixels to spare: from above the spawn (vehicle centre 80,190) into the middle
+# bubble, through both the upper and the lower gap around the ledge, and from the right-hand
+# sky to above the finish ledge (flag 769,50; ledge top y=56). The ends sit clear of the
+# floor, and no corridor may cut the middle or the finish ledge, which stay as traced.
+$routeR = 22
+# Keep masks: the middle ledge and the finish ledge under the flag (top y=56) always, plus a
+# virtual wall at x=545 above the middle ledge (lower route) or below it (upper route), so
+# each corridor really opens its own gap rather than detouring through the other one.
+function New-Keep([int]$wallY0, [int]$wallY1) {
+    $k = New-Object bool[] ($mw * $mh)
+    for ($y = $ledgeY0; $y -le $ledgeY1; $y++) { for ($x = $ledgeX0; $x -le $ledgeX1; $x++) { if ($m[$y*$mw+$x] -ge [Classify]::ROCK) { $k[$y*$mw+$x] = $true } } }
+    for ($y = 56; $y -lt $mh; $y++) { for ($x = 735; $x -lt $mw; $x++) { if ($m[$y*$mw+$x] -ge [Classify]::ROCK) { $k[$y*$mw+$x] = $true } } }
+    for ($y = $wallY0; $y -le $wallY1; $y++) { $k[$y*$mw+545] = $true }
+    return ,$k
+}
+$keepAny = New-Keep 0 -1
+$keepUpper = New-Keep ($ledgeY1 + 1) ($mh - 1)
+$keepLower = New-Keep 0 ($ledgeY0 - 1)
+$overY = $ledgeY0 - $routeR - 2; $underY = $ledgeY1 + $routeR + 2
+$legs = @(
+    @(80, 170, 455, 130, $keepAny),                                             # Start to the middle bubble (first gap)
+    @(455, 130, 545, $overY, $keepUpper), @(545, $overY, 625, 110, $keepUpper), # Over the ledge
+    @(455, 130, 545, $underY, $keepLower), @(545, $underY, 625, 110, $keepLower), # Under the ledge
+    @(625, 110, 777, 33, $keepAny))                                             # Up to just above the finish ledge
+$opened = 0
+foreach ($leg in $legs) { $opened += [Classify]::CarveRoute($m, $mw, $mh, $leg[0], $leg[1], $leg[2], $leg[3], $routeR, 3.0, $leg[4]) }
+"Flight corridors: $opened pixels opened"
 
 $sb = New-Object System.Text.StringBuilder
 [void]$sb.AppendLine("// Cave Flight map: 1024 entries per row (x $mw..1023 unused), $mh rows. Classes: 0 sky, 1 cave, 2 rock, 3 grass, 4 road, 5 underground.")

@@ -270,22 +270,64 @@ public static class Classify {
         return o;
     }
 
+    // Solid components (rock to underground) that touch neither the left, right nor bottom
+    // edge and are smaller than maxSize become the most common neighbouring open class.
+    // The traced screenshots read dark-blue background hills and crystal edges as rock;
+    // left in, they float in open air as obstacles. A component overlapping the keep box
+    // (x0..x1, y0..y1 inclusive) stays. Returns the number of pixels opened.
+    public static int RemoveIslands(int[] c, int w, int h, int maxSize, int x0, int y0, int x1, int y1) {
+        var seen = new bool[w * h];
+        int opened = 0;
+        for (int start = 0; start < w * h; start++) {
+            if (seen[start] || c[start] < ROCK || c[start] > DARK) continue;
+            var comp = new List<int>(); var stack = new Stack<int>(); stack.Push(start); seen[start] = true;
+            var n = new int[6];
+            bool anchored = false, kept = false;
+            while (stack.Count > 0) {
+                int p = stack.Pop(); comp.Add(p);
+                int x = p % w, y = p / w;
+                if (x == 0 || x == w - 1 || y == h - 1) anchored = true;
+                if (x >= x0 && x <= x1 && y >= y0 && y <= y1) kept = true;
+                foreach (var q in new[] { x > 0 ? p - 1 : -1, x < w - 1 ? p + 1 : -1, y > 0 ? p - w : -1, y < h - 1 ? p + w : -1 }) {
+                    if (q < 0) continue;
+                    if (c[q] >= ROCK && c[q] <= DARK) { if (!seen[q]) { seen[q] = true; stack.Push(q); } }
+                    else n[c[q]]++;
+                }
+            }
+            if (anchored || kept || comp.Count >= maxSize) continue;
+            int open = n[CAVE] > n[SKY] ? CAVE : SKY;
+            foreach (int p in comp) c[p] = open;
+            opened += comp.Count;
+        }
+        return opened;
+    }
+
     // Opens a flight corridor from (sx, sy) to (gx, gy): the path of disk centres (radius r)
     // that removes the fewest solid pixels, each step costing 1 + penalty * (solid pixels
     // in the disk). The world's left, right and bottom edges count as solid; above the map
     // is open. Solid pixels inside any disk on the path become the class of the nearest
-    // open pixel (sky or cave background). Returns the number of pixels opened.
+    // open pixel (sky or cave background). No disk may touch a keep pixel (keep may be
+    // null), so the corridor passes kept terrain instead of cutting it. Returns the number
+    // of pixels opened.
     public static int CarveRoute(int[] c, int w, int h, int sx, int sy, int gx, int gy, int r, double penalty) {
+        return CarveRoute(c, w, h, sx, sy, gx, gy, r, penalty, null);
+    }
+
+    public static int CarveRoute(int[] c, int w, int h, int sx, int sy, int gx, int gy, int r, double penalty, bool[] keep) {
         Func<int, int, bool> solidAt = (x, y) =>
             y < 0 ? false : (x < 0 || x >= w || y >= h) ? true : c[y * w + x] >= ROCK && c[y * w + x] <= DARK;
         var cost = new double[w * h];
         for (int y = 0; y < h; y++)
             for (int x = 0; x < w; x++) {
-                int n = 0;
+                int n = 0; bool blocked = false;
                 for (int dy = -r; dy <= r; dy++)
-                    for (int dx = -r; dx <= r; dx++)
-                        if (dx * dx + dy * dy <= r * r && solidAt(x + dx, y + dy)) n++;
-                cost[y * w + x] = 1 + penalty * n;
+                    for (int dx = -r; dx <= r; dx++) {
+                        if (dx * dx + dy * dy > r * r) continue;
+                        int i = x + dx, j = y + dy;
+                        if (solidAt(i, j)) n++;
+                        if (keep != null && i >= 0 && i < w && j >= 0 && j < h && keep[j * w + i]) blocked = true;
+                    }
+                cost[y * w + x] = blocked ? double.PositiveInfinity : 1 + penalty * n;
             }
         var dist = new double[w * h];
         var from = new int[w * h];
