@@ -325,7 +325,7 @@ module left_renderer #(
                         (inventory_part==`LP_PART_BOOSTER) ? (row_rocket_left ? "<               " : ">               ") :
                         (row_engine_left ? "<               " : ">               "), 72, inventory_content_top+1, x, y)) pixel_data=16'h07ff;
         end
-        if (in_result || in_build) begin
+        if (in_build) begin
             if (y >= 56 && y < 63 && !(feedback_code == `LP_FEEDBACK_NONE && x >= `LP_LEVEL_BUTTON_X)) begin
                 pixel_data = 16'h0841;
                 if (text_column < 5 && letter_bits[34-(text_row*5+text_column)]) pixel_data = message_colour;
@@ -338,7 +338,7 @@ module left_renderer #(
                                  level_index == 1 ? "L2              " : "L1              ",
                                  `LP_LEVEL_BUTTON_X+1, `LP_LEVEL_BUTTON_Y+1, x, y)) pixel_data = 16'hffff;
             end
-        end else begin
+        end else if (game_state == `LP_RUN) begin
             // Runtime indicators: build validity, engine switch, then game stage.
             if (y >= 57 && y < 63 && x >= 4 && x < 16) pixel_data = build_valid ? 16'h07e0 : 16'hf800;
             if (y >= 57 && y < 63 && x >= 20 && x < 32) pixel_data = engine_enabled ? 16'hffe0 : 16'h4208;
