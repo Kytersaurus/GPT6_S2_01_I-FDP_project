@@ -8,13 +8,13 @@ This directory organizes all verified programming bitstreams generated for the B
 
 | Property | Value |
 | :--- | :--- |
-| **Bitstream File** | **[2026-11-03/bad_piggies_top_20261103_2216.bit](2026-11-03/bad_piggies_top_20261103_2216.bit)** (or [bad_piggies_top_latest.bit](bad_piggies_top_latest.bit)) |
+| **Bitstream File** | **[2026-11-04/bad_piggies_top_20261104_0731.bit](2026-11-04/bad_piggies_top_20261104_0731.bit)** (or [bad_piggies_top_latest.bit](bad_piggies_top_latest.bit)) |
 | **Pointer File** | [LATEST.txt](LATEST.txt) |
-| **Source Commit** | Working Tree (verified) |
-| **Build Timestamp**| 2026-11-03 22:16:00 (SGT) |
-| **Timing Slack** | **WNS = +0.076 ns**, **WHS = +0.024 ns**, **TNS = 0.000 ns** (Timing cleanly MET at 100 MHz) |
-| **Resource Utilization** | **91.31% LUTs** (18,992 / 20,800), **96.00% BRAM** (48 / 50 tiles — zero extra BRAM) |
-| **Simulation Suite** | **All 51 testbenches passing (100% pass rate)** |
+| **Source Commit** | `700de5f` (merged `main`) |
+| **Build Timestamp**| 2026-11-04 07:31:24 (SGT) |
+| **Timing Slack** | **WNS = +0.051 ns**, **WHS = +0.023 ns**, **TNS = 0.000 ns** (Timing cleanly MET at 100 MHz) |
+| **Resource Utilization** | **94.29% LUTs** (19,613 / 20,800), **96.00% BRAM** (48 / 50 tiles), **47.78% DSPs** (43 / 90) |
+| **Implementation Checks** | **Vivado DRC: 0 errors; routed timing met at 100 MHz** |
 | **Key Features** | • **Initial Component State: ALL OFF**: Fans, engines, and booster start completely OFF in RUN mode until explicitly triggered by the player.<br>• **Directional Fans & Vertical Lift**: Fans can face DOWN (providing vertical lift to counteract gravity, height control), RIGHT, or LEFT.<br>• **Independent Fan Control**: Multiple fans can be toggled independently (e.g. one for lift, one for horizontal propulsion).<br>• **Physical Directional Support Constraints**: Downward fans require frame support above or to the sides; horizontal fans and rockets strictly require frame attachment on the side opposite thrust. Direction flipping only cycles through physically valid orientations.<br>• **Discrete Inventory Scroll**: Mouse wheel scroll steps cleanly between inventory pages (page 0 / 1).<br>• **SW0 Engine Master Override**: SW0 low permanently inhibits engine; SW0 high allows normal UI engine toggle.<br>• **Complete UI/Audio Polish**: Sound settings volume bars, SW1 mute indicator without text bleed, back button glow & tightened hitboxes, pencil edit icon, circular retry icon, symmetrical STOP/EDIT buttons, and Map Select return navigation. |
 
 ### How Teammates Can Test on the Hardware:
@@ -35,6 +35,8 @@ This directory organizes all verified programming bitstreams generated for the B
 
 | Build Date & Time (SGT) | File Link | Source Commit | Description & Milestone |
 | :--- | :--- | :--- | :--- |
+| **2026-11-03 22:16:00** | [2026-11-03/bad_piggies_top_20261103_2216.bit](2026-11-03/bad_piggies_top_20261103_2216.bit) | Working Tree | **Full LUT Division Elimination & Component Launch OFF**: Replaced runtime division/modulus ladders with subtraction ladders and shift-lookups, saving over 1,400 LUTs down to 18,992 LUTs (91.31%). All actuators initialize OFF upon RUN entry; downward fans provide vertical lift (+40); independent fan control; discrete scroll; SW0 engine override; full UI polish. WNS +0.076 ns, WHS +0.024 ns, 48 BRAMs (96.00%). |
+| **2026-11-04 07:31:24** | [2026-11-04/bad_piggies_top_20261104_0731.bit](2026-11-04/bad_piggies_top_20261104_0731.bit) | `700de5f` | **Merged main hardware build** with terrain following, TNT impact recovery, updated UI/physics, and latest teammate changes. WNS +0.051 ns, WHS +0.023 ns, 19,613 LUTs (94.29%), 48 BRAMs (96.00%), DRC clean. |
 | **2026-11-03 22:16:00** | [2026-11-03/bad_piggies_top_20261103_2216.bit](2026-11-03/bad_piggies_top_20261103_2216.bit) | Working Tree | **Full LUT Division Elimination & Component Launch OFF**: Replaced runtime division/modulus ladders with subtraction ladders and shift-lookups, saving over 1,400 LUTs down to 18,992 LUTs (91.31%). All actuators initialize OFF upon RUN entry; downward fans provide vertical lift (+40); independent fan control; discrete scroll; SW0 engine override; full UI polish. WNS +0.076 ns, WHS +0.024 ns, 48 BRAMs (96.00%). |
 | **2026-11-03 00:25:00** | [2026-11-03/bad_piggies_top_20261103_0025.bit](2026-11-03/bad_piggies_top_20261103_0025.bit) | Working Tree | Initial component state all OFF at RUN start; downward fans with vertical lift (+40); independent fan control; physical support rules for fans & rockets; discrete mouse wheel inventory scrolling; SW0 engine override; sound volume bars & SW1 mute indicator; full UI polish. WNS +0.015 ns, WHS +0.041 ns, 19,870 LUTs (95.53%), 48 BRAMs (96.00%). |
 | **2026-11-02 21:01:10** | [2026-11-02/210110_My_Top_Module.bit](2026-11-02/210110_My_Top_Module.bit) | Working Tree | Downward & independent fans (vertical lift +40), horizontal rockets with physical support validation, SW0 hardware engine override, volume bars in sound settings, back button glow & hitbox clamped, end screen text bleed fix, symmetrical STOP/EDIT buttons, and Map Select return navigation. WNS +0.132 ns, WHS +0.021 ns, 19,825 LUTs (95.31%), 48 BRAMs (96.00%). |
