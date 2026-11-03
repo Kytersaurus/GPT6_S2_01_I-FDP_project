@@ -60,7 +60,9 @@ module menu_fixes_tb;
         if(dut.game_state!=`LP_BUILD || dut.start_screen_active) $fatal(1,"Play/map flow broken");
         click(88,59);settings_checks();click(40,59);
         if(dut.game_state!=`LP_BUILD || dut.start_screen_active) $fatal(1,"Build settings Back broken");
-        force dut.build_valid=1'b1;force dut.pig_alive=1'b1;force dut.init_ready=3'b111;
+        dut.u_builder.build_grid={`LP_PART_WHEEL,`LP_PART_EMPTY,`LP_PART_WHEEL,
+            `LP_PART_EMPTY,`LP_PART_PIG,`LP_PART_ENGINE,`LP_PART_EMPTY,`LP_PART_EMPTY,`LP_PART_EMPTY};
+        dut.u_builder.build_frames=9'b000111000;clocks(2);
         click(8,59);clocks(20);
         if(dut.game_state!=`LP_RUN || dut.engine_enabled || dut.ui_fan_on) $fatal(1,"Launch did not start with actuators OFF");
         click(48,59);if(dut.run_page!=0) $fatal(1,"Bottom gap activated hidden page");
@@ -74,11 +76,11 @@ module menu_fixes_tb;
         if(!dut.u_physics.moments_enabled) $fatal(1,"Inactive rocket changed shared COM support solver");
         release dut.rockets_left;
         // SW0 must inhibit both software toggles and actual output.
-        click(20,16);if(dut.engine_enabled || dut.ui_engine_on) $fatal(1,"SW0 OFF bypassed by icon");
-        switches[0]=1;clocks(5);click(20,16);
+        click(32,26);if(dut.engine_enabled || dut.ui_engine_on) $fatal(1,"SW0 OFF bypassed by icon");
+        switches[0]=1;clocks(5);click(32,26);
         if(!dut.engine_enabled) $fatal(1,"Engine icon cannot enable with SW0 ON");
-        click(20,16);if(dut.engine_enabled) $fatal(1,"Engine icon cannot disable");
-        click(20,16);switches[0]=0;clocks(5);
+        click(32,26);if(dut.engine_enabled) $fatal(1,"Engine icon cannot disable");
+        click(32,26);switches[0]=0;clocks(5);
         if(dut.engine_enabled || dut.ui_engine_on) $fatal(1,"SW0 did not inhibit engine");
         click(84,59);settings_checks();click(40,59);
         if(dut.game_state!=`LP_RUN) $fatal(1,"Run settings Back lost running page");

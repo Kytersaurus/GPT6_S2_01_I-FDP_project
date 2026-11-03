@@ -373,7 +373,7 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
             divider_start <= 0; divider_input <= 0;
             sampled_wheels <= 0; sampled_engines <= 0; sampled_balloons <= 0; sampled_sided <= 0;
             sampled_down_fans <= 0;
-            sampled_engine_enabled <= 0; sampled_engine_reverse <= 0; sampled_spring <= 0;
+            sampled_engine_enabled <= 0; sampled_engine_reverse <= 0;
         end else begin
             movement_committed <= 0;
             divider_start <= 0;
@@ -472,7 +472,7 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
                     step_vertical_force <= fan_lift_force;
                     rocket_force_x<=0; rocket_force_y<=0;
                     rocket_terms<=sampled_rockets<0 ? -sampled_rockets : sampled_rockets;
-                    step_vertical_base <= sampled_spring ? -17'sd512 : vertical_sum;
+                    step_vertical_base <= vertical_sum;
                     // Forward fan facing produces positive +X thrust.
                     step_air_force <= -($signed({{11{sampled_fans[4]}},sampled_fans}) <<< FAN_FORCE_SHIFT);
                     step_thrust <= 0;

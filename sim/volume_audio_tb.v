@@ -52,7 +52,7 @@ module volume_audio_tb;
             $fatal(1,"Music voices ignored selected volume");
         click(12,59);
         if(dut.game_state!=`LP_SETTINGS) $fatal(1,"Audio Back lost settings");
-        click(12,59);
+        click(48,59);
         dut.u_builder.build_grid={`LP_PART_WHEEL,`LP_PART_EMPTY,`LP_PART_WHEEL,
             `LP_PART_ENGINE,`LP_PART_PIG,`LP_PART_EMPTY,`LP_PART_EMPTY,`LP_PART_EMPTY,`LP_PART_EMPTY};
         dut.u_builder.build_frames=9'b000111000;clocks(3);

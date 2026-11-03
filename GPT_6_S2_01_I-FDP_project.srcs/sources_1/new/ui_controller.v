@@ -10,6 +10,7 @@ module ui_controller (
     input wire next_press,
     input wire engine_switch_changed,
     input wire engine_switch, engine_toggle_req, fan_toggle_req,
+    input tri0 rocket_toggle_req,
     input wire fan_available, rocket_available, rocket_ready, balloon_available,
     output reg home_req, launch_req, edit_req, end_try_req, guide_open_req, guide_close_req,
     output reg level_open_req, level_close_req, level_select_req,
@@ -45,6 +46,10 @@ module ui_controller (
             if (run_init) begin engine_on<=0; fan_on<=0; run_page<=0; end
             if (engine_toggle_req && engine_switch && game_state==`LP_RUN && !run_init) engine_on<=!engine_on;
             if (fan_toggle_req && fan_available && game_state==`LP_RUN && !run_init) fan_on<=!fan_on;
+            if (rocket_toggle_req && rocket_available && rocket_ready && game_state==`LP_RUN && !run_init) begin
+                rocket_req<=1;
+                boost_req<=1;
+            end
             // SW0 is a master inhibit. Each launch starts with actuators off.
             if (!engine_switch || run_init) engine_on<=0;
             if (!fan_available || (game_state!=`LP_RUN && game_state!=`LP_SETTINGS && game_state!=`LP_GUIDE)) fan_on<=0;
@@ -76,8 +81,8 @@ module ui_controller (
                         // Home button: [ ⌂ ] in bottom right: x: 70..95, y: 50..63
                         end else if (mx>=70 && mx<=95 && my>=50 && my<=63) begin
                             home_req <= 1;
-                        // Back button: [ ◀ ] in bottom center: y: 50..63
-                        end else if (((mx>=28 && mx<=68) || mx<=34) && my>=50 && my<=63) begin
+                        // Back button: [ ◀ ] in bottom center: x: 28..68, y: 50..63
+                        end else if (mx>=28 && mx<=68 && my>=50 && my<=63) begin
                             level_close_req <= 1;
                         end
                     end else if (game_state==`LP_LEVEL_SELECT) begin
@@ -105,26 +110,15 @@ module ui_controller (
                                 diary_page <= mx<53 ? 2'd0 : mx<74 ? 2'd1 : 2'd2;
                         end
                     end else if (game_state==`LP_SUCCESS || game_state==`LP_FAIL) begin
-                        // 1. Bottom action bar (y: 52..63)
+                        // Bottom action bar (y: 52..63): [ HOME ] [ MAP SELECT ] [ NEXT / EDIT ] [ GUIDE ]
                         if (my>=52 && my<=63) begin
-                            if (mx <= 24) home_req <= 1;                         // [ ⌂ HOME ] (covers click(12, 59))
-                            else if (mx >= 26 && mx <= 46) level_open_req <= 1;  // [ 🗺 MAP SELECT ] (covers Map Select!)
-                            else if (mx >= 50 && mx <= 70) edit_req <= 1;        // [ ▶ NEXT / 🔧 EDIT ]
-                            else if (mx >= 74 && mx <= 94) begin guide_open_req <= 1; diary_page <= 0; end // [ 📖 GUIDE ] (covers click(78, 59))
-                        end
-                        // 2. Retry button at top corners: x: 2..22 or 74..94, y: 2..16
-                        else if ((mx >= 2 && mx <= 22 && my >= 2 && my <= 16) ||
-                                 (mx >= 74 && mx <= 94 && my >= 2 && my <= 16)) begin
-                            launch_req <= 1;                                     // [ ⟳ RETRY ]
-                        end
-                        // 3. Backward-compatible fallbacks
-                        else if (my>=55 && my<64) begin
-                            if (mx<28) home_req <= 1;
-                            else if (mx>=32 && mx<60) edit_req <= 1;
-                            else if (mx>=64 && mx<96) begin guide_open_req <= 1; diary_page <= 0; end
+                            if (mx >= 2 && mx <= 22) home_req <= 1;
+                            else if (mx >= 26 && mx <= 46) level_open_req <= 1;
+                            else if (mx >= 50 && mx <= 70) edit_req <= 1;
+                            else if (mx >= 74 && mx <= 94) begin guide_open_req <= 1; diary_page <= 0; end
                         end
                     end else if (game_state==`LP_RUN) begin
-                        // 1. Bottom Navigation Bar in run mode: [TRY] [END] [EDIT] [GEAR]
+                        // Bottom Navigation Bar in run mode: [TRY] [END] [EDIT] [GEAR]
                         if (my >= 52 && my <= 63) begin
                             if (mx >= 2 && mx <= 22) begin
                                 launch_req <= 1;          // [RETRY]
@@ -137,43 +131,6 @@ module ui_controller (
                                 run_page <= 0;
                             end else if (mx >= 74 && mx <= 94) begin
                                 level_open_req <= 1;      // [GEAR]
-                            end
-                        end
-                        // 2. Prioritized legacy shortcuts: RETRY -> SETTINGS -> EDIT
-                        else if ((mx>=2 && mx<=23 && my>=1 && my<=10) ||
-                                 (mx>=77 && mx<96 && my<10) ||
-                                 (mx>=74 && mx<=94 && my>=2 && my<=12)) begin
-                            launch_req <= 1;
-                            run_page <= 0;
-                        end
-                        else if (mx>=74 && mx<=90 && my>=16 && my<=28) begin
-                            level_open_req <= 1;
-                        end
-                        else if ((mx>=2 && mx<=23 && my==0) ||
-                                 (mx>=74 && mx<=94 && my>=32 && my<=42)) begin
-                            edit_req <= 1;
-                            run_page <= 0;
-                        end
-                        // 3. Sound page controls (legacy run_page == 2)
-                        else if (run_page==2 && my>=28 && my<44) begin
-                            if (mx>=8 && mx<=28 && master_volume>0)
-                                master_volume <= master_volume - 1;
-                            else if (mx>=64 && mx<=84 && master_volume<4)
-                                master_volume <= master_volume + 1;
-                        end else if (run_page==2 && my>=46 && my<54) begin
-                            sound_muted <= !sound_muted;
-                        end
-                        // 4. In-flight Actuators on left panel (x: 4..24, y: 12..53)
-                        else if (mx >= 4 && mx < 24 && my >= 12 && my < 54) begin
-                            if (my >= 12 && my < 22 && engine_switch)
-                                engine_on <= !engine_on;
-                            else if (my >= 23 && my < 33 && fan_available)
-                                fan_on <= !fan_on;
-                            else if (my >= 34 && my < 44)
-                                boost_req <= 1;
-                            else if (my >= 45 && rocket_available && rocket_ready) begin
-                                rocket_req <= 1;
-                                boost_req <= 1;
                             end
                         end
                     end

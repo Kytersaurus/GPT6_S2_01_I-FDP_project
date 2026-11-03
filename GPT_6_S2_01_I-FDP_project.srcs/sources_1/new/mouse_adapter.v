@@ -151,7 +151,7 @@ module mouse_adapter (
                                (safe_speed == 2'd2) ? 12'd31  : 12'd63;
 
     reg [3:0] last_mouse_z;
-    wire mouse_z_changed = (mouse_z != last_mouse_z);
+    // mouse_z_changed removed
 
     // Frame presence around dragged cell (for flipping validation)
     wire c_has_frame_above = (drag_source >= 4'd3) ? build_frames[drag_source - 4'd3] : 1'b0;
@@ -228,12 +228,11 @@ module mouse_adapter (
             engine_toggle_req <= 0;
             fan_toggle_req <= 0;
 
-            if (input_enabled && game_state == `LP_BUILD && mouse_z_changed) begin
-                last_mouse_z <= mouse_z;
+            if (input_enabled && game_state == `LP_BUILD && mouse_event && mouse_z != 0) begin
                 if (!mouse_z[3]) begin
-                    inventory_page <= 2'd1;
-                end else begin
                     inventory_page <= 2'd0;
+                end else begin
+                    inventory_page <= 2'd1;
                 end
             end
 
@@ -465,3 +464,4 @@ module mouse_adapter (
         end
     end
 endmodule
+
