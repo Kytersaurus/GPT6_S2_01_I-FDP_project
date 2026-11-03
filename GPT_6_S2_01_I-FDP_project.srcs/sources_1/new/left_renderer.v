@@ -115,10 +115,6 @@ module left_renderer #(
     reg [34:0] letter_bits;
     integer text_column, text_row;
     reg [3:0] text_char_idx;
-    wire level_button_pixel = x >= `LP_LEVEL_BUTTON_X && x < `LP_LEVEL_BUTTON_X+`LP_LEVEL_BUTTON_W &&
-                              y >= `LP_LEVEL_BUTTON_Y && y < `LP_LEVEL_BUTTON_Y+`LP_LEVEL_BUTTON_H;
-    wire boost_button_pixel = x >= `LP_BOOST_BUTTON_X && x < `LP_BOOST_BUTTON_X+`LP_BOOST_BUTTON_W &&
-                              y >= `LP_BOOST_BUTTON_Y && y < `LP_BOOST_BUTTON_Y+`LP_BOOST_BUTTON_H;
 
     // Inventory and drag preview use the same sprites as the grid and the right OLED.
     function [15:0] draw_part_icon;
