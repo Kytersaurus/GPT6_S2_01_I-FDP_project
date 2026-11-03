@@ -10,6 +10,9 @@
 `ifndef LP_PALETTE_TNT
 `define LP_PALETTE_TNT 4'd8
 `endif
+`ifndef LP_PALETTE_STAR
+`define LP_PALETTE_STAR 4'd9
+`endif
 
 function [15:0] sprite_colour;
     input [3:0] palette;  // Part ID, or LP_PALETTE_TNT
@@ -81,6 +84,12 @@ function [15:0] sprite_colour;
                 4'h2: sprite_colour = 16'hb144;  // Stripe
                 4'h3: sprite_colour = 16'hffff;  // White middle
                 4'h4: sprite_colour = 16'h18c3;  // Black letters
+            endcase
+            `LP_PALETTE_STAR: case (entry)
+                4'h1: sprite_colour = 16'h6371;  // Slate outline
+                4'h2: sprite_colour = 16'hcf1f;  // Pale blue box
+                4'h3: sprite_colour = 16'hffff;  // White glint
+                4'h4: sprite_colour = 16'hfee0;  // Yellow star
             endcase
         endcase
     end
@@ -301,6 +310,26 @@ function [15:0] tnt_sprite12;
     end
 endfunction
 
+// Star box, 8 by 8, the size of a TNT block (drawn from world coordinates at every zoom): a pale blue box with a slate
+// outline, a white glint and a yellow star in the middle.
+function [15:0] star_sprite;
+    input integer sprite_x, sprite_y;
+    input [15:0] background;
+    reg [31:0] row;
+    begin
+        row = 0;
+        if (sprite_x >= 0 && sprite_x < 8 && sprite_y >= 0 && sprite_y < 8) case (sprite_y)
+            1: row = 32'h13244221;
+            2: row = 32'h14444441;
+            3, 4: row = 32'h12444421;
+            5: row = 32'h14422441;
+            6: row = 32'h12222221;
+            default: row = 32'h11111111;
+        endcase
+        star_sprite = sprite_colour(`LP_PALETTE_STAR, row >> ((7-sprite_x)*4), background);
+    end
+endfunction
+
 // 12 by 12 parts for the map view (1.5x): the same designs as the 16 by 16 editor sprites.
 function [15:0] part_sprite12;
     input [2:0] sprite_part;
@@ -394,11 +423,11 @@ function [15:0] part_sprite12;
     end
 endfunction
 // Direction is a separate saved bit. Rotate the upward rocket to point horizontally.
-function [15:0] part_sprite_facing;
+function [15:0] part_sprite_facing_dir;
     input [2:0] part;
     input signed [7:0] x, y;
     input integer size;
-    input facing_left, phase;
+    input facing_left, facing_down, phase;
     input [15:0] background;
     reg signed [7:0] ix, iy;
     begin
@@ -406,9 +435,25 @@ function [15:0] part_sprite_facing;
         if (part==`LP_PART_BOOSTER) begin
             ix=facing_left ? size-1-y : y;
             iy=facing_left ? x : size-1-x;
-        end else if ((part==`LP_PART_ENGINE || part==`LP_PART_FAN) && facing_left) ix=size-1-x;
-        if (size==16) part_sprite_facing=part_sprite16(part,ix,iy,phase,background);
-        else if (size==12) part_sprite_facing=part_sprite12(part,ix,iy,phase,background);
-        else part_sprite_facing=part_sprite(part,ix,iy,phase,background);
+        end else if (part==`LP_PART_FAN && facing_down) begin
+            ix=y;
+            iy=size-1-x;
+        end else if ((part==`LP_PART_ENGINE || part==`LP_PART_FAN) && facing_left) begin
+            ix=size-1-x;
+        end
+        if (size==16) part_sprite_facing_dir=part_sprite16(part,ix,iy,phase,background);
+        else if (size==12) part_sprite_facing_dir=part_sprite12(part,ix,iy,phase,background);
+        else part_sprite_facing_dir=part_sprite(part,ix,iy,phase,background);
+    end
+endfunction
+
+function [15:0] part_sprite_facing;
+    input [2:0] part;
+    input signed [7:0] x, y;
+    input integer size;
+    input facing_left, phase;
+    input [15:0] background;
+    begin
+        part_sprite_facing = part_sprite_facing_dir(part, x, y, size, facing_left, 1'b0, phase, background);
     end
 endfunction

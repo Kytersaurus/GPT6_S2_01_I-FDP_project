@@ -11,7 +11,9 @@
 // (sprites; a world position p is at 3p/2 at 1.5x, with an even camera so this is exact) and
 // half-world texture units (stone, flag and explosions). Output has one clock of latency:
 // map_x/map_y go to the level_map draw port and the class returns with the registered pixel.
-module right_renderer (
+module right_renderer #(
+    parameter USE_PIXEL_INDEX = 1
+) (
     input wire clk,
     input wire [12:0] pixel_index,
     input wire [6:0] in_x,
@@ -24,6 +26,8 @@ module right_renderer (
     input wire [2:0] game_state,
     input wire [26:0] build_grid,
     input wire [8:0] build_facing_left,
+    input tri0 [8:0] build_facing_down,
+    input tri0 [8:0] active_fans,
     input wire [8:0] intact_mask,
     input wire [8:0] frame_intact_mask,
     // 20-bit Q12.8 positions, ready for wider physics; today's 16-bit values are sign-extended.
@@ -56,8 +60,10 @@ module right_renderer (
     `include "part_sprites.vh"
     `include "ui_font.vh"
     `include "rotation_geometry.vh"
-    wire [6:0] x = (pixel_index != 13'd0) ? (pixel_index % 96) : (in_x === 7'bzzzzzzz ? 7'd0 : in_x);
-    wire [5:0] y = (pixel_index != 13'd0) ? (pixel_index / 96) : (in_y === 6'bzzzzzz ? 6'd0 : in_y);
+    wire [5:0] raw_pi_y = ({12'd0, pixel_index} * 25'd2731) >> 18;
+    wire [6:0] raw_pi_x = pixel_index - (raw_pi_y << 6) - (raw_pi_y << 5);
+    wire [6:0] x = USE_PIXEL_INDEX ? raw_pi_x : in_x;
+    wire [5:0] y = USE_PIXEL_INDEX ? raw_pi_y : in_y;
 
     wire before_launch = (game_state == `LP_BUILD || game_state == `LP_GUIDE);
     // Vehicle (or spawn) top-left in whole world pixels.
@@ -155,7 +161,8 @@ module right_renderer (
             case (map_cell)
                 `LP_MAP_CAVE: map_colour = stone(fine_x, fine_y, 16'h08a2, 16'h2a88, 16'h1985, 16'h21c6, 16'h2227);
                 `LP_MAP_ROCK: map_colour = stone(fine_x, fine_y, 16'h1988, 16'h6c97, 16'h3af0, 16'h4352, 16'h4bd4);
-                `LP_MAP_GRASS: map_colour = ((fine_x ^ fine_y) & 3) == 0 ? 16'h2bc3 : 16'h4d86;
+                // Solid grass: a dither pattern speckles at close zoom; level_map smooths the shape.
+                `LP_MAP_GRASS: map_colour = 16'h4d86;
                 `LP_MAP_ROAD: map_colour = ((fine_x*3 ^ fine_y*5) & 7) == 0 ? 16'h4a89 : 16'h3a28;
                 `LP_MAP_DARK: map_colour = 16'h1082;
                 default: begin
@@ -170,7 +177,8 @@ module right_renderer (
                         5: map_colour = 16'h8d1a;
                         default: map_colour = 16'ha5fd;
                     endcase
-                    mx = fine_x - 464; my = fine_y - 332;
+                    // Centre in half-world units: Cave Arch map pixel (265,117), the open sky in the arch.
+                    mx = fine_x - 1060; my = fine_y - 468;
                     if (!map_id && mx*mx + my*my <= 324) map_colour = (mx*mx + (my+6)*(my+6) <= 16) ? 16'hc65a : 16'he75e;
                 end
             endcase
@@ -228,45 +236,17 @@ module right_renderer (
                 if (dx == 3 || dx == 22 || dy == 1 || dy == 16) pixel_data = 16'h3186;
                 else pixel_data = ((((dx-3) >>> 2) ^ ((dy-1) >>> 2)) & 1) ? 16'h0000 : 16'hffff;
             end
-            if (!star_box_collected) begin
-                dx = tex_x - 2*star_box_x; dy = tex_y - 2*star_box_y;
-                if (dx >= 0 && dx < 40 && dy >= 0 && dy < 40) begin
-                    // Outer dark iron rim
-                    if (dx == 0 || dx == 39 || dy == 0 || dy == 39)
-                        pixel_data = 16'h2104;
-                    // Four iron corner reinforcement brackets with silver rivets
-                    else if ((dx < 6 || dx >= 34) && (dy < 6 || dy >= 34)) begin
-                        if ((dx == 2 || dx == 37) && (dy == 2 || dy == 37))
-                            pixel_data = 16'hce59; // Silver rivet
-                        else
-                            pixel_data = 16'h52aa; // Iron bracket
-                    end
-                    // Radiant Gold Star Stamp centered at (20, 20)
-                    else if ((dx >= 20 ? dx - 20 : 20 - dx) + (dy >= 20 ? dy - 20 : 20 - dy) <= 6) begin
-                        if ((dx >= 20 ? dx - 20 : 20 - dx) + (dy >= 20 ? dy - 20 : 20 - dy) == 6)
-                            pixel_data = 16'hfed0; // Amber rim
-                        else if (dx >= 18 && dx <= 19 && dy >= 18 && dy <= 19)
-                            pixel_data = 16'hffff; // White sparkle glint
-                        else
-                            pixel_data = 16'hffe0; // Radiant gold star
-                    end
-                    // Diagonal wood X-brace
-                    else if (dx == dy || dx == dy+1 || dx+1 == dy ||
-                             dx + dy == 39 || dx + dy == 40 || dx + dy == 38)
-                        pixel_data = 16'h9aa0; // Dark timber brace
-                    // Horizontal cedar plank seams
-                    else if (dy == 13 || dy == 26)
-                        pixel_data = 16'h5140; // Plank seam
-                    // Cedar wood plank body
-                    else
-                        pixel_data = 16'hc3a0;
-                end
-            end
+            // Star box: an 8 by 8 world-pixel block like a TNT. It is drawn from world
+            // coordinates at every zoom (1.5x pixel repeats when close), which costs far
+            // less logic than a separate 12 by 12 close-view sprite.
+            tx = star_box_x; ty = star_box_y;
+            if (`LP_STAR_BOX_ENABLED && !star_box_collected)
+                pixel_data = star_sprite(wx - tx, wy - ty, pixel_data);
         end
         // TNT: 12 by 12 close, 8 by 8 normal/overview (overview naturally samples it smaller).
         for (index = 0; index < `LP_MAX_TNT; index = index + 1) begin
-            tx = tnt_positions[index*16 +: 8];
-            ty = tnt_positions[index*16+8 +: 8];
+            tx = tnt_positions[index*`LP_TNT_ENTRY_BITS +: `LP_TNT_COORD_BITS];
+            ty = tnt_positions[index*`LP_TNT_ENTRY_BITS+`LP_TNT_COORD_BITS +: `LP_TNT_COORD_BITS];
             if (index < tnt_count && tnt_intact[index])
                 pixel_data = (zoomed_out_q || overview_q) ? tnt_sprite(wx - tx, wy - ty, pixel_data)
                                           : tnt_sprite12(fx - scaled(tx, 1'b0), fy - scaled(ty, 1'b0), pixel_data);
@@ -300,19 +280,19 @@ module right_renderer (
                 rel_x=2*rel_x;
                 rel_y=2*rel_y;
                 if (frame_intact_mask[cell_index]) pixel_data = part_sprite(`LP_PART_FRAME, rel_x, rel_y, 1'b0, pixel_data);
-                if (intact_mask[cell_index]) pixel_data = part_sprite_facing(part, rel_x, rel_y, 8, build_facing_left[cell_index], anim_phase, pixel_data);
+                if (intact_mask[cell_index]) pixel_data = part_sprite_facing_dir(part, rel_x, rel_y, 8, build_facing_left[cell_index], build_facing_down[cell_index], anim_phase, pixel_data);
             end else if (zoomed_out_q) begin
                 if (frame_intact_mask[cell_index]) pixel_data = part_sprite(`LP_PART_FRAME, rel_x, rel_y, 1'b0, pixel_data);
-                if (intact_mask[cell_index]) pixel_data = part_sprite_facing(part, rel_x, rel_y, 8, build_facing_left[cell_index], anim_phase, pixel_data);
+                if (intact_mask[cell_index]) pixel_data = part_sprite_facing_dir(part, rel_x, rel_y, 8, build_facing_left[cell_index], build_facing_down[cell_index], anim_phase, pixel_data);
             end else begin
                 if (frame_intact_mask[cell_index]) pixel_data = part_sprite12(`LP_PART_FRAME, rel_x, rel_y, 1'b0, pixel_data);
-                if (intact_mask[cell_index]) pixel_data = part_sprite_facing(part, rel_x, rel_y, 12, build_facing_left[cell_index], anim_phase, pixel_data);
+                if (intact_mask[cell_index]) pixel_data = part_sprite_facing_dir(part, rel_x, rel_y, 12, build_facing_left[cell_index], build_facing_down[cell_index], anim_phase, pixel_data);
             end
         end
         // Explosions grow over three phases: yellow flash, orange fireball, grey smoke.
         for (index = 0; index < `LP_MAX_TNT; index = index + 1) begin
-            dx = tex_x - 2*tnt_positions[index*16 +: 8] - `LP_TNT_PIXELS;
-            dy = tex_y - 2*tnt_positions[index*16+8 +: 8] - `LP_TNT_PIXELS;
+            dx = tex_x - 2*tnt_positions[index*`LP_TNT_ENTRY_BITS +: `LP_TNT_COORD_BITS] - `LP_TNT_PIXELS;
+            dy = tex_y - 2*tnt_positions[index*`LP_TNT_ENTRY_BITS+`LP_TNT_COORD_BITS +: `LP_TNT_COORD_BITS] - `LP_TNT_PIXELS;
             distance = dx*dx + dy*dy;
             radius = 2*(2 + 3*blast_phase[index*2 +: 2]);
             if (index < tnt_count && blast_phase[index*2 +: 2] != 0 && distance <= radius*radius) case (blast_phase[index*2 +: 2])

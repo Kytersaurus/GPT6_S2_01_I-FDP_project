@@ -48,10 +48,19 @@ module level_data (
                 world_width = `LP_MAP_WORLD_WIDTH;
                 world_height = `LP_MAP_WORLD_HEIGHT;
                 flag_x = 10'd600;
-                star_box_x = 10'd400; star_box_y = 10'd300;
+                // Star box top-left: on the second arch's far-left bump, 6 px right of TNT 2.
+                star_box_x = 10'd170; star_box_y = 10'd391;
                 flag_y = 10'd472;   // 14-pixel pole ends on the road at y=486
-                tnt_count = 3'd0;
-                tnt_positions = 0;
+                // TNT {y, x} top-left in world pixels, resting on the floor:
+                //  0: on the start plateau 6 px behind the spawn (vehicle x=208..231), floor
+                //     y=100, so reversing is caught.
+                //  1: up the right wall of the first (moon) arch, wedged against the curve where
+                //     it steepens (wall x~598 at y=260), so a cart that climbs too far right and
+                //     high is caught.
+                //  2: on the bump in the far-left pocket of the second arch, floor y=398, past
+                //     the drop at x~200, so a cart that goes too far left is caught.
+                tnt_count = 3'd3;
+                tnt_positions = {10'd390, 10'd156, 10'd260, 10'd588, 10'd92, 10'd194};
             end
             2'd1: begin
                 // Level 2, Cave Flight: a flying level. Start on the ground at the bottom left
@@ -65,10 +74,16 @@ module level_data (
                 world_width = `LP_FLIGHT_WIDTH;
                 world_height = `LP_FLIGHT_HEIGHT;
                 flag_x = 10'd769;
-                star_box_x = 10'd400; star_box_y = 10'd150;
+                // Star box top-left: on the top deck of the middle ledge between the gaps.
+                star_box_x = 10'd541; star_box_y = 10'd103;
                 flag_y = 10'd50;    // 14-pixel pole ends on the ledge at y=64
-                tnt_count = 3'd0;
-                tnt_positions = 0;
+                // TNT {y, x} top-left in world pixels, resting on the floor:
+                //  0: in the ditch between the first hill and the climb into the cave, floor y=199.
+                //  1: in the second flight's lower gap, on its floor (y=166) under the middle of
+                //     the rock ledge (x 521..569) that splits it from the upper gap.
+                //  2: halfway up the grass slope to the finish ledge, floor y=76..79 (resting uphill).
+                tnt_count = 3'd3;
+                tnt_positions = {10'd68, 10'd710, 10'd158, 10'd541, 10'd191, 10'd316};
             end
             2'd2: begin
                 // Level 3, Cave Arch (TNT Hazard Challenge): Two explosive TNT crates
@@ -83,7 +98,7 @@ module level_data (
                 star_box_x = 10'd400; star_box_y = 10'd300;
                 flag_y = 10'd472;
                 tnt_count = 3'd2;
-                tnt_positions = {32'd0, 8'd210, 8'd150, 8'd180, 8'd248};
+                tnt_positions = {20'd0, 10'd210, 10'd150, 10'd180, 10'd248};
             end
             default: begin
                 // Level 4, Cave Flight (TNT Hazard Challenge): Two explosive TNT crates
@@ -98,7 +113,7 @@ module level_data (
                 star_box_x = 10'd400; star_box_y = 10'd150;
                 flag_y = 10'd50;
                 tnt_count = 3'd2;
-                tnt_positions = {32'd0, 8'd100, 8'd180, 8'd140, 8'd120};
+                tnt_positions = {20'd0, 10'd100, 10'd180, 10'd140, 10'd120};
             end
         endcase
     end

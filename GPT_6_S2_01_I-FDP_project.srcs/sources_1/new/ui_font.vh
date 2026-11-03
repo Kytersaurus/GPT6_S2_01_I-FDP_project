@@ -59,17 +59,20 @@
         input integer left, top, pixel_x, pixel_y;
         reg [6:0] relative_x, relative_y;
         reg [4:0] column;
+        reg [2:0] mod6;
         reg [6:0] row;
         reg [7:0] character;
         reg [34:0] bits;
         begin
             text_on = 0;
             relative_x=pixel_x-left; relative_y=pixel_y-top;
-            column = relative_x/6; row = relative_y;
-            if (pixel_x >= left && pixel_y >= top && column < 16 && row < 7 && relative_x%6 < 5) begin
+            column = (relative_x * 43) >> 8;
+            mod6 = relative_x - ((column << 2) + (column << 1));
+            row = relative_y;
+            if (pixel_x >= left && pixel_y >= top && column < 16 && row < 7 && mod6 < 5) begin
                 character = text >> ((15-column)*8);
                 bits = letter_pixels(character);
-                text_on = bits[34-(row*5+relative_x%6)];
+                text_on = bits[34-(row*5+mod6)];
             end
         end
     endfunction

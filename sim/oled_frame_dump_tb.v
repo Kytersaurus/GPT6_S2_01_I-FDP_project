@@ -174,8 +174,8 @@ module oled_frame_dump_tb;
 
         // Show the same runtime frame during a TNT blast for visual inspection.
         visual_tnt_count = 3'd1;
-        visual_tnt_positions[7:0] = 8'd246;
-        visual_tnt_positions[15:8] = 8'd76;
+        visual_tnt_positions[9:0] = 10'd246;
+        visual_tnt_positions[19:10] = 10'd76;
         blast_phase[1:0] = 2'd2;
         dump_right("oled_right_tnt.ppm");
 

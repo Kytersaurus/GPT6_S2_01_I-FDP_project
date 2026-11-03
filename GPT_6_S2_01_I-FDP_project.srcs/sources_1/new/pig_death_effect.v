@@ -25,8 +25,17 @@ module pig_death_effect #(parameter integer PHASE_TICKS=6) (
         for (index=0; index<9; index=index+1)
             if (build_grid[index*3 +: 3]==`LP_PART_PIG) begin
                 pig_found=1;
-                pig_local_x=(index%3)*8-8;
-                pig_local_y=(index/3)*8-8;
+                case (index[3:0])
+                    4'd0: begin pig_local_x = -5'sd8; pig_local_y = -5'sd8; end
+                    4'd1: begin pig_local_x =  5'sd0; pig_local_y = -5'sd8; end
+                    4'd2: begin pig_local_x =  5'sd8; pig_local_y = -5'sd8; end
+                    4'd3: begin pig_local_x = -5'sd8; pig_local_y =  5'sd0; end
+                    4'd4: begin pig_local_x =  5'sd0; pig_local_y =  5'sd0; end
+                    4'd5: begin pig_local_x =  5'sd8; pig_local_y =  5'sd0; end
+                    4'd6: begin pig_local_x = -5'sd8; pig_local_y =  5'sd8; end
+                    4'd7: begin pig_local_x =  5'sd0; pig_local_y =  5'sd8; end
+                    default: begin pig_local_x = 5'sd8; pig_local_y = 5'sd8; end
+                endcase
             end
     end
     always @(posedge clk) begin

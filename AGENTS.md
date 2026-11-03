@@ -62,10 +62,11 @@ This document serves as the single source of truth for **all human teammates (Ka
   - All cross-clock communication must pass through the registered CDC handshake module ([`display_snapshot.v`](file:///c:/Users/kaush/EE2026Labs/GPT6_S2_01_I-FDP_project/GPT_6_S2_01_I-FDP_project.srcs/sources_1/new/display_snapshot.v)).
   - Avoid wide combinational logic cascades across single clock cycles. Register intermediate results in FSM stages.
 
-### 🛡️ 6. Maintain 100% Pass Rate on All 51 Testbenches & Backward Compatibility
+### 🛡️ 6. Clean Codebase, 100% Pass Rate on Test Suite & Updating Outdated Tests
 * The test suite contains **51 testbenches** covering every subsystem.
-* **Never commit breaking interface changes.**
-* When adjusting UI button hitboxes on Left OLED, **always preserve backward compatibility** with legacy testbench clicks using fallback coordinates or prioritized checking order (`RETRY` $\to$ `SETTINGS` $\to$ `EDIT` $\to$ `ACTION ICONS`).
+* **Keep code clean and maintainable:** Proactively remove redundant legacy code, dead fallback hitboxes, phantom shortcuts, and obsolete physical button text.
+* **Never preserve dead code or phantom hitboxes solely for outdated test cases.** When UI contracts or button layouts are refined, update outdated testbenches to assert the clean, modern interface rather than cluttering production RTL with backwards-compatibility hacks.
+* Every commit must achieve a 100% pass rate across all testbenches with timing closure.
 
 ---
 
@@ -221,5 +222,5 @@ Before committing or opening a PR:
 4. [ ] **Map files untouched?** Are `cave_*.mem` and `level_map.v` completely unmodified?
 5. [ ] **All 51 testbenches passing?** Did you run regression tests without errors?
 6. [ ] **Timing closed?** Are WNS and WHS positive with 0 failing endpoints?
-7. [ ] **Backward-compatible hitboxes?** Do legacy automated clicks still trigger expected buttons?
+7. [ ] **Clean UI & Modern Test Contracts?** Are dead/phantom hitboxes removed, buttons strictly confined to their visible bounds, and outdated testbenches updated?
 8. [ ] **Clean git status?** No temporary files, logs, or clutter left behind?

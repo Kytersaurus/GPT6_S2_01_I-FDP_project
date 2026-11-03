@@ -82,8 +82,17 @@ module world_outcomes (
         for(index=0;index<9;index=index+1)
             if(intact_mask[index] && build_grid[index*3 +: 3]==`LP_PART_PIG) begin
                 candidate_pig_found=1;
-                candidate_pig_x=(index%3)*8-8;
-                candidate_pig_y=(index/3)*8-8;
+                case (index[3:0])
+                    4'd0: begin candidate_pig_x = -5'sd8; candidate_pig_y = -5'sd8; end
+                    4'd1: begin candidate_pig_x =  5'sd0; candidate_pig_y = -5'sd8; end
+                    4'd2: begin candidate_pig_x =  5'sd8; candidate_pig_y = -5'sd8; end
+                    4'd3: begin candidate_pig_x = -5'sd8; candidate_pig_y =  5'sd0; end
+                    4'd4: begin candidate_pig_x =  5'sd0; candidate_pig_y =  5'sd0; end
+                    4'd5: begin candidate_pig_x =  5'sd8; candidate_pig_y =  5'sd0; end
+                    4'd6: begin candidate_pig_x = -5'sd8; candidate_pig_y =  5'sd8; end
+                    4'd7: begin candidate_pig_x =  5'sd0; candidate_pig_y =  5'sd8; end
+                    default: begin candidate_pig_x = 5'sd8; candidate_pig_y = 5'sd8; end
+                endcase
             end
     end
     always @(posedge clk) begin
@@ -144,7 +153,8 @@ module world_outcomes (
                     GOAL: begin
                         goal_hit<=pig_found && pig_x>=goal_left && pig_x<goal_right &&
                                   pig_y>=goal_top && pig_y<goal_bottom;
-                        star_box_hit <= (vehicle_right >= $signed({1'b0,star_box_x,8'b0}) && vehicle_left < $signed({1'b0,star_box_x,8'b0})+21'sd5120) && (vehicle_bottom >= $signed({1'b0,star_box_y,8'b0}) && vehicle_top < $signed({1'b0,star_box_y,8'b0})+21'sd5120);
+                        // The star box is an 8 by 8 block (2048 in Q12.8), the size of a TNT.
+                        star_box_hit <= `LP_STAR_BOX_ENABLED && (vehicle_right >= $signed({1'b0,star_box_x,8'b0}) && vehicle_left < $signed({1'b0,star_box_x,8'b0})+21'sd2048) && (vehicle_bottom >= $signed({1'b0,star_box_y,8'b0}) && vehicle_top < $signed({1'b0,star_box_y,8'b0})+21'sd2048);
                         out_of_bounds<=vehicle_left>=$signed({1'b0,saved_width,8'b0}) || vehicle_right<=0 ||
                                        vehicle_top>=$signed({1'b0,saved_height,8'b0}) || vehicle_bottom<=0;
                         phase<=HAZARD_SETUP;

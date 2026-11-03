@@ -79,11 +79,11 @@ module gameplay_menu_tb;
         if(dut.game_state!=`LP_GUIDE || dut.master_volume!=1) $fatal(1,"RUN sound settings missing");
         click(12,59);click(40,59);
         if(dut.game_state!=`LP_RUN || dut.run_page!=0) $fatal(1,"Settings Back lost RUN");
-        click(86,4);clocks(40);
+        click(12,58);clocks(40);
         if(dut.game_state!=`LP_RUN || dut.run_page!=0 || dut.balloon_count!=1 || dut.master_volume!=1 ||
            dut.build_facing_left!==saved_direction || dut.build_frames!==saved_frames)
             $fatal(1,"Round-arrow retry lost build, controls or volume");
-        click(12,0);clocks(3);
+        click(60,58);clocks(3);
         if(dut.game_state!=`LP_BUILD || dut.level_index!=0 || dut.balloon_count!=1)
             $fatal(1,"RUN edit changed level or failed to restore construction");
         btnC=1;clocks(14);btnC=0;clocks(30);

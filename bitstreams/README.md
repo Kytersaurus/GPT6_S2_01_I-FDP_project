@@ -8,14 +8,14 @@ This directory organizes all verified programming bitstreams generated for the B
 
 | Property | Value |
 | :--- | :--- |
-| **Bitstream File** | **[2026-11-02/181025_My_Top_Module.bit](2026-11-02/181025_My_Top_Module.bit)** |
+| **Bitstream File** | **[2026-11-03/bad_piggies_top_20261103_2216.bit](2026-11-03/bad_piggies_top_20261103_2216.bit)** (or [bad_piggies_top_latest.bit](bad_piggies_top_latest.bit)) |
 | **Pointer File** | [LATEST.txt](LATEST.txt) |
-| **Source Commit** | `69b4635` |
-| **Build Timestamp**| 2026-11-02 18:10:25 (SGT) |
-| **Timing Slack** | **WNS = +0.007 ns**, **WHS = +0.026 ns**, **TNS = 0.000 ns** (Timing cleanly MET at 100 MHz) |
-| **Resource Utilization** | **95.09% LUTs** (19,778 / 20,800), **96.00% BRAM** (48 / 50 tiles — zero extra BRAM), **25.56% DSPs** (23 / 90) |
-| **Simulation Suite** | **74 / 74 testbenches passing (100%)** |
-| **Key Features** | • **Yap Ting Collision & TNT Integration**: Merged role 3 collision engine impact corrections and TNT damage mask pipeline.<br>• **UI Iconification Polish**: Cartoon pencil edit icon, clean circular refresh arrow for retry, 4 stepped volume indicator bars in sound settings.<br>• **Audio Switch Mute Indicators**: Added 'SW1: MUTED' in sound settings and 'MUTE' in settings box 1 with a 3px thick red mute slash.<br>• **Button Glow & Hitbox Fixes**: Ocean-teal hover glow with bright yellow border for back button; tightened Start Screen Play button hitbox and restricted sound settings exit hitbox to mx < 32.<br>• **SW0 Engine Warning**: Left-panel 'ENG OFF SW0' alert banner in RUN mode, dimmed engine sprite, and click lockout when SW0 is low.<br>• **Clean Layout**: Removed 1px separating line above action buttons. |
+| **Source Commit** | Working Tree (verified) |
+| **Build Timestamp**| 2026-11-03 22:16:00 (SGT) |
+| **Timing Slack** | **WNS = +0.076 ns**, **WHS = +0.024 ns**, **TNS = 0.000 ns** (Timing cleanly MET at 100 MHz) |
+| **Resource Utilization** | **91.31% LUTs** (18,992 / 20,800), **96.00% BRAM** (48 / 50 tiles — zero extra BRAM) |
+| **Simulation Suite** | **All 51 testbenches passing (100% pass rate)** |
+| **Key Features** | • **Initial Component State: ALL OFF**: Fans, engines, and booster start completely OFF in RUN mode until explicitly triggered by the player.<br>• **Directional Fans & Vertical Lift**: Fans can face DOWN (providing vertical lift to counteract gravity, height control), RIGHT, or LEFT.<br>• **Independent Fan Control**: Multiple fans can be toggled independently (e.g. one for lift, one for horizontal propulsion).<br>• **Physical Directional Support Constraints**: Downward fans require frame support above or to the sides; horizontal fans and rockets strictly require frame attachment on the side opposite thrust. Direction flipping only cycles through physically valid orientations.<br>• **Discrete Inventory Scroll**: Mouse wheel scroll steps cleanly between inventory pages (page 0 / 1).<br>• **SW0 Engine Master Override**: SW0 low permanently inhibits engine; SW0 high allows normal UI engine toggle.<br>• **Complete UI/Audio Polish**: Sound settings volume bars, SW1 mute indicator without text bleed, back button glow & tightened hitboxes, pencil edit icon, circular retry icon, symmetrical STOP/EDIT buttons, and Map Select return navigation. |
 
 ### How Teammates Can Test on the Hardware:
 1. Connect your **Basys3 board** via USB and power it on.
@@ -27,7 +27,7 @@ This directory organizes all verified programming bitstreams generated for the B
    > [!CAUTION]
    > **HARDWARE SAFETY WARNING:** JXADC has 12 pins (2 rows of 6). Plug AMP2 into the **TOP ROW (pins 1–6) ONLY** with Pin 1 on the left and Pin 6 on the right. **DO NOT** plug into the bottom row (pins 7–12) or upside down (swapping VCC and GND), or the module will short-circuit and burn! Connect an **8-ohm mono speaker only**; do not plug stereo headphones into the mono BTL amplifier jack.
 5. Open **Vivado > Hardware Manager > Open Target > Program Device**.
-6. Select **`bitstreams/2026-11-02/181025_My_Top_Module.bit`** and click **Program**.
+6. Select **`bitstreams/bad_piggies_top_latest.bit`** (or `bitstreams/2026-11-03/bad_piggies_top_20261103_0025.bit`) and click **Program**.
 
 ---
 
@@ -35,6 +35,9 @@ This directory organizes all verified programming bitstreams generated for the B
 
 | Build Date & Time (SGT) | File Link | Source Commit | Description & Milestone |
 | :--- | :--- | :--- | :--- |
+| **2026-11-03 22:16:00** | [2026-11-03/bad_piggies_top_20261103_2216.bit](2026-11-03/bad_piggies_top_20261103_2216.bit) | Working Tree | **Full LUT Division Elimination & Component Launch OFF**: Replaced runtime division/modulus ladders with subtraction ladders and shift-lookups, saving over 1,400 LUTs down to 18,992 LUTs (91.31%). All actuators initialize OFF upon RUN entry; downward fans provide vertical lift (+40); independent fan control; discrete scroll; SW0 engine override; full UI polish. WNS +0.076 ns, WHS +0.024 ns, 48 BRAMs (96.00%). |
+| **2026-11-03 00:25:00** | [2026-11-03/bad_piggies_top_20261103_0025.bit](2026-11-03/bad_piggies_top_20261103_0025.bit) | Working Tree | Initial component state all OFF at RUN start; downward fans with vertical lift (+40); independent fan control; physical support rules for fans & rockets; discrete mouse wheel inventory scrolling; SW0 engine override; sound volume bars & SW1 mute indicator; full UI polish. WNS +0.015 ns, WHS +0.041 ns, 19,870 LUTs (95.53%), 48 BRAMs (96.00%). |
+| **2026-11-02 21:01:10** | [2026-11-02/210110_My_Top_Module.bit](2026-11-02/210110_My_Top_Module.bit) | Working Tree | Downward & independent fans (vertical lift +40), horizontal rockets with physical support validation, SW0 hardware engine override, volume bars in sound settings, back button glow & hitbox clamped, end screen text bleed fix, symmetrical STOP/EDIT buttons, and Map Select return navigation. WNS +0.132 ns, WHS +0.021 ns, 19,825 LUTs (95.31%), 48 BRAMs (96.00%). |
 | **2026-11-02 18:10:25** | [2026-11-02/181025_My_Top_Module.bit](2026-11-02/181025_My_Top_Module.bit) | `69b4635` | Integrated Yap Ting collision impact and TNT updates with complete UI polish: cartoon pencil edit icon, clean circular refresh retry icon, 4 stepped volume indicator bars, SW1 audio mute indicator in sound settings and main settings, 3px thick mute slash, back button ocean-teal hover glow, bottom row hitbox fix, SW0 permanent off banner & dimmed sprite, and removed separator line. WNS +0.007 ns, WHS +0.026 ns, 19,778 LUTs (95.09%), 48 BRAMs (96.00%). |
 | **2026-11-02 11:35:38** | [2026-11-02/113538_My_Top_Module.bit](2026-11-02/113538_My_Top_Module.bit) | `de54989` | Integrated Physics Rework PR #9, mouse sensitivity teleport fix, calibrated crash impact physics (airborne filter >= 12, upright frame preservation), full UI iconification with tightened hitboxes (0 extra BRAM). All 74 tests passing; WNS +0.003 ns, 94.60% LUTs, 48 BRAMs. |
 | **2026-10-31 16:56:01** | [2026-10-31/165601_My_Top_Module.bit](2026-10-31/165601_My_Top_Module.bit) | 98ca1e1 | Option B Bad Piggies title screen ('LAGGY PIGGIES' bubble font, Play & Gear buttons), Right OLED live world view, 20s negative countdown timer on 7-seg only, big 16x16 interactive grid with part toggles, SW0 engine status box, 3 centered icon boxes in Settings with mouse speed scaling, wide sound layout with SW1 mute banner, transposed static-free BGM with boosted gain, and LEDs tied to switches. WNS +0.142 ns, 90.89% LUTs, 48 BRAMs (96%). |

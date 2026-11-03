@@ -77,7 +77,7 @@ module module_contracts_tb;
         .pixel_index(pixel),.game_state(builder_state),.build_grid(grid),.intact_mask(intact),.frame_intact_mask(frame_intact),
         .vehicle_x(20'sd1024),.vehicle_y(20'sd8192),.terrain_count(3'd1),
         .terrain_rects({96'd0,8'd8,8'd96,8'd56,8'd0}),.goal_rect({8'd24,8'd16,8'd32,8'd80}),
-        .spawn_x(20'sd1024),.spawn_y(20'sd8192),.tnt_count(3'd0),.tnt_positions(64'd0),.tnt_intact(4'd0),
+        .spawn_x(20'sd1024),.spawn_y(20'sd8192),.tnt_count(3'd0),.tnt_positions({`LP_TNT_BITS{1'b0}}),.tnt_intact({`LP_MAX_TNT{1'b0}}),
         .hazard_count(2'd0),.hazard_rects(64'd0),.pixel_data(right_colour)
     );
     // Test-only gameplay fixture; the hardware builder starts empty.

@@ -43,6 +43,7 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
     input tri0 [8:0] build_frames, intact_mask, frame_intact_mask,
     input tri0 [8:0] build_facing_left, rocket_vertical_mask,
     input wire boost_req,
+    input tri0 [3:0] active_down_fans,
     output wire boost_active,
     output wire move_valid,
     input wire move_ready,
@@ -252,6 +253,7 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
     assign boost_active = is_boosting;
     reg sampled_boosting;
     reg [3:0] sampled_wheels, sampled_engines, sampled_balloons;
+    reg [3:0] sampled_down_fans;
     reg sampled_sided;
     reg sampled_engine_enabled, sampled_engine_reverse;
     always @* begin
@@ -287,9 +289,10 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
     assign engine_magnitude = $signed({1'b0, sampled_engines}) * engine_force;
     assign wheel_resistance = sampled_wheels != 0 ? sampled_wheels * wheel_drag : sampled_sided ? scrape_drag : 16'sd0;
     assign lift = $signed({1'b0, sampled_balloons}) * lift_per_balloon;
+    wire signed [15:0] total_lift = lift + ($signed({1'b0, sampled_down_fans}) * 16'sd40);
     assign vertical_sum = $signed({velocity_y[15], velocity_y}) +
-                          17'sd32 - $signed({lift[15], lift});
-    wire signed [16:0] net_gravity = 17'sd32 - $signed({lift[15], lift});
+                          17'sd32 - $signed({total_lift[15], total_lift});
+    wire signed [16:0] net_gravity = 17'sd32 - $signed({total_lift[15], total_lift});
     wire [7:0] slope_magnitude = sampled_slope < 0 ? -sampled_slope : sampled_slope;
 
     // Horizontal gravity on y=s*x is g*s/(1+s*s). A small constant
@@ -369,7 +372,8 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
             step_vx_sum <= 0; step_x_sum <= 0; step_y_sum <= 0;
             divider_start <= 0; divider_input <= 0;
             sampled_wheels <= 0; sampled_engines <= 0; sampled_balloons <= 0; sampled_sided <= 0;
-            sampled_engine_enabled <= 0; sampled_engine_reverse <= 0;
+            sampled_down_fans <= 0;
+            sampled_engine_enabled <= 0; sampled_engine_reverse <= 0; sampled_spring <= 0;
         end else begin
             movement_committed <= 0;
             divider_start <= 0;
@@ -392,6 +396,12 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
                 proposed_vx <= 0; proposed_vy <= 0; velocity_x <= 0; velocity_y <= 0;
                             remainder_x <= 0; pending_remainder_x <= 0; remainder_mass <= 0;
                 boost_timer <= 0;
+                sampled_boosting <= 0;
+                sampled_down_fans <= 0;
+                sampled_fans <= 0;
+                sampled_rockets <= 0;
+                sampled_engine_enabled <= 0;
+                sampled_engine_reverse <= 0;
             end else if (menu_paused) begin
                 // Controller drains the current update before opening a menu.
                 // Keep velocity, contact and spin for resume.
@@ -444,6 +454,7 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
                     sampled_wheels <= contact_wheels; sampled_engines <= engine_count;
                     sampled_sided <= last_support_span_valid || (wheels_down|wheels_up)!=0;
                     sampled_balloons <= balloon_count;
+                    sampled_down_fans <= fan_enabled ? active_down_fans : 4'd0;
                     sampled_engine_enabled <= engine_enabled; sampled_engine_reverse <= engine_reverse;
                     sampled_fans <= fan_enabled ? fan_balance : 5'sd0;
                     sampled_lift_fans <= fan_enabled ? live_lift_fan_count : 4'd0;
@@ -461,8 +472,8 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
                     step_vertical_force <= fan_lift_force;
                     rocket_force_x<=0; rocket_force_y<=0;
                     rocket_terms<=sampled_rockets<0 ? -sampled_rockets : sampled_rockets;
-                    step_vertical_base <= vertical_sum;
-                    // Reverse the legacy facing sign to match the fan thrust direction.
+                    step_vertical_base <= sampled_spring ? -17'sd512 : vertical_sum;
+                    // Forward fan facing produces positive +X thrust.
                     step_air_force <= -($signed({{11{sampled_fans[4]}},sampled_fans}) <<< FAN_FORCE_SHIFT);
                     step_thrust <= 0;
                     // With wheel sides reported, only wheels touching the ground drive.
