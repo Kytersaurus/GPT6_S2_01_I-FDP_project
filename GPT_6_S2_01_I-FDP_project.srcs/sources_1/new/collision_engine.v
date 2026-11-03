@@ -75,6 +75,12 @@ module collision_engine #(
     assign corrected_vy = active_rotation ? rot_vy : map_vy;
     assign grounded = active_rotation ? rot_ground : map_ground;
     assign ground_slope = active_rotation ? rot_slope : map_slope;
+    // DARK is the outside/background colour used by the block-RAM maps.  It
+    // must not become a floor when the vehicle is below the visible map; the
+    // world-outcome block handles that as an out-of-bounds result.  Preserve
+    // the old DARK boundary behaviour for rectangle callers.
+    wire [2:0] collision_class = (map_level && query_class == `LP_MAP_DARK) ?
+                                 `LP_MAP_SKY : query_class;
     // Collision engines deliberately return only the corrected pose.  Detect
     // a hard contact at the shared response handshake, then let the top level
     // translate the direction into the 3x3 edge mask.  This keeps the map
@@ -131,7 +137,7 @@ module collision_engine #(
         .clk(clk), .reset(reset), .move_valid(move_valid && !busy && !use_rotation), .move_ready(map_ready),
         .previous_x(previous_x), .previous_y(previous_y), .proposed_x(proposed_x), .proposed_y(proposed_y),
         .proposed_vx(proposed_vx), .proposed_vy(proposed_vy), .world_width(world_width), .world_height(world_height),
-        .query_x(upright_qx), .query_y(upright_qy), .query_class(query_class),
+        .query_x(upright_qx), .query_y(upright_qy), .query_class(collision_class),
         .response_valid(map_valid), .response_ready(response_ready && busy && !active_rotation),
         .corrected_x(map_x), .corrected_y(map_y), .corrected_vx(map_vx), .corrected_vy(map_vy), .grounded(map_ground),
         .ground_slope(map_slope), .ground_slope_valid(map_slope_valid)
@@ -150,7 +156,7 @@ module collision_engine #(
         .part_intact_mask(part_intact_mask), .frame_intact_mask(frame_intact_mask),
         .support_unstable(rot_unstable),
         .proposed_vx(proposed_vx), .proposed_vy(proposed_vy), .world_width(world_width), .world_height(world_height),
-        .query_x(rot_qx), .query_y(rot_qy), .query_class(query_class),
+        .query_x(rot_qx), .query_y(rot_qy), .query_class(collision_class),
         .response_valid(rot_valid), .response_ready(response_ready && busy && active_rotation),
         .corrected_x(rot_x), .corrected_y(rot_y), .corrected_vx(rot_vx), .corrected_vy(rot_vy), .grounded(rot_ground),
         .ground_slope(rot_slope), .ground_slope_valid(rot_slope_valid),

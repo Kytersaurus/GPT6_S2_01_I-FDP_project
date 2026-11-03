@@ -119,11 +119,11 @@ function [15:0] part_sprite;
                     2, 6: row = 32'h03333330;
                     default: row = 0;
                 endcase
-                `LP_PART_WHEEL: case (sprite_y)       // Tyre, rim and hub
+                `LP_PART_WHEEL: case (sprite_y)       // Tyre, rim, hub and two spoke phases
                     0, 7: row = 32'h00777700;
                     1, 6: row = 32'h07777770;
                     2, 5: row = 32'h77888877;
-                    default: row = 32'h77855877;
+                    default: row = sprite_phase ? 32'h77858577 : 32'h77855877;
                 endcase
                 `LP_PART_ENGINE: case (sprite_y)      // Casing with a pulley whose spoke turns
                     1, 6: row = 32'h01111110;
@@ -196,7 +196,7 @@ function [15:0] part_sprite16;
                     13: row = 64'h0000444444440000;
                     default: row = 0;
                 endcase
-                `LP_PART_WHEEL: case (sprite_y)       // Tyre, spoked rim and hub
+                `LP_PART_WHEEL: case (sprite_y)       // Tyre, spoked rim, hub and two spoke phases
                     0, 15: row = 64'h0000011111100000;
                     1: row = 64'h0001122222211000;
                     2: row = 64'h0012111111111100;
@@ -204,7 +204,7 @@ function [15:0] part_sprite16;
                     4, 11: row = 64'h0111343333431110;
                     5, 10: row = 64'h1113343333433111;
                     6, 9: row = 64'h1113334334333111;
-                    7, 8: row = 64'h1113333553333111;
+                    7, 8: row = sprite_phase ? 64'h1113335353333111 : 64'h1113333553333111;
                     12: row = 64'h0111113333111110;
                     13: row = 64'h0011111111111100;
                     default: row = 64'h0001111111111000;
@@ -366,7 +366,7 @@ function [15:0] part_sprite12;
                     2: row = 48'h012111111110;
                     3, 8: row = 48'h111133331111;
                     4, 7: row = 48'h111343343111;
-                    5, 6: row = 48'h111335533111;
+                    5, 6: row = sprite_phase ? 48'h111353533111 : 48'h111335533111;
                     default: row = 48'h011111111110;
                 endcase
                 `LP_PART_ENGINE: case (sprite_y)

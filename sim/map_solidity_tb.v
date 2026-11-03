@@ -9,6 +9,8 @@ module map_solidity_tb;
     wire [2:0] drawn_class, queried_class;
     reg [2:0] arch[0:512*`LP_MAP_HEIGHT-1];
     reg [2:0] flight[0:1024*`LP_FLIGHT_HEIGHT-1];
+    reg arch_solid_ref[0:512*`LP_MAP_HEIGHT-1];
+    reg flight_solid_ref[0:1024*`LP_FLIGHT_HEIGHT-1];
     integer m,xx,yy,checks=0,cave_checks=0,ground_checks=0,decor_checks=0,old_errors=0,old_cave_errors=0,old_flight_floor_errors=0;
     reg [2:0] expected_class;
     reg expected_solid;
@@ -31,6 +33,8 @@ module map_solidity_tb;
     initial begin
         $readmemh("cave_arch_map.mem",arch);
         $readmemh("cave_flight_map.mem",flight);
+        $readmemh("cave_arch_solid.mem",arch_solid_ref);
+        $readmemh("cave_flight_solid.mem",flight_solid_ref);
         // Allow primitive global reset to finish in post-synthesis simulation.
         repeat(20) @(negedge clk);
         for(m=0;m<2;m=m+1) begin
@@ -39,14 +43,11 @@ module map_solidity_tb;
                 for(xx=0;xx<(m ? `LP_FLIGHT_WIDTH : `LP_MAP_WIDTH);xx=xx+1) begin
                     x=xx;y=yy;
                     expected_class=m ? flight[yy*1024+xx] : arch[yy*512+xx];
-                    expected_solid=expected_class>=`LP_MAP_ROCK && expected_class<=`LP_MAP_DARK;
+                    expected_solid=m ? flight_solid_ref[yy*1024+xx] : arch_solid_ref[yy*512+xx];
+                    if(m==0 && expected_class==`LP_MAP_GRASS && !expected_solid)
+                        decor_checks=decor_checks+1;
                     @(negedge clk);
-                    if(m==0 && expected_class==`LP_MAP_GRASS) begin
-                        // Grass is solid ground or open decoration.
-                        if(solid!==1'b0 && solid!==1'b1)
-                            $fatal(1,"Solidity unknown map0 (%0d,%0d)",xx,yy);
-                        if(!solid) decor_checks=decor_checks+1;
-                    end else if(solid!==expected_solid)
+                    if(solid!==expected_solid)
                         $fatal(1,"Solidity mismatch map%0d (%0d,%0d) class%0d got%b expected%b",m,xx,yy,expected_class,solid,expected_solid);
                     if(drawn_class!==expected_class)
                         $fatal(1,"Draw colour mismatch map%0d (%0d,%0d) got%0d expected%0d",m,xx,yy,drawn_class,expected_class);

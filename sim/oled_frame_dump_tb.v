@@ -106,6 +106,7 @@ module oled_frame_dump_tb;
         .game_state(view_state), .build_grid(build_grid),
         .build_facing_left(build_facing_left), .intact_mask(intact_mask),
         .frame_intact_mask(frame_intact_mask), .vehicle_x(vehicle_x), .vehicle_y(vehicle_y),
+        .camera_x(vehicle_x), .camera_y(vehicle_y),
         .vehicle_tilt(vehicle_tilt), .spawn_x(spawn_x), .spawn_y(spawn_y),
         .terrain_count(terrain_count), .terrain_rects(terrain_rects), .goal_rect(goal_rect),
         .tnt_count(visual_tnt_count), .tnt_positions(visual_tnt_positions), .tnt_intact(tnt_intact),

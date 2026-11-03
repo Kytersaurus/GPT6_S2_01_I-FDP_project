@@ -27,6 +27,7 @@ module vehicle_rotation_renderer_tb;
         .free_look(1'b1), .cursor_x(7'd0), .cursor_y(7'd0), .game_state(state),
         .build_grid(grid), .build_facing_left(facing), .intact_mask(intact),
         .frame_intact_mask(frames), .vehicle_x(20'sd6144), .vehicle_y(20'sd4096),
+        .camera_x(20'sd6144), .camera_y(20'sd4096),
         .vehicle_tilt(tilt), .spawn_x(20'sd6144), .spawn_y(20'sd4096),
         .terrain_count(3'd0), .terrain_rects(128'd0), .goal_rect(32'd0),
         .tnt_count(3'd0), .tnt_positions({`LP_TNT_BITS{1'b0}}), .tnt_intact({`LP_MAX_TNT{1'b0}}),

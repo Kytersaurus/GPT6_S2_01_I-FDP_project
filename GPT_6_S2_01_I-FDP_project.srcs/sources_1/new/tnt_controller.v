@@ -38,6 +38,9 @@ module tnt_controller (
     output reg [`LP_CELLS-1:0] damage_mask,
     output reg [`LP_CELLS-1:0] damage_frame_mask,
     output reg explosion_event,
+    output reg knockback_valid,
+    output reg signed [15:0] knockback_x,
+    output reg signed [15:0] knockback_y,
     output reg damage_complete
 );
     `include "rotation_geometry.vh"
@@ -53,6 +56,13 @@ module tnt_controller (
     reg [`LP_MAX_TNT-1:0] trigger_mask;
     reg trigger_found;
     reg [1:0] selected_tnt;
+    // Keep TNT damage local. The vehicle must physically overlap the TNT
+    // before this radius is used; TNT is not a proximity hazard.
+    localparam [3:0] TNT_BLAST_RADIUS = 4'd12;
+    localparam [8:0] TNT_BLAST_RADIUS_SQUARED = 9'd144;
+    // Q8.8 launch impulse: three pixels per physics update.  The earlier
+    // 0.75-pixel pulse was easy to hide behind the OLED interpolation.
+    localparam signed [15:0] TNT_KNOCKBACK_IMPULSE = 16'sd768;
     reg [12:0] distance_x, distance_y;
     wire [8:0] distance_squared = {1'b0,small_square(distance_x[3:0])} +
                                          {1'b0,small_square(distance_y[3:0])};
@@ -65,6 +75,19 @@ module tnt_controller (
     integer tnt_x_pixels, tnt_y_pixels, tnt_index;
     integer cell_x_pixels, cell_y_pixels;
     reg signed [12:0] delta_x, delta_y;
+    // Used only when contact occurs through an empty part of the 3x3 grid.
+    // It keeps the blast small but prevents a real TNT contact from becoming
+    // a no-op when every occupied cell centre is just outside the radius.
+    reg nearest_content_valid, nearest_frame_valid;
+    reg [3:0] nearest_content_index, nearest_frame_index;
+    reg [13:0] nearest_content_distance, nearest_frame_distance;
+    wire [13:0] manhattan_distance = {1'b0,distance_x} + {1'b0,distance_y};
+    wire signed [21:0] vehicle_center_x_fp = $signed(saved_x) + 22'sd3072;
+    wire signed [21:0] vehicle_center_y_fp = $signed(saved_y) + 22'sd3072;
+    wire signed [21:0] tnt_center_x_fp = ($signed({12'd0,active_x}) + 22'sd4) <<< 8;
+    wire signed [21:0] tnt_center_y_fp = ($signed({12'd0,active_y}) + 22'sd4) <<< 8;
+    wire signed [21:0] knockback_delta_x = vehicle_center_x_fp - tnt_center_x_fp;
+    wire signed [21:0] knockback_delta_y = vehicle_center_y_fp - tnt_center_y_fp;
     wire signed [9:0] saved_cos = rotation_cos(saved_tilt);
     wire signed [9:0] saved_sin = rotation_sin(saved_tilt);
     wire signed [14:0] current_extent = rotation_extent(vehicle_tilt);
@@ -108,9 +131,12 @@ module tnt_controller (
         for (tnt_index=0; tnt_index<`LP_MAX_TNT; tnt_index=tnt_index+1) begin
             tnt_x_pixels=saved_tnt_positions[tnt_index*`LP_TNT_ENTRY_BITS +: `LP_TNT_COORD_BITS];
             tnt_y_pixels=saved_tnt_positions[tnt_index*`LP_TNT_ENTRY_BITS+`LP_TNT_COORD_BITS +: `LP_TNT_COORD_BITS];
+            // Inclusive edges count as contact. This matters for TNT placed
+            // directly against a wall or floor: touching its edge should
+            // trigger it, while a separated vehicle still does not.
             if (tnt_index<saved_tnt_count && tnt_intact[tnt_index] &&
-                sweep_right_fp > tnt_x_pixels*256 && sweep_left_fp < (tnt_x_pixels+8)*256 &&
-                sweep_bottom_fp > tnt_y_pixels*256 && sweep_top_fp < (tnt_y_pixels+8)*256)
+                sweep_right_fp >= tnt_x_pixels*256 && sweep_left_fp <= (tnt_x_pixels+8)*256 &&
+                sweep_bottom_fp >= tnt_y_pixels*256 && sweep_top_fp <= (tnt_y_pixels+8)*256)
                 trigger_mask[tnt_index]=1;
             if (!trigger_found && pending_triggers[tnt_index]) begin
                 trigger_found=1; selected_tnt=tnt_index[1:0];
@@ -144,16 +170,25 @@ module tnt_controller (
             saved_tnt_positions<=0; saved_tnt_count<=0; cell_x_position<=0; cell_y_position<=0;
             distance_x<=0; distance_y<=0;
             damage_valid<=0; damage_mask<=0; damage_frame_mask<=0;
+            knockback_valid<=0; knockback_x<=0; knockback_y<=0;
+            nearest_content_valid<=0; nearest_frame_valid<=0;
+            nearest_content_index<=0; nearest_frame_index<=0;
+            nearest_content_distance<=14'h3fff; nearest_frame_distance<=14'h3fff;
             explosion_event<=0; damage_complete<=0;
         end else begin
             explosion_event<=0; damage_complete<=0;
             if (run_init && game_state==`LP_INIT_RUN) begin
                 state<=IDLE; pending_triggers<=0; tnt_intact<={`LP_MAX_TNT{1'b1}};
                 damage_valid<=0; damage_mask<=0; damage_frame_mask<=0;
+                knockback_valid<=0; knockback_x<=0; knockback_y<=0;
+                nearest_content_valid<=0; nearest_frame_valid<=0;
+                nearest_content_distance<=14'h3fff; nearest_frame_distance<=14'h3fff;
             end else if (game_state!=`LP_RUN) begin
                 state<=IDLE; pending_triggers<=0; damage_valid<=0;
+                knockback_valid<=0; knockback_x<=0; knockback_y<=0;
                 if (game_state==`LP_BUILD) tnt_intact<={`LP_MAX_TNT{1'b1}};
             end else begin
+                knockback_valid<=0;
                 case (state)
                     IDLE: if (movement_committed) begin
                         saved_x<=vehicle_x; saved_y<=vehicle_y;
@@ -176,6 +211,8 @@ module tnt_controller (
                             active_y<=saved_tnt_positions[selected_tnt*`LP_TNT_ENTRY_BITS+`LP_TNT_COORD_BITS +: `LP_TNT_COORD_BITS];
                             pending_triggers[selected_tnt]<=0;
                             damage_mask<=0; damage_frame_mask<=0; cell_index<=0;
+                            nearest_content_valid<=0; nearest_frame_valid<=0;
+                            nearest_content_distance<=14'h3fff; nearest_frame_distance<=14'h3fff;
                             state<=CELL_POSITION;
                         end else begin
                             // This clock follows the final damage transfer, so
@@ -193,8 +230,10 @@ module tnt_controller (
                         state<=CHECK_CELL;
                     end
                     CHECK_CELL: begin
-                        // Exact circular radius of 12 pixels, measured at cell centres.
-                        if (distance_x<=12 && distance_y<=12 && distance_squared<=144) begin
+                        // Small circular blast radius measured at cell centres.
+                        if (distance_x<=TNT_BLAST_RADIUS &&
+                            distance_y<=TNT_BLAST_RADIUS &&
+                            distance_squared<=TNT_BLAST_RADIUS_SQUARED) begin
                             if (intact_mask[cell_index] &&
                                 build_grid[cell_index*`LP_PART_BITS +: `LP_PART_BITS]!=`LP_PART_EMPTY &&
                                 build_grid[cell_index*`LP_PART_BITS +: `LP_PART_BITS]!=`LP_PART_PIG)
@@ -206,11 +245,50 @@ module tnt_controller (
                                 build_grid[cell_index*`LP_PART_BITS +: `LP_PART_BITS] != `LP_PART_PIG)
                                 damage_frame_mask[cell_index]<=1;
                         end
+                        // Record the nearest surviving non-pig item while the
+                        // shared distance hardware is already evaluating this
+                        // cell.  SEND_DAMAGE uses this only if the local blast
+                        // found no item, so the fallback does not enlarge the
+                        // normal TNT radius or remove multiple distant parts.
+                        if (intact_mask[cell_index] &&
+                            build_grid[cell_index*`LP_PART_BITS +: `LP_PART_BITS] != `LP_PART_EMPTY &&
+                            build_grid[cell_index*`LP_PART_BITS +: `LP_PART_BITS] != `LP_PART_PIG &&
+                            (!nearest_content_valid || manhattan_distance < nearest_content_distance)) begin
+                            nearest_content_valid<=1;
+                            nearest_content_index<=cell_index;
+                            nearest_content_distance<=manhattan_distance;
+                        end
+                        if (build_frames[cell_index] && frame_intact_mask[cell_index] &&
+                            build_grid[cell_index*`LP_PART_BITS +: `LP_PART_BITS] != `LP_PART_PIG &&
+                            (!nearest_frame_valid || manhattan_distance < nearest_frame_distance)) begin
+                            nearest_frame_valid<=1;
+                            nearest_frame_index<=cell_index;
+                            nearest_frame_distance<=manhattan_distance;
+                        end
                         if (cell_index==8) state<=SEND_DAMAGE;
                         else begin cell_index<=cell_index+1; state<=CELL_POSITION; end
                     end
                     SEND_DAMAGE: begin
+                        // A contact through an empty grid location can leave
+                        // the normal 12-pixel mask empty. Damage only the
+                        // nearest surviving non-pig cell/frame in that case.
+                        if (damage_mask==0 && nearest_content_valid)
+                            damage_mask[nearest_content_index]<=1;
+                        if (damage_frame_mask==0 && nearest_frame_valid)
+                            damage_frame_mask[nearest_frame_index]<=1;
                         tnt_intact[active_tnt]<=0;
+                        // Push away from the TNT centre on both axes. This is
+                        // a radial one-shot velocity impulse; using the two
+                        // signs avoids a divider while still giving diagonal
+                        // blasts the expected outward direction.
+                        knockback_x<=0; knockback_y<=0;
+                        if (knockback_delta_x < 0) knockback_x<=-TNT_KNOCKBACK_IMPULSE;
+                        else if (knockback_delta_x > 0) knockback_x<=TNT_KNOCKBACK_IMPULSE;
+                        if (knockback_delta_y < 0) knockback_y<=-TNT_KNOCKBACK_IMPULSE;
+                        else if (knockback_delta_y > 0) knockback_y<=TNT_KNOCKBACK_IMPULSE;
+                        if (knockback_delta_x == 0 && knockback_delta_y == 0)
+                            knockback_y<=-TNT_KNOCKBACK_IMPULSE;
+                        knockback_valid<=1;
                         damage_valid<=1; explosion_event<=1; state<=WAIT_DAMAGE;
                     end
                     WAIT_DAMAGE: if (damage_ready) begin

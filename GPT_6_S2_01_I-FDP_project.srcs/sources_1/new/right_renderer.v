@@ -2,8 +2,9 @@
 `timescale 1ns / 1ps
 `include "game_defs.vh"
 // The camera centres on the vehicle and stops at the world edges. The map view (the default)
-// shows 64 by 43 world pixels at 1.5x with 12 by 12 sprites; normal zoom-out shows 96 by 64
-// at 1.0x with 8 by 8 sprites, and overview shows 192 by 128 at 0.5x. In free look (SW4) the
+// shows 64 by 43 screen pixels at 1.5x (about 43 by 29 world pixels) with 12 by 12 sprites;
+// normal zoom-out shows 96 by 64 world pixels at 1.0x with 8 by 8 sprites, and overview shows
+// 192 by 128 world pixels at 0.5x. In free look (SW4) the
 // cursor position picks the camera instead, so the whole map can be explored without driving.
 // Drawing order: background (map, or sky and terrain), hazards, goal, flag, TNT, vehicle,
 // explosions, then the result border. Before launch the vehicle is drawn at the spawn point.
@@ -31,7 +32,10 @@ module right_renderer #(
     input wire [8:0] intact_mask,
     input wire [8:0] frame_intact_mask,
     // 20-bit Q12.8 positions, ready for wider physics; today's 16-bit values are sign-extended.
+    // vehicle_x/y are the rendered sprite position. camera_x/y are separate so
+    // callers can choose whether the camera follows raw or filtered motion.
     input wire signed [19:0] vehicle_x, vehicle_y,
+    input wire signed [19:0] camera_x, camera_y,
     input wire signed [`LP_TILT_BITS-1:0] vehicle_tilt,
     input wire signed [19:0] spawn_x, spawn_y,
     input wire [2:0] terrain_count,
@@ -45,6 +49,11 @@ module right_renderer #(
     input wire [2*`LP_MAX_TNT-1:0] blast_phase,
     input wire [1:0] death_phase,
     input wire signed [`LP_COORD_BITS-1:0] death_x, death_y,
+    // Visual-only debris from a high-fall impact. The cells are animated
+    // deterministically in this renderer; they are not separate physics bodies.
+    input tri0 [8:0] scatter_mask,
+    input tri0 signed [`LP_COORD_BITS-1:0] scatter_x, scatter_y,
+    input tri0 [5:0] scatter_phase,
     input wire launch_flash,
     input wire anim_phase,
     input wire map_level,
@@ -69,28 +78,40 @@ module right_renderer #(
     // Vehicle (or spawn) top-left in whole world pixels.
     wire signed [19:0] origin_x = before_launch ? spawn_x : vehicle_x;
     wire signed [19:0] origin_y = before_launch ? spawn_y : vehicle_y;
-    wire signed [11:0] vx = origin_x[19:8];
-    wire signed [11:0] vy = origin_y[19:8];
+    wire signed [19:0] camera_origin_x = before_launch ? spawn_x : camera_x;
+    wire signed [19:0] camera_origin_y = before_launch ? spawn_y : camera_y;
+    wire signed [11:0] vx = camera_origin_x[19:8];
+    wire signed [11:0] vy = camera_origin_y[19:8];
 
     // Stage 0: camera and the world position under this pixel.
-    integer sx, sy, view_w, view_h, cam_x, cam_y, max_x, max_y;
+    integer sx, sy, view_w, view_h, world_view_w, world_view_h, cam_x, cam_y, max_x, max_y;
     integer next_fx, next_fy, next_wx, next_wy, next_tx, next_ty;
     always @* begin
         sx = x; sy = y;
         view_w = overview ? 192 : (zoomed_out ? 96 : 64);
         view_h = overview ? 128 : (zoomed_out ? 64 : 43);
+        // Camera limits are in world pixels. At the default 1.5x scale each
+        // screen pixel covers 2/3 of a world pixel, so using the raw screen
+        // dimensions here would leave the start ground and map edges clipped.
+        if (overview) begin
+            world_view_w = 192; world_view_h = 128;
+        end else if (zoomed_out) begin
+            world_view_w = 96; world_view_h = 64;
+        end else begin
+            world_view_w = 43; world_view_h = 29;
+        end
         // Signed limits: a camera left of or above the world must clamp to zero, not wrap.
         max_x = world_width;
         max_y = world_height;
-        max_x = max_x - view_w;
-        max_y = max_y - view_h;
+        max_x = max_x - world_view_w;
+        max_y = max_y - world_view_h;
         if (free_look) begin
             // Scale the cursor to the camera range: 86/8192 ~ 1/95 and 130/8192 ~ 1/63.
             cam_x = (cursor_x * max_x * 86) >>> 13;
             cam_y = (cursor_y * max_y * 130) >>> 13;
         end else begin
-            cam_x = vx + 12 - view_w/2;
-            cam_y = vy + 12 - view_h/2;
+            cam_x = vx + 12 - (world_view_w >>> 1);
+            cam_y = vy + 12 - (world_view_h >>> 1);
         end
         if (cam_x > max_x) cam_x = max_x;
         if (cam_y > max_y) cam_y = max_y;
@@ -187,6 +208,9 @@ module right_renderer #(
 
     wire goal_pixel;
     integer index, rx, ry, rw, rh, rel_x, rel_y, cell_px, cell_col, cell_row, cell_index, tx, ty, dx, dy, distance, radius;
+    integer scatter_dx, scatter_dy, scatter_world_x, scatter_world_y;
+    integer scatter_size, scatter_local_x, scatter_local_y;
+    integer scatter_base_x, scatter_base_y;
     reg [2:0] part;
     reg [31:0] rectangle;
     // Half-pixel centred coordinates keep opposite corners symmetric. Only
@@ -204,6 +228,9 @@ module right_renderer #(
     always @* begin
         rx = 0; ry = 0; rw = 0; rh = 0; rel_x = 0; rel_y = 0; cell_px = 0; cell_col = 0; cell_row = 0;
         cell_index = 0; tx = 0; ty = 0; dx = 0; dy = 0; distance = 0; radius = 0; part = 0; rectangle = 0;
+        scatter_dx = 0; scatter_dy = 0; scatter_world_x = 0; scatter_world_y = 0;
+        scatter_size = 0; scatter_local_x = 0; scatter_local_y = 0;
+        scatter_base_x = 0; scatter_base_y = 0;
         rotation_dx2=0; rotation_dy2=0; rotation_c=0; rotation_s=0;
         rotation_x_sum=0; rotation_y_sum=0;
         if (map_level) pixel_data = map_colour(map_class, tex_x, tex_y);
@@ -222,7 +249,7 @@ module right_renderer #(
             rx = rectangle[7:0]; ry = rectangle[15:8];
             rw = rectangle[23:16]; rh = rectangle[31:24];
             if (index < hazard_count && wx >= rx && wx < rx+rw && wy >= ry && wy < ry+rh &&
-                ((wx-rx)%4 == 1 || (wx-rx)%4 == 2 || wy-ry >= rh/2)) pixel_data = 16'hc618;
+                (((wx-rx) & 3) == 1 || ((wx-rx) & 3) == 2 || wy-ry >= (rh >>> 1))) pixel_data = 16'hc618;
         end
         if (goal_pixel && wx < 128 && wy < 128) pixel_data = 16'h0320;
         // Finish flag on map levels, in half-world units from its top-left: a 3-wide orange
@@ -287,6 +314,37 @@ module right_renderer #(
             end else begin
                 if (frame_intact_mask[cell_index]) pixel_data = part_sprite12(`LP_PART_FRAME, rel_x, rel_y, 1'b0, pixel_data);
                 if (intact_mask[cell_index]) pixel_data = part_sprite_facing_dir(part, rel_x, rel_y, 12, build_facing_left[cell_index], build_facing_down[cell_index], anim_phase, pixel_data);
+            end
+        end
+        // High-fall debris: show a compact three-piece scatter burst while the
+        // damaged cells leave the vehicle. This is deliberately a small sprite
+        // overlay, not nine independent moving bodies.
+        if (scatter_phase != 0 && (|scatter_mask)) begin
+            // Compare in world pixels. The existing wx/wy pipeline already
+            // accounts for 0.5x, 1x and 1.5x display sampling.
+            scatter_size = 6;
+            scatter_base_x = $signed(scatter_x) >>> 8;
+            scatter_base_y = $signed(scatter_y) >>> 8;
+            for (index = 0; index < 3; index = index + 1) begin
+                case (index)
+                    0: begin scatter_dx = -(scatter_phase >>> 1); scatter_dy = -(scatter_phase >>> 2); end
+                    1: begin scatter_dx =  (scatter_phase >>> 1); scatter_dy =  (scatter_phase >>> 2); end
+                    default: begin scatter_dx = 0; scatter_dy = scatter_phase; end
+                endcase
+                scatter_world_x = scatter_base_x + scatter_dx;
+                scatter_world_y = scatter_base_y + scatter_dy;
+                scatter_local_x = wx - scatter_world_x;
+                scatter_local_y = wy - scatter_world_y;
+                if (scatter_local_x >= 0 && scatter_local_x < scatter_size &&
+                    scatter_local_y >= 0 && scatter_local_y < scatter_size) begin
+                    if (scatter_local_x == 0 || scatter_local_y == 0 ||
+                        scatter_local_x == scatter_size-1 || scatter_local_y == scatter_size-1)
+                        pixel_data = 16'h630c;
+                    else if (index != 1)
+                        pixel_data = 16'hfd20;
+                    else
+                        pixel_data = 16'hc618;
+                end
             end
         end
         // Explosions grow over three phases: yellow flash, orange fireball, grey smoke.
