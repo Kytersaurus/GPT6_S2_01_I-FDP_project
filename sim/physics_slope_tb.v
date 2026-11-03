@@ -206,12 +206,19 @@ module physics_slope_tb;
         seed_state(-40,1,-16); expect_step(-40);
         slope_valid=1;
 
-        // A jump leaves the slope without receiving an extra downhill impulse.
+        // The obsolete jump control is inert; normal slope forces still apply.
         seed_state(0,1,16); jump=1; begin_step; jump=0;
+        check_velocity(16);
+        if(nvy<0) $fatal(1,"Obsolete jump control launched the vehicle");
+        cx=nx; cy=8192; cvx=nvx; cvy=0; finish_step;
+
+        // Actual lift detaches without an extra downhill impulse.
+        seed_state(0,1,16); balloons=2; begin_step;
         check_velocity(0);
-        if(nvy!==-16'sd512) $fatal(1,"Grounded slope jump did not launch upward");
+        if(nvy>=0) $fatal(1,"Balloon lift did not detach from the slope");
         grounded=0; cx=nx; cy=ny; cvx=nvx; cvy=nvy; finish_step;
         expect_step(0);
+        balloons=0;
 
         // Slope is sampled on response acceptance, never from an idle bus.
         seed_state(0,1,16); slope=-16; begin_step; check_velocity(16);
@@ -230,7 +237,7 @@ module physics_slope_tb;
             $fatal(1,"Retry retained slope movement");
         run_init=0; game_state=`LP_RUN; expect_step(0);
 
-        $display("PASS physics_slope_tb: %0d cases, downhill/uphill forces, mass, friction, engine direction, CoG force invariance, flat rest, balloons, jumps, contact sampling, backpressure and retry",cases);
+        $display("PASS physics_slope_tb: %0d cases, downhill/uphill forces, mass, friction, engine direction, CoG force invariance, flat rest, balloons, inert jump control, contact sampling, backpressure and retry",cases);
         $finish;
     end
     initial begin #1000000; $fatal(1,"Slope arithmetic test timed out"); end

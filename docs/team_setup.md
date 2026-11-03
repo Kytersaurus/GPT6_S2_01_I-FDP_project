@@ -29,7 +29,7 @@ Keep all game design files together in the existing `GPT_6_S2_01_I-FDP_project.s
 | 3 | `collision_engine`, `tnt_controller`, `world_outcomes` | TNT triggered flags and pending interaction results |
 | 4 | `game_controller`, `level_data`, `left_renderer`, `right_renderer`, `display_snapshot`, `sprite_rom` | Game stage, active level and coherent drawing snapshots |
 
-The real modules are in the design source folder and connected in `My_Top_Module.v`. Use their ports and `docs/interfaces.md` as the interface reference. Members can split their internal logic further while preserving the external contract. Inventory, mouse layout and launch/pop/landing/result audio are connected; Kyle's reverse/jump/divider and Marcus's two provisional maps/sprites are integrated; TNT events, hazard checks, instruction controls and final balancing remain.
+The real modules are in the design source folder and connected in `My_Top_Module.v`. Use their ports and `docs/interfaces.md` as the interface reference. Members can split their internal logic further while preserving the external contract. Inventory, mouse layout, launch/pop/landing/result audio, reverse and the shared sequential divider are connected. BTNL is reserved and spring/jump physics is removed. Marcus's maps/sprites, TNT damage/events and hazard checks are integrated; final gameplay balancing and board verification remain.
 
 ## Agree the draft interfaces
 

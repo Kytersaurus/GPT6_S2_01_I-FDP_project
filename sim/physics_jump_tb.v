@@ -1,4 +1,4 @@
-// Owner: Role 2 - Kyle; shared integration checks for queued ground-only jumping.
+// Owner: Role 2 - Kyle. The retired jump input must never create an impulse.
 `timescale 1ns / 1ps
 `include "game_defs.vh"
 module physics_jump_tb;
@@ -36,7 +36,7 @@ module physics_jump_tb;
             accept_move=1;clocks(1);accept_move=0;
             if(!response_ready) $fatal(1,"Collision response not ready");
             response=1;clocks(1);response=0;
-            if(!committed) $fatal(1,"Jump position did not commit");
+            if(!committed) $fatal(1,"Movement did not commit");
             release_step=1;clocks(1);release_step=0;
         end
     endtask
@@ -47,26 +47,26 @@ module physics_jump_tb;
         if(nvy!=32) $fatal(1,"Unconfirmed spawn contact allowed a jump");
         finish_step();
         jump=1;clocks(1);jump=0;clocks(3);begin_step();wait_request();
-        if(nvy!=-512 || ny!=7680) $fatal(1,"Queued grounded jump was lost");
-        // Keep contact asserted after firing: another press must not fire until release.
+        if(nvy!=32 || ny!=8224) $fatal(1,"Retired input queued a grounded impulse");
+        // Repeated presses and a held input remain inert during contact.
         finish_step();jump=1;begin_step();jump=0;wait_request();
-        if(nvy!=32) $fatal(1,"Spring repeated during continuous contact");
+        if(nvy!=32) $fatal(1,"Retired input changed continuous-contact velocity");
         contact=0;finish_step();
         jump=1;begin_step();jump=0;wait_request();
         if(nvy!=64) $fatal(1,"Airborne jump reset vertical velocity");
         finish_step();
         begin_step();wait_request();contact=1;finish_step();
-        // A grounded press arriving while arithmetic is busy is kept for the next update.
+        // A late grounded press must affect neither this nor the next update.
         begin_step();jump=1;clocks(1);jump=0;wait_request();
         if(nvy!=32) $fatal(1,"Late jump altered an already sampled update");
         finish_step();begin_step();wait_request();
-        if(nvy!=-512) $fatal(1,"Late grounded jump was not queued");
+        if(nvy!=32) $fatal(1,"Late retired input queued an impulse");
         contact=0;finish_step();
         begin_step();clocks(5);state=`LP_INIT_RUN;run_init=1;clocks(3);
         if(!initialized || x!=1024 || y!=8192 || move_valid) $fatal(1,"Retry did not cancel active arithmetic/jump");
         run_init=0;state=`LP_RUN;begin_step();wait_request();
         if(nvy!=32) $fatal(1,"Retry retained jump or airborne velocity");
-        $display("PASS physics_jump_tb: confirmed-ground jumps, queued/late input, airborne rejection, stable sampling and retry cancellation");
+        $display("PASS physics_jump_tb: retired control is inert on spawn, ground, air, repeated/late presses and retry");
         $finish;
     end
     initial begin #50000; $fatal(1,"Jump test timed out"); end
