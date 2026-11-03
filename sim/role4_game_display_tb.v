@@ -105,6 +105,7 @@ module role4_game_display_tb;
         .map_x(map_x),.map_y(map_y),.map_class(map_class),
         .pixel_index(pixel),.game_state(view_state),.build_grid(grid),.intact_mask(9'b101110000),
         .frame_intact_mask(9'b000111000),.vehicle_x(vehicle_x),.vehicle_y(vehicle_y),
+        .camera_x(vehicle_x),.camera_y(vehicle_y),
         .spawn_x(spawn_x),.spawn_y(spawn_y),.terrain_count(terrain_count),.terrain_rects(terrain_rects),
         .goal_rect(goal_rect),.tnt_count(tnt_count),.tnt_positions(tnt_positions),.tnt_intact(tnt_intact),
         .hazard_count(hazard_count),.hazard_rects(hazard_rects),.blast_phase(view_blast),.anim_phase(view_phase),
@@ -334,12 +335,14 @@ module role4_game_display_tb;
         // Map view, Level 0 (Cave Arch): night sky above the start plateau and grass along its top edge (map ROM).
         level=0; view_state=`LP_BUILD; zoomed_out=0;
         expect_right(0, 0, 16'h4af1, "map sky");
-        expect_right(39, 51, 16'h4d86, "plateau grass");
+        // The close-up camera uses the 43x29 world viewport, so the start
+        // plateau appears at its corrected screen position.
+        expect_right(39, 39, 16'h4d86, "plateau grass");
         // The camera follows the vehicle across the map, here to the finish flag.
         view_state=`LP_RUN; vehicle_x=570*256; vehicle_y=457*256;
-        expect_right(76, 38, 16'hec05, "flag pole");
-        expect_right(78, 38, 16'hffff, "flag white square");
-        expect_right(81, 38, 16'h0000, "flag black square");
+        expect_right(61, 28, 16'hec05, "flag pole");
+        expect_right(64, 30, 16'hffff, "flag white square");
+        expect_right(68, 30, 16'h0000, "flag black square");
         // Free look: the cursor, not the vehicle, picks the camera; the corners reach the map edges.
         free_look=1; look_x=0; look_y=0;
         expect_right(0, 0, 16'h322d, "free look top-left sky");

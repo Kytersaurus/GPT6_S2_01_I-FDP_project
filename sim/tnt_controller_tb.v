@@ -17,7 +17,8 @@ module tnt_controller_tb;
     reg [`LP_CELLS-1:0] frame_intact_mask=0;
     wire [`LP_MAX_TNT-1:0] tnt_intact;
     reg damage_ready=0;
-    wire damage_valid, explosion_event, damage_complete;
+    wire damage_valid, explosion_event, knockback_valid, damage_complete;
+    wire signed [15:0] knockback_x, knockback_y;
     wire [`LP_CELLS-1:0] damage_mask, damage_frame_mask;
 
     always #5 clk=~clk;
@@ -33,7 +34,9 @@ module tnt_controller_tb;
         .tnt_intact(tnt_intact), .damage_valid(damage_valid),
         .damage_ready(damage_ready), .damage_mask(damage_mask),
         .damage_frame_mask(damage_frame_mask),
-        .explosion_event(explosion_event), .damage_complete(damage_complete)
+        .explosion_event(explosion_event), .knockback_valid(knockback_valid),
+        .knockback_x(knockback_x), .knockback_y(knockback_y),
+        .damage_complete(damage_complete)
     );
 
     task clocks;
@@ -89,6 +92,72 @@ module tnt_controller_tb;
         clocks(1);
         if (tnt_intact!={`LP_MAX_TNT{1'b1}}) $fatal(1,"BUILD preview hides intact TNT");
         start_run();
+
+        // Being near the TNT is not enough. This movement ends with a
+        // 12-pixel gap between the vehicle footprint and the TNT.
+        previous_x=0;
+        previous_y=32*256;
+        vehicle_x=24*256;
+        vehicle_y=32*256;
+        movement_committed=1;
+        clocks(1);
+        movement_committed=0;
+        wait_complete();
+        if (!tnt_intact[0] || damage_valid || explosion_event)
+            $fatal(1, "TNT triggered before the vehicle touched it");
+
+        // The vehicle touches the TNT through its empty lower corner, while
+        // the only occupied cell is 16 pixels from the TNT centre. The
+        // contact fallback must damage that nearest non-pig cell without
+        // widening the normal blast radius.
+        build_grid[5*3 +: 3]=`LP_PART_EMPTY;
+        build_grid[2*3 +: 3]=`LP_PART_ENGINE;
+        build_frames=9'b000010100;
+        intact_mask=9'b000010100;
+        frame_intact_mask=9'b000010100;
+        start_run();
+        previous_x=48*256;
+        previous_y=32*256;
+        vehicle_x=48*256;
+        vehicle_y=32*256;
+        movement_committed=1;
+        clocks(1);
+        movement_committed=0;
+        wait_damage();
+        if (!explosion_event || !knockback_valid || knockback_y >= 0 ||
+            tnt_intact[0] || !damage_mask[2] || !damage_frame_mask[2])
+            $fatal(1, "Contact TNT did not damage the nearest non-pig cell");
+        damage_ready=1;
+        clocks(1);
+        damage_ready=0;
+        clocks(1);
+        start_run();
+
+        // Exact edge contact must count as touching. The vehicle right edge
+        // is exactly x=60, the TNT left edge, with vertical overlap.
+        previous_x=36*256;
+        previous_y=40*256;
+        vehicle_x=36*256;
+        vehicle_y=40*256;
+        movement_committed=1;
+        clocks(1);
+        movement_committed=0;
+        wait_damage();
+        if (!explosion_event || !knockback_valid || knockback_x >= 0 || tnt_intact[0])
+            $fatal(1, "TNT did not trigger on exact vehicle-edge contact");
+        damage_ready=1;
+        clocks(1);
+        damage_ready=0;
+        clocks(1);
+        start_run();
+
+        // Restore the original pig/engine fixture for the remaining checks.
+        build_grid=0;
+        build_grid[4*3 +: 3]=`LP_PART_PIG;
+        build_grid[5*3 +: 3]=`LP_PART_ENGINE;
+        build_frames=9'b000110000;
+        intact_mask=9'b000110000;
+        frame_intact_mask=9'b000110000;
 
         // The vehicle travels from x=0 to x=48 in one update. Its swept
         // footprint reaches the TNT even though the endpoint is before it.

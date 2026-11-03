@@ -107,7 +107,10 @@ function signed [`LP_TILT_BITS-1:0] slope_to_tilt;
         magnitude=0; angle=0;
         if (slope >= -8'sd16 && slope <= 8'sd16) begin
             magnitude=slope < 0 ? -slope : slope;
-            if (magnitude >= 14) angle=4;
+            // Keep the 12..16 raster range on the same 45-degree target.
+            // This avoids a one-pixel stair sample toggling between angles 3
+            // and 4 while the vehicle is already settled on the ramp.
+            if (magnitude >= 12) angle=4;
             else if (magnitude >= 9) angle=3;
             else if (magnitude >= 5) angle=2;
             else if (magnitude >= 2) angle=1;

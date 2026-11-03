@@ -139,7 +139,7 @@ module My_Top_Module #(
     wire [3:0] pop_cell;
     wire [8:0] pop_mask;
     wire [7:0] mass_units;
-    wire signed [`LP_COORD_BITS-1:0] spawn_x, spawn_y, vehicle_x, vehicle_y, display_y;
+    wire signed [`LP_COORD_BITS-1:0] spawn_x, spawn_y, vehicle_x, vehicle_y, display_x, display_y;
     // Preserve the full Q12.8 spawn throughout movement and display.
     wire signed [19:0] level_spawn_x, level_spawn_y;
     assign spawn_x = level_spawn_x;
@@ -149,7 +149,12 @@ module My_Top_Module #(
     wire [31:0] goal_rect;
     wire map_level, map_id;
     wire signed [10:0] collision_query_x, collision_query_y;
+    // The live collision path only needs the registered solid/open result.
+    // Map colour classes remain available on level_map's draw and simulation
+    // interfaces, while this one-bit path avoids a second query colour ROM.
     wire collision_query_solid;
+    // Collision only needs the solid/open result. Keeping this one-bit path
+    // separate lets Vivado discard the query-side colour ROM copy.
     wire [2:0] collision_query_class = collision_query_solid ? `LP_MAP_ROCK : `LP_MAP_SKY;
     wire [9:0] world_width, world_height, flag_x, flag_y;
     wire level_open_req, level_close_req, level_select_req;
@@ -168,6 +173,8 @@ module My_Top_Module #(
     wire [`LP_MAX_TNT-1:0] tnt_intact;
     wire tnt_damage_valid, tnt_complete;
     wire [8:0] tnt_damage_mask, tnt_frame_mask;
+    wire tnt_knockback_valid;
+    wire signed [15:0] tnt_knockback_x, tnt_knockback_y;
     wire collision_impact_valid;
     wire [3:0] collision_impact_flags;
     wire move_valid, move_ready, response_valid, response_ready, grounded;
@@ -190,12 +197,22 @@ module My_Top_Module #(
     reg [2:0] previous_game_state;
     wire audio_cancel = run_init || (game_state == `LP_BUILD && previous_game_state != `LP_BUILD);
     wire pop_sound_event = pop_valid && damage_ready && (|pop_mask);
-    // Ignore the first gentle contact at spawn and continuous rolling contact.
-    localparam signed [15:0] CRASH_VELOCITY_THRESHOLD = 16'sd768;
-    localparam signed [15:0] CRASH_FATAL_THRESHOLD    = 16'sd1280;
+    // Crash damage is based on fall distance, not ordinary rolling speed.
+    // Coordinates are Q12.8. Cave Arch has a deliberate several-hundred-pixel
+    // descent, so keep its threshold high. Cave Flight is a much shorter map:
+    // a 128-pixel drop is already an abnormal fall, while the normal 24-pixel
+    // spawn drop and ordinary flight remain harmless.
+    localparam signed [19:0] ARCH_HIGH_FALL_DISTANCE_Q8   = 20'sd114688; // 448 px
+    localparam signed [19:0] FLIGHT_HIGH_FALL_DISTANCE_Q8 = 20'sd32768;  // 128 px
+    wire signed [19:0] high_fall_distance_limit_q8 = map_id ?
+        FLIGHT_HIGH_FALL_DISTANCE_Q8 : ARCH_HIGH_FALL_DISTANCE_Q8;
+    // Keep the terminal-impact boundary above ordinary gravity and TNT launch
+    // speeds. A truly extreme impact can still detach the remaining non-pig
+    // structure, while a high-but-survivable fall only damages its contact row.
+    localparam signed [15:0] CRASH_FATAL_THRESHOLD = 16'sd1024;
 
-    wire wall_crash_right = ($signed(proposed_vx) >= CRASH_VELOCITY_THRESHOLD && $signed(corrected_vx) <= 0);
-    wire wall_crash_left  = ($signed(proposed_vx) <= -CRASH_VELOCITY_THRESHOLD && $signed(corrected_vx) >= 0);
+    wire wall_crash_right = ($signed(proposed_vx) >= 16'sd448 && $signed(corrected_vx) <= 0);
+    wire wall_crash_left  = ($signed(proposed_vx) <= -16'sd448 && $signed(corrected_vx) >= 0);
     wire wall_crash_event = (wall_crash_right || wall_crash_left);
 
     // Ignore the first gentle contact at spawn and continuous rolling contact.
@@ -205,31 +222,48 @@ module My_Top_Module #(
                                   wall_crash_event);
     wire explosion_sound_event;
     reg [5:0] airborne_ticks;
+    reg falling;
+    reg signed [`LP_COORD_BITS-1:0] fall_start_y;
+    wire signed [`LP_COORD_BITS-1:0] fall_distance_q8 = $signed(corrected_y) - $signed(fall_start_y);
+    wire high_fall_landing = response_valid && response_ready && grounded && !audio_was_grounded &&
+                              falling && (fall_distance_q8 >= high_fall_distance_limit_q8);
     always @(posedge clk) begin
-        if (reset) begin audio_was_grounded <= 0; previous_game_state <= `LP_BUILD; airborne_ticks <= 6'd0; end
+        if (reset) begin
+            audio_was_grounded <= 0;
+            previous_game_state <= `LP_BUILD;
+            airborne_ticks <= 6'd0;
+            falling <= 1'b0;
+            fall_start_y <= 0;
+        end
         else begin
             previous_game_state <= game_state;
             if (run_init || game_state != `LP_RUN) begin
                 audio_was_grounded <= 0;
                 airborne_ticks <= 6'd0;
+                falling <= 1'b0;
+                fall_start_y <= 0;
             end
             else if (response_valid && response_ready) begin
                 audio_was_grounded <= grounded;
                 if (!grounded) begin
                     if (airborne_ticks < 6'd63) airborne_ticks <= airborne_ticks + 1'b1;
+                    // Record the last grounded pose when leaving it. If the
+                    // vehicle starts in the air, use its first airborne pose.
+                    if (audio_was_grounded || !falling) fall_start_y <= previous_y;
+                    falling <= 1'b1;
                 end else begin
                     airborne_ticks <= 6'd0;
+                    falling <= 1'b0;
                 end
             end
         end
     end
 
-    // Crash impact: vehicle breaking on landing if it falls too hard, or slamming into walls
+    // Only a high fall landing can remove non-pig parts. Collision correction
+    // still handles walls and ceilings, but those contacts are harmless here.
     wire vehicle_is_flipped = (vehicle_tilt > 5'sd8 || vehicle_tilt < -5'sd8);
-    wire vert_crash_event = (grounded && !audio_was_grounded && airborne_ticks >= 6'd12 &&
-                             $signed(proposed_vy) >= CRASH_VELOCITY_THRESHOLD);
-    wire vert_crash_fatal = ($signed(proposed_vy) >= CRASH_FATAL_THRESHOLD);
-    wire wall_crash_fatal = ($signed(proposed_vx) >= CRASH_FATAL_THRESHOLD || $signed(proposed_vx) <= -CRASH_FATAL_THRESHOLD);
+    wire vert_crash_event = high_fall_landing;
+    wire vert_crash_fatal = high_fall_landing && ($signed(proposed_vy) >= CRASH_FATAL_THRESHOLD);
 
     reg [8:0] next_impact_mask;
     reg [8:0] next_frame_mask;
@@ -237,8 +271,9 @@ module My_Top_Module #(
     always @* begin
         next_impact_mask = 9'd0;
         next_frame_mask = 9'd0;
-        if ((vert_crash_event && vert_crash_fatal) || (wall_crash_event && wall_crash_fatal)) begin
-            // Catastrophic crash at terminal velocity: destroys all cells and wooden frames
+        if (vert_crash_event && vert_crash_fatal) begin
+            // A terminal high fall requests all cells/frames. vehicle_builder
+            // still protects the pig through its final safety gate.
             next_impact_mask = 9'b111_111_111;
             next_frame_mask  = 9'b111_111_111;
         end else begin
@@ -252,34 +287,55 @@ module My_Top_Module #(
                     // Wood frame survives moderate upright landing
                 end
             end
-            // Horizontal wall impact: right column (cells 2, 5, 8) or left column (cells 0, 3, 6)
-            if (wall_crash_event) begin
-                if (wall_crash_right) begin
-                    next_impact_mask = next_impact_mask | 9'b100_100_100;
-                end
-                if (wall_crash_left) begin
-                    next_impact_mask = next_impact_mask | 9'b001_001_001;
-                end
-                // Wood frame survives moderate horizontal wall impact
-            end
         end
     end
+
+    // Only scatter cells that are actually intact and are not the protected pig.
+    wire [8:0] pig_mask = {
+        (build_grid[26:24] == `LP_PART_PIG), (build_grid[23:21] == `LP_PART_PIG), (build_grid[20:18] == `LP_PART_PIG),
+        (build_grid[17:15] == `LP_PART_PIG), (build_grid[14:12] == `LP_PART_PIG), (build_grid[11:9]  == `LP_PART_PIG),
+        (build_grid[8:6]   == `LP_PART_PIG), (build_grid[5:3]   == `LP_PART_PIG), (build_grid[2:0]   == `LP_PART_PIG)
+    };
+    wire [8:0] scatter_damage_mask =
+        (((next_impact_mask & intact_mask) | (next_frame_mask & frame_intact_mask)) & ~pig_mask);
 
     reg impact_damage_valid;
     reg [8:0] impact_damage_mask;
     reg [8:0] impact_damage_frame_mask;
+    // Compact visual-only debris state. The renderer uses a fixed offset table
+    // instead of instantiating independent physics for nine debris bodies.
+    reg [8:0] scatter_mask;
+    reg signed [`LP_COORD_BITS-1:0] scatter_x, scatter_y;
+    reg [5:0] scatter_phase;
 
     always @(posedge clk) begin
         if (reset || run_init || game_state != `LP_RUN) begin
             impact_damage_valid <= 1'b0;
             impact_damage_mask <= 9'd0;
             impact_damage_frame_mask <= 9'd0;
+            scatter_mask <= 9'd0;
+            scatter_x <= 0;
+            scatter_y <= 0;
+            scatter_phase <= 6'd0;
         end else begin
             impact_damage_valid <= 1'b0;
-            if (response_valid && response_ready && (vert_crash_event || wall_crash_event)) begin
+            if (scatter_phase != 0 && physics_tick) begin
+                if (scatter_phase >= 6'd24) scatter_phase <= 6'd0;
+                else scatter_phase <= scatter_phase + 1'b1;
+            end
+            if (response_valid && response_ready && damage_ready && vert_crash_event) begin
                 impact_damage_valid <= 1'b1;
                 impact_damage_mask <= next_impact_mask;
                 impact_damage_frame_mask <= next_frame_mask;
+                if (scatter_damage_mask != 0) begin
+                    scatter_mask <= scatter_damage_mask;
+                    scatter_x <= corrected_x;
+                    scatter_y <= corrected_y;
+                    scatter_phase <= 6'd1;
+                end else begin
+                    scatter_mask <= 9'd0;
+                    scatter_phase <= 6'd0;
+                end
             end
         end
     end
@@ -463,13 +519,14 @@ module My_Top_Module #(
         .build_facing_left(build_facing_left), .build_facing_down(build_facing_down), .engine_balance(engine_balance),
         .fan_balance(fan_balance), .rocket_balance(rocket_balance),
         .rocket_count(rocket_count), .fan_count(fan_count), .rockets_left(rockets_left), .fans_left(fans_left),
-        // Collision impacts correct the pose and velocity but never remove
-        // vehicle parts. Runtime damage comes from TNT (and explicit balloon
-        // popping) only.
-        .damage_valid(pop_valid || tnt_damage_valid), .damage_ready(damage_ready),
+        // Balloon pops, TNT and hard terrain impacts share the one damage
+        // handshake. vehicle_builder protects the pig cell and its frame.
+        .damage_valid(pop_valid || tnt_damage_valid || impact_damage_valid), .damage_ready(damage_ready),
         .damage_mask((pop_valid ? pop_mask : 9'd0) |
-                     (tnt_damage_valid ? tnt_damage_mask : 9'd0)),
-        .damage_frame_mask(tnt_damage_valid ? tnt_frame_mask : 9'd0),
+                     (tnt_damage_valid ? tnt_damage_mask : 9'd0) |
+                     (impact_damage_valid ? impact_damage_mask : 9'd0)),
+        .damage_frame_mask((tnt_damage_valid ? tnt_frame_mask : 9'd0) |
+                           (impact_damage_valid ? impact_damage_frame_mask : 9'd0)),
         .build_grid(build_grid), .build_frames(build_frames),
         .intact_mask(intact_mask), .frame_intact_mask(frame_intact_mask), .build_valid(build_valid),
         .build_error(build_error), .pig_alive(pig_alive), .wheel_count(wheel_count), .wheels_down(wheels_down), .wheels_up(wheels_up),
@@ -536,6 +593,7 @@ module My_Top_Module #(
         .wheel_count(wheel_count), .wheels_down(wheels_down), .wheels_up(wheels_up), .tip_dir(tip_dir), .support_unstable(support_unstable),
         .engine_count(drive_engines), .balloon_count(balloon_count),
         .mass_units(mass_units), .engine_enabled(engine_enabled), .engine_reverse(engine_reverse), .jump_press(1'b0), .boost_req(boost_req), .boost_active(boost_active),
+        .tnt_knockback_valid(tnt_knockback_valid), .tnt_knockback_x(tnt_knockback_x), .tnt_knockback_y(tnt_knockback_y),
         // Future lift-fan placement supplies these; no item/sprite exists yet.
         .live_lift_fan_count(4'd0), .fan_lift_mask(9'd0),
         .move_valid(move_valid), .move_ready(move_ready),
@@ -544,7 +602,8 @@ module My_Top_Module #(
         .response_ready(response_ready), .corrected_x(corrected_x), .corrected_y(corrected_y),
         .corrected_vx(corrected_vx), .corrected_vy(corrected_vy), .grounded(grounded), .ground_slope(ground_slope),
         .previous_tilt(previous_tilt), .proposed_tilt(proposed_tilt), .corrected_tilt(corrected_tilt), .vehicle_tilt(vehicle_tilt),
-        .movement_committed(movement_committed), .vehicle_x(vehicle_x), .vehicle_y(vehicle_y), .display_y(display_y)
+        .movement_committed(movement_committed), .vehicle_x(vehicle_x), .vehicle_y(vehicle_y),
+        .display_x(display_x), .display_y(display_y)
     );
     collision_engine #(.ROTATION_ONLY(1)) u_collision (
         .support_left_y_q2(support_left_y_q2),.support_right_y_q2(support_right_y_q2),
@@ -575,6 +634,7 @@ module My_Top_Module #(
         .frame_intact_mask(frame_intact_mask), .tnt_intact(tnt_intact),
         .damage_valid(tnt_damage_valid), .damage_ready(damage_ready),
         .damage_mask(tnt_damage_mask), .damage_frame_mask(tnt_frame_mask),
+        .knockback_valid(tnt_knockback_valid), .knockback_x(tnt_knockback_x), .knockback_y(tnt_knockback_y),
         .explosion_event(explosion_sound_event), .damage_complete(tnt_complete)
     );
     world_outcomes u_world (
@@ -587,14 +647,17 @@ module My_Top_Module #(
         .world_ready(world_ready), .goal_hit(goal_hit), .hazard_hit(hazard_hit), .out_of_bounds(out_of_bounds), .star_box_hit(star_box_hit)
     );
 
-    // 251 bits with four TNT slots; each slot carries an intact bit and a 2-bit blast phase.
-    localparam SNAPSHOT_WIDTH = 251 + 3*(`LP_MAX_TNT-4) + 4*(`LP_COORD_BITS-16) + (`LP_TILT_BITS-4);
+    // Base snapshot width is adjusted for the current three TNT slots and
+    // carries both the filtered display pose and committed physics pose.
+    localparam SNAPSHOT_WIDTH = 251 + 3*(`LP_MAX_TNT-4) +
+                                4*(`LP_COORD_BITS-16) + (`LP_TILT_BITS-4) +
+                                2*`LP_COORD_BITS + 9 + 2*`LP_COORD_BITS + 6;
     wire [SNAPSHOT_WIDTH-1:0] snapshot_in = {start_screen_active, fan_available, ui_fan_on, star_box_collected, rocket_available, rocket_ready, vehicle_tilt, mouse_speed, audio_muted, run_page, selected_left, inventory_page, build_facing_left, rockets_left, fans_left, master_volume, diary_page, guide_return_state, death_phase, death_x, death_y, launch_flash, boost_active, drag_from_grid, drag_source, drag_contents,
                               game_state, build_grid, intact_mask, frame_intact_mask, build_valid, build_error,
-                              vehicle_x, display_y, engine_enabled, frames_left, pigs_left, wheels_left,
+                              display_x, display_y, vehicle_x, vehicle_y, engine_enabled, frames_left, pigs_left, wheels_left,
                               engines_left, balloons_left, cursor_x, cursor_y, selected_part, drag_active,
                               feedback_code, feedback_cell, level_index, fail_reason, tnt_intact,
-                              build_frames, run_seconds, blast_phase};
+                              build_frames, run_seconds, blast_phase, scatter_mask, scatter_x, scatter_y, scatter_phase};
     wire [SNAPSHOT_WIDTH-1:0] snapshot_out;
     wire draw_audio_muted;
     wire draw_start_screen_active;
@@ -620,11 +683,14 @@ module My_Top_Module #(
     wire [3:0] draw_frames_left, draw_pigs_left, draw_wheels_left, draw_engines_left, draw_balloons_left;
     wire [6:0] draw_cursor_x, draw_cursor_y;
     wire [2:0] draw_selected_part;
-    wire signed [`LP_COORD_BITS-1:0] draw_x, draw_y;
+    wire signed [`LP_COORD_BITS-1:0] draw_x, draw_y, draw_camera_x, draw_camera_y;
     wire [`LP_LEVEL_BITS-1:0] draw_level;
     wire [8:0] draw_saved_frames;
     wire [7:0] draw_seconds;
     wire [2*`LP_MAX_TNT-1:0] draw_blast;
+    wire [8:0] draw_scatter_mask;
+    wire signed [`LP_COORD_BITS-1:0] draw_scatter_x, draw_scatter_y;
+    wire [5:0] draw_scatter_phase;
     wire [1:0] draw_fail_reason;
     wire [`LP_MAX_TNT-1:0] draw_tnt_intact;
     wire signed [19:0] draw_spawn_x, draw_spawn_y;
@@ -651,11 +717,11 @@ module My_Top_Module #(
     wire [5:0] map_y = show_map ? left_y : right_y;
     wire [15:0] left_pixel_data, right_pixel_data, base_left_pixel_data;
     assign {draw_start_screen_active, draw_fan_available, draw_fan_on, draw_star_box_collected, draw_rocket_available, draw_rocket_ready, draw_tilt, draw_mouse_speed, draw_audio_muted, draw_run_page, draw_selected_left, draw_inventory_page, draw_facing_left, draw_rockets_left, draw_fans_left, draw_master_volume, draw_diary_page, draw_guide_return, draw_death_phase, draw_death_x, draw_death_y, draw_launch_flash, draw_boost_active, draw_drag_from_grid, draw_drag_source, draw_drag_contents,
-            draw_state, draw_grid, draw_intact, draw_frames, draw_valid, draw_error, draw_x, draw_y, draw_engine,
+            draw_state, draw_grid, draw_intact, draw_frames, draw_valid, draw_error, draw_x, draw_y, draw_camera_x, draw_camera_y, draw_engine,
             draw_frames_left, draw_pigs_left, draw_wheels_left, draw_engines_left, draw_balloons_left,
             draw_cursor_x, draw_cursor_y, draw_selected_part, draw_drag_active,
             draw_feedback_code, draw_feedback_cell, draw_level, draw_fail_reason, draw_tnt_intact,
-            draw_saved_frames, draw_seconds, draw_blast} = snapshot_out;
+            draw_saved_frames, draw_seconds, draw_blast, draw_scatter_mask, draw_scatter_x, draw_scatter_y, draw_scatter_phase} = snapshot_out;
 
     wire draw_has_engine = (draw_intact[0] && draw_grid[2:0] == `LP_PART_ENGINE) ||
                            (draw_intact[1] && draw_grid[5:3] == `LP_PART_ENGINE) ||
@@ -702,12 +768,21 @@ module My_Top_Module #(
     );
     // Engine pistons step once every eight frames while running with SW0 on; boost doubles the rate.
     reg [3:0] engine_frames;
+    // Wheels use a faster independent phase so their spokes do not appear to
+    // freeze while the vehicle is travelling between physics updates.
+    reg [2:0] wheel_frames;
     always @(posedge oled_clk) begin
-        if (oled_reset) engine_frames <= 0;
-        else if (left_frame && draw_state == `LP_RUN && draw_engine)
-            engine_frames <= engine_frames + (draw_boost_active ? 4'd2 : 4'd1);
+        if (oled_reset) begin
+            engine_frames <= 0;
+            wheel_frames <= 0;
+        end else if (left_frame && draw_state == `LP_RUN) begin
+            if (draw_engine)
+                engine_frames <= engine_frames + (draw_boost_active ? 4'd2 : 4'd1);
+            wheel_frames <= wheel_frames + 1'b1;
+        end
     end
     wire anim_phase = engine_frames[3];
+    wire wheel_anim_phase = wheel_frames[1];
     // The map zoom and SW4 free look also change only between complete frames.
     reg zoom_meta_display, zoom_sync_display, draw_zoomed_out;
     reg overview_meta_display, overview_sync_display, draw_overview;
@@ -873,14 +948,17 @@ module My_Top_Module #(
         .free_look(draw_free_look), .cursor_x(draw_cursor_x), .cursor_y(draw_cursor_y),
         .pixel_index(13'd0), .in_x(map_x), .in_y(map_y), .game_state((draw_state==`LP_LEVEL_SELECT || draw_state==`LP_SETTINGS) ? `LP_BUILD : (draw_state==`LP_GUIDE ? draw_guide_return : draw_state)), .build_grid(draw_grid),
         .build_facing_left(draw_facing_left), .build_facing_down(draw_facing_down), .intact_mask(draw_intact), .frame_intact_mask(draw_frames),
-        // Full world coordinates cross the display snapshot without truncation.
-        .vehicle_x(draw_x), .vehicle_y(draw_y), .vehicle_tilt(draw_tilt),
+        // Follow the filtered pose for both the vehicle and camera. This keeps
+        // the wheels attached to the moving ground instead of making the map
+        // jump on every raw physics-pixel update.
+        .vehicle_x(draw_x), .vehicle_y(draw_y), .camera_x(draw_x), .camera_y(draw_y), .vehicle_tilt(draw_tilt),
         .spawn_x(draw_spawn_x), .spawn_y(draw_spawn_y),
         .terrain_count(draw_terrain_count), .terrain_rects(draw_terrain_rects), .goal_rect(draw_goal_rect),
         .tnt_count(draw_tnt_count), .tnt_positions(draw_tnt_positions), .tnt_intact(draw_tnt_intact),
         .hazard_count(draw_hazard_count), .hazard_rects(draw_hazard_rects), .blast_phase(draw_blast),
         .death_phase(draw_death_phase), .death_x(draw_death_x), .death_y(draw_death_y), .launch_flash(draw_launch_flash),
-        .anim_phase(anim_phase), .map_level(draw_map_level), .map_id(draw_map_id), .world_width(draw_world_width),
+        .scatter_mask(draw_scatter_mask), .scatter_x(draw_scatter_x), .scatter_y(draw_scatter_y), .scatter_phase(draw_scatter_phase),
+        .anim_phase(wheel_anim_phase), .map_level(draw_map_level), .map_id(draw_map_id), .world_width(draw_world_width),
         .world_height(draw_world_height), .flag_x(draw_flag_x), .flag_y(draw_flag_y), .star_box_x(draw_star_box_x), .star_box_y(draw_star_box_y), .star_box_collected(draw_star_box_collected),
         .map_x(right_map_x), .map_y(right_map_y), .map_class(map_draw_class),
         .pixel_data(right_pixel_data)

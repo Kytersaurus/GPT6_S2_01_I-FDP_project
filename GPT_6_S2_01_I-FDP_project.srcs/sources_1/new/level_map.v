@@ -33,8 +33,8 @@ module level_map #(parameter ARCH_SCALED = 1, parameter SMOOTH_DRAW = 0) (
 );
     (* rom_style = "block" *) reg [2:0] arch_cells [0:512*`LP_MAP_HEIGHT-1];
     (* rom_style = "block" *) reg [2:0] flight_cells [0:1024*`LP_FLIGHT_HEIGHT-1];
-    // Explicit one-bit files avoid synthesis-dependent initial-loop conversion
-    // from the colour ROM. Both assets are generated from the same map classes.
+    // Collision reads use the compact one-bit assets. The colour memories remain
+    // available for the OLED renderer and exact class-query simulation contracts.
     (* rom_style = "block" *) reg [0:0] arch_solid [0:512*`LP_MAP_HEIGHT-1];
     (* rom_style = "block" *) reg [0:0] flight_solid [0:1024*`LP_FLIGHT_HEIGHT-1];
     initial begin
@@ -75,7 +75,6 @@ module level_map #(parameter ARCH_SCALED = 1, parameter SMOOTH_DRAW = 0) (
     // Register the map choice and outside decision beside each read so the ROMs stay plain block-RAM reads.
     reg [2:0] draw_arch, draw_flight, query_arch, query_flight, draw_outside, query_outside;
     reg draw_map, query_map, draw_was_inside, query_was_inside;
-    reg query_arch_solid, query_flight_solid;
 
     // Read step: 0 centre, 1 above, 2 below, 3 left, 4 right. Without SMOOTH_DRAW it stays 0.
     reg [2:0] draw_step = 3'd0, read_step = 3'd0;
@@ -119,6 +118,8 @@ module level_map #(parameter ARCH_SCALED = 1, parameter SMOOTH_DRAW = 0) (
         else if (draw_map || !ARCH_SCALED || draw_x < 0 || draw_y < 0) draw_class = near_c;
         else draw_class = scale2x(near_c, near_n, near_s, near_w, near_e, draw_x[0], draw_y[0]);
     end
+
+    reg query_arch_solid, query_flight_solid;
 
     always @(posedge query_clk) begin
         query_arch_solid <= arch_solid[{query_ay[8:0], query_ax[8:0]}];

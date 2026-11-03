@@ -108,9 +108,35 @@ module crash_impact_tb;
         release dut.vehicle_tilt;
         clocks(1);
 
-        // Test 2: Hard landing upright (vy = 16'sd800 >= 768, airborne_ticks = 15, tilt = 0)
+        // Test 1c: Intended first-map cave descent (384 pixels) remains safe.
+        // The revised threshold is 448 pixels.
+        force dut.falling = 1'b1;
+        force dut.fall_start_y = 20'sd0;
+        force dut.response_valid = 1'b1;
+        force dut.response_ready = 1'b1;
+        force dut.grounded = 1'b1;
+        force dut.audio_was_grounded = 1'b0;
+        force dut.proposed_vy = 16'sd800;
+        force dut.corrected_y = 20'sd98304;
+        clocks(1);
+
+        if (dut.impact_damage_valid !== 1'b0)
+            $fatal(1, "Normal 384-pixel cave descent triggered impact damage!");
+        release dut.falling;
+        release dut.fall_start_y;
+        release dut.response_valid;
+        release dut.response_ready;
+        release dut.grounded;
+        release dut.audio_was_grounded;
+        release dut.proposed_vy;
+        release dut.corrected_y;
+        clocks(1);
+
+        // Test 2: High fall landing upright. The fall-distance reference is
+        // forced to 0 and the landing is 448 pixels below it.
         // Upright landing reports the bottom row: cells 6, 7, 8
-        // (mask 9'b111_000_000), but terrain impact must not remove parts.
+        // (mask 9'b111_000_000). The pig is protected, but impacted contents
+        // are removed by the shared runtime damage handshake.
         force dut.u_builder.runtime_intact = 9'b111_010_101;
         clocks(1);
         release dut.u_builder.runtime_intact;
@@ -122,6 +148,9 @@ module crash_impact_tb;
         force dut.grounded = 1'b1;
         force dut.proposed_vy = 16'sd800;
         force dut.vehicle_tilt = 5'sd0;
+        force dut.falling = 1'b1;
+        force dut.fall_start_y = 20'sd0;
+        force dut.corrected_y = 20'sd114688;
         clocks(1);
 
         if (dut.impact_damage_valid !== 1'b1)
@@ -135,16 +164,19 @@ module crash_impact_tb;
         release dut.grounded;
         release dut.proposed_vy;
         release dut.vehicle_tilt;
+        release dut.falling;
+        release dut.fall_start_y;
+        release dut.corrected_y;
         clocks(1);
 
-        if (dut.u_builder.runtime_intact !== 9'b111_010_101)
-            $fatal(1, "Hard landing incorrectly removed vehicle parts: %b", dut.u_builder.runtime_intact);
+        if (dut.u_builder.runtime_intact !== 9'b000_010_101)
+            $fatal(1, "Hard landing did not remove the bottom contents: %b", dut.u_builder.runtime_intact);
         if ((dut.u_builder.runtime_frames & 9'b111_000_000) !== 9'b111_000_000)
             $fatal(1, "Hard landing should preserve wood frames!");
         if (dut.pig_alive !== 1'b1)
             $fatal(1, "Pig in cell 4 should survive bottom row impact!");
 
-        // Test 3: Hard landing upside-down (vy = 16'sd800, tilt = -16, airborne_ticks = 15)
+        // Test 3: High fall landing upside-down.
         force dut.u_builder.runtime_intact = 9'b111_111_111;
         force dut.u_builder.runtime_frames = 9'b111_111_111;
         clocks(1);
@@ -158,6 +190,9 @@ module crash_impact_tb;
         force dut.grounded = 1'b1;
         force dut.proposed_vy = 16'sd800;
         force dut.vehicle_tilt = -5'sd16;
+        force dut.falling = 1'b1;
+        force dut.fall_start_y = 20'sd0;
+        force dut.corrected_y = 20'sd114688;
         clocks(1);
 
         if (dut.impact_damage_valid !== 1'b1)
@@ -171,12 +206,15 @@ module crash_impact_tb;
         release dut.grounded;
         release dut.proposed_vy;
         release dut.vehicle_tilt;
+        release dut.falling;
+        release dut.fall_start_y;
+        release dut.corrected_y;
         clocks(1);
 
-        if (dut.u_builder.runtime_intact !== 9'b111_111_111)
-            $fatal(1, "Upside-down landing incorrectly removed vehicle parts: %b", dut.u_builder.runtime_intact);
+        if (dut.u_builder.runtime_intact !== 9'b111_111_000)
+            $fatal(1, "Upside-down landing did not remove the top contents: %b", dut.u_builder.runtime_intact);
 
-        // Test 4: Fatal terminal velocity crash (vy = 16'sd1300 >= 1280)
+        // Test 4: Fatal terminal-velocity high fall.
         force dut.u_builder.runtime_intact = 9'b111_111_111;
         force dut.u_builder.runtime_frames = 9'b111_111_111;
         clocks(1);
@@ -190,6 +228,9 @@ module crash_impact_tb;
         force dut.grounded = 1'b1;
         force dut.proposed_vy = 16'sd1300;
         force dut.vehicle_tilt = 5'sd0;
+        force dut.falling = 1'b1;
+        force dut.fall_start_y = 20'sd0;
+        force dut.corrected_y = 20'sd114688;
         clocks(1);
 
         if (dut.impact_damage_valid !== 1'b1)
@@ -203,15 +244,19 @@ module crash_impact_tb;
         release dut.grounded;
         release dut.proposed_vy;
         release dut.vehicle_tilt;
+        release dut.falling;
+        release dut.fall_start_y;
+        release dut.corrected_y;
         clocks(1);
 
-        if (dut.u_builder.runtime_intact !== 9'b111_111_111)
-            $fatal(1, "Fatal crash incorrectly removed vehicle parts: %b", dut.u_builder.runtime_intact);
+        if (dut.u_builder.runtime_intact !== 9'b000_010_000)
+            $fatal(1, "Fatal crash did not remove non-pig contents: %b", dut.u_builder.runtime_intact);
+        if (dut.u_builder.runtime_frames !== 9'b000_010_000)
+            $fatal(1, "Fatal crash did not remove non-pig frames: %b", dut.u_builder.runtime_frames);
         if (dut.pig_alive !== 1'b1)
             $fatal(1, "Pig should survive terrain impact!");
 
-        // Test 5: Moderate horizontal right wall crash (vx = 800 >= 768, corrected_vx = 0)
-        // Right column (cells 2, 5, 8: 9'b100_100_100) is reported, but survives.
+        // Test 5: Moderate horizontal right wall impact is harmless.
         force dut.u_builder.runtime_intact = 9'b111_111_111;
         force dut.u_builder.runtime_frames = 9'b111_111_111;
         clocks(1);
@@ -228,12 +273,8 @@ module crash_impact_tb;
         force dut.corrected_vx = 16'sd0;
         clocks(1);
 
-        if (dut.impact_damage_valid !== 1'b1)
-            $fatal(1, "Right wall crash failed to trigger impact damage!");
-        if (dut.impact_damage_mask !== 9'b100_100_100)
-            $fatal(1, "Right wall crash mask expected right column (9'b100_100_100), got %b", dut.impact_damage_mask);
-        if (dut.impact_damage_frame_mask !== 9'd0)
-            $fatal(1, "Moderate wall crash should preserve wooden frames!");
+        if (dut.impact_damage_valid !== 1'b0)
+            $fatal(1, "Right wall impact should not trigger part damage!");
 
         release dut.response_valid;
         release dut.response_ready;
@@ -246,14 +287,13 @@ module crash_impact_tb;
         clocks(1);
 
         if (dut.u_builder.runtime_intact !== 9'b111_111_111)
-            $fatal(1, "Right wall crash incorrectly removed vehicle parts: %b", dut.u_builder.runtime_intact);
+            $fatal(1, "Right wall impact changed the intact contents: %b", dut.u_builder.runtime_intact);
         if (dut.u_builder.runtime_frames !== 9'b111_111_111)
             $fatal(1, "Right wall crash damaged frames unexpectedly!");
         if (dut.pig_alive !== 1'b1)
             $fatal(1, "Pig in cell 4 should survive right column wall impact!");
 
-        // Test 6: Moderate horizontal left wall crash (vx = -800 <= -768, corrected_vx = 0)
-        // Left column (cells 0, 3, 6: 9'b001_001_001) is reported, but survives.
+        // Test 6: Moderate horizontal left wall impact is harmless.
         force dut.u_builder.runtime_intact = 9'b111_111_111;
         force dut.u_builder.runtime_frames = 9'b111_111_111;
         clocks(1);
@@ -270,12 +310,8 @@ module crash_impact_tb;
         force dut.corrected_vx = 16'sd0;
         clocks(1);
 
-        if (dut.impact_damage_valid !== 1'b1)
-            $fatal(1, "Left wall crash failed to trigger impact damage!");
-        if (dut.impact_damage_mask !== 9'b001_001_001)
-            $fatal(1, "Left wall crash mask expected left column (9'b001_001_001), got %b", dut.impact_damage_mask);
-        if (dut.impact_damage_frame_mask !== 9'd0)
-            $fatal(1, "Moderate wall crash should preserve wooden frames!");
+        if (dut.impact_damage_valid !== 1'b0)
+            $fatal(1, "Left wall impact should not trigger part damage!");
 
         release dut.response_valid;
         release dut.response_ready;
@@ -288,13 +324,14 @@ module crash_impact_tb;
         clocks(1);
 
         if (dut.u_builder.runtime_intact !== 9'b111_111_111)
-            $fatal(1, "Left wall crash incorrectly removed vehicle parts: %b", dut.u_builder.runtime_intact);
+            $fatal(1, "Left wall impact changed the intact contents: %b", dut.u_builder.runtime_intact);
         if (dut.u_builder.runtime_frames !== 9'b111_111_111)
             $fatal(1, "Left wall crash damaged frames unexpectedly!");
         if (dut.pig_alive !== 1'b1)
             $fatal(1, "Pig in cell 4 should survive left column wall impact!");
 
-        // Test 7: Fatal horizontal wall crash (vx = 1300 >= 1280, corrected_vx = 0)
+        // Test 7: Even a wall correction does not cause part damage; only a
+        // high downward fall is allowed to use the impact damage path.
         force dut.u_builder.runtime_intact = 9'b111_111_111;
         force dut.u_builder.runtime_frames = 9'b111_111_111;
         clocks(1);
@@ -311,12 +348,8 @@ module crash_impact_tb;
         force dut.corrected_vx = 16'sd0;
         clocks(1);
 
-        if (dut.impact_damage_valid !== 1'b1)
-            $fatal(1, "Fatal wall crash failed to trigger impact damage!");
-        if (dut.impact_damage_mask !== 9'b111_111_111)
-            $fatal(1, "Fatal wall crash mask expected all cells (9'b111_111_111), got %b", dut.impact_damage_mask);
-        if (dut.impact_damage_frame_mask !== 9'b111_111_111)
-            $fatal(1, "Fatal wall crash frame mask expected all frames (9'b111_111_111), got %b", dut.impact_damage_frame_mask);
+        if (dut.impact_damage_valid !== 1'b0)
+            $fatal(1, "Fatal wall impact should not trigger part damage!");
 
         release dut.response_valid;
         release dut.response_ready;
@@ -329,13 +362,13 @@ module crash_impact_tb;
         clocks(1);
 
         if (dut.u_builder.runtime_intact !== 9'b111_111_111)
-            $fatal(1, "Fatal wall crash incorrectly removed vehicle parts: %b", dut.u_builder.runtime_intact);
+            $fatal(1, "Fatal wall impact changed non-pig contents: %b", dut.u_builder.runtime_intact);
         if (dut.u_builder.runtime_frames !== 9'b111_111_111)
-            $fatal(1, "Fatal wall crash incorrectly removed frames: %b", dut.u_builder.runtime_frames);
+            $fatal(1, "Fatal wall impact changed frames: %b", dut.u_builder.runtime_frames);
         if (dut.pig_alive !== 1'b1)
             $fatal(1, "Pig should survive terrain impact!");
 
-        $display("PASS crash_impact_tb: impact reports verified without terrain damage to vehicle parts");
+        $display("PASS crash_impact_tb: small falls and wall impacts survive; high falls damage non-pig contents");
         $finish;
     end
 endmodule

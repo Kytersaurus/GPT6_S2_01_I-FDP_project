@@ -6,6 +6,8 @@ module physics_engine_tb;
     reg [2:0] game_state=`LP_BUILD;
     reg [3:0] balloons=2;
     reg move_ready=0, response_valid=0;
+    reg tnt_knockback_valid=0;
+    reg signed [15:0] tnt_knockback_x=0, tnt_knockback_y=0;
     wire init_ready, move_valid, response_ready, committed;
     integer wait_cycles;
     wire signed [`LP_COORD_BITS-1:0] px,py,nx,ny,x,y;
@@ -15,6 +17,7 @@ module physics_engine_tb;
         .clk(clk),.reset(reset),.game_state(game_state),.run_init(run_init),.init_ready(init_ready),
         .spawn_x(20'sd1024),.spawn_y(20'sd8192),.step_start(step_start),.update_release(update_release),
         .wheel_count(4'd0),.engine_count(4'd0),.balloon_count(balloons),.mass_units(8'd2),.engine_enabled(1'b0),.engine_reverse(1'b0),.jump_press(1'b0),
+        .tnt_knockback_valid(tnt_knockback_valid),.tnt_knockback_x(tnt_knockback_x),.tnt_knockback_y(tnt_knockback_y),
         .move_valid(move_valid),.move_ready(move_ready),.previous_x(px),.previous_y(py),
         .proposed_x(nx),.proposed_y(ny),.proposed_vx(nvx),.proposed_vy(nvy),
         .response_valid(response_valid),.response_ready(response_ready),
@@ -41,13 +44,19 @@ module physics_engine_tb;
         if (!response_ready || y!=8192) $fatal(1,"Position committed before response");
         response_valid=1; clocks(1); response_valid=0;
         if (!committed || y!=8176) $fatal(1,"Accepted movement not committed once");
+        // TNT is processed while physics waits for the world result. The
+        // impulse must be carried into the next movement as velocity.
+        tnt_knockback_x=16'sd768; tnt_knockback_valid=1; clocks(1);
+        tnt_knockback_valid=0; tnt_knockback_x=0;
         step_start=1; clocks(3); step_start=0;
         if (move_valid || committed) $fatal(1,"Movement ran before world completion");
         update_release=1; clocks(1); update_release=0;
         balloons=2; step_start=1; clocks(1); step_start=0;
         wait_cycles=0;
         while (!move_valid && wait_cycles<64) begin clocks(1); wait_cycles=wait_cycles+1; end
-        if (!move_valid || nvy!=-32 || ny!=8144) $fatal(1,"Negative vertical velocity lost its sign");
+        if (!move_valid || nvx!=768 || nvy!=-32 || ny!=8144)
+            $fatal(1,"TNT knockback or negative vertical velocity was lost: move=%b vx=%0d vy=%0d y=%0d timer=%0d carried_vx=%0d",
+                   move_valid,nvx,nvy,ny,dut.tnt_blast_steps,dut.velocity_x);
         $display("PASS physics_engine_tb: lift, signed arithmetic, stable requests, delayed response, world-release gating");
         $finish;
     end
