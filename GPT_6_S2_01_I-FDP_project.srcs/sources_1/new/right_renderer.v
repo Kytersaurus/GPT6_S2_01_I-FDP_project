@@ -161,8 +161,14 @@ module right_renderer #(
             case (map_cell)
                 `LP_MAP_CAVE: map_colour = stone(fine_x, fine_y, 16'h08a2, 16'h2a88, 16'h1985, 16'h21c6, 16'h2227);
                 `LP_MAP_ROCK: map_colour = stone(fine_x, fine_y, 16'h1988, 16'h6c97, 16'h3af0, 16'h4352, 16'h4bd4);
-                // Solid grass: a dither pattern speckles at close zoom; level_map smooths the shape.
-                `LP_MAP_GRASS: map_colour = 16'h4d86;
+                // 3-tone turf shading on 2-world-pixel cells (exact 3x3 screen blocks at 1.5x zoom).
+                `LP_MAP_GRASS: begin
+                    case ((((fine_x >>> 2) * 3) ^ ((fine_y >>> 2) * 5)) & 3)
+                        0, 1: map_colour = fine_y[1] ? 16'h4d86 : 16'h5e27;
+                        2:    map_colour = 16'h3504;
+                        default: map_colour = 16'h4d86;
+                    endcase
+                end
                 `LP_MAP_ROAD: map_colour = ((fine_x*3 ^ fine_y*5) & 7) == 0 ? 16'h4a89 : 16'h3a28;
                 `LP_MAP_DARK: map_colour = 16'h1082;
                 default: begin
@@ -177,8 +183,8 @@ module right_renderer #(
                         5: map_colour = 16'h8d1a;
                         default: map_colour = 16'ha5fd;
                     endcase
-                    // Centre in half-world units: Cave Arch map pixel (265,117), the open sky in the arch.
-                    mx = fine_x - 1060; my = fine_y - 468;
+                    // Centre in half-world units: Cave Arch world pixel (280, 78) in the night sky above the start hill.
+                    mx = fine_x - 560; my = fine_y - 156;
                     if (!map_id && mx*mx + my*my <= 324) map_colour = (mx*mx + (my+6)*(my+6) <= 16) ? 16'hc65a : 16'he75e;
                 end
             endcase

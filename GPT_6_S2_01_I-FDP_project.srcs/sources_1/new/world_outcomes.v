@@ -132,7 +132,7 @@ module world_outcomes (
                         saved_width<=world_width; saved_height<=world_height;
                         saved_hazards<=hazard_rects; saved_hazard_count<=hazard_count;
                         if(map_level) begin
-                            goal_left<=$signed({1'b0,flag_x,8'b0});
+                            goal_left<=$signed({1'b0,flag_x,8'b0})-21'sd3072;
                             goal_right<=$signed({1'b0,flag_x,8'b0})+21'sd4096;
                             goal_top<=$signed({1'b0,flag_y,8'b0})-21'sd2560;
                             goal_bottom<=$signed({1'b0,flag_y,8'b0})+21'sd3584;
