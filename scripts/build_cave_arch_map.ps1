@@ -20,7 +20,13 @@ $c = [Classify]::Smooth($c, $w, $h, 2); $c = [Classify]::Smooth($c, $w, $h, 2)
 [Classify]::RemoveSmall($c, $w, $h, [Classify]::DARK, 3000); [Classify]::RemoveSmall($c, $w, $h, [Classify]::ROAD, 3000)
 [Classify]::RemoveSmall($c, $w, $h, [Classify]::SKY, 1800)          # Crystals
 [Classify]::RemoveSmall($c, $w, $h, [Classify]::CAVE, 400); [Classify]::RemoveSmall($c, $w, $h, [Classify]::ROCK, 400)
-[Classify]::Fill($c, $w, 948, 0, $w, $h, [Classify]::SKY)          # Black right border of the screenshots
+# Dark borders of the screenshots (right x>=948, left x<6): continue the nearest traced
+# column to the map edge, so cliffs, the road and the underground reach the world boundary
+# instead of ending in a sky or cave strip.
+for ($y = 0; $y -lt $h; $y++) {
+    for ($x = 948; $x -lt $w; $x++) { $c[$y*$w+$x] = $c[$y*$w+947] }
+    for ($x = 0; $x -lt 6; $x++) { $c[$y*$w+$x] = $c[$y*$w+6] }
+}
 [Classify]::Fill($c, $w, 0, 560, $w, $h, [Classify]::DARK)         # Below the silhouettes
 $mw = 0; $mh = 0
 $m = [Classify]::Down($c, $w, $h, 2, [ref]$mw, [ref]$mh)
@@ -97,6 +103,8 @@ $sb = New-Object System.Text.StringBuilder
 for ($y = 0; $y -lt $mh; $y++) { for ($x = 0; $x -lt 512; $x++) { [void]$sb.AppendLine($(if ($x -lt $mw) { $m[$y*$mw+$x] } else { 0 })) } }
 [IO.File]::WriteAllText((Join-Path $root 'GPT_6_S2_01_I-FDP_project.srcs\sources_1\new\cave_arch_map.mem'), $sb.ToString())
 [MapTool]::Save((Join-Path $root 'docs\maps\cave_arch_classes.png'), [MapTool]::Crop([Classify]::Colour($m), $mw, 0, 0, $mw, $mh, 2), $mw*2, $mh*2)
+# Board-accurate preview at the 2x world scale: textures, smoothed edges, moon and flag (level_data).
+[MapTool]::Save((Join-Path $root 'docs\maps\cave_arch_render.png'), [Classify]::Render($m, $mw, $mh, 2, 1060, 468, 600, 472), $mw*2, $mh*2)
 "Map ${mw} x $mh written"
 
 # Write the synthesis-safe one-bit collision ROM alongside the colour map.

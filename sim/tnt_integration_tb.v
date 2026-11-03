@@ -27,7 +27,7 @@ module tnt_integration_tb;
         force dut.vehicle_x=x; force dut.vehicle_y=y;
         force dut.previous_x=old_x; force dut.previous_y=old_y;
         force dut.tnt_count=3'd2;
-        force dut.tnt_positions={32'd0,8'd32,8'd88,8'd48,8'd60};
+        force dut.tnt_positions={20'd0,10'd32,10'd88,10'd48,10'd60};
         force dut.pop_req=pop; force dut.pop_cell=4'd0;
     end
     task clocks;
@@ -113,7 +113,7 @@ module tnt_integration_tb;
         // Retry restores both layers and TNT without a new explosion.
         press_c();
         if (dut.game_state!=`LP_RUN || !dut.pig_alive || dut.frame_intact_mask!==saved_frames ||
-            !dut.intact_mask[0] || !dut.intact_mask[8] || dut.tnt_intact!=4'b1111 || explosions!=2)
+            !dut.intact_mask[0] || !dut.intact_mask[8] || dut.tnt_intact!={`LP_MAX_TNT{1'b1}} || explosions!=2)
             $fatal(1,"Retry did not restore the saved vehicle and TNT");
         $display("PASS tnt_integration_tb: damage, queued pop, pig protection, animation/audio, goal and retry");
         $finish;

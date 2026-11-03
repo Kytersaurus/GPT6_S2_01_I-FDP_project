@@ -81,8 +81,8 @@
 `define LP_LEVEL_BITS    2
 
 // Block-RAM maps in level_map: one 3-bit class per world pixel. Sky and cave background are
-// open; the other classes are solid. Map 0 is Cave Arch (level 3), address {y[8:0], x[8:0]};
-// map 1 is Cave Flight (level 4, a flying level), address {y[7:0], x[9:0]}.
+// open; the other classes are solid. Map 0 is Cave Arch (level 1), address {y[8:0], x[8:0]};
+// map 1 is Cave Flight (level 2, a flying level), address {y[7:0], x[9:0]}.
 `define LP_MAP_WIDTH     478
 `define LP_MAP_HEIGHT    291
 // Cave Arch world size once level_map shows it twice as large (map 478 by 291).
@@ -96,9 +96,15 @@
 `define LP_MAP_GRASS     3'd3
 `define LP_MAP_ROAD      3'd4
 `define LP_MAP_DARK      3'd5
-`define LP_MAX_TNT       4   // Each TNT is {y[7:0], x[7:0]}; an 8 by 8 pixel block.
+// Each TNT is {y[9:0], x[9:0]} in world pixels, entry 0 lowest: an 8 by 8 block, one cart
+// cell, so it is drawn at the cart's cell size at every zoom. 10 bits reach the cave worlds.
+`define LP_MAX_TNT       3   // Each cave level has three; a fourth slot cost logic the device lacks.
 `define LP_TNT_PIXELS    8
-`define LP_TNT_BITS      64
+`define LP_TNT_COORD_BITS 10
+`define LP_TNT_ENTRY_BITS 20
+`define LP_TNT_BITS      (`LP_MAX_TNT*`LP_TNT_ENTRY_BITS)
+// Star boxes: one per cave level, an 8 by 8 block like a TNT; 0 hides them and stops pickup.
+`define LP_STAR_BOX_ENABLED 1
 `define LP_MAX_HAZARDS   2   // Same {height, width, y, x} packing as terrain.
 `define LP_HAZARD_BITS   64
 

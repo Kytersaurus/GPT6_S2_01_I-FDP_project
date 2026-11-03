@@ -15,13 +15,13 @@ module role4_game_display_tb;
     wire [1:0] hazard_count;
     wire [`LP_HAZARD_BITS-1:0] hazard_rects;
     wire map_level, map_id;
-    wire [9:0] world_width, world_height, flag_x, flag_y;
+    wire [9:0] world_width, world_height, flag_x, flag_y, star_box_x, star_box_y;
     level_data levels (
         .level_index(level),.spawn_x(spawn_x),.spawn_y(spawn_y),.terrain_count(terrain_count),
         .terrain_rects(terrain_rects),.goal_rect(goal_rect),.tnt_count(tnt_count),
         .tnt_positions(tnt_positions),.hazard_count(hazard_count),.hazard_rects(hazard_rects),
         .map_level(map_level),.map_id(map_id),.world_width(world_width),.world_height(world_height),
-        .flag_x(flag_x),.flag_y(flag_y)
+        .flag_x(flag_x),.flag_y(flag_y),.star_box_x(star_box_x),.star_box_y(star_box_y)
     );
 
     // Game controller with scripted neighbours.
@@ -107,7 +107,8 @@ module role4_game_display_tb;
         .frame_intact_mask(9'b000111000),.vehicle_x(vehicle_x),.vehicle_y(vehicle_y),
         .spawn_x(spawn_x),.spawn_y(spawn_y),.terrain_count(terrain_count),.terrain_rects(terrain_rects),
         .goal_rect(goal_rect),.tnt_count(tnt_count),.tnt_positions(tnt_positions),.tnt_intact(tnt_intact),
-        .hazard_count(hazard_count),.hazard_rects(hazard_rects),.blast_phase(view_blast),.anim_phase(view_phase),.pixel_data(right_colour)
+        .hazard_count(hazard_count),.hazard_rects(hazard_rects),.blast_phase(view_blast),.anim_phase(view_phase),
+        .star_box_x(star_box_x),.star_box_y(star_box_y),.star_box_collected(1'b0),.pixel_data(right_colour)
     );
 
     task clocks;
@@ -186,13 +187,21 @@ module role4_game_display_tb;
             $fatal(1,"Level 1 is not Cave Arch");
         if (spawn_x !== 20'sd53248 || spawn_y !== 20'sd19456 || flag_x != 600 || flag_y != 472)
             $fatal(1,"Level 1 spawn or flag moved");
-        if (tnt_count != 0 || hazard_count != 0 || map_id) $fatal(1,"Level 1 has unexpected objects or map");
+        if (hazard_count != 0 || map_id) $fatal(1,"Level 1 has unexpected objects or map");
+        // Three TNT: behind the spawn and one in each arch; unused entries stay zero.
+        if (tnt_count != 3 || tnt_positions !== {10'd390, 10'd156, 10'd260, 10'd588, 10'd92, 10'd194})
+            $fatal(1,"Level 1 TNT moved");
+        if (star_box_x != 170 || star_box_y != 391) $fatal(1,"Level 1 star box moved");
         level=1; #1;
         if (!map_level || !map_id || world_width != `LP_FLIGHT_WIDTH || world_height != `LP_FLIGHT_HEIGHT)
             $fatal(1,"Level 2 is not Cave Flight");
         if (spawn_x !== 20'sd17408 || spawn_y !== 20'sd45568 || flag_x != 769 || flag_y != 50)
             $fatal(1,"Level 2 spawn or flag moved");
-        if (tnt_count != 0 || hazard_count != 0) $fatal(1,"Level 2 has unexpected objects");
+        if (hazard_count != 0) $fatal(1,"Level 2 has unexpected objects");
+        // Three TNT: in the ditch, in the lower gap under the ledge, and on the slope to the finish.
+        if (tnt_count != 3 || tnt_positions !== {10'd68, 10'd710, 10'd158, 10'd541, 10'd191, 10'd316})
+            $fatal(1,"Level 2 TNT moved");
+        if (star_box_x != 541 || star_box_y != 103) $fatal(1,"Level 2 star box moved");
 
         clocks(3); reset=0; clocks(2);
         // Level select: only in BUILD, and launch on the same clock wins.
@@ -325,7 +334,7 @@ module role4_game_display_tb;
         // Map view, Level 0 (Cave Arch): night sky above the start plateau and grass along its top edge (map ROM).
         level=0; view_state=`LP_BUILD; zoomed_out=0;
         expect_right(0, 0, 16'h4af1, "map sky");
-        expect_right(39, 51, 16'h2bc3, "plateau grass");
+        expect_right(39, 51, 16'h4d86, "plateau grass");
         // The camera follows the vehicle across the map, here to the finish flag.
         view_state=`LP_RUN; vehicle_x=570*256; vehicle_y=457*256;
         expect_right(76, 38, 16'hec05, "flag pole");

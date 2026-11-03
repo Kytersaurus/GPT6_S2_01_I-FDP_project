@@ -563,7 +563,8 @@ module My_Top_Module #(
         .world_ready(world_ready), .goal_hit(goal_hit), .hazard_hit(hazard_hit), .out_of_bounds(out_of_bounds), .star_box_hit(star_box_hit)
     );
 
-    localparam SNAPSHOT_WIDTH = 251 + 4*(`LP_COORD_BITS-16) + (`LP_TILT_BITS-4);
+    // 251 bits with four TNT slots; each slot carries an intact bit and a 2-bit blast phase.
+    localparam SNAPSHOT_WIDTH = 251 + 3*(`LP_MAX_TNT-4) + 4*(`LP_COORD_BITS-16) + (`LP_TILT_BITS-4);
     wire [SNAPSHOT_WIDTH-1:0] snapshot_in = {start_screen_active, fan_available, ui_fan_on, star_box_collected, rocket_available, rocket_ready, vehicle_tilt, mouse_speed, audio_muted, run_page, selected_left, inventory_page, build_facing_left, rockets_left, fans_left, master_volume, diary_page, guide_return_state, death_phase, death_x, death_y, launch_flash, boost_active, drag_from_grid, drag_source, drag_contents,
                               game_state, build_grid, intact_mask, frame_intact_mask, build_valid, build_error,
                               vehicle_x, display_y, engine_enabled, frames_left, pigs_left, wheels_left,
@@ -734,7 +735,9 @@ module My_Top_Module #(
     wire signed [10:0] map_draw_x = right_map_x;
     wire signed [10:0] map_draw_y = right_map_y;
     wire [2:0] map_draw_class;
-
+    // The draw port reads on the OLED clock, beside the renderer's own register. level_map's
+    // SMOOTH_DRAW (100 MHz neighbour reads) is off: its reads had to finish inside one OLED
+    // pixel across the untimed OLED clock boundary, and on the board map pixels flickered.
     level_map u_level_map (
         .map_id(draw_map_id), .draw_clk(oled_clk), .draw_x(map_draw_x), .draw_y(map_draw_y), .draw_class(map_draw_class),
         .query_clk(clk), .query_map_id(map_id),

@@ -144,7 +144,8 @@ module world_outcomes (
                     GOAL: begin
                         goal_hit<=pig_found && pig_x>=goal_left && pig_x<goal_right &&
                                   pig_y>=goal_top && pig_y<goal_bottom;
-                        star_box_hit <= (vehicle_right >= $signed({1'b0,star_box_x,8'b0}) && vehicle_left < $signed({1'b0,star_box_x,8'b0})+21'sd5120) && (vehicle_bottom >= $signed({1'b0,star_box_y,8'b0}) && vehicle_top < $signed({1'b0,star_box_y,8'b0})+21'sd5120);
+                        // The star box is an 8 by 8 block (2048 in Q12.8), the size of a TNT.
+                        star_box_hit <= `LP_STAR_BOX_ENABLED && (vehicle_right >= $signed({1'b0,star_box_x,8'b0}) && vehicle_left < $signed({1'b0,star_box_x,8'b0})+21'sd2048) && (vehicle_bottom >= $signed({1'b0,star_box_y,8'b0}) && vehicle_top < $signed({1'b0,star_box_y,8'b0})+21'sd2048);
                         out_of_bounds<=vehicle_left>=$signed({1'b0,saved_width,8'b0}) || vehicle_right<=0 ||
                                        vehicle_top>=$signed({1'b0,saved_height,8'b0}) || vehicle_bottom<=0;
                         phase<=HAZARD_SETUP;

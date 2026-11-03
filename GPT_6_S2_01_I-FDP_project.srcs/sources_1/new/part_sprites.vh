@@ -10,6 +10,9 @@
 `ifndef LP_PALETTE_TNT
 `define LP_PALETTE_TNT 4'd8
 `endif
+`ifndef LP_PALETTE_STAR
+`define LP_PALETTE_STAR 4'd9
+`endif
 
 function [15:0] sprite_colour;
     input [3:0] palette;  // Part ID, or LP_PALETTE_TNT
@@ -81,6 +84,12 @@ function [15:0] sprite_colour;
                 4'h2: sprite_colour = 16'hb144;  // Stripe
                 4'h3: sprite_colour = 16'hffff;  // White middle
                 4'h4: sprite_colour = 16'h18c3;  // Black letters
+            endcase
+            `LP_PALETTE_STAR: case (entry)
+                4'h1: sprite_colour = 16'h6371;  // Slate outline
+                4'h2: sprite_colour = 16'hcf1f;  // Pale blue box
+                4'h3: sprite_colour = 16'hffff;  // White glint
+                4'h4: sprite_colour = 16'hfee0;  // Yellow star
             endcase
         endcase
     end
@@ -298,6 +307,26 @@ function [15:0] tnt_sprite12;
             default: row = 48'h111111111111;
         endcase
         tnt_sprite12 = sprite_colour(`LP_PALETTE_TNT, row >> ((11-sprite_x)*4), background);
+    end
+endfunction
+
+// Star box, 8 by 8, the size of a TNT block (drawn from world coordinates at every zoom): a pale blue box with a slate
+// outline, a white glint and a yellow star in the middle.
+function [15:0] star_sprite;
+    input integer sprite_x, sprite_y;
+    input [15:0] background;
+    reg [31:0] row;
+    begin
+        row = 0;
+        if (sprite_x >= 0 && sprite_x < 8 && sprite_y >= 0 && sprite_y < 8) case (sprite_y)
+            1: row = 32'h13244221;
+            2: row = 32'h14444441;
+            3, 4: row = 32'h12444421;
+            5: row = 32'h14422441;
+            6: row = 32'h12222221;
+            default: row = 32'h11111111;
+        endcase
+        star_sprite = sprite_colour(`LP_PALETTE_STAR, row >> ((7-sprite_x)*4), background);
     end
 endfunction
 
