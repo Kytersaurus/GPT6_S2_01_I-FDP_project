@@ -61,65 +61,72 @@ module ui_controller (
                 left_was_down<=mouse_left;
                 if (input_enabled && mouse_left && !left_was_down && !mouse_right) begin
                     if (start_screen_active) begin
-                        // Play button: centered at (48, 40), radius 9
+                        // Play button: centered at (48, 40), hover/click box (38..58, 30..50)
                         if (mx >= 38 && mx <= 58 && my >= 30 && my <= 50)
                             launch_req <= 1;
                         // Settings [ GEAR ]: bottom-left (4..20, 46..62)
-                        else if (mx >= 2 && mx <= 22 && my >= 44 && my <= 62)
+                        else if (mx >= 4 && mx <= 20 && my >= 46 && my <= 62)
                             level_open_req <= 1;
                     end else if (game_state==`LP_SETTINGS) begin
-                        // Box 1: Sound Settings / Volume
+                        // Box 1: Sound Settings / Volume (x: 6..30, y: 12..48)
                         if (mx>=6 && mx<=30 && my>=12 && my<=48) begin
                             guide_open_req <= 1;
                             diary_page <= 3;
-                        // Box 2: Map Select
+                        // Box 2: Map Select (x: 36..60, y: 12..48)
                         end else if (mx>=36 && mx<=60 && my>=12 && my<=48) begin
                             level_select_req <= 1;
-                        // Box 3: Mouse speed
+                        // Box 3: Mouse speed (x: 66..90, y: 12..48)
                         end else if (mx>=66 && mx<=90 && my>=12 && my<=48) begin
                             mouse_speed <= (mouse_speed == 2) ? 0 : mouse_speed + 1;
-                        // Home button: [ ⌂ ] in bottom right: x: 70..95, y: 50..63
-                        end else if (mx>=70 && mx<=95 && my>=50 && my<=63) begin
+                        // Home button: [ ⌂ ] in bottom right (x: 70..95, y: 52..62)
+                        end else if (mx>=70 && mx<=95 && my>=52 && my<=62) begin
                             home_req <= 1;
-                        // Back button: [ ◀ ] in bottom center: x: 28..68, y: 50..63
-                        end else if (mx>=28 && mx<=68 && my>=50 && my<=63) begin
+                        // Back button: [ ◀ ] in bottom center (x: 28..68, y: 52..62)
+                        end else if (mx>=28 && mx<=68 && my>=52 && my<=62) begin
                             level_close_req <= 1;
                         end
                     end else if (game_state==`LP_LEVEL_SELECT) begin
-                        if (mx<28 && my>=50 && my<64)
+                        // Back button: (x: 0..27, y: 52..63)
+                        if (mx<=27 && my>=52 && my<=63)
                             level_close_req <= 1;
-                        else if (mx>=4 && mx<92 &&
-                                 ((my>=12 && my<32) || (my>=34 && my<54))) begin
+                        // Map 1: (x: 4..91, y: 12..30), Map 2: (x: 4..91, y: 34..50)
+                        else if (mx>=4 && mx<=91 &&
+                                 ((my>=12 && my<=30) || (my>=34 && my<=50))) begin
                             selected_level <= (my>=34) ? 2'd1 : 2'd0;
                             level_select_req <= 1;
                         end
-                    end else if (game_state==`LP_BUILD && my>=52 && my<64) begin
-                        if (mx<18) launch_req <= 1;
-                        else if (mx>=64 && mx<80) begin guide_open_req <= 1; diary_page <= 0; end
-                        else if (mx>=80 && mx<96) level_open_req <= 1;
+                    end else if (game_state==`LP_BUILD && my>=55 && my<=63) begin
+                        if (mx<=17) launch_req <= 1;
+                        else if (mx>=64 && mx<=79) begin guide_open_req <= 1; diary_page <= 0; end
+                        else if (mx>=80 && mx<=95) level_open_req <= 1;
                     end else if (game_state==`LP_GUIDE) begin
-                        if (diary_page==3 && my>=24 && my<=44) begin
+                        // Volume [-] (x: 8..28, y: 24..37) and [+] (x: 64..84, y: 24..37)
+                        if (diary_page==3 && my>=24 && my<=37) begin
                             if (mx>=8 && mx<=28 && master_volume>0)
                                 master_volume <= master_volume - 1;
                             else if (mx>=64 && mx<=84 && master_volume<4)
                                 master_volume <= master_volume + 1;
                         end
-                        if (my>=50 && my<64) begin
-                            if (mx<=27) guide_close_req <= 1;
-                            else if (diary_page!=3 && mx>=32 && mx<95)
-                                diary_page <= mx<53 ? 2'd0 : mx<74 ? 2'd1 : 2'd2;
+                        // Back button (x: 0..27, y: 52..63)
+                        if (mx<=27 && my>=52 && my<=63) begin
+                            guide_close_req <= 1;
+                        // Page buttons [1] (32..51), [2] (53..72), [3] (74..93) at y: 55..63
+                        end else if (diary_page!=3 && my>=55 && my<=63) begin
+                            if (mx>=32 && mx<=51) diary_page <= 2'd0;
+                            else if (mx>=53 && mx<=72) diary_page <= 2'd1;
+                            else if (mx>=74 && mx<=93) diary_page <= 2'd2;
                         end
                     end else if (game_state==`LP_SUCCESS || game_state==`LP_FAIL) begin
-                        // Bottom action bar (y: 52..63): [ HOME ] [ MAP SELECT ] [ NEXT / EDIT ] [ GUIDE ]
-                        if (my>=52 && my<=63) begin
+                        // Bottom action bar (y: 53..63): [ HOME ] [ MAP SELECT ] [ NEXT / EDIT ] [ GUIDE ]
+                        if (my>=53 && my<=63) begin
                             if (mx >= 2 && mx <= 22) home_req <= 1;
                             else if (mx >= 26 && mx <= 46) level_open_req <= 1;
                             else if (mx >= 50 && mx <= 70) edit_req <= 1;
                             else if (mx >= 74 && mx <= 94) begin guide_open_req <= 1; diary_page <= 0; end
                         end
                     end else if (game_state==`LP_RUN) begin
-                        // Bottom Navigation Bar in run mode: [TRY] [END] [EDIT] [GEAR]
-                        if (my >= 52 && my <= 63) begin
+                        // Bottom Navigation Bar in run mode (y: 53..63): [TRY] [END] [EDIT] [GEAR]
+                        if (my >= 53 && my <= 63) begin
                             if (mx >= 2 && mx <= 22) begin
                                 launch_req <= 1;          // [RETRY]
                                 run_page <= 0;

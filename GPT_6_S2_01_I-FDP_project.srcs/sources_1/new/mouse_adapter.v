@@ -89,24 +89,20 @@ module mouse_adapter (
     wire [11:0] cur_y = {5'd0, cursor_y};
 
     wire build_grid_area = cur_x >= 4 && cur_x < 52 && cur_y >= 4 && cur_y < 52;
-    wire pop_grid_area = cur_x >= 4 && cur_x < 40 && cur_y >= 12 && cur_y < 48;
     wire run_grid_big = cur_x >= 24 && cur_x < 72 && cur_y >= 2 && cur_y < 50;
 
     wire in_grid = (game_state == `LP_BUILD) ? build_grid_area :
-                   (run_page == 2'd1) ? pop_grid_area :
-                   (run_page == 2'd0) ? run_grid_big : 1'b0;
+                   (game_state == `LP_RUN)   ? run_grid_big : 1'b0;
     wire in_inventory = cur_x >= 56 && cur_x < 92 && cur_y >= 4 && cur_y < 54;
     // Find grid rows and columns with fixed range checks instead of division.
     wire building = game_state == `LP_BUILD;
     wire [1:0] build_col = cur_x < 20 ? 2'd0 : cur_x < 36 ? 2'd1 : 2'd2;
     wire [1:0] build_row = cur_y < 20 ? 2'd0 : cur_y < 36 ? 2'd1 : 2'd2;
-    wire [1:0] pop_col = cur_x < 16 ? 2'd0 : cur_x < 28 ? 2'd1 : 2'd2;
-    wire [1:0] pop_row = cur_y < 24 ? 2'd0 : cur_y < 36 ? 2'd1 : 2'd2;
     wire [1:0] run_col_big = cur_x < 40 ? 2'd0 : cur_x < 56 ? 2'd1 : 2'd2;
     wire [1:0] run_row_big = cur_y < 18 ? 2'd0 : cur_y < 34 ? 2'd1 : 2'd2;
 
-    wire [1:0] hovered_col = building ? build_col : (run_page == 2'd1 ? pop_col : run_col_big);
-    wire [1:0] hovered_row = building ? build_row : (run_page == 2'd1 ? pop_row : run_row_big);
+    wire [1:0] hovered_col = building ? build_col : run_col_big;
+    wire [1:0] hovered_row = building ? build_row : run_row_big;
     reg [3:0] hovered_cell;
     reg [2:0] hovered_part;
     reg hovered_frame, hovered_facing_left, hovered_facing_down;

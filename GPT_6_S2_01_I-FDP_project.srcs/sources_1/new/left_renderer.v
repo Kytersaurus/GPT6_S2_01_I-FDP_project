@@ -326,14 +326,6 @@ module left_renderer #(
                 pixel_data = 16'h0841;
                 if (text_column < 5 && letter_bits[34-(text_row*5+text_column)]) pixel_data = message_colour;
             end
-            if (in_build && level_button_pixel && feedback_code == `LP_FEEDBACK_NONE) begin
-                pixel_data = 16'h0010;
-                if (x == `LP_LEVEL_BUTTON_X || x == `LP_LEVEL_BUTTON_X+`LP_LEVEL_BUTTON_W-1 ||
-                    y == `LP_LEVEL_BUTTON_Y || y == `LP_LEVEL_BUTTON_Y+`LP_LEVEL_BUTTON_H-1) pixel_data = 16'h7bef;
-                else if (text_on(level_index == 3 ? "L4              " : level_index == 2 ? "L3              " :
-                                 level_index == 1 ? "L2              " : "L1              ",
-                                 `LP_LEVEL_BUTTON_X+1, `LP_LEVEL_BUTTON_Y+1, x, y)) pixel_data = 16'hffff;
-            end
         end else if (game_state == `LP_RUN) begin
             // Runtime indicators: build validity, engine switch, then game stage.
             if (y >= 57 && y < 63 && x >= 4 && x < 16) pixel_data = build_valid ? 16'h07e0 : 16'hf800;

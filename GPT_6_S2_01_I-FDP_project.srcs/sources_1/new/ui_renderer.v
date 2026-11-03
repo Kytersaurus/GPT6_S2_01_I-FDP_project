@@ -395,17 +395,17 @@ module ui_renderer (
             if (text_on("CAVE ARCH       ", 10, 14, x, y)) pixel_data = 16'hffff;
             if (text_on("MAP 1           ", 10, 22, x, y)) pixel_data = 16'h07ff;
 
-            // Map 2: Cave Flight
-            if (x >= 4 && x <= 91 && y >= 34 && y <= 52) begin
-                if (x == 4 || x == 91 || y == 34 || y == 52)
+            // Map 2: Cave Flight (x: 4..91, y: 34..50)
+            if (x >= 4 && x <= 91 && y >= 34 && y <= 50) begin
+                if (x == 4 || x == 91 || y == 34 || y == 50)
                     pixel_data = (level_index == 1) ? 16'h07e0 : 16'h04b4;
-                else if (cursor_x >= 4 && cursor_x <= 91 && cursor_y >= 34 && cursor_y <= 52)
+                else if (cursor_x >= 4 && cursor_x <= 91 && cursor_y >= 34 && cursor_y <= 50)
                     pixel_data = 16'h0351;
                 else
                     pixel_data = 16'h18e5;
             end
             if (text_on("CAVE FLIGHT     ", 10, 36, x, y)) pixel_data = 16'hffff;
-            if (text_on("MAP 2           ", 10, 44, x, y)) pixel_data = 16'h07ff;
+            if (text_on("MAP 2           ", 10, 43, x, y)) pixel_data = 16'h07ff;
 
             // Bottom toolbar: [ BACK ]
             if (y >= 52) begin
@@ -651,7 +651,7 @@ module ui_renderer (
                     else
                         pixel_data = 16'h18e5;
                     if (is_back_arrow(7'd14, 6'd58, x, y)) pixel_data = 16'hffff;
-                end else if (diary_page != 3) begin
+                end else if (diary_page != 3 && y >= 55) begin
                     if (x >= 32 && x <= 51) begin
                         if (x == 32 || x == 51 || y == 55 || y == 63)
                             pixel_data = (diary_page == 0) ? 16'hffe0 : 16'h04b4;
@@ -763,7 +763,7 @@ module ui_renderer (
                                 pixel_data = (run_spr != pixel_data) ? ((run_spr & 16'hf7de) >> 1) : pixel_data;
                             end
                         end else if (run_part == `LP_PART_FAN) begin
-                            if (active_fans[run_cell_index]) begin
+                            if (fan_on || active_fans[run_cell_index]) begin
                                 pixel_data = part_sprite_facing_dir(run_part, run_cell_x, run_cell_y, 16, build_facing_left[run_cell_index], build_facing_down[run_cell_index], anim_phase, pixel_data);
                             end else begin
                                 // Grayed out / dimmed inactive fan
