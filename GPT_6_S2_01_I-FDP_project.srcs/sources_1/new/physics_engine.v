@@ -387,6 +387,12 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
                 proposed_vx <= 0; proposed_vy <= 0; velocity_x <= 0; velocity_y <= 0;
                             remainder_x <= 0; pending_remainder_x <= 0; remainder_mass <= 0;
                 boost_timer <= 0;
+                sampled_boosting <= 0;
+                sampled_down_fans <= 0;
+                sampled_fans <= 0;
+                sampled_rockets <= 0;
+                sampled_engine_enabled <= 0;
+                sampled_engine_reverse <= 0;
             end else if (menu_paused) begin
                 // Controller drains the current update before opening a menu.
                 // Keep velocity, contact, spin and spring latch for resume.

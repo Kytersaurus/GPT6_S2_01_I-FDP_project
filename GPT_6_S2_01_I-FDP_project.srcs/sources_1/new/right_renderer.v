@@ -11,7 +11,9 @@
 // (sprites; a world position p is at 3p/2 at 1.5x, with an even camera so this is exact) and
 // half-world texture units (stone, flag and explosions). Output has one clock of latency:
 // map_x/map_y go to the level_map draw port and the class returns with the registered pixel.
-module right_renderer (
+module right_renderer #(
+    parameter USE_PIXEL_INDEX = 1
+) (
     input wire clk,
     input wire [12:0] pixel_index,
     input wire [6:0] in_x,
@@ -58,8 +60,10 @@ module right_renderer (
     `include "part_sprites.vh"
     `include "ui_font.vh"
     `include "rotation_geometry.vh"
-    wire [6:0] x = (pixel_index != 13'd0) ? (pixel_index % 96) : (in_x === 7'bzzzzzzz ? 7'd0 : in_x);
-    wire [5:0] y = (pixel_index != 13'd0) ? (pixel_index / 96) : (in_y === 6'bzzzzzz ? 6'd0 : in_y);
+    wire [5:0] raw_pi_y = ({12'd0, pixel_index} * 25'd2731) >> 18;
+    wire [6:0] raw_pi_x = pixel_index - (raw_pi_y << 6) - (raw_pi_y << 5);
+    wire [6:0] x = USE_PIXEL_INDEX ? raw_pi_x : in_x;
+    wire [5:0] y = USE_PIXEL_INDEX ? raw_pi_y : in_y;
 
     wire before_launch = (game_state == `LP_BUILD || game_state == `LP_GUIDE);
     // Vehicle (or spawn) top-left in whole world pixels.

@@ -22,10 +22,13 @@ module ui_renderer (
     input wire [26:0] build_grid,
     input wire [8:0] intact_mask,
     input wire [8:0] frame_intact_mask,
+    input tri0 [8:0] build_frames,
     input wire [8:0] build_facing_left,
     input tri0 [8:0] build_facing_down,
     input tri0 [8:0] active_fans,
     input wire sw0_engine,
+    input tri0 [6:0] cloud_scroll_fg,
+    input tri0 [6:0] cloud_scroll_bg,
     output reg [15:0] pixel_data
 );
     `include "ui_font.vh"
@@ -262,6 +265,53 @@ module ui_renderer (
         (y > 0 && is_title_char(x, y - 6'd1))
     );
 
+    // -------------------------------------------------------------------------
+    // START SCREEN: Lively Dual-Layer 2-Tone Animated Cloud Parallax
+    // Right-to-left drift matches Bad Piggies title camera pan and map flow.
+    // -------------------------------------------------------------------------
+    wire [6:0] fg_x = (x + cloud_scroll_fg >= 7'd96) ? (x + cloud_scroll_fg - 7'd96) : (x + cloud_scroll_fg);
+    wire [6:0] bg_x = (x + cloud_scroll_bg >= 7'd96) ? (x + cloud_scroll_bg - 7'd96) : (x + cloud_scroll_bg);
+
+    // Foreground Cloud 1 (Center ~23, Y 8..16, width 23)
+    wire fg_c1_base = (fg_x >= 7'd12 && fg_x <= 7'd34 && y >= 6'd12 && y <= 6'd16 &&
+                       !((fg_x == 7'd12 || fg_x == 7'd34) && y == 6'd16));
+    wire fg_c1_mid  = (fg_x >= 7'd15 && fg_x <= 7'd31 && y >= 6'd10 && y <= 6'd11);
+    wire fg_c1_top  = (fg_x >= 7'd19 && fg_x <= 7'd27 && y >= 6'd8  && y <= 6'd9 &&
+                       !((fg_x == 7'd19 || fg_x == 7'd27) && y == 6'd8));
+    wire fg_c1 = fg_c1_base || fg_c1_mid || fg_c1_top;
+    wire fg_c1_shade = fg_c1 && (y >= 6'd15);
+
+    // Foreground Cloud 2 (Center ~71, Y 7..15, width 23)
+    wire fg_c2_base = (fg_x >= 7'd60 && fg_x <= 7'd82 && y >= 6'd11 && y <= 6'd15 &&
+                       !((fg_x == 7'd60 || fg_x == 7'd82) && y == 6'd15));
+    wire fg_c2_mid  = (fg_x >= 7'd63 && fg_x <= 7'd79 && y >= 6'd9  && y <= 6'd10);
+    wire fg_c2_top  = (fg_x >= 7'd67 && fg_x <= 7'd75 && y >= 6'd7  && y <= 6'd8 &&
+                       !((fg_x == 7'd67 || fg_x == 7'd75) && y == 6'd7));
+    wire fg_c2 = fg_c2_base || fg_c2_mid || fg_c2_top;
+    wire fg_c2_shade = fg_c2 && (y >= 6'd14);
+
+    wire fg_cloud = fg_c1 || fg_c2;
+    wire fg_cloud_shade = fg_c1_shade || fg_c2_shade;
+
+    // Distant Background Cloud 1 (Center ~45, Y 4..9, width 17)
+    wire bg_c1_base = (bg_x >= 7'd37 && bg_x <= 7'd53 && y >= 6'd6 && y <= 6'd9 &&
+                       !((bg_x == 7'd37 || bg_x == 7'd53) && (y == 6'd6 || y == 6'd9)));
+    wire bg_c1_top  = (bg_x >= 7'd41 && bg_x <= 7'd49 && y >= 6'd4 && y <= 6'd5 &&
+                       !((bg_x == 7'd41 || bg_x == 7'd49) && y == 6'd4));
+    wire bg_c1 = bg_c1_base || bg_c1_top;
+    wire bg_c1_shade = bg_c1 && (y >= 6'd8);
+
+    // Distant Background Cloud 2 (Center ~88, Y 3..8, width 15)
+    wire bg_c2_base = (bg_x >= 7'd81 && bg_x <= 7'd95 && y >= 6'd5 && y <= 6'd8 &&
+                       !((bg_x == 7'd81 || bg_x == 7'd95) && (y == 6'd5 || y == 6'd8)));
+    wire bg_c2_top  = (bg_x >= 7'd84 && bg_x <= 7'd92 && y >= 6'd3 && y <= 6'd4 &&
+                       !((bg_x == 7'd84 || bg_x == 7'd92) && y == 6'd3));
+    wire bg_c2 = bg_c2_base || bg_c2_top;
+    wire bg_c2_shade = bg_c2 && (y >= 6'd7);
+
+    wire bg_cloud = bg_c1 || bg_c2;
+    wire bg_cloud_shade = bg_c1_shade || bg_c2_shade;
+
 
     always @* begin
         pixel_data = base_pixel;
@@ -272,10 +322,11 @@ module ui_renderer (
             // -----------------------------------------------------------------
             // 1. Piggy Island cartoon sky and rolling meadow
             if (y < 36) begin
-                // Azure blue sky with fluffy white cloud puffs
-                if (((x >= 14 && x <= 30) && (y >= 7 && y <= 13) && !((x==14||x==30)&&(y==7||y==13))) ||
-                    ((x >= 68 && x <= 82) && (y >= 6 && y <= 11) && !((x==70||x==82)&&(y==6||y==11)))) begin
-                    pixel_data = 16'hffff; // White fluffy clouds
+                // Lively dual-layer 2-tone clouds over azure cartoon sky
+                if (fg_cloud) begin
+                    pixel_data = fg_cloud_shade ? 16'had9f : 16'hffff; // 2-tone foreground cloud
+                end else if (bg_cloud) begin
+                    pixel_data = bg_cloud_shade ? 16'had9f : 16'hffff; // 2-tone distant cloud
                 end else begin
                     pixel_data = 16'h5ddf; // Azure cartoon sky
                 end
@@ -688,9 +739,9 @@ module ui_renderer (
                 if (run_cell_x == 0 || run_cell_y == 0 || x == 71 || y == 49) begin
                     pixel_data = 16'h4208;
                 end else begin
-                    // Damage cross under destroyed elements
+                    // Damage cross under destroyed elements: only if cell had a part or frame
                     if ((!intact_mask[run_cell_index] && run_part != `LP_PART_EMPTY) ||
-                        (frame_intact_mask[run_cell_index] == 0 && frame_intact_mask != 9'd0)) begin
+                        (!frame_intact_mask[run_cell_index] && build_frames[run_cell_index])) begin
                         if ((run_cell_x >= 3 && run_cell_x <= 12) &&
                             (run_cell_x == run_cell_y || run_cell_x + run_cell_y == 15))
                             pixel_data = 16'h8000;
@@ -736,7 +787,7 @@ module ui_renderer (
                 // Button 1: [ TRY ] (x: 2..22)
                 if (x >= 2 && x <= 22) begin
                     if (x == 2 || x == 22 || y == 53 || y == 63) pixel_data = 16'h04b4;
-                    else if (cursor_x >= 2 && cursor_x <= 22 && cursor_y >= 54 && cursor_y <= 63) pixel_data = 16'h0351;
+                    else if (cursor_x >= 2 && cursor_x <= 22 && cursor_y >= 53 && cursor_y <= 63) pixel_data = 16'h0351;
                     else pixel_data = 16'h18e5;
                     if (is_retry_icon(7'd12, 6'd58, x, y)) pixel_data = 16'hffff;
                 end
@@ -744,7 +795,7 @@ module ui_renderer (
                 // Button 2: [ END TRY ] (x: 26..46, center 36)
                 else if (x >= 26 && x <= 46) begin
                     if (x == 26 || x == 46 || y == 53 || y == 63) pixel_data = 16'h04b4;
-                    else if (cursor_x >= 26 && cursor_x <= 46 && cursor_y >= 54 && cursor_y <= 63) pixel_data = 16'h0351;
+                    else if (cursor_x >= 26 && cursor_x <= 46 && cursor_y >= 53 && cursor_y <= 63) pixel_data = 16'h0351;
                     else pixel_data = 16'h18e5;
                     if (is_stop_icon(7'd36, 6'd58, x, y)) pixel_data = 16'hf800; // Red stop icon
                 end
@@ -752,7 +803,7 @@ module ui_renderer (
                 // Button 3: [ EDIT ] (x: 50..70, center 60) - Pencil Icon
                 else if (x >= 50 && x <= 70) begin
                     if (x == 50 || x == 70 || y == 53 || y == 63) pixel_data = 16'h04b4;
-                    else if (cursor_x >= 50 && cursor_x <= 70 && cursor_y >= 54 && cursor_y <= 63) pixel_data = 16'h0351;
+                    else if (cursor_x >= 50 && cursor_x <= 70 && cursor_y >= 53 && cursor_y <= 63) pixel_data = 16'h0351;
                     else pixel_data = 16'h18e5;
                     pixel_data = cartoon_pencil(7'd60, 6'd58, x, y, pixel_data);
                 end
@@ -760,7 +811,7 @@ module ui_renderer (
                 // Button 4: [ GEAR ] (x: 74..94)
                 else if (x >= 74 && x <= 94) begin
                     if (x == 74 || x == 94 || y == 53 || y == 63) pixel_data = 16'h04b4;
-                    else if (cursor_x >= 74 && cursor_x <= 94 && cursor_y >= 54 && cursor_y <= 63) pixel_data = 16'h0351;
+                    else if (cursor_x >= 74 && cursor_x <= 94 && cursor_y >= 53 && cursor_y <= 63) pixel_data = 16'h0351;
                     else pixel_data = 16'h18e5;
                     pixel_data = cartoon_gear(7'd84, 6'd58, x, y, pixel_data);
                 end
@@ -769,23 +820,23 @@ module ui_renderer (
             // -----------------------------------------------------------------
             // RESULT SCREEN: Pure Icon Toolbar
             // -----------------------------------------------------------------
-            // Clear right panel to avoid background text bleed
+            // Clear right panel to avoid background text bleed (dark navy matching screen background)
             if (x >= 54 && y >= 30 && y < 53) begin
-                pixel_data = 16'h18c3;
+                pixel_data = 16'h0841;
             end
             if (y >= 53) begin
                 pixel_data = 16'h0841;
                 // Button 1: [ HOME ] (x: 2..22)
                 if (x >= 2 && x <= 22) begin
-                    if (x == 2 || x == 22 || y == 54 || y == 63) pixel_data = 16'h04b4;
-                    else if (cursor_x >= 2 && cursor_x <= 22 && cursor_y >= 54 && cursor_y <= 63) pixel_data = 16'h0351;
+                    if (x == 2 || x == 22 || y == 53 || y == 63) pixel_data = 16'h04b4;
+                    else if (cursor_x >= 2 && cursor_x <= 22 && cursor_y >= 53 && cursor_y <= 63) pixel_data = 16'h0351;
                     else pixel_data = 16'h18e5;
                     if (is_home_icon(7'd12, 6'd58, x, y)) pixel_data = 16'hffff;
                 end
                 // Button 2: [ MAP SELECT ] (x: 26..46)
                 else if (x >= 26 && x <= 46) begin
-                    if (x == 26 || x == 46 || y == 54 || y == 63) pixel_data = 16'h04b4;
-                    else if (cursor_x >= 26 && cursor_x <= 46 && cursor_y >= 54 && cursor_y <= 63) pixel_data = 16'h0351;
+                    if (x == 26 || x == 46 || y == 53 || y == 63) pixel_data = 16'h04b4;
+                    else if (cursor_x >= 26 && cursor_x <= 46 && cursor_y >= 53 && cursor_y <= 63) pixel_data = 16'h0351;
                     else pixel_data = 16'h18e5;
                     // Folded Parchment Map Icon at center (36, 58)
                     if (x >= 32 && x <= 40 && y >= 55 && y <= 61) begin
@@ -797,8 +848,8 @@ module ui_renderer (
                 end
                 // Button 3: [ NEXT / EDIT ] (x: 50..70) - Pencil Icon on Fail
                 else if (x >= 50 && x <= 70) begin
-                    if (x == 50 || x == 70 || y == 54 || y == 63) pixel_data = 16'h04b4;
-                    else if (cursor_x >= 50 && cursor_x <= 70 && cursor_y >= 54 && cursor_y <= 63) pixel_data = 16'h0351;
+                    if (x == 50 || x == 70 || y == 53 || y == 63) pixel_data = 16'h04b4;
+                    else if (cursor_x >= 50 && cursor_x <= 70 && cursor_y >= 53 && cursor_y <= 63) pixel_data = 16'h0351;
                     else pixel_data = 16'h18e5;
                     if (game_state == `LP_SUCCESS) begin
                         if (is_play_icon(7'd60, 6'd58, x, y)) pixel_data = 16'h07e0; // Bright green play triangle
@@ -808,8 +859,8 @@ module ui_renderer (
                 end
                 // Button 4: [ GUIDE ] (x: 74..94)
                 else if (x >= 74 && x <= 94) begin
-                    if (x == 74 || x == 94 || y == 54 || y == 63) pixel_data = 16'h04b4;
-                    else if (cursor_x >= 74 && cursor_x <= 94 && cursor_y >= 54 && cursor_y <= 63) pixel_data = 16'h0351;
+                    if (x == 74 || x == 94 || y == 53 || y == 63) pixel_data = 16'h04b4;
+                    else if (cursor_x >= 74 && cursor_x <= 94 && cursor_y >= 53 && cursor_y <= 63) pixel_data = 16'h0351;
                     else pixel_data = 16'h18e5;
                     // Open Book Icon at center (84, 58)
                     if (x >= 79 && x <= 89 && y >= 55 && y <= 61) begin

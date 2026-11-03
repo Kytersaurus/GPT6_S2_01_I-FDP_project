@@ -59,9 +59,8 @@ module ui_controller (
                         // Play button: centered at (48, 40), radius 9
                         if (mx >= 38 && mx <= 58 && my >= 30 && my <= 50)
                             launch_req <= 1;
-                        // Settings [ GEAR ]: bottom-left (2..22, 44..62) or legacy top-right (82..94, 2..14)
-                        else if ((mx >= 2 && mx <= 22 && my >= 44 && my <= 62) ||
-                                 (mx >= 82 && mx <= 94 && my >= 2 && my <= 14))
+                        // Settings [ GEAR ]: bottom-left (4..20, 46..62)
+                        else if (mx >= 2 && mx <= 22 && my >= 44 && my <= 62)
                             level_open_req <= 1;
                     end else if (game_state==`LP_SETTINGS) begin
                         // Box 1: Sound Settings / Volume

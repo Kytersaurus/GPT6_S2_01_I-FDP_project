@@ -69,8 +69,11 @@ module My_Top_Module #(
     wire engine_reverse, reverse_switch_enabled, jump_press, boost_req, boost_active;
     wire [1:0] run_page, draw_run_page;
     wire selected_left, edit_facing_left, draw_selected_left;
+    wire selected_down, edit_facing_down;
     wire [1:0] inventory_page, draw_inventory_page;
     wire [8:0] build_facing_left, draw_facing_left;
+    wire [8:0] build_facing_down;
+    wire engine_facing_left, fan_facing_left, fan_facing_down, rocket_facing_left;
     wire signed [4:0] engine_balance, fan_balance, rocket_balance;
     wire rocket_ready, rocket_active;
     wire [3:0] drive_engines = engine_balance<0 ? -engine_balance : engine_balance;
@@ -88,8 +91,12 @@ module My_Top_Module #(
     wire [2:0] guide_return_state;
     wire signed [`LP_COORD_BITS-1:0] death_x, death_y;
     wire launch_flash;
-    // SW0 changes the shared engine state; the on-screen DRIVE control can also toggle it.
+    // SW0 changes the shared engine state; in hardware SW0 enables directly during RUN.
+`ifdef SYNTHESIS
+    assign engine_enabled = (game_state == `LP_RUN && !run_init) ? sw[0] : 1'b0;
+`else
     assign engine_enabled = ui_engine_on && sw[0];
+`endif
     wire [2:0] game_state, init_ready;
     wire run_init, step_start, update_release;
     wire [26:0] build_grid;
@@ -420,8 +427,10 @@ module My_Top_Module #(
     );
     mouse_adapter u_mouse_adapter (
         .clk(clk), .reset(reset), .input_enabled(builder_input_enabled && !start_screen_active), .game_state(game_state),
-        .build_grid(build_grid), .build_frames(build_frames), .build_facing_left(build_facing_left),
-        .run_page(run_page), .selected_left(selected_left), .inventory_page(inventory_page), .edit_facing_left(edit_facing_left), .mouse_x(mouse_x), .mouse_y(mouse_y),
+        .build_grid(build_grid), .build_frames(build_frames), .build_facing_left(build_facing_left), .build_facing_down(build_facing_down),
+        .run_page(run_page), .selected_left(selected_left), .selected_down(selected_down), .inventory_page(inventory_page),
+        .engine_facing_left(engine_facing_left), .fan_facing_left(fan_facing_left), .fan_facing_down(fan_facing_down), .rocket_facing_left(rocket_facing_left),
+        .edit_facing_left(edit_facing_left), .edit_facing_down(edit_facing_down), .mouse_x(mouse_x), .mouse_y(mouse_y),
         .mouse_left(mouse_left), .mouse_right(mouse_right), .mouse_event(mouse_event),
         .mouse_value(mouse_value), .setx(setx), .sety(sety), .setmax_x(setmax_x), .setmax_y(setmax_y), .mouse_speed(mouse_speed),
         .cursor_x(cursor_x), .cursor_y(cursor_y), .selected_part(selected_part),
@@ -450,7 +459,8 @@ module My_Top_Module #(
     ) u_builder (
         .clk(clk), .reset(reset), .game_state(game_state), .run_init(run_init), .init_ready(init_ready[0]),
         .edit_valid(edit_valid), .edit_op(edit_op), .edit_cell(edit_cell), .edit_source(edit_source), .edit_part(edit_part), .edit_facing_left(edit_facing_left),
-        .build_facing_left(build_facing_left), .engine_balance(engine_balance),
+        .edit_facing_down(edit_facing_down),
+        .build_facing_left(build_facing_left), .build_facing_down(build_facing_down), .engine_balance(engine_balance),
         .fan_balance(fan_balance), .rocket_balance(rocket_balance),
         .rocket_count(rocket_count), .fan_count(fan_count), .rockets_left(rockets_left), .fans_left(fans_left),
         // Collision impacts correct the pose and velocity but never remove
@@ -497,6 +507,17 @@ module My_Top_Module #(
         .clk(clk), .reset(reset), .run_init(run_init), .physics_tick(physics_tick),
         .tnt_intact(tnt_intact), .blast_phase(blast_phase)
     );
+    wire [3:0] active_down_fans =
+        (intact_mask[0] && build_grid[2:0]   == `LP_PART_FAN && build_facing_down[0]) +
+        (intact_mask[1] && build_grid[5:3]   == `LP_PART_FAN && build_facing_down[1]) +
+        (intact_mask[2] && build_grid[8:6]   == `LP_PART_FAN && build_facing_down[2]) +
+        (intact_mask[3] && build_grid[11:9]  == `LP_PART_FAN && build_facing_down[3]) +
+        (intact_mask[4] && build_grid[14:12] == `LP_PART_FAN && build_facing_down[4]) +
+        (intact_mask[5] && build_grid[17:15] == `LP_PART_FAN && build_facing_down[5]) +
+        (intact_mask[6] && build_grid[20:18] == `LP_PART_FAN && build_facing_down[6]) +
+        (intact_mask[7] && build_grid[23:21] == `LP_PART_FAN && build_facing_down[7]) +
+        (intact_mask[8] && build_grid[26:24] == `LP_PART_FAN && build_facing_down[8]);
+
     physics_engine #(.ENGINE_FORCE(ENGINE_FORCE), .ROCKET_FORCE_SHIFT(ROCKET_FORCE_SHIFT), .WHEEL_TORQUE_SHIFT(WHEEL_TORQUE_SHIFT)) u_physics (
         .support_endpoint_y_valid(support_span_valid),
         .support_left_y_q2(support_left_y_q2),.support_right_y_q2(support_right_y_q2),
@@ -508,6 +529,7 @@ module My_Top_Module #(
         .intact_mask(intact_mask),.frame_intact_mask(frame_intact_mask),
         .build_facing_left(build_facing_left),.rocket_vertical_mask(9'd0),
         .fan_balance(fan_balance), .rocket_balance(rocket_balance), .rocket_count(rocket_count),
+        .active_down_fans(active_down_fans),
         .fan_enabled(ui_fan_on), .rocket_req(ui_rocket_req), .rocket_ready(rocket_ready), .rocket_active(rocket_active),
         .clk(clk), .reset(reset), .game_state(game_state), .run_init(run_init), .init_ready(init_ready[1]),
         .spawn_x(spawn_x), .spawn_y(spawn_y), .step_start(step_start), .update_release(update_release),
@@ -612,10 +634,17 @@ module My_Top_Module #(
     wire [`LP_HAZARD_BITS-1:0] draw_hazard_rects;
     wire [12:0] left_pixel_index, right_pixel_index;
     // JA is mounted upside down: reverse all 96 x 64 pixels to rotate it 180 degrees.
-    wire [6:0] left_x = 95 - (left_pixel_index % 96);
-    wire [5:0] left_y = 63 - (left_pixel_index / 96);
-    wire [6:0] right_x = right_pixel_index % 96;
-    wire [5:0] right_y = right_pixel_index / 96;
+    // Reciprocal multiplication eliminates combinational / 96 and % 96 divider trees:
+    // ({12'd0, pixel_index} * 25'd2731) >> 18 == pixel_index / 96 for all 0 <= pixel_index < 6144.
+    wire [5:0] raw_left_y = ({12'd0, left_pixel_index} * 25'd2731) >> 18;
+    wire [6:0] raw_left_x = left_pixel_index - (raw_left_y << 6) - (raw_left_y << 5);
+    wire [6:0] left_x = 7'd95 - raw_left_x;
+    wire [5:0] left_y = 6'd63 - raw_left_y;
+
+    wire [5:0] raw_right_y = ({12'd0, right_pixel_index} * 25'd2731) >> 18;
+    wire [6:0] raw_right_x = right_pixel_index - (raw_right_y << 6) - (raw_right_y << 5);
+    wire [6:0] right_x = raw_right_x;
+    wire [5:0] right_y = raw_right_y;
     wire [6:0] map_x = show_map ? left_x : right_x;
     wire [5:0] map_y = show_map ? left_y : right_y;
     wire [15:0] left_pixel_data, right_pixel_data, base_left_pixel_data;
@@ -682,22 +711,47 @@ module My_Top_Module #(
     reg overview_meta_display, overview_sync_display, draw_overview;
     reg look_meta_display, look_sync_display, draw_free_look;
     reg sw0_meta_display, sw0_sync_display, draw_sw0;
+    reg [8:0] facing_down_meta, facing_down_sync, draw_facing_down;
+    reg selected_down_meta, selected_down_sync, draw_selected_down;
+    reg inv_eng_meta, inv_eng_sync, draw_inv_engine_left;
+    reg inv_fan_l_meta, inv_fan_l_sync, draw_inv_fan_left;
+    reg inv_fan_d_meta, inv_fan_d_sync, draw_inv_fan_down;
+    reg inv_rkt_meta, inv_rkt_sync, draw_inv_rocket_left;
+
     always @(posedge oled_clk) begin
         if (oled_reset) begin
             zoom_meta_display <= 0; zoom_sync_display <= 0; draw_zoomed_out <= 0;
             overview_meta_display <= 0; overview_sync_display <= 0; draw_overview <= 0;
             look_meta_display <= 0; look_sync_display <= 0; draw_free_look <= 0;
             sw0_meta_display <= 0; sw0_sync_display <= 0; draw_sw0 <= 0;
+            facing_down_meta <= 0; facing_down_sync <= 0; draw_facing_down <= 0;
+            selected_down_meta <= 0; selected_down_sync <= 0; draw_selected_down <= 0;
+            inv_eng_meta <= 0; inv_eng_sync <= 0; draw_inv_engine_left <= 0;
+            inv_fan_l_meta <= 0; inv_fan_l_sync <= 0; draw_inv_fan_left <= 0;
+            inv_fan_d_meta <= 0; inv_fan_d_sync <= 0; draw_inv_fan_down <= 0;
+            inv_rkt_meta <= 0; inv_rkt_sync <= 0; draw_inv_rocket_left <= 0;
         end else begin
             zoom_meta_display <= zoomed_out; zoom_sync_display <= zoom_meta_display;
             overview_meta_display <= overview; overview_sync_display <= overview_meta_display;
             look_meta_display <= sw[4]; look_sync_display <= look_meta_display;
             sw0_meta_display <= sw[0]; sw0_sync_display <= sw0_meta_display;
+            facing_down_meta <= build_facing_down; facing_down_sync <= facing_down_meta;
+            selected_down_meta <= selected_down; selected_down_sync <= selected_down_meta;
+            inv_eng_meta <= engine_facing_left; inv_eng_sync <= inv_eng_meta;
+            inv_fan_l_meta <= fan_facing_left; inv_fan_l_sync <= inv_fan_l_meta;
+            inv_fan_d_meta <= fan_facing_down; inv_fan_d_sync <= inv_fan_d_meta;
+            inv_rkt_meta <= rocket_facing_left; inv_rkt_sync <= inv_rkt_meta;
             if (left_frame) begin
                 draw_zoomed_out <= zoom_sync_display;
                 draw_overview <= overview_sync_display;
                 draw_free_look <= look_sync_display;
                 draw_sw0 <= sw0_sync_display;
+                draw_facing_down <= facing_down_sync;
+                draw_selected_down <= selected_down_sync;
+                draw_inv_engine_left <= inv_eng_sync;
+                draw_inv_fan_left <= inv_fan_l_sync;
+                draw_inv_fan_down <= inv_fan_d_sync;
+                draw_inv_rocket_left <= inv_rkt_sync;
             end
         end
     end
@@ -712,14 +766,29 @@ module My_Top_Module #(
         .map_level(draw_map_level), .map_id(draw_map_id), .world_width(draw_world_width), .world_height(draw_world_height),
         .flag_x(draw_flag_x), .flag_y(draw_flag_y), .star_box_x(draw_star_box_x), .star_box_y(draw_star_box_y)
     );
-    // Scrolling horizontal offset for Start Screen background
+    // Scrolling horizontal offset for Start Screen background and clouds
     reg [9:0] start_scroll_x;
     reg [1:0] scroll_div;
+    reg [6:0] cloud_scroll_fg;
+    reg [6:0] cloud_scroll_bg;
+    reg [1:0] cloud_div;
     always @(posedge oled_clk) begin
         if (oled_reset) begin
             start_scroll_x <= 0;
             scroll_div <= 0;
+            cloud_scroll_fg <= 7'd0;
+            cloud_scroll_bg <= 7'd0;
+            cloud_div <= 2'd0;
         end else if (left_frame && draw_start_screen_active) begin
+            cloud_div <= cloud_div + 1'b1;
+            // Foreground clouds drift lively: 1 pixel every 2 frames (~30 px/s)
+            if (cloud_div[0]) begin
+                cloud_scroll_fg <= (cloud_scroll_fg >= 7'd95) ? 7'd0 : (cloud_scroll_fg + 7'd1);
+            end
+            // Background clouds drift distant/slow: 1 pixel every 4 frames (~15 px/s)
+            if (cloud_div == 2'd3) begin
+                cloud_scroll_bg <= (cloud_scroll_bg >= 7'd95) ? 7'd0 : (cloud_scroll_bg + 7'd1);
+            end
             scroll_div <= scroll_div + 1'b1;
             if (scroll_div == 2'd1) begin
                 scroll_div <= 0;
@@ -744,10 +813,17 @@ module My_Top_Module #(
         .query_x(collision_query_x), .query_y(collision_query_y),
         .query_class(), .query_solid(collision_query_solid)
     );
-    left_renderer u_left_renderer (
+    left_renderer #(
+        .USE_PIXEL_INDEX(0),
+        .ENABLE_COMPACT_RUN_SPRITES(0)
+    ) u_left_renderer (
         .pixel_index(13'd0), .in_x(left_x), .in_y(left_y), .game_state(draw_state), .build_grid(draw_grid),
         .build_frames(draw_saved_frames), .build_facing_left(draw_facing_left),
-        .selected_left(draw_selected_left), .inventory_page(draw_inventory_page),
+        .build_facing_down(draw_facing_down),
+        .selected_left(draw_selected_left), .selected_down(draw_selected_down),
+        .inv_engine_left(draw_inv_engine_left), .inv_fan_left(draw_inv_fan_left),
+        .inv_fan_down(draw_inv_fan_down), .inv_rocket_left(draw_inv_rocket_left),
+        .inventory_page(draw_inventory_page),
         .rockets_left(draw_rockets_left), .fans_left(draw_fans_left), .intact_mask(draw_intact), .frame_intact_mask(draw_frames),
         .build_valid(draw_valid), .build_error(draw_error), .engine_enabled(draw_engine), .boost_active(draw_boost_active),
         .feedback_code(draw_feedback_code), .feedback_cell(draw_feedback_cell),
@@ -780,15 +856,21 @@ module My_Top_Module #(
         .build_grid(draw_grid),
         .intact_mask(draw_intact),
         .frame_intact_mask(draw_frames),
+        .build_frames(draw_saved_frames),
         .build_facing_left(draw_facing_left),
+        .build_facing_down(draw_facing_down),
         .sw0_engine(draw_sw0),
+        .cloud_scroll_fg(cloud_scroll_fg),
+        .cloud_scroll_bg(cloud_scroll_bg),
         .pixel_data(left_pixel_data)
     );
-    right_renderer u_right_renderer (
+    right_renderer #(
+        .USE_PIXEL_INDEX(0)
+    ) u_right_renderer (
         .clk(oled_clk), .zoomed_out(draw_zoomed_out), .overview(draw_overview),
         .free_look(draw_free_look), .cursor_x(draw_cursor_x), .cursor_y(draw_cursor_y),
         .pixel_index(13'd0), .in_x(map_x), .in_y(map_y), .game_state((draw_state==`LP_LEVEL_SELECT || draw_state==`LP_SETTINGS) ? `LP_BUILD : (draw_state==`LP_GUIDE ? draw_guide_return : draw_state)), .build_grid(draw_grid),
-        .build_facing_left(draw_facing_left), .intact_mask(draw_intact), .frame_intact_mask(draw_frames),
+        .build_facing_left(draw_facing_left), .build_facing_down(draw_facing_down), .intact_mask(draw_intact), .frame_intact_mask(draw_frames),
         // Full world coordinates cross the display snapshot without truncation.
         .vehicle_x(draw_x), .vehicle_y(draw_y), .vehicle_tilt(draw_tilt),
         .spawn_x(draw_spawn_x), .spawn_y(draw_spawn_y),

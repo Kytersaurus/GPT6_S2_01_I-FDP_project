@@ -4,7 +4,11 @@
 // Build view: grid, inventory icons/counts, selection, cursor, dragged part and level button.
 // Run view: grid as a damage diagram, run timer and surviving-part count.
 // Result view: damage diagram, final time, retry/next guidance and the result reason.
-module left_renderer #(parameter EDITOR_CELL_PIXELS = 16) (
+module left_renderer #(
+    parameter EDITOR_CELL_PIXELS = 16,
+    parameter USE_PIXEL_INDEX = 1,
+    parameter ENABLE_COMPACT_RUN_SPRITES = 1
+) (
     input wire [12:0] pixel_index,
     input wire [6:0] in_x,
     input wire [5:0] in_y,
@@ -14,6 +18,10 @@ module left_renderer #(parameter EDITOR_CELL_PIXELS = 16) (
     input tri0 [8:0] build_facing_down,
     input wire selected_left,
     input tri0 selected_down,
+    input tri0 inv_engine_left,
+    input tri0 inv_fan_left,
+    input tri0 inv_fan_down,
+    input tri0 inv_rocket_left,
     input wire [1:0] inventory_page,
     input wire [3:0] rockets_left, fans_left,
     input wire [8:0] intact_mask,
@@ -40,17 +48,29 @@ module left_renderer #(parameter EDITOR_CELL_PIXELS = 16) (
     output reg [15:0] pixel_data
 );
     `include "part_sprites.vh"
-    wire [6:0] x = (pixel_index != 13'd0) ? (pixel_index % 96) : (in_x === 7'bzzzzzzz ? 7'd0 : in_x);
-    wire [5:0] y = (pixel_index != 13'd0) ? (pixel_index / 96) : (in_y === 6'bzzzzzz ? 6'd0 : in_y);
+    wire [5:0] raw_pi_y = ({12'd0, pixel_index} * 25'd2731) >> 18;
+    wire [6:0] raw_pi_x = pixel_index - (raw_pi_y << 6) - (raw_pi_y << 5);
+    wire [6:0] x = USE_PIXEL_INDEX ? raw_pi_x : in_x;
+    wire [5:0] y = USE_PIXEL_INDEX ? raw_pi_y : in_y;
 
         // BUILD keeps the detailed 16-pixel grid. RUN uses a compact 12-pixel diagram.
-    wire compact_run = (game_state == `LP_RUN);
+    wire compact_run = ENABLE_COMPACT_RUN_SPRITES && (game_state == `LP_RUN);
     wire [6:0] cell_pixels = compact_run ? 7'd12 : EDITOR_CELL_PIXELS;
     wire [6:0] grid_left = 7'd4;
     wire [6:0] grid_top = compact_run ? 7'd12 : 7'd4;
     wire [6:0] grid_size = cell_pixels * 3;
     wire grid_pixel, number_pixel, tens_pixel, seconds_pixel, seconds_tens_pixel;
     wire inventory_number_pixel;
+    reg [2:0] inventory_part;
+    wire row_engine_left = inv_engine_left | (selected_part == `LP_PART_ENGINE && selected_left);
+    wire row_rocket_left = inv_rocket_left | (selected_part == `LP_PART_BOOSTER && selected_left);
+    wire row_fan_left    = inv_fan_left    | (selected_part == `LP_PART_FAN && selected_left);
+    wire row_fan_down    = inv_fan_down    | (selected_part == `LP_PART_FAN && selected_down);
+    wire inv_row_left = (inventory_part == `LP_PART_ENGINE) ? row_engine_left :
+                        (inventory_part == `LP_PART_BOOSTER) ? row_rocket_left :
+                        (inventory_part == `LP_PART_FAN) ? row_fan_left : 1'b0;
+    wire inv_row_down = (inventory_part == `LP_PART_FAN) ? row_fan_down : 1'b0;
+
     wire in_build = (game_state == `LP_BUILD);
     wire in_result = (game_state == `LP_SUCCESS || game_state == `LP_FAIL);
     wire [6:0] sec_pos_y = in_result ? 7'd4 : 7'd6;
@@ -64,7 +84,6 @@ module left_renderer #(parameter EDITOR_CELL_PIXELS = 16) (
     wire [6:0] drag_left = (cursor_x < 4) ? 7'd0 : (cursor_x > 92) ? 7'd88 : cursor_x - 7'd4;
     wire [6:0] drag_top = (cursor_y < 4) ? 7'd0 : (cursor_y > 60) ? 7'd56 : cursor_y - 7'd4;
     reg [3:0] inventory_number;
-    reg [2:0] inventory_part;
     reg [4:0] remaining_parts;
     wire [3:0] tens = (remaining_parts >= 10) ? 1 : 0;
     wire [3:0] ones = (remaining_parts >= 10) ? remaining_parts - 10 : remaining_parts;
@@ -86,6 +105,8 @@ module left_renderer #(parameter EDITOR_CELL_PIXELS = 16) (
         seconds_ones = tmp_s[3:0];
     end
     integer index, cell_index, cell_x, cell_y;
+    reg [5:0] grid_dx, grid_dy;
+    reg [1:0] grid_col, grid_row;
     integer stars;
     reg [2:0] part;
     reg [127:0] message;
@@ -93,6 +114,7 @@ module left_renderer #(parameter EDITOR_CELL_PIXELS = 16) (
     reg [7:0] letter;
     reg [34:0] letter_bits;
     integer text_column, text_row;
+    reg [3:0] text_char_idx;
     wire level_button_pixel = x >= `LP_LEVEL_BUTTON_X && x < `LP_LEVEL_BUTTON_X+`LP_LEVEL_BUTTON_W &&
                               y >= `LP_LEVEL_BUTTON_Y && y < `LP_LEVEL_BUTTON_Y+`LP_LEVEL_BUTTON_H;
     wire boost_button_pixel = x >= `LP_BOOST_BUTTON_X && x < `LP_BOOST_BUTTON_X+`LP_BOOST_BUTTON_W &&
@@ -102,9 +124,9 @@ module left_renderer #(parameter EDITOR_CELL_PIXELS = 16) (
     function [15:0] draw_part_icon;
         input [2:0] icon_part;
         input integer icon_x, icon_y;
-        input icon_facing_left;
+        input icon_facing_left, icon_facing_down;
         input [15:0] background;
-        begin draw_part_icon = part_sprite_facing(icon_part, icon_x, icon_y, 8, icon_facing_left, 1'b0, background); end
+        begin draw_part_icon = part_sprite_facing_dir(icon_part, icon_x, icon_y, 8, icon_facing_left, icon_facing_down, 1'b0, background); end
     endfunction
 
     `include "ui_font.vh"
@@ -135,9 +157,11 @@ module left_renderer #(parameter EDITOR_CELL_PIXELS = 16) (
             end
         endcase
         // Six pixels per character: five drawing columns, then a blank column.
-        letter = message >> ((15-x/6)*8);
+        text_char_idx = ({9'd0, x} * 16'd43) >> 8;
+        letter = message >> ((15 - text_char_idx) * 8);
         letter_bits = letter_pixels(letter);
-        text_column = x%6; text_row = y-56;
+        text_column = x - ((text_char_idx << 2) + (text_char_idx << 1));
+        text_row = y - 56;
     end
 
     square u_grid_box (
@@ -200,10 +224,24 @@ module left_renderer #(parameter EDITOR_CELL_PIXELS = 16) (
         cell_index = 0; cell_x = 0; cell_y = 0;
         part = 0;
         pixel_data = 16'h0841;
+        grid_dx = 0; grid_dy = 0;
+        grid_col = 0; grid_row = 0;
         if (grid_pixel) begin
-            cell_index = ((y-grid_top)/cell_pixels)*3 + (x-grid_left)/cell_pixels;
-            cell_x = (x-grid_left)%cell_pixels;
-            cell_y = (y-grid_top)%cell_pixels;
+            if (compact_run) begin
+                grid_dx = x - 7'd4;
+                grid_dy = y - 7'd12;
+                grid_col = (grid_dx < 6'd12) ? 2'd0 : ((grid_dx < 6'd24) ? 2'd1 : 2'd2);
+                grid_row = (grid_dy < 6'd12) ? 2'd0 : ((grid_dy < 6'd24) ? 2'd1 : 2'd2);
+                cell_index = {grid_row, 1'b0} + grid_row + grid_col;
+                cell_x = (grid_col == 2'd0) ? grid_dx : ((grid_col == 2'd1) ? (grid_dx - 6'd12) : (grid_dx - 6'd24));
+                cell_y = (grid_row == 2'd0) ? grid_dy : ((grid_row == 2'd1) ? (grid_dy - 6'd12) : (grid_dy - 6'd24));
+            end else begin
+                grid_dx = x - 7'd4;
+                grid_dy = y - 7'd4;
+                cell_index = {grid_dy[5:4], 1'b0} + grid_dy[5:4] + grid_dx[5:4];
+                cell_x = grid_dx[3:0];
+                cell_y = grid_dy[3:0];
+            end
             // Shift the selected cell's three bits into the bottom of the vector.
             part = build_grid >> (cell_index*3);
             if (cell_x == 0 || cell_y == 0 || x == grid_left+grid_size-1 || y == grid_top+grid_size-1) pixel_data = 16'h7bef;
@@ -265,9 +303,6 @@ module left_renderer #(parameter EDITOR_CELL_PIXELS = 16) (
                         end
                     end
                 end
-                if (text_on("C RETRY         ", 54, 32, x, y)) pixel_data = 16'hffff;
-                if (text_on(game_state == `LP_SUCCESS ? "U NEXT          " : "U EDIT          ", 54, 42, x, y))
-                    pixel_data = 16'hffe0;
             end else begin
                 if (text_on("S               ", 7'd82, 6'd19, x, y)) pixel_data = 16'h07ff;
                 if (number_pixel || (remaining_parts >= 10 && tens_pixel)) pixel_data = 16'hffff;
@@ -277,7 +312,7 @@ module left_renderer #(parameter EDITOR_CELL_PIXELS = 16) (
             if (selected_part == inventory_part &&
                 (x == 56 || x == 91 || y == inventory_top || y == inventory_bottom)) pixel_data = 16'hffe0;
             pixel_data = draw_part_icon(inventory_part, x-60, y-inventory_content_top,
-                                        selected_part == inventory_part && selected_left, pixel_data);
+                                        inv_row_left, inv_row_down, pixel_data);
             if (inventory_number_pixel) pixel_data = (inventory_number == 0) ? 16'hf800 : 16'hffff;
         end
         if (in_build && inventory_page==1 && x>=56 && x<92 && y==28) pixel_data=16'h7bef;
@@ -286,8 +321,9 @@ module left_renderer #(parameter EDITOR_CELL_PIXELS = 16) (
              inventory_part == `LP_PART_FAN || inventory_part == `LP_PART_BALLOON)) begin
             // Show the current facing for engine, rocket and fan; balloons point up.
             if (text_on(inventory_part==`LP_PART_BALLOON ? "^               " :
-                        (inventory_part==`LP_PART_FAN && selected_down) ? "v               " :
-                        selected_left ? "<               " : ">               ",72,inventory_content_top+1,x,y)) pixel_data=16'h07ff;
+                        (inventory_part==`LP_PART_FAN) ? (row_fan_down ? "v               " : (row_fan_left ? "<               " : ">               ")) :
+                        (inventory_part==`LP_PART_BOOSTER) ? (row_rocket_left ? "<               " : ">               ") :
+                        (row_engine_left ? "<               " : ">               "), 72, inventory_content_top+1, x, y)) pixel_data=16'h07ff;
         end
         if (in_result || in_build) begin
             if (y >= 56 && y < 63 && !(feedback_code == `LP_FEEDBACK_NONE && x >= `LP_LEVEL_BUTTON_X)) begin

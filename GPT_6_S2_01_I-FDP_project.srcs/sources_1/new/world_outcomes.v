@@ -82,8 +82,17 @@ module world_outcomes (
         for(index=0;index<9;index=index+1)
             if(intact_mask[index] && build_grid[index*3 +: 3]==`LP_PART_PIG) begin
                 candidate_pig_found=1;
-                candidate_pig_x=(index%3)*8-8;
-                candidate_pig_y=(index/3)*8-8;
+                case (index[3:0])
+                    4'd0: begin candidate_pig_x = -5'sd8; candidate_pig_y = -5'sd8; end
+                    4'd1: begin candidate_pig_x =  5'sd0; candidate_pig_y = -5'sd8; end
+                    4'd2: begin candidate_pig_x =  5'sd8; candidate_pig_y = -5'sd8; end
+                    4'd3: begin candidate_pig_x = -5'sd8; candidate_pig_y =  5'sd0; end
+                    4'd4: begin candidate_pig_x =  5'sd0; candidate_pig_y =  5'sd0; end
+                    4'd5: begin candidate_pig_x =  5'sd8; candidate_pig_y =  5'sd0; end
+                    4'd6: begin candidate_pig_x = -5'sd8; candidate_pig_y =  5'sd8; end
+                    4'd7: begin candidate_pig_x =  5'sd0; candidate_pig_y =  5'sd8; end
+                    default: begin candidate_pig_x = 5'sd8; candidate_pig_y = 5'sd8; end
+                endcase
             end
     end
     always @(posedge clk) begin

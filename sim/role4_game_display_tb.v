@@ -301,8 +301,8 @@ module role4_game_display_tb;
         expect_left(83, 56, 16'h0841, "no button after run");
         view_state=`LP_SUCCESS; view_reason=`LP_FAIL_NONE;
         expect_left(0, 56, 16'h07e0, "LEVEL CLEAR text");
-        expect_left(55, 32, 16'hffff, "C RETRY guidance");
-        expect_left(54, 42, 16'hffe0, "U NEXT guidance");
+        expect_left(55, 32, 16'h0841, "clean background without C RETRY");
+        expect_left(54, 42, 16'h0841, "clean background without U NEXT");
         view_state=`LP_RUN;
         expect_left(5, 58, 16'h07e0, "runtime valid indicator");
         // Timer 12: tens digit 1 on the right segments, ones digit 2 starts with the top bar.
