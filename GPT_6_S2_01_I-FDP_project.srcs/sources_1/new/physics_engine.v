@@ -474,7 +474,7 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
                     rocket_terms<=sampled_rockets<0 ? -sampled_rockets : sampled_rockets;
                     step_vertical_base <= vertical_sum;
                     // Forward fan facing produces positive +X thrust.
-                    step_air_force <= -($signed({{11{sampled_fans[4]}},sampled_fans}) <<< FAN_FORCE_SHIFT);
+                    step_air_force <= ($signed({{11{sampled_fans[4]}},sampled_fans}) <<< FAN_FORCE_SHIFT);
                     step_thrust <= 0;
                     // With wheel sides reported, only wheels touching the ground drive.
                     if (sampled_engine_enabled && sampled_engines != 0 && (sampled_wheels != 0 || (!sampled_sided && !step_moments_enabled)) && was_grounded) begin

@@ -815,6 +815,17 @@ module My_Top_Module #(
         .query_x(collision_query_x), .query_y(collision_query_y),
         .query_class(), .query_solid(collision_query_solid)
     );
+    wire [8:0] draw_active_fans = {
+        draw_intact[8] && draw_grid[26:24] == `LP_PART_FAN && draw_fan_on,
+        draw_intact[7] && draw_grid[23:21] == `LP_PART_FAN && draw_fan_on,
+        draw_intact[6] && draw_grid[20:18] == `LP_PART_FAN && draw_fan_on,
+        draw_intact[5] && draw_grid[17:15] == `LP_PART_FAN && draw_fan_on,
+        draw_intact[4] && draw_grid[14:12] == `LP_PART_FAN && draw_fan_on,
+        draw_intact[3] && draw_grid[11:9]  == `LP_PART_FAN && draw_fan_on,
+        draw_intact[2] && draw_grid[8:6]   == `LP_PART_FAN && draw_fan_on,
+        draw_intact[1] && draw_grid[5:3]   == `LP_PART_FAN && draw_fan_on,
+        draw_intact[0] && draw_grid[2:0]   == `LP_PART_FAN && draw_fan_on
+    };
     left_renderer #(
         .USE_PIXEL_INDEX(0),
         .ENABLE_COMPACT_RUN_SPRITES(0)
@@ -872,7 +883,7 @@ module My_Top_Module #(
         .clk(oled_clk), .zoomed_out(draw_zoomed_out), .overview(draw_overview),
         .free_look(draw_free_look), .cursor_x(draw_cursor_x), .cursor_y(draw_cursor_y),
         .pixel_index(13'd0), .in_x(map_x), .in_y(map_y), .game_state((draw_state==`LP_LEVEL_SELECT || draw_state==`LP_SETTINGS) ? `LP_BUILD : (draw_state==`LP_GUIDE ? draw_guide_return : draw_state)), .build_grid(draw_grid),
-        .build_facing_left(draw_facing_left), .build_facing_down(draw_facing_down), .intact_mask(draw_intact), .frame_intact_mask(draw_frames),
+        .build_facing_left(draw_facing_left), .build_facing_down(draw_facing_down), .active_fans(draw_active_fans), .intact_mask(draw_intact), .frame_intact_mask(draw_frames),
         // Full world coordinates cross the display snapshot without truncation.
         .vehicle_x(draw_x), .vehicle_y(draw_y), .vehicle_tilt(draw_tilt),
         .spawn_x(draw_spawn_x), .spawn_y(draw_spawn_y),
