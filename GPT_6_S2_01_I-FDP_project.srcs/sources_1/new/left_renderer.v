@@ -11,7 +11,9 @@ module left_renderer #(parameter EDITOR_CELL_PIXELS = 16) (
     input wire [2:0] game_state,
     input wire [26:0] build_grid,
     input wire [8:0] build_frames, build_facing_left,
+    input tri0 [8:0] build_facing_down,
     input wire selected_left,
+    input tri0 selected_down,
     input wire [1:0] inventory_page,
     input wire [3:0] rockets_left, fans_left,
     input wire [8:0] intact_mask,
@@ -214,7 +216,7 @@ module left_renderer #(parameter EDITOR_CELL_PIXELS = 16) (
                 if (frame_intact_mask[cell_index] && !(in_build && drag_active && drag_from_grid && selected_part==`LP_PART_FRAME && drag_source == cell_index))
                     pixel_data = compact_run ? part_sprite12(`LP_PART_FRAME, cell_x, cell_y, 1'b0, pixel_data) : part_sprite16(`LP_PART_FRAME, cell_x, cell_y, 1'b0, pixel_data);
                 if (intact_mask[cell_index] && !(in_build && drag_active && drag_from_grid && drag_source == cell_index))
-                    pixel_data = part_sprite_facing(part, cell_x, cell_y, compact_run ? 12 : 16, build_facing_left[cell_index], anim_phase, pixel_data);
+                    pixel_data = part_sprite_facing_dir(part, cell_x, cell_y, compact_run ? 12 : 16, build_facing_left[cell_index], build_facing_down[cell_index], anim_phase, pixel_data);
             end
             if (feedback_code != `LP_FEEDBACK_NONE && feedback_cell < 9 &&
                 cell_index == feedback_cell &&
@@ -284,6 +286,7 @@ module left_renderer #(parameter EDITOR_CELL_PIXELS = 16) (
              inventory_part == `LP_PART_FAN || inventory_part == `LP_PART_BALLOON)) begin
             // Show the current facing for engine, rocket and fan; balloons point up.
             if (text_on(inventory_part==`LP_PART_BALLOON ? "^               " :
+                        (inventory_part==`LP_PART_FAN && selected_down) ? "v               " :
                         selected_left ? "<               " : ">               ",72,inventory_content_top+1,x,y)) pixel_data=16'h07ff;
         end
         if (in_result || in_build) begin
@@ -307,7 +310,7 @@ module left_renderer #(parameter EDITOR_CELL_PIXELS = 16) (
         end
         // Draw a temporary copy above the interface; the builder changes only on release.
         if (in_build && cursor_visible && drag_active) begin
-            pixel_data = part_sprite_facing(selected_part,x-drag_left,y-drag_top,8,selected_left,1'b0,pixel_data);
+            pixel_data = part_sprite_facing_dir(selected_part,x-drag_left,y-drag_top,8,selected_left,selected_down,1'b0,pixel_data);
 
         end
         if (cursor_visible && (in_build || game_state == `LP_RUN) &&

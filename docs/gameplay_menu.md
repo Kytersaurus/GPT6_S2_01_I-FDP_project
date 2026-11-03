@@ -32,7 +32,7 @@ The timer on the Basys3 displays M.SS and runs through 4:15. Mouse-wheel steps s
 
 Engine direction already feeds the existing physics inputs without modifying Kyle's arithmetic. `engine_balance` is the number of surviving right-facing engines minus surviving left-facing engines. The top supplies its absolute value as the effective engine count and XORs its sign with SW2 for reverse. Thus opposing engines cancel thrust, SW2 reverses the entire engine balance, and damage immediately updates the next movement sample. Existing ground-only thrust, boost, friction and jump rules remain.
 
-Fan/rocket construction, sprites, stock and rocket direction storage are present. Their DRIVE controls display WAIT and stay disabled in the connected top until Kyle connects physics availability/readiness. `ui_controller.fan_available`, `rocket_available` and `rocket_ready` gate `fan_on` and the one-clock `rocket_req`; `ui_fan_on` and `ui_rocket_req` are named top wires for that integration. Do not enable these gates until physics consumes the outputs. The global frame snapshot is 268 bits (SNAPSHOT_WIDTH = 251 + 4*(LP_COORD_BITS-16) + (LP_TILT_BITS-4)).
+Fan/rocket construction, sprites, stock and rocket direction storage are present. Their DRIVE controls display WAIT and stay disabled in the connected top until Kyle connects physics availability/readiness. `ui_controller.fan_available`, `rocket_available` and `rocket_ready` gate `fan_on` and the one-clock `rocket_req`; `ui_fan_on` and `ui_rocket_req` are named top wires for that integration. Do not enable these gates until physics consumes the outputs. The global frame snapshot is 287 bits (SNAPSHOT_WIDTH = 251 + 19 + 4*(LP_COORD_BITS-16) + (LP_TILT_BITS-4)).
 
 ## Validation
 

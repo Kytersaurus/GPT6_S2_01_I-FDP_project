@@ -24,6 +24,8 @@ module right_renderer (
     input wire [2:0] game_state,
     input wire [26:0] build_grid,
     input wire [8:0] build_facing_left,
+    input tri0 [8:0] build_facing_down,
+    input tri0 [8:0] active_fans,
     input wire [8:0] intact_mask,
     input wire [8:0] frame_intact_mask,
     // 20-bit Q12.8 positions, ready for wider physics; today's 16-bit values are sign-extended.
@@ -300,13 +302,13 @@ module right_renderer (
                 rel_x=2*rel_x;
                 rel_y=2*rel_y;
                 if (frame_intact_mask[cell_index]) pixel_data = part_sprite(`LP_PART_FRAME, rel_x, rel_y, 1'b0, pixel_data);
-                if (intact_mask[cell_index]) pixel_data = part_sprite_facing(part, rel_x, rel_y, 8, build_facing_left[cell_index], anim_phase, pixel_data);
+                if (intact_mask[cell_index]) pixel_data = part_sprite_facing_dir(part, rel_x, rel_y, 8, build_facing_left[cell_index], build_facing_down[cell_index], anim_phase, pixel_data);
             end else if (zoomed_out_q) begin
                 if (frame_intact_mask[cell_index]) pixel_data = part_sprite(`LP_PART_FRAME, rel_x, rel_y, 1'b0, pixel_data);
-                if (intact_mask[cell_index]) pixel_data = part_sprite_facing(part, rel_x, rel_y, 8, build_facing_left[cell_index], anim_phase, pixel_data);
+                if (intact_mask[cell_index]) pixel_data = part_sprite_facing_dir(part, rel_x, rel_y, 8, build_facing_left[cell_index], build_facing_down[cell_index], anim_phase, pixel_data);
             end else begin
                 if (frame_intact_mask[cell_index]) pixel_data = part_sprite12(`LP_PART_FRAME, rel_x, rel_y, 1'b0, pixel_data);
-                if (intact_mask[cell_index]) pixel_data = part_sprite_facing(part, rel_x, rel_y, 12, build_facing_left[cell_index], anim_phase, pixel_data);
+                if (intact_mask[cell_index]) pixel_data = part_sprite_facing_dir(part, rel_x, rel_y, 12, build_facing_left[cell_index], build_facing_down[cell_index], anim_phase, pixel_data);
             end
         end
         // Explosions grow over three phases: yellow flash, orange fireball, grey smoke.

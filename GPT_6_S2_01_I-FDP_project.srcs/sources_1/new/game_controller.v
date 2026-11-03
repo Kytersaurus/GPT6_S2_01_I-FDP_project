@@ -36,6 +36,7 @@ module game_controller #(
     reg [6:0] second_ticks;
     reg settings_from_start;
     reg [2:0] settings_return_state;
+    reg [2:0] map_return_state;
     reg map_from_start;
     wire [`LP_LEVEL_BITS-1:0] next_level = (level_index == `LP_LEVEL_COUNT-1) ? 0 : level_index + 1'b1;
     assign run_init = (game_state == `LP_INIT_RUN);
@@ -50,6 +51,7 @@ module game_controller #(
             start_screen_active <= (enable_start_screen === 1'b1) || (ENABLE_START_SCREEN != 0);
             settings_from_start <= 1'b0;
             map_from_start <= 1'b0;
+            map_return_state <= `LP_SETTINGS;
         end else begin
             step_start <= 0; update_release <= 0;
             if (star_box_hit && game_state == `LP_RUN) star_box_collected <= 1;
@@ -64,6 +66,7 @@ module game_controller #(
                 if (launch_req) begin
                     start_screen_active <= 1'b0;
                     map_from_start <= 1'b1;
+                    map_return_state <= `LP_BUILD;
                     game_state <= `LP_LEVEL_SELECT;
                 end else if (level_open_req) begin
                     start_screen_active <= 1'b0;
@@ -92,7 +95,7 @@ module game_controller #(
                             end
                         end
                         else if (level_select_req || level_open_req) begin
-                            map_from_start <= 0; game_state <= `LP_LEVEL_SELECT;
+                            map_from_start <= 0; map_return_state <= `LP_SETTINGS; game_state <= `LP_LEVEL_SELECT;
                         end
                         else if (guide_open_req) begin guide_return_state <= `LP_SETTINGS; game_state <= `LP_GUIDE; end
                     end
@@ -103,7 +106,7 @@ module game_controller #(
                                 start_screen_active <= (enable_start_screen === 1'b1) || (ENABLE_START_SCREEN != 0);
                                 game_state <= `LP_BUILD;
                             end else begin
-                                game_state <= `LP_SETTINGS;
+                                game_state <= map_return_state;
                             end
                         end else if (level_select_req && selected_level < `LP_LEVEL_COUNT) begin
                             level_index <= selected_level;
@@ -153,6 +156,7 @@ module game_controller #(
                     if (guide_open_req) begin guide_return_state <= game_state; game_state <= `LP_GUIDE; end
                     else if (level_open_req || level_select_req) begin
                         map_from_start <= 0;
+                        map_return_state <= game_state;
                         game_state <= `LP_LEVEL_SELECT;
                     end
                     else if (edit_req) begin

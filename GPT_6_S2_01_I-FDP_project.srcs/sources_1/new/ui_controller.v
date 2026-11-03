@@ -43,7 +43,7 @@ module ui_controller (
             level_open_req<=0; level_close_req<=0; level_select_req<=0;
             boost_req<=0;
             if (run_init) begin engine_on<=0; fan_on<=0; run_page<=0; end
-            if (engine_toggle_req && engine_switch && game_state==`LP_RUN) engine_on<=!engine_on;
+            if (engine_toggle_req && engine_switch && game_state==`LP_RUN && !run_init) engine_on<=!engine_on;
             if (fan_toggle_req && fan_available && game_state==`LP_RUN && !run_init) fan_on<=!fan_on;
             // SW0 is a master inhibit. Each launch starts with actuators off.
             if (!engine_switch || run_init) engine_on<=0;
@@ -77,9 +77,8 @@ module ui_controller (
                         // Home button: [ ⌂ ] in bottom right: x: 70..95, y: 50..63
                         end else if (mx>=70 && mx<=95 && my>=50 && my<=63) begin
                             home_req <= 1;
-                        // Back button: [ ◀ ] in bottom left/center: y: 50..63
-                        end else if ((mx>=28 && mx<=68 && my>=50 && my<=63) ||
-                                     (mx<=34 && my>=50 && my<=63)) begin
+                        // Back button: [ ◀ ] in bottom center: y: 50..63
+                        end else if (((mx>=28 && mx<=68) || mx<=34) && my>=50 && my<=63) begin
                             level_close_req <= 1;
                         end
                     end else if (game_state==`LP_LEVEL_SELECT) begin
@@ -102,7 +101,7 @@ module ui_controller (
                                 master_volume <= master_volume + 1;
                         end
                         if (my>=50 && my<64) begin
-                            if (mx<32) guide_close_req <= 1;
+                            if (mx<=27) guide_close_req <= 1;
                             else if (diary_page!=3 && mx>=32 && mx<95)
                                 diary_page <= mx<53 ? 2'd0 : mx<74 ? 2'd1 : 2'd2;
                         end
@@ -131,10 +130,10 @@ module ui_controller (
                             if (mx >= 2 && mx <= 22) begin
                                 launch_req <= 1;          // [RETRY]
                                 run_page <= 0;
-                            end else if (mx >= 26 && mx <= 44) begin
+                            end else if (mx >= 26 && mx <= 46) begin
                                 end_try_req <= 1;         // [END TRY]
                                 run_page <= 0;
-                            end else if (mx >= 50 && mx <= 72) begin
+                            end else if (mx >= 50 && mx <= 70) begin
                                 edit_req <= 1;            // [EDIT]
                                 run_page <= 0;
                             end else if (mx >= 74 && mx <= 94) begin
@@ -152,8 +151,7 @@ module ui_controller (
                             level_open_req <= 1;
                         end
                         else if ((mx>=2 && mx<=23 && my==0) ||
-                                 (mx>=74 && mx<=94 && my>=32 && my<=42) ||
-                                 (run_page==1 && mx>=56 && mx<84 && my>=14 && my<24)) begin
+                                 (mx>=74 && mx<=94 && my>=32 && my<=42)) begin
                             edit_req <= 1;
                             run_page <= 0;
                         end
@@ -168,8 +166,8 @@ module ui_controller (
                         end
                         // 4. In-flight Actuators on left panel (x: 4..24, y: 12..53)
                         else if (mx >= 4 && mx < 24 && my >= 12 && my < 54) begin
-                            if (my >= 12 && my < 22)
-                                engine_on <= engine_switch && !engine_on;
+                            if (my >= 12 && my < 22 && engine_switch)
+                                engine_on <= !engine_on;
                             else if (my >= 23 && my < 33 && fan_available)
                                 fan_on <= !fan_on;
                             else if (my >= 34 && my < 44)

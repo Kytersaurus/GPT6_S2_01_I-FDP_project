@@ -23,6 +23,8 @@ module ui_renderer (
     input wire [8:0] intact_mask,
     input wire [8:0] frame_intact_mask,
     input wire [8:0] build_facing_left,
+    input tri0 [8:0] build_facing_down,
+    input tri0 [8:0] active_fans,
     input wire sw0_engine,
     output reg [15:0] pixel_data
 );
@@ -355,11 +357,15 @@ module ui_renderer (
             if (text_on("MAP 2           ", 10, 44, x, y)) pixel_data = 16'h07ff;
 
             // Bottom toolbar: [ BACK ]
-            if (y >= 55) begin
+            if (y >= 52) begin
                 if (x <= 27) begin
-                    if (x == 0 || x == 27 || y == 55 || y == 63) pixel_data = 16'h04b4;
-                    else pixel_data = 16'h18e5;
-                    if (is_back_arrow(7'd14, 6'd59, x, y)) pixel_data = 16'hffff;
+                    if (x == 0 || x == 27 || y == 52 || y == 63)
+                        pixel_data = (cursor_x <= 27 && cursor_y >= 52) ? 16'hffe0 : 16'h04b4;
+                    else if (cursor_x <= 27 && cursor_y >= 52)
+                        pixel_data = 16'h0432; // Ocean teal hover glow
+                    else
+                        pixel_data = 16'h18e5;
+                    if (is_back_arrow(7'd14, 6'd58, x, y)) pixel_data = 16'hffff;
                 end else if (text_on("PICK A MAP      ", 32, 56, x, y)) pixel_data = 16'h7bef;
             end
         end else if (game_state == `LP_SETTINGS) begin
@@ -389,25 +395,21 @@ module ui_renderer (
                     (x == 24 && (y == 19 || y == 25)))
                     pixel_data = 16'hffe0;
 
-                // Red mute slash across speaker if muted (3-pixel thick diagonal slash)
+                // Red mute slash across speaker if muted (4-pixel thick diagonal slash)
                 if (audio_muted && (x >= 10 && x <= 25 && y >= 16 && y <= 29 &&
-                                    (x - y + 6 >= 0 && x - y + 6 <= 2)))
+                                    (x - y + 6 >= 0 && x - y + 6 <= 3)))
                     pixel_data = 16'hf800;
 
-                // 4 Stepped Volume Bars (x: 10..25, y: 33..44) or "MUTE" status
+                // 4 Stepped Volume Bars (x: 10..25, y: 33..44) (Clean: no text clutter)
                 if (y >= 33 && y <= 44) begin
-                    if (audio_muted) begin
-                        if (text_on("MUTE            ", 8, 36, x, y)) pixel_data = 16'hf800;
-                    end else begin
-                        if (x >= 11 && x <= 13 && y >= 42)
-                            pixel_data = (master_volume >= 1) ? 16'h07e0 : 16'h2945;
-                        else if (x >= 15 && x <= 17 && y >= 39)
-                            pixel_data = (master_volume >= 2) ? 16'h07e0 : 16'h2945;
-                        else if (x >= 19 && x <= 21 && y >= 36)
-                            pixel_data = (master_volume >= 3) ? 16'h07e0 : 16'h2945;
-                        else if (x >= 23 && x <= 25 && y >= 33)
-                            pixel_data = (master_volume >= 4) ? 16'h07e0 : 16'h2945;
-                    end
+                    if (x >= 11 && x <= 13 && y >= 42)
+                        pixel_data = (!audio_muted && master_volume >= 1) ? 16'h07e0 : 16'h2945;
+                    else if (x >= 15 && x <= 17 && y >= 39)
+                        pixel_data = (!audio_muted && master_volume >= 2) ? 16'h07e0 : 16'h2945;
+                    else if (x >= 19 && x <= 21 && y >= 36)
+                        pixel_data = (!audio_muted && master_volume >= 3) ? 16'h07e0 : 16'h2945;
+                    else if (x >= 23 && x <= 25 && y >= 33)
+                        pixel_data = (!audio_muted && master_volume >= 4) ? 16'h07e0 : 16'h2945;
                 end
             end
 
@@ -581,25 +583,23 @@ module ui_renderer (
                     end
                     if (text_on(" +              ", 68, 28, x, y)) pixel_data = 16'hffff;
 
-                    // Switch 1 (Mute) Status Banner
+                    // Switch 1 (Mute) Status Banner: only show when muted
                     if (audio_muted) begin
-                        if (text_on("SW1: MUTED      ", 12, 43, x, y)) pixel_data = 16'hf800; // Red
-                    end else begin
-                        if (text_on("SW1: ACTIVE     ", 12, 43, x, y)) pixel_data = 16'h07e0; // Green
+                        if (text_on("MUTED BY SW1    ", 10, 43, x, y)) pixel_data = 16'hf800; // Red
                     end
                 end
             endcase
 
             // Bottom toolbar: [BACK] [ 1 ] [ 2 ] [ 3 ]
-            if (y >= 55) begin
+            if (y >= 52) begin
                 if (x <= 27) begin
-                    if (x == 0 || x == 27 || y == 55 || y == 63)
-                        pixel_data = (cursor_x <= 27 && cursor_y >= 55) ? 16'hffe0 : 16'h04b4;
-                    else if (cursor_x <= 27 && cursor_y >= 55)
+                    if (x == 0 || x == 27 || y == 52 || y == 63)
+                        pixel_data = (cursor_x <= 27 && cursor_y >= 52) ? 16'hffe0 : 16'h04b4;
+                    else if (cursor_x <= 27 && cursor_y >= 52)
                         pixel_data = 16'h0432; // Ocean teal hover glow
                     else
                         pixel_data = 16'h18e5;
-                    if (is_back_arrow(7'd14, 6'd59, x, y)) pixel_data = 16'hffff;
+                    if (is_back_arrow(7'd14, 6'd58, x, y)) pixel_data = 16'hffff;
                 end else if (diary_page != 3) begin
                     if (x >= 32 && x <= 51) begin
                         if (x == 32 || x == 51 || y == 55 || y == 63)
@@ -712,15 +712,15 @@ module ui_renderer (
                                 pixel_data = (run_spr != pixel_data) ? ((run_spr & 16'hf7de) >> 1) : pixel_data;
                             end
                         end else if (run_part == `LP_PART_FAN) begin
-                            if (fan_on) begin
-                                pixel_data = part_sprite_facing(run_part, run_cell_x, run_cell_y, 16, build_facing_left[run_cell_index], anim_phase, pixel_data);
+                            if (active_fans[run_cell_index]) begin
+                                pixel_data = part_sprite_facing_dir(run_part, run_cell_x, run_cell_y, 16, build_facing_left[run_cell_index], build_facing_down[run_cell_index], anim_phase, pixel_data);
                             end else begin
                                 // Grayed out / dimmed inactive fan
-                                run_spr = part_sprite_facing(run_part, run_cell_x, run_cell_y, 16, build_facing_left[run_cell_index], 1'b0, pixel_data);
+                                run_spr = part_sprite_facing_dir(run_part, run_cell_x, run_cell_y, 16, build_facing_left[run_cell_index], build_facing_down[run_cell_index], 1'b0, pixel_data);
                                 pixel_data = (run_spr != pixel_data) ? ((run_spr & 16'hf7de) >> 1) : pixel_data;
                             end
                         end else begin
-                            pixel_data = part_sprite_facing(run_part, run_cell_x, run_cell_y, 16, build_facing_left[run_cell_index], anim_phase, pixel_data);
+                            pixel_data = part_sprite_facing_dir(run_part, run_cell_x, run_cell_y, 16, build_facing_left[run_cell_index], build_facing_down[run_cell_index], anim_phase, pixel_data);
                         end
                     end
                 end
@@ -741,18 +741,18 @@ module ui_renderer (
                     if (is_retry_icon(7'd12, 6'd58, x, y)) pixel_data = 16'hffff;
                 end
 
-                // Button 2: [ END TRY ] (x: 26..44)
-                else if (x >= 26 && x <= 44) begin
-                    if (x == 26 || x == 44 || y == 53 || y == 63) pixel_data = 16'h04b4;
-                    else if (cursor_x >= 26 && cursor_x <= 44 && cursor_y >= 54 && cursor_y <= 63) pixel_data = 16'h0351;
+                // Button 2: [ END TRY ] (x: 26..46, center 36)
+                else if (x >= 26 && x <= 46) begin
+                    if (x == 26 || x == 46 || y == 53 || y == 63) pixel_data = 16'h04b4;
+                    else if (cursor_x >= 26 && cursor_x <= 46 && cursor_y >= 54 && cursor_y <= 63) pixel_data = 16'h0351;
                     else pixel_data = 16'h18e5;
-                    if (is_stop_icon(7'd35, 6'd58, x, y)) pixel_data = 16'hf800; // Red stop icon
+                    if (is_stop_icon(7'd36, 6'd58, x, y)) pixel_data = 16'hf800; // Red stop icon
                 end
 
-                // Button 3: [ EDIT ] (x: 50..72) - Pencil Icon
-                else if (x >= 50 && x <= 72) begin
-                    if (x == 50 || x == 72 || y == 53 || y == 63) pixel_data = 16'h04b4;
-                    else if (cursor_x >= 50 && cursor_x <= 72 && cursor_y >= 54 && cursor_y <= 63) pixel_data = 16'h0351;
+                // Button 3: [ EDIT ] (x: 50..70, center 60) - Pencil Icon
+                else if (x >= 50 && x <= 70) begin
+                    if (x == 50 || x == 70 || y == 53 || y == 63) pixel_data = 16'h04b4;
+                    else if (cursor_x >= 50 && cursor_x <= 70 && cursor_y >= 54 && cursor_y <= 63) pixel_data = 16'h0351;
                     else pixel_data = 16'h18e5;
                     pixel_data = cartoon_pencil(7'd60, 6'd58, x, y, pixel_data);
                 end
@@ -769,7 +769,12 @@ module ui_renderer (
             // -----------------------------------------------------------------
             // RESULT SCREEN: Pure Icon Toolbar
             // -----------------------------------------------------------------
-            if (y >= 54) begin
+            // Clear right panel to avoid background text bleed
+            if (x >= 54 && y >= 30 && y < 53) begin
+                pixel_data = 16'h18c3;
+            end
+            if (y >= 53) begin
+                pixel_data = 16'h0841;
                 // Button 1: [ HOME ] (x: 2..22)
                 if (x >= 2 && x <= 22) begin
                     if (x == 2 || x == 22 || y == 54 || y == 63) pixel_data = 16'h04b4;
