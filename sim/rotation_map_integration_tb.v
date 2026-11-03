@@ -145,11 +145,12 @@ module rotation_map_integration_tb;
             if(cvx<=0) $fatal(1,"Rotated vehicle failed downhill movement");
         end
         if(x<=165*256 || y<=spawn_y) $fatal(1,"Rotated vehicle failed to follow ramp");
-        jump=1;do_step;jump=0;
-        if(grounded || tilt!==4 || cvy!==-512) $fatal(1,"Jump did not preserve rotated launch attitude");
+        balloons=2;do_step;
+        if(grounded || tilt!==4 || cvy>=0) $fatal(1,"Balloon lift did not preserve rotated launch attitude");
         do_step;
         if(grounded || tilt!==4) $fatal(1,"Airborne attitude was lost");
 
+        balloons=0;
         map_id=1;spawn_x=68*256;spawn_y=178*256;initialize_run;
         if(tilt!==0) $fatal(1,"Retry retained tilt");
         for(steps=0;steps<4;steps=steps+1) begin
@@ -162,7 +163,7 @@ module rotation_map_integration_tb;
             do_step;
             if(grounded || slope!==0 || tilt!==0 || y>=spawn_y || cvy>=0) $fatal(1,"Balloon detachment failed");
         end
-        $display("PASS rotation_map_integration_tb: %0d actual-map rotated updates, downhill contact, jump/airborne attitude, retry, Flight ledge, balloon lift; max latency=%0d clocks",updates,max_latency);
+        $display("PASS rotation_map_integration_tb: %0d actual-map rotated updates, downhill contact, lift/airborne attitude, retry, Flight ledge, balloon lift; max latency=%0d clocks",updates,max_latency);
         $finish;
     end
     initial begin #300000000; $fatal(1,"Connected slope test timed out"); end

@@ -13,7 +13,8 @@ All game modules live beside `My_Top_Module.v` in the existing design source fol
 | `custom_clk_divider` inside `clock_control` | Both OLED drivers | The user's divider produces 6.25 MHz with `freq_count=7`, connected directly to `oled_clk` |
 | `clock_control` | `game_controller` | `physics_tick` requests an update approximately 60 times per second |
 | `input_controller` | `game_controller` | `start_press` connects to both `launch_req` and `retry_req`; the current state chooses the action. `edit_press` connects to `edit_req` |
-| `input_controller` | `physics_engine` | SW0 `engine_enabled`, SW2 `engine_reverse` and debounced BTNL `jump_press`, sampled/queued at the movement boundary |
+| `input_controller`, `ui_controller` | `physics_engine` | SW0 inhibits engine drive, the engine icon toggles it while SW0 is on, and SW2 supplies reverse. BTNL is reserved; legacy `jump_press` is inactive |
+| Future fan metadata | `physics_engine` | `live_lift_fan_count[3:0]` and `fan_lift_mask[8:0]` select downward-blowing fans for world-up force and moments. Both are tied zero until the item exists; exclude these fans from horizontal `fan_balance` |
 | `input_controller`, accepted game events | `sound_controller` | Launch, applied pop, collision/landing, success and failure; SW1 supplies mute (BTNR reserved) |
 | `sound_controller` | `sound_generator` | Chosen three-bit sound ID and start; busy/active ID return for priority decisions |
 | `sound_generator`, reset/mute wiring | Pmod AMP2 on JXADC | `JXADC[0]` PWM audio, `JXADC[1]` high for 6 dB gain, `JXADC[2]` zero/NC, `JXADC[3]` high only outside reset/mute |
@@ -39,7 +40,7 @@ All game modules live beside `My_Top_Module.v` in the existing design source fol
 
 Every movement coordinate and velocity is signed with eight fractional bits: 256 units equals one pixel. Valid/ready payloads stay unchanged until a rising-edge transfer. Physics waits for world completion before sampling properties for another step.
 
-`input_controller` instantiates the user's `button_debouncer` for BTNC, BTNU, BTNR and BTNL. Each uses the shared 100 MHz clock, `freq_count=19,999,999` for 200 ms of lockout, and `RELEASE_CYCLES=2,000,000` for a stable 20 ms release before rearming. The module adds reset handling to the user's code and includes the optional release check without the hold timer. The top exposes cycle-count parameters so simulations can use short intervals. SW1 uses two sampling registers, with mute asserted during reset. The hardware top now accepts `sw[15:0]`, BTNR, BTNL and four JXADC outputs; test fixtures tie unused button/mute inputs low explicitly.
+`input_controller` instantiates the user's `button_debouncer` for BTNC, BTNU and BTNR. Each uses the shared 100 MHz clock, `freq_count=19,999,999` for 200 ms of lockout, and `RELEASE_CYCLES=2,000,000` for a stable 20 ms release before rearming. BTNL has no debouncer or action; its legacy `jump_press` output is tied low, and the hardware top also ties the physics jump input low. The top exposes cycle-count parameters so simulations can use short intervals. SW1 uses two sampling registers, with mute asserted during reset. Physical port names remain compatible with the existing board constraints.
 
 Audio uses accepted launch/pop/landing/success/failure events, with TNT explosion events also connected. Failure outranks success, explosion, collision/landing, pop, and launch. Higher priority interrupts; held/equal/lower requests do not replay or queue. The generator plays short tone sequences with instant attack and complete PWM frames. Mute/reset/retry/edit cancel old playback; the carrier and enabled amplifier remain running between sounds. The XDC enables JXADC pins 1-4 and disables the old JC outputs. See [audio setup](audio_setup.md).
 
@@ -62,7 +63,7 @@ During BUILD the left renderer shows five inventory rows at x=56..91 and y=4..53
 | Boundary | Current starter behaviour | Next owner task |
 | --- | --- | --- |
 | Builder edit inputs | Connected to mouse selection/place/remove actions with inventory checks | Role 1 adds later input refinements |
-| Builder damage inputs | Content/frame masks combine accepted balloon pops, TNT and hard-impact edge damage; the pig cell/frame are protected | Verify damage, property changes and retry on the board |
+| Builder damage inputs | Content/frame masks combine accepted balloon pops and TNT; the pig cell/frame are protected | Verify damage, property changes and retry on the board |
 | Game guide requests | Tied inactive | Roles 1 and 4 agree navigation inputs and instruction screens |
 | Audio events | Launch, applied balloon pops, landing, success/failure, TNT explosion and collision events connected; priorities and duplicate suppression implemented | Verify hard-impact audio on the board |
 | Mouse | Supplied controller unchanged; construction and balloon clicks connected | Role 1 adds guide controls and verifies new gameplay input on the Basys3 |
@@ -99,4 +100,4 @@ Background music connects `bgm_player.audio_sample` to `sound_generator.bgm_samp
 
 ## TNT update sequence
 
-`movement_committed` starts `tnt_controller`. Every touched TNT is handled once, with content/frame masks held until the builder accepts them. Only after all damage is applied does `damage_complete` start `world_outcomes`; no-contact movements also complete. Physics holds the committed pose throughout. Balloon, TNT and hard-impact masks share the builder transfer and are ORed when simultaneous. The builder removes only non-pig parts, so the pig remains available for goal checks. TNT intact bits feed animation and the display snapshot; explosion pulses feed the existing audio priority controller.
+`movement_committed` starts `tnt_controller`. Every touched TNT is handled once, with content/frame masks held until the builder accepts them. Only after all damage is applied does `damage_complete` start `world_outcomes`; no-contact movements also complete. Physics holds the committed pose throughout. Valid balloon and TNT content masks are ORed; TNT also supplies frame damage. The builder protects both the pig and its frame, so the pig remains available for goal checks. TNT intact bits feed animation and the display snapshot; explosion pulses feed the existing audio priority controller. No explosion velocity impulse is connected.

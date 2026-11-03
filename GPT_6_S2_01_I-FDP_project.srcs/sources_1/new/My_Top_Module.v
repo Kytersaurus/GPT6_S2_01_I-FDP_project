@@ -11,7 +11,7 @@
 
 `include "game_defs.vh"
 
-// SW0 engine, SW1 mute, SW2 reverse, SW15 JA map view; BTNL jump, BTNC launch/retry,
+// SW0 engine, SW1 mute, SW2 reverse, SW15 JA map view; BTNL reserved, BTNC launch/retry,
 // BTNU edit/next level after success, BTNR reserved and BTND reset.
 module My_Top_Module #(
     parameter integer PHYSICS_CYCLES = 1666667,
@@ -513,7 +513,9 @@ module My_Top_Module #(
         .spawn_x(spawn_x), .spawn_y(spawn_y), .step_start(step_start), .update_release(update_release),
         .wheel_count(wheel_count), .wheels_down(wheels_down), .wheels_up(wheels_up), .tip_dir(tip_dir), .support_unstable(support_unstable),
         .engine_count(drive_engines), .balloon_count(balloon_count),
-        .mass_units(mass_units), .engine_enabled(engine_enabled), .engine_reverse(engine_reverse), .jump_press(jump_press), .boost_req(boost_req), .boost_active(boost_active),
+        .mass_units(mass_units), .engine_enabled(engine_enabled), .engine_reverse(engine_reverse), .jump_press(1'b0), .boost_req(boost_req), .boost_active(boost_active),
+        // Future lift-fan placement supplies these; no item/sprite exists yet.
+        .live_lift_fan_count(4'd0), .fan_lift_mask(9'd0),
         .move_valid(move_valid), .move_ready(move_ready),
         .previous_x(previous_x), .previous_y(previous_y), .proposed_x(proposed_x), .proposed_y(proposed_y),
         .proposed_vx(proposed_vx), .proposed_vy(proposed_vy), .response_valid(response_valid),

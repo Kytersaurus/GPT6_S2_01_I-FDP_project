@@ -22,10 +22,8 @@ module input_controller #(
         .CLOCK(clk), .reset(reset), .btn(btnU),
         .freq_count(DEBOUNCE_CYCLES-1), .btn_pressed(edit_press)
     );
-    button_debouncer #(.RELEASE_CYCLES(RELEASE_CYCLES)) u_left (
-        .CLOCK(clk), .reset(reset), .btn(btnL),
-        .freq_count(DEBOUNCE_CYCLES-1), .btn_pressed(jump_press)
-    );
+    // BTNL is reserved. Keep this legacy output inert for older module callers.
+    assign jump_press = 1'b0;
     button_debouncer #(.RELEASE_CYCLES(RELEASE_CYCLES)) u_right (
         .CLOCK(clk), .reset(reset), .btn(btnR),
         .freq_count(DEBOUNCE_CYCLES-1), .btn_pressed(right_press)

@@ -4,7 +4,7 @@ Owner: Shared - all four roles agree interface changes.
 
 The grid size and screen arrangement follow the current team proposal. The connected starter uses the port names, eight-pixel cells, numerical format and terrain encoding below. These are starting contracts for team review. Implementations and their current ports live beside `My_Top_Module.v`.
 
-The hardware baseline starts with an empty build and two provisional maps. The builder supports mouse-driven placement, replacement, removal, limited inventory and runtime damage. Mouse edits and queued balloon pops are connected in the top. Launch, balloon-pop, landing and result sounds are connected to Pmod AMP2 on JXADC; TNT explosions trigger the explosion profile and display animation. Reverse and jump controls are connected; Instruction content and final level balancing remain future work. The engine switch is sampled by movement at the start of a step; it does not change an already published proposal. Each committed pose passes through TNT damage before pig-centre goal, hazard and bounds checks. The committed pose stays fixed until the resulting world response is accepted.
+The hardware baseline starts with an empty build and two provisional maps. The builder supports mouse-driven placement, replacement, removal, limited inventory and runtime damage. Mouse edits and queued balloon pops are connected in the top. Launch, balloon-pop, landing and result sounds are connected to Pmod AMP2 on JXADC; TNT explosions apply runtime damage and trigger sound/animation, without a velocity impulse. Reverse is connected; BTNL is reserved and the former spring/jump mechanic is removed. The engine switch is sampled by movement at the start of a step; it does not change an already published proposal. Each committed pose passes through TNT damage before pig-centre goal, hazard and bounds checks. The committed pose stays fixed until the resulting world response is accepted. Dated sections below retain historical implementation and validation records; the current fan/jump contract is recorded under 3 November 2026.
 
 ## Shared data
 
@@ -48,7 +48,7 @@ The editor has `EDITOR_CELL_PIXELS=16` in `left_renderer`, giving a 48 by 48 pix
 | Role 1 input | Role 4 game control | Launch, retry, edit and guide requests |
 | Role 1 balloon control | Role 4 game control | `pop_pending` connects to `gameplay_pending`; reserve idle clocks for queued actions before starting another step |
 | Role 4 game control | Role 1 balloon control | `gameplay_ready` is high only in RUN with no outstanding movement/world update |
-| Role 1 input/control | Role 2 | SW0 engine enable, SW2 engine reverse and a debounced BTNL `jump_press`; balloon popping updates Role 1's intact state |
+| Role 1 input/control | Role 2 | SW0 engine inhibit, the engine icon's enable state, and SW2 reverse; BTNL and legacy `jump_press` are inactive. Balloon popping updates Role 1's intact state |
 | Role 4 | Role 1 | Game state and left-screen clickable layout |
 | Role 4 level data | Roles 2 and 3 | Spawn, terrain, TNT, goal and hazard geometry; same source feeds drawing |
 | Role 4 game control | Roles 1, 3 and drawing | Two-bit `level_index`, selected in LEVEL_SELECT or advanced after SUCCESS; two-bit `fail_reason` after FAIL |
@@ -100,7 +100,7 @@ Grid bounds are x=[4,52), y=[4,52), with row-major 16-pixel cells. Inventory bou
 
 The snapshot is 170 bits. It carries `drag_active`, `drag_from_grid`, four-bit `drag_source`, three-bit `drag_contents`, the selected part and cursor together with the build. The left renderer hides a picked-up source and draws the carried frame/contents together. Its eight-pixel preview is centred at the cursor, with its top-left clamped to x=0..88 and y=0..56. Both cursor and preview are published from the same packet/frame snapshot; the cursor draws last. Inventory stock does not change while hovering or holding.
 
-During RUN a fresh left press on a surviving balloon queues a pop; held/right clicks do not pop another cell. Mouse actions remain enabled only with the builder visible. Button engine, jump, retry and reset controls remain available in either view.
+During RUN a fresh left press on a surviving balloon queues a pop; held/right clicks do not pop another cell. Mouse actions remain enabled only with the builder visible. Physical engine/reverse, retry and reset controls remain available in either view; BTNL has no action.
 
 ## Single-OLED play
 
@@ -124,9 +124,9 @@ The renderers use a second `level_data` instance indexed by the snapshot copy of
 
 ## Integrated movement and controls
 
-Kyle's engine captures mass, all part counts, engine/reverse and jump at `step_start`, then calculates forces on the following clock. Later property changes cannot alter a published request. Its sequential force/mass divider takes 16 calculation clocks; consumers and testbenches must wait for valid/ready handshakes, with no assumption of a one-clock or fixed three-clock movement calculation. Per-update horizontal thrust is `ENGINE_FORCE` per engine on the ground (`physics_engine` default 96, kept by the arithmetic benches; the game sets 320 in `My_Top_Module` so one engine pulls a 15-unit cart up about 40 degrees), reversed by SW2; wheel resistance is 10 per surviving wheel and cannot reverse a coasting body. Signed remainders accumulate small accelerations and are cleared on mass changes, clamping, collision correction and retry as appropriate.
+The engine captures mass, surviving part counts and propulsion controls at `step_start`, then calculates forces on following clocks. Later property changes cannot alter a published request. Its sequential force/mass divider takes 16 calculation clocks; consumers and testbenches must wait for valid/ready handshakes, with no assumption of a one-clock or fixed three-clock movement calculation. Per-update horizontal thrust is `ENGINE_FORCE` per engine with contacting wheels (`physics_engine` default 96, kept by the arithmetic benches; the game sets 320 in `My_Top_Module`), reversed by SW2. Rolling resistance is 6 per contacting tyre and cannot reverse a coasting body; frame scraping is 128. Wheel drive adds no torque. Signed remainders accumulate small accelerations and are cleared on mass changes, clamping, collision correction and retry as appropriate.
 
-Gravity adds 32 to vertical velocity. The provisional lift value was raised from 10 to 24 per balloon during integration: the maximum inventory of two balloons can now overcome gravity. One balloon slows a fall; two provide upward acceleration. A confirmed-ground jump sets vertical velocity to -512. `jump_pending` saves a grounded button pulse arriving between ticks or during arithmetic; it does not allow an airborne double jump. SW0 remains engine enable, SW1 remains mute, SW2 is reverse, BTNL is jump and BTNR remains the speaker test. The XDC only uncomments the existing SW2/BTNL pin assignments; it adds no divided-clock constraint.
+Gravity adds 32 to vertical velocity and each surviving balloon subtracts 24. One balloon slows a fall; two provide upward acceleration. There is no spring/jump override or pending jump latch. BTNL's debouncer is removed, legacy `jump_press` outputs remain zero, and the top ties the physics jump input low. SW0 inhibits engine drive while off, SW1 mutes and SW2 reverses. Future downward-blowing fans add a mass-divided world-up force through the inputs described below; they do not yet exist in the builder.
 
 The starter collision path now captures its proposal and terrain, checks up to four platforms in parallel, then selects the highest crossed surface over three clocks. Its valid/ready ports are unchanged, responses remain stable under backpressure, and downstream logic must wait for the handshake. This fixes a measured 100 MHz timing failure from evaluating all platforms in one clock. Wall and ceiling checks now run in the same staged path. Sideways checks use the previous vertical span so a small gravity proposal does not make a floor edge block driving. TNT uses a separate damage handshake before world outcomes.
 
@@ -140,7 +140,7 @@ The starter collision path now captures its proposal and terrain, checks up to f
 
 `balloon_control` keeps a nine-bit pending mask. It accepts only cells 0 through 8 containing a surviving balloon, and coalesces repeated requests for that cell. While movement/world checks are busy, counts and mass remain unchanged. `game_controller` exposes `gameplay_ready` in RUN when idle and blocks `step_start` whenever `gameplay_pending` is high. The balloon module then asserts `pop_valid` for the idle clock and passes its pending content mask to the builder's damage inputs; the builder is always damage-ready in RUN. It clears the applied pending bits, preserving a different new click arriving on that same edge. Result states, run initialisation and reset clear the queue. Requests reaching the queue on a step-start edge wait until that update finishes. The next step after application samples the reduced balloon count and mass. A popped balloon clears only its content intact bit without refunding inventory or changing saved construction; retry and return to BUILD restore it.
 
-The top combines valid balloon and TNT content masks with OR and forwards TNT frame masks. TNT holds each request until the builder accepts it; multiple touched TNT are processed before one `damage_complete` pulse starts world outcomes. A no-contact movement also produces completion. Queued player pops wait until that world update finishes. Engine toggles currently come directly from SW0 and are sampled by physics at `step_start`; they do not destroy the engine. Mouse boost requests are connected to the physics engine.
+The top combines valid balloon and TNT content masks with OR and forwards TNT frame masks. TNT holds each request until the builder accepts it; multiple touched TNT are processed before one `damage_complete` pulse starts world outcomes. A no-contact movement also produces completion. Queued player pops wait until that world update finishes. SW0 must be on before the engine icon can enable drive; the resulting enable is sampled at `step_start`. Mouse boost requests are connected to the physics engine.
 
 ## Displays and audio
 
@@ -170,7 +170,7 @@ Use testbench-only fixtures: a fixed valid nine-cell build for movement, an acce
 
 The latest Role 1 menu/construction contract is described in [gameplay_menu.md](gameplay_menu.md). `vehicle_builder.build_facing_left[8:0]` is saved construction state (1=left, 0=right) for engines and rockets. `edit_facing_left` is sampled with an accepted PLACE; MOVE copies the source bit. The builder exposes signed five-bit `engine_balance` (surviving right engines minus left engines), total `engine_count`, `rocket_count`, `fan_count`, and remaining rocket/fan stock. Both new parts occupy an unframed cell beside a frame, with no horizontal row wrap. Default new inventory is one rocket and one fan. Fans and rockets each provisionally add two mass units.
 
-The shared top passes the magnitude of `engine_balance` to the existing physics engine count and XORs its sign with the SW2 reverse input; the saved facing bits do not change when SW2 toggles. Kyle's force/division/handshake logic is unchanged. Fan/rocket thrust remains unconnected: keep their UI availability/readiness low until physics consumes `ui_fan_on` and the one-clock `ui_rocket_req`.
+The shared top passes the magnitude of `engine_balance` to the physics engine count and XORs its sign with SW2; saved facing bits do not change when SW2 toggles. Fan/rocket controls are connected and gated by surviving availability and rocket readiness. Existing fans use world-horizontal force 64; rockets use body-rotated force 1024 in production. Both retain COM moments. Engine and fan start off on launch/retry. Future lift-fan metadata stays zero until its item is implemented.
 
 The left RUN menu uses `run_page` 0=DRIVE, 1=POP, 2=SOUND. `mouse_adapter` sends balloon requests only on POP. `ui_controller` owns DRIVE boost requests. Retry/edit are accepted during RUN through the existing INIT_RUN/BUILD paths; board C/U remain shortcuts. Each new run restores parts, selects DRIVE and resets engine/fan controls, while volume survives. The display snapshot is now 237 bits and includes facing, selected direction, inventory/menu pages, new stock values and mute state.
 
@@ -242,6 +242,8 @@ Occupied-cell validation: all 49 simulation benches pass across the pipelined re
 
 
 ## Fan, rocket and spring physics (2026-10-31)
+
+Historical record: the spring trigger described in this section was removed on 3 November 2026. See the current change note at the end; legacy jump ports are now inert.
 
 The existing fan and rocket build items now drive physics through signed five-bit
 `fan_balance` and `rocket_balance`: surviving right-facing parts minus surviving
@@ -883,3 +885,23 @@ resource/timing results, all 73 per-bench names and the targeted evidence paths.
 The earlier `tmp/physics_model_review/build/` is a superseded intermediate
 without the slope-normal correction. Protected maps and `level_map.v` are
 unchanged. The board has not been programmed by the agent.
+
+## Spring removal, lift-fan physics and TNT review (3 November 2026)
+
+The spring/jump velocity override, queue and contact lockout are removed. BTNL is reserved with no debouncer or action. Existing module callers may keep the legacy `jump_press` port, which is ignored in physics; `input_controller` holds its output low and the top ties the physics input low. No on-screen spring button existed, and the engine, fan, rocket and boost controls retain their separate actions.
+
+Downward-blowing fan physics uses `FAN_LIFT_FORCE_SHIFT=8`, giving upward force 256 per enabled surviving fan. This is a world-up vector (`Fy < 0` because screen y increases downward), independent of vehicle tilt. Existing horizontal fans retain force 64 and their current facing sign; rockets retain body-rotated thrust.
+
+Future status wiring must provide `live_lift_fan_count[3:0]` for surviving lift fans, with `fan_enabled` gating their sampled force, and `fan_lift_mask[8:0]` identifying the same cells for moments. Exclude these fans from horizontal `fan_balance` to avoid applying two thrust vectors to one item. Both new inputs default to zero and are tied low in the current hardware top: no lift-fan item, placement rule, sprite or stock entry is added yet.
+
+The existing sequential divider converts fan force to acceleration and combines it with rocket force. The `vehicle_moments` helper, appended to `physics_engine.v`, reuses its serial multiplier/divider for `rx*Fy - ry*Fx` and COM calculations. Upward lift reduces effective downward weight in slope gravity and ground support; net upward acceleration allows takeoff. This adds no new BRAM or standalone arithmetic unit.
+
+The current TNT path still applies content/frame damage through the builder handshake before world outcomes. The pig and its supporting frame are protected; other parts can be destroyed, and their counts/mass update for the next movement. Explosions produce sound/animation without a velocity kick. Controller, integrated builder/audio/animation, and rotated TNT tests all pass.
+
+Lift strength is a power of two: changing the first `FAN_LIFT_FORCE_SHIFT` parameter from 8 to 9 doubles force from 256 to 512. Without balloons, one default lift fan balances eight total mass units; lighter vehicles rise and heavier vehicles need more fans. For nine fans, keep this shift between 0 and 11 to stay within the signed 16-bit force range. The moments helper receives the same parameter from physics.
+
+All 77 registered testbenches pass, including 94 lift-fan updates and 110 lift-moment cases. The shared-arithmetic physics suite was rerun after applying the synthesis `keep` attribute, which prevents Vivado from duplicating the mass multiplier into a separate momentum DSP. Production RTL compiles without SystemVerilog mode. The full Cave Arch drive still reaches the goal in 1,711 updates with two reversals.
+
+With all future lift inputs dynamic, standalone physics synthesizes to 2,772 LUTs, 1,786 registers, two DSPs and zero BRAM, versus 2,744 LUTs, 1,694 registers, two DSPs and zero BRAM for the starting code. The net change is 28 LUTs and 92 registers with no added DSP or BRAM.
+
+The current hardware top, with future lift inputs tied low, routes at 19,717 / 20,800 LUTs (94.79%), 5,071 registers, 23 DSPs and 48 BRAM tiles. At 100 MHz, WNS is +0.037 ns and WHS is +0.027 ns, with zero failing endpoints. Timing passes with a narrow margin. The bitstream is `tmp/fan_lift_update/build_final/Laggy_Piggies_FanLift.bit`; `validation.json` beside it records source/bitstream hashes, regression logs, resources and timing. Map files and `level_map.v` remain unchanged. The board has not been programmed.

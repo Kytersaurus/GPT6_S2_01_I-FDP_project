@@ -15,7 +15,7 @@ All design files below are located in `GPT_6_S2_01_I-FDP_project.srcs/sources_1/
 | `vehicle_builder.v` | Role 1 - Kaushal | Frame/content editing, attachment/stock validation, timed edit feedback, inventory, runtime masks, counts, mass, and wheel side detection (`wheels_down`/`wheels_up`) |
 | `mouse_adapter.v` | Role 1 - Kaushal | Driver coordinate setup, cursor tracking, inventory selection, click/drag-and-drop placement, right-click removal, in-cell part flipping, and RUN balloon pop requests |
 | `balloon_control.v` | Role 1 - Kaushal | Queue valid balloon clicks and apply content damage between movement/world updates |
-| `input_controller.v` | Role 1 - Kaushal | Launch/edit/jump/test button actions, engine/reverse switches, audio mute; mouse actions use the separate adapter |
+| `input_controller.v` | Role 1 - Kaushal | Launch/edit/right button actions, engine/reverse switches and audio mute; BTNL is reserved and the legacy jump output is inactive |
 | `ui_controller.v` | Role 1 - Kaushal | Diary/guide navigation, left-OLED action buttons (DRIVE, POP, SOUND tabs), boost controls, and level selection requests |
 | `ui_renderer.v` | Role 1 - Kaushal; shared with Role 4 | Left-screen layout for DRIVE/POP/SOUND tabs, diary pages, inventory boxes, and feedback overlays |
 | `ui_font.vh` | Shared - Role 1 and Role 4 | Built-in 5x7 bitmap font definitions for on-screen text and feedback messages |
@@ -29,7 +29,7 @@ All design files below are located in `GPT_6_S2_01_I-FDP_project.srcs/sources_1/
 | `clock_control.v` | Shared; Role 1 maintains starter | Clock routing, 60 Hz physics tick enable, and debounced reset distribution |
 | `square.v` | Role 1 - Kaushal; used by Role 4 | User's rectangle drawing helper |
 | `seven_seg_oled.v` | Role 1 - Kaushal; used by Role 4 | User's on-screen 7-segment digit drawing helper |
-| `physics_engine.v` | Role 2 - Kyle | Staged force/mass movement, fractional carry, ground friction/thrust, reverse, queued jumping, balloon lift, slope acceleration, tilt settling, alpha-beta camera smoothing (`display_y`), and anti-rollover tip guard |
+| `physics_engine.v` | Role 2 - Kyle | Staged force/mass movement, friction, reverse, balloon/fan lift, rocket thrust, slope/support dynamics, damping and COM moments (appended `vehicle_moments` helper), and camera smoothing; legacy jump input is ignored |
 | `signed_divider16.v` | Role 2 - Kyle | 16-clock sequential signed 16-bit force divided by unsigned 8-bit mass |
 | `rotation_geometry.vh` | Shared - Roles 2, 3, and 4 | 32-angle (-16..15) trigonometric quarter-turn tables, vector rotation, and separating-axis extent functions |
 | `collision_engine.v` | Role 3 - Yap Ting | Top-level collision selector; delegates live cave levels to `rotating_map_collision_engine` and reports hard-contact impact directions |
@@ -89,7 +89,7 @@ All 52 simulation benches are located in `sim/` and pass through `scripts/run_si
 | `sim/map_slope_tb.v` | Terrain-gradient slope calculation, slope force translation, and movement handshake integration |
 | `sim/physics_engine_tb.v` | Core movement arithmetic, sequential calculation sequencing, and handshake checks |
 | `sim/physics_friction_tb.v` | Force-based wheel friction, fractional remainder carry, coast-to-stop, reverse, and clamping |
-| `sim/physics_jump_tb.v` | Confirmed-ground jumping impulse, airborne jump rejection, queued input, and retry |
+| `sim/physics_jump_tb.v` | Retired jump input stays inert at spawn, on ground, in air, during repeated/late presses, and after retry |
 | `sim/physics_slope_tb.v` | Slope-force arithmetic, downhill acceleration, uphill braking, and accepted-contact checks |
 | `sim/signed_divider16_tb.v` | 16-clock signed divider latency, extreme/random operands, zero mass handling, and cancellation |
 
@@ -125,10 +125,10 @@ All 52 simulation benches are located in `sim/` and pass through `scripts/run_si
 | `sim/module_contracts_tb.v` | Multi-role interface contracts between builder, collision, controller, and renderers |
 | `sim/rotating_collision_tb.v` | Independent 4-axis separating-axis occupied-cell rotation geometry and collision handshakes |
 | `sim/rotation_interactions_tb.v` | Committed vehicle orientation agreement across goals, hazards, TNT, and death effects |
-| `sim/rotation_map_integration_tb.v` | Connected slope forces, tilt settling, jump attitude, and Flight balloon ascent in real maps |
+| `sim/rotation_map_integration_tb.v` | Connected slope forces, tilt settling, lift/airborne attitude, and Flight balloon ascent in real maps |
 | `sim/single_oled_tb.v` | SW15 frame-boundary JA view switching, 180-degree rotation, hidden input protection, and music |
 | `sim/slope_map_integration_tb.v` | Real terrain slope forces, downhill rolling, uphill climbing, and balloon detachment |
-| `sim/team_controls_tb.v` | Coexistence of all physical board controls (switches, buttons) after full role merge |
+| `sim/team_controls_tb.v` | Coexistence of physical switches/buttons and retired BTNL jump suppression after full role merge |
 | `sim/tnt_integration_tb.v` | Role 1 damage/audio with Role 3 TNT damage and Role 4 outcome sequencing |
 | `sim/vehicle_rotation_renderer_tb.v` | Rotated vehicle rasterization, inverse mapping, zoom scaling, facing, and damage masks |
 | `sim/vehicle_rotation_top_tb.v` | Connected top-level natural map tilt settling and frame-coherent pose/angle publication |

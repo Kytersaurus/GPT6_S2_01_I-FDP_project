@@ -13,7 +13,7 @@ flowchart TD
     Start([Step Start]) --> Sample[Sample Inputs\nMass, Build Grid, Inputs]
     
     subgraph Linear Forces
-        Sample --> Vert[Calculate Vertical Forces\nGravity, Lift, Springs]
+        Sample --> Vert[Calculate Vertical Forces\nGravity, Balloon Lift]
         Vert --> Thrust[Calculate Thrust\nFans, Rockets]
         Thrust --> Slope[Calculate Slope Gravity\nDownhill Acceleration]
         Slope --> Friction[Calculate Friction & Drag]
@@ -25,7 +25,7 @@ flowchart TD
     end
     
     subgraph Rotational Dynamics
-        Vel --> Moments[vehicle_moments.v\nCalculate COM & Torque]
+        Vel --> Moments[vehicle_moments helper\nCalculate COM & Torque]
         Moments --> Rot[Integrate Angular Velocity & Tilt]
     end
 
@@ -45,11 +45,13 @@ flowchart TD
 
 The engine breaks down forces into horizontal and vertical components, ensuring they are summed sequentially to save logic.
 
-1. **Vertical Base:** Gravity is a hardcoded downward force (`32`). Balloons subtract from this (`-24` each). A spring trigger instantly overrides vertical velocity with an upward impulse (`-512`).
+1. **Vertical Base:** Gravity adds downward acceleration `32`; each intact balloon subtracts acceleration `24`. The former spring/jump impulse is removed. BTNL is reserved, and legacy `jump_press` ports are inert.
 2. **Propulsion:** 
    - **Engines** apply force to wheels touching the ground.
-   - **Fans & Rockets** rotate their thrust vectors based on the vehicle's current tilt using pre-calculated trigonometric lookups (`rotation_sin`, `rotation_cos`). Because rockets can be angled, their X/Y force components are accumulated sequentially to avoid instantiating multiple hardware multipliers.
-3. **Slope Gravity:** If grounded on a hill, a fraction of gravity is projected horizontally using `net_gravity * slope_factor`.
+   - **Horizontal fans** keep their existing world-horizontal force of `64` per enabled intact fan, with the corrected facing sign.
+   - **Future downward-blowing fans** supply world-up force `256` each (`FAN_LIFT_FORCE_SHIFT=8`). `live_lift_fan_count` supplies the surviving count, gated by `fan_enabled`; these fans must be excluded from horizontal `fan_balance`. The nine-bit `fan_lift_mask` identifies their cells for moments. Both inputs default to zero, and the hardware top ties them low until the item and sprite are implemented.
+   - **Rockets** rotate their body-fixed thrust using `rotation_sin` and `rotation_cos`; the production top uses force `1024`. Their X/Y force components are accumulated sequentially.
+3. **Slope Gravity:** Grounded ramp acceleration uses the measured slope and remaining downward acceleration. Fan lift is divided by mass and reduces both slope gravity and the support reaction; net upward lift releases ground support.
 4. **Mass Division:** Acceleration is $a = F / m$. Because division (`/`) consumes massive FPGA resources, the engine routes total force and total mass through a custom restoring divider (`signed_divider16.v`), which takes 16 clock cycles to produce the acceleration.
 5. **Momentum & Friction:** The vehicle's momentum is checked against rolling drag (`wheel_drag`) or scraping drag (`scrape_drag`). Friction can stop the vehicle but will never push it backward.
 
@@ -57,7 +59,7 @@ The engine breaks down forces into horizontal and vertical components, ensuring 
 
 ## 3. Moments & Rotational Physics
 
-Rotational physics is offloaded to a dedicated module (`vehicle_moments.v`). 
+Rotational physics uses the `vehicle_moments` module appended to `physics_engine.v`. There is no separate `vehicle_moments.v` design source. COM, force projections and pivot corrections reuse the helper's serial multiplier and divider; fan lift adds no independent multiplier, divider or memory.
 
 ```mermaid
 flowchart LR
@@ -76,10 +78,10 @@ flowchart LR
 The 3x3 vehicle grid is scanned. Each part has a specific weight (e.g., Engine = 3, Pig = 2, Wheel = 1). The COM is found by averaging the positions of all active parts weighted by their mass.
 
 ### Torque Calculation
-For each active fan or rocket, the engine calculates its distance vector (`arm_x`, `arm_y`) from the COM. The thrust vector is crossed with the lever arm to find the torque. The total torque is divided by the mass to determine angular acceleration.
+For each active fan or rocket, the engine calculates its distance vector (`arm_x`, `arm_y`) from the COM. Torque is `rx*Fy - ry*Fx`. Thus an off-centre lift fan uses its world-horizontal arm and upward force to turn the body; a centred lift fan supplies lift without torque. The total torque is divided by the mass-scaled inertia to determine angular acceleration. Wheel drive remains translational and supplies no moment.
 
 ### Edge Pivoting
-If the vehicle hangs off a ledge (its COM is past the edge of the supporting terrain), normal free-space rotation is paused. Instead, the engine calculates an orbital arc around the physical contact edge, ensuring the vehicle smoothly topples over the cliff rather than spinning in mid-air.
+If the vehicle is unbalanced over its actual contact span, the engine proposes rotation around the physical contact edge. On ramps the support test uses the terrain normal, not a vertical-only reaction. Airborne rotation uses the COM. Collision checks the complete rotated pose and rejects unsafe turns; angular damping brings unpowered spin toward rest.
 
 ---
 
@@ -93,3 +95,7 @@ The terrain is not perfectly smooth; it is a rasterized bitmap. The physics engi
    - **Alpha-Beta Filter:** To prevent the camera/graphics from jittering vertically as the vehicle moves over 2-pixel staircase terrain, the visual output (`display_y`) is smoothed over time.
    - **Alignment:** When grounded, the physics FSM gently rotates the proposed vehicle tilt towards the measured slope angle (1 step per frame) until it aligns flush with the hill. 
    - **Slope Acceleration:** The measured slope directly drives the "Slope Gravity" horizontal force calculation, causing unpowered vehicles to coast downhill.
+
+## 5. TNT damage
+
+TNT damage is separate from the force solver. `tnt_controller` holds content/frame damage masks until the builder accepts them, then allows world checks after the updated masks settle. The builder protects the pig and its supporting frame; other nearby parts and frames can be destroyed without changing the saved build or stock. The current explosion has animation and sound but no velocity kick.

@@ -1,12 +1,13 @@
 // Owner: Role 2 - Kyle. Vehicle movement and velocity.
 `timescale 1ns / 1ps
 `include "game_defs.vh"
-// Staged forces, serial mass divider, slope gravity, friction and spring impulse.
+// Staged forces, serial mass divider, slope gravity and friction.
 // ENGINE_FORCE is the ground thrust per engine. The arithmetic benches keep the
 // original 96; the game sets its tuned value in My_Top_Module.
 module physics_engine #(parameter integer ENGINE_FORCE = 96,
                         parameter integer ROCKET_FORCE_SHIFT = 9,
-                        parameter integer WHEEL_TORQUE_SHIFT = 0) (
+                        parameter integer WHEEL_TORQUE_SHIFT = 0,
+                        parameter integer FAN_LIFT_FORCE_SHIFT = 8) (
     input wire clk, reset,
     input wire [2:0] game_state,
     input wire run_init,
@@ -20,11 +21,16 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
     input wire [7:0] mass_units,
     input wire engine_enabled,
     input wire engine_reverse,
-    // Existing jump control is the spring trigger until a spring item is added.
+    // Retained as an inert legacy port. The spring/jump mechanic was removed.
     input wire jump_press,
     // Signed intact part counts: right-facing minus left-facing. Unconnected
     // ports preserve legacy benches with no airborne propulsion.
     input tri0 signed [4:0] fan_balance, rocket_balance,
+    // Future downward-blowing fans: upward WORLD force, independent of facing.
+    // Count only surviving lift fans here; exclude them from fan_balance.
+    // The matching per-cell mask supplies their lever arms to the moments unit.
+    input tri0 [3:0] live_lift_fan_count,
+    input tri0 [8:0] fan_lift_mask,
     // Future placement logic supplies body-vertical rockets: down minus up.
     input tri0 signed [4:0] rocket_vertical_balance,
     input tri0 [3:0] rocket_count,
@@ -76,7 +82,8 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
                MAKE_REQUEST = 9, SEND = 10, WAIT_RESPONSE = 11,
                WAIT_WORLD = 12, CALC_FORCE = 13, SLOPE_FORCE = 14, APPLY_SLOPE = 15, AIR_FORCE = 16, VERTICAL_START = 17, VERTICAL_WAIT = 18, VERTICAL_CLAMP = 19, MOMENT_WAIT = 20, ROTATE_FORCE = 21,
                PIVOT_START = 22, PIVOT_WAIT = 23, APPLY_PIVOT = 24,
-               ROCKET_HORIZONTAL = 25, ROCKET_VERTICAL = 26, ROCKET_DONE = 27;
+               ROCKET_HORIZONTAL = 25, ROCKET_VERTICAL = 26, ROCKET_DONE = 27,
+               VERTICAL_SLOPE = 28;
     localparam signed [15:0] wheel_drag = 16'sd6;
     // A wheeled body resting on its side without wheels scrapes instead of rolling.
     // Bodies with no wheel sides reported (no wheels, or legacy inputs) keep the
@@ -92,13 +99,14 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
     // Power-of-two per-part forces use wiring shifts, not multipliers.
     localparam FAN_FORCE_SHIFT = 6; // Fan force 64; rocket force is a power-of-two parameter.
     localparam [6:0] ROCKET_TICKS = 7'd90; // 1.5 s at the default 60 Hz
-    localparam signed [15:0] SPRING_IMPULSE = 16'sd512;
     reg [4:0] phase;
     reg signed [15:0] velocity_x, velocity_y;
-    reg was_grounded, spring_pending, spring_fired;
+    reg was_grounded;
     reg [6:0] rocket_fuel;
     reg rocket_spent;
     reg signed [4:0] sampled_fans, sampled_rockets, sampled_vertical_rockets;
+    reg [3:0] sampled_lift_fans;
+    wire signed [15:0] fan_lift_force = -($signed({12'd0,sampled_lift_fans}) <<< FAN_LIFT_FORCE_SHIFT);
     reg signed [15:0] step_vertical_force;
     reg signed [9:0] sampled_rocket_cos, sampled_rocket_sin;
     reg [4:0] rocket_terms;
@@ -108,9 +116,10 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
     reg signed [15:0] remainder_y, pending_remainder_y;
     reg signed [16:0] step_vertical_base;
     reg signed [17:0] step_vy_sum;
+    reg signed [16:0] step_down_accel;
     reg signed [15:0] step_air_force;
     wire menu_paused = game_state==`LP_SETTINGS || game_state==`LP_GUIDE;
-    reg step_moments_enabled, wheel_force_valid, sampled_spring;
+    reg step_moments_enabled, wheel_force_valid;
     reg signed [15:0] step_vy;
     reg step_support_unstable;
     reg last_support_span_valid, last_ground_slope_valid;
@@ -135,7 +144,7 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
     wire signed [13:0] pivot_dx, pivot_dy;
     wire signed [13:0] clamped_angular_velocity=step_angular_sum>18'sd4096 ? 14'sd4096 :
         step_angular_sum< -18'sd4096 ? -14'sd4096 : step_angular_sum[13:0];
-    wire pivot_about_contact = was_grounded && !sampled_spring && step_vy>=0 && last_support_span_valid &&
+    wire pivot_about_contact = was_grounded && step_vy>=0 && last_support_span_valid &&
                                (step_support_unstable || supported_moment_accel!=0);
     wire signed [`LP_TILT_BITS-1:0] pivot_turn=proposed_tilt-vehicle_tilt;
     wire signed [1:0] pivot_direction = pivot_turn>0 ? 2'sd1 : pivot_turn<0 ? -2'sd1 : last_tip;
@@ -151,12 +160,14 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
         (moment_accel==0 && (!contact_support_unstable || gravity_tilt_q8==0 || step_vy<0) && angular_speed<14'd64) ? 14'sd0 :
         (angular_velocity_q8<0 ? angular_velocity_q8+air_drag_q8 : angular_velocity_q8-air_drag_q8);
     wire signed [15:0] force_angle_sum=$signed(moment_angle_remainder)+$signed(clamped_angular_velocity);
-    vehicle_moments #(.ROCKET_FORCE_SHIFT(ROCKET_FORCE_SHIFT), .WHEEL_TORQUE_SHIFT(WHEEL_TORQUE_SHIFT)) u_moments (
+    vehicle_moments #(.ROCKET_FORCE_SHIFT(ROCKET_FORCE_SHIFT), .WHEEL_TORQUE_SHIFT(WHEEL_TORQUE_SHIFT),
+        .FAN_LIFT_FORCE_SHIFT(FAN_LIFT_FORCE_SHIFT)) u_moments (
         .clk(clk),.reset(reset || run_init || game_state!=`LP_RUN),
         .start(phase==IDLE && step_start && moments_enabled && game_state==`LP_RUN && !run_init),
         .build_grid(build_grid),.build_frames(build_frames),.intact_mask(intact_mask),
         .frame_intact_mask(frame_intact_mask),.facing_left(build_facing_left),
-        .rocket_vertical_mask(rocket_vertical_mask),.fan_on(fan_enabled),.rocket_on(rocket_active),
+        .rocket_vertical_mask(rocket_vertical_mask),.fan_lift_mask(fan_lift_mask),
+        .fan_on(fan_enabled),.rocket_on(rocket_active),
         .grounded(was_grounded),.tilt(vehicle_tilt),.wheel_force_valid(wheel_force_valid),
         .contact_span_valid(last_support_span_valid),
         .contact_left_q2(last_support_left_q2),.contact_right_q2(last_support_right_q2),
@@ -234,7 +245,7 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
     wire [3:0] wheel_side=tilt_flipped(vehicle_tilt) ? wheels_up : wheels_down;
     wire [3:0] legacy_contact_wheels=(wheels_down|wheels_up)==0 ? wheel_count : wheel_side;
     wire [3:0] contact_wheels=last_support_span_valid ? last_support_wheel_count : legacy_contact_wheels;
-    reg [15:0] step_slope_product;
+    reg [23:0] step_slope_product;
     reg signed [15:0] step_slope_force;
     reg [27:0] boost_timer; // 1.5 seconds at 100MHz is 150_000_000 cycles
     wire is_boosting = (boost_timer != 0);
@@ -243,12 +254,9 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
     reg [3:0] sampled_wheels, sampled_engines, sampled_balloons;
     reg sampled_sided;
     reg sampled_engine_enabled, sampled_engine_reverse;
-    wire spring_now;
-    assign spring_now = (game_state == `LP_RUN) && was_grounded && !spring_fired &&
-                      (spring_pending || jump_press);
     always @* begin
         supported_moment_accel=moment_accel;
-        if(was_grounded && !sampled_spring && step_vy>=0 && active_tip==0) begin
+        if(was_grounded && step_vy>=0 && active_tip==0) begin
             if(moment_accel>0)
                 supported_moment_accel=$signed({1'b0,moment_accel})>$signed({1'b0,support_positive_q8}) ?
                     moment_accel-$signed(support_positive_q8) : 16'sd0;
@@ -302,6 +310,16 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
         end
     endfunction
 
+    // Share two existing multipliers across separate FSM stages. Writing each
+    // product twice lets synthesis create extra DSPs even though times differ.
+    wire signed [16:0] slope_down_accel = phase==VERTICAL_SLOPE ? step_down_accel : net_gravity;
+    wire [23:0] slope_product = slope_down_accel * slope_factor(slope_magnitude);
+    wire signed [15:0] mass_multiply_term = phase==SLOPE_FORCE ?
+        $signed(step_slope_product[23:8]) : step_vx;
+    // Preserve this shared output; otherwise Vivado copies the multiplier
+    // into the horizontal momentum multiply-accumulate stage.
+    (* keep = "true" *) wire signed [24:0] mass_product = $signed({1'b0,step_mass}) * mass_multiply_term;
+
     reg divider_start;
     reg signed [15:0] divider_input;
     wire divider_busy, divider_done, divider_zero;
@@ -320,23 +338,14 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
     assign response_ready = (phase == WAIT_RESPONSE) && (game_state == `LP_RUN);
 
     always @(posedge clk) begin
-        if (reset || run_init || game_state != `LP_RUN)
-            spring_pending <= 0;
-        else if (phase == IDLE && step_start)
-            spring_pending <= 0;
-        else if (jump_press && was_grounded && !spring_fired)
-            spring_pending <= 1;
-    end
-
-    always @(posedge clk) begin
         if (reset) begin
             sampled_rocket_cos<=0; sampled_rocket_sin<=0; rocket_terms<=0; rocket_force_x<=0; rocket_force_y<=0;
             step_moments_enabled<=0; wheel_force_valid<=0;
             angular_velocity_q8<=0; moment_angle_remainder<=0; step_angular_sum<=0;
             step_pivot_x<=0; step_pivot_y<=0;
             phase <= IDLE; init_ready <= 0; was_grounded <= 0; boost_timer <= 0;
-            spring_fired <= 0; sampled_vertical_rockets <= 0; step_vertical_force <= 0;
-            remainder_y <= 0; pending_remainder_y <= 0; step_vertical_base <= 0; step_vy_sum <= 0;
+            sampled_lift_fans <= 0; sampled_vertical_rockets <= 0; step_vertical_force <= 0;
+            remainder_y <= 0; pending_remainder_y <= 0; step_vertical_base <= 0; step_vy_sum <= 0; step_down_accel <= 0;
             sampled_fans <= 0; sampled_rockets <= 0; step_air_force <= 0;
             last_ground_slope <= 0; sampled_slope <= 0; last_support_unstable<=0;
             step_support_unstable<=0; last_ground_slope_valid<=0;
@@ -360,7 +369,7 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
             step_vx_sum <= 0; step_x_sum <= 0; step_y_sum <= 0;
             divider_start <= 0; divider_input <= 0;
             sampled_wheels <= 0; sampled_engines <= 0; sampled_balloons <= 0; sampled_sided <= 0;
-            sampled_engine_enabled <= 0; sampled_engine_reverse <= 0; sampled_spring <= 0;
+            sampled_engine_enabled <= 0; sampled_engine_reverse <= 0;
         end else begin
             movement_committed <= 0;
             divider_start <= 0;
@@ -369,7 +378,7 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
             if (game_state == `LP_RUN && boost_req && engine_count != 0) boost_timer <= 28'd150000000;
             if (run_init && !init_ready) begin
                 angular_velocity_q8<=0; moment_angle_remainder<=0; wheel_force_valid<=0;
-                phase <= IDLE; init_ready <= 1; was_grounded <= 0; spring_fired <= 0; last_support_unstable<=0;
+                phase <= IDLE; init_ready <= 1; was_grounded <= 0; last_support_unstable<=0;
                 last_ground_slope_valid<=0; last_support_span_valid<=0; last_support_wheel_count<=0; step_support_unstable<=0;
                 last_support_left_q2<=0; last_support_right_q2<=0; last_support_y_q2<=0;
                 last_support_endpoint_y_valid<=0; last_support_left_y_q2<=0; last_support_right_y_q2<=0;
@@ -385,11 +394,11 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
                 boost_timer <= 0;
             end else if (menu_paused) begin
                 // Controller drains the current update before opening a menu.
-                // Keep velocity, contact, spin and spring latch for resume.
+                // Keep velocity, contact and spin for resume.
             end else if (game_state != `LP_RUN) begin
                 angular_velocity_q8<=0; moment_angle_remainder<=0; wheel_force_valid<=0;
                 phase <= IDLE;
-                last_ground_slope <= 0; was_grounded <= 0; spring_fired <= 0; last_support_unstable<=0;
+                last_ground_slope <= 0; was_grounded <= 0; last_support_unstable<=0;
                 last_ground_slope_valid<=0; last_support_span_valid<=0; step_support_unstable<=0;
                 spin <= 0; spin_frac <= 0; last_tip <= 0; held_target <= 0; held_count <= 0;
                 display_y <= vehicle_y; display_vy <= 0;
@@ -403,13 +412,13 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
                     // settles one angle step per update onto the ground under it.
                     // Airborne angular drag brings unpowered spin to rest.
                     step_moments_enabled<=moments_enabled; wheel_force_valid<=0;
-                    step_support_unstable<=was_grounded && last_support_unstable && !spring_now;
+                    step_support_unstable<=was_grounded && last_support_unstable;
                     step_pivot_x<=0; step_pivot_y<=0;
                     if (moments_enabled) begin
                         proposed_tilt<=vehicle_tilt;
                         // Confirm support after the common solver has projected
                         // its contact normal onto the accepted terrain grade.
-                    end else if (was_grounded && !spring_now && active_tip == 0 && !last_support_unstable) begin
+                    end else if (was_grounded && active_tip == 0 && !last_support_unstable) begin
                         spin <= 0; spin_frac <= 0;
                         if (!last_ground_slope_valid) held_count<=0;
                         else if (desired_tilt != held_target && !hold_ground_target) begin held_target <= desired_tilt; held_count <= 0; end
@@ -419,7 +428,7 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
                         else proposed_tilt <= vehicle_tilt;
                     end else begin
                         held_count <= 0;
-                        if (was_grounded && !spring_now) spin <= next_tip_spin;
+                        if (was_grounded) spin <= next_tip_spin;
                         else spin<=air_spin;
                         if (!was_grounded && air_spin==0) begin spin_frac<=0; proposed_tilt<=vehicle_tilt; end
                         else if (spin_sum>=8'sd16) begin
@@ -436,9 +445,8 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
                     sampled_sided <= last_support_span_valid || (wheels_down|wheels_up)!=0;
                     sampled_balloons <= balloon_count;
                     sampled_engine_enabled <= engine_enabled; sampled_engine_reverse <= engine_reverse;
-                    sampled_spring <= spring_now;
-                    if (spring_now) spring_fired <= 1;
                     sampled_fans <= fan_enabled ? fan_balance : 5'sd0;
+                    sampled_lift_fans <= fan_enabled ? live_lift_fan_count : 4'd0;
                     sampled_rockets <= rocket_active ? rocket_balance : 5'sd0;
                     sampled_vertical_rockets <= rocket_active ? rocket_vertical_balance : 5'sd0;
                     sampled_rocket_cos<=rotation_cos(vehicle_tilt);
@@ -450,10 +458,10 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
                 CALC_FORCE: begin
                     // Part counting ends at the sampled registers above. Force
                     // multiplication/addition then has its own 100 MHz clock.
-                    step_vertical_force <= 0;
+                    step_vertical_force <= fan_lift_force;
                     rocket_force_x<=0; rocket_force_y<=0;
                     rocket_terms<=sampled_rockets<0 ? -sampled_rockets : sampled_rockets;
-                    step_vertical_base <= sampled_spring ? -17'sd512 : vertical_sum;
+                    step_vertical_base <= vertical_sum;
                     // Reverse the legacy facing sign to match the fan thrust direction.
                     step_air_force <= -($signed({{11{sampled_fans[4]}},sampled_fans}) <<< FAN_FORCE_SHIFT);
                     step_thrust <= 0;
@@ -465,20 +473,19 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
                             step_thrust <= sampled_engine_reverse ? -engine_magnitude : engine_magnitude;
                     end
                     step_friction_limit <= was_grounded ? wheel_resistance : 16'd0;
-                    if (sampled_spring)
-                        step_vy <= -SPRING_IMPULSE;
-                    else if (vertical_sum > 17'sd512)
+                    if (vertical_sum > 17'sd512)
                         step_vy <= 16'sd512;
                     else if (vertical_sum < -17'sd512)
                         step_vy <= -16'sd512;
                     else
                         step_vy <= vertical_sum[15:0];
-                    // Lift reduces weight on the ramp. Spring launch or net upward
-                    // lift detaches the body, so neither gets ground gravity.
-                    if (was_grounded && !sampled_spring && net_gravity > 0)
-                        step_slope_product <= net_gravity * slope_factor(slope_magnitude);
+                    // Balloon lift reduces weight on the ramp.
+                    if (was_grounded && net_gravity > 0)
+                        step_slope_product <= slope_product;
                     else step_slope_product <= 0;
-                    phase <= (sampled_rockets!=0 || sampled_vertical_rockets!=0) ? ROCKET_HORIZONTAL : SLOPE_FORCE;
+                    if (sampled_rockets!=0 || sampled_vertical_rockets!=0) phase<=ROCKET_HORIZONTAL;
+                    else if (sampled_lift_fans!=0 || remainder_y!=0) phase<=VERTICAL_START;
+                    else phase<=SLOPE_FORCE;
                 end
                 ROCKET_HORIZONTAL: begin
                     // The thrust vector rotates with the attached rocket. Sum
@@ -502,8 +509,8 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
                 end
                 ROCKET_DONE: begin
                     step_air_force<=step_air_force+rocket_force_x;
-                    step_vertical_force<=rocket_force_y;
-                    phase<=SLOPE_FORCE;
+                    step_vertical_force<=fan_lift_force+rocket_force_y;
+                    phase<=VERTICAL_START;
                 end
                 SLOPE_FORCE: begin
                     // Convert acceleration to force before the existing mass
@@ -511,11 +518,9 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
                     // CoG imbalance changes angular support, never propulsion.
                     // Only a valid measured gradient projects gravity onto x.
                     if (sampled_slope < 0)
-                        step_slope_force <= -($signed({1'b0,step_mass}) *
-                                              $signed({1'b0,step_slope_product[15:8]}));
+                        step_slope_force <= -$signed(mass_product[15:0]);
                     else
-                        step_slope_force <= $signed({1'b0,step_mass}) *
-                                            $signed({1'b0,step_slope_product[15:8]});
+                        step_slope_force <= mass_product[15:0];
                     phase <= APPLY_SLOPE;
                 end
                 APPLY_SLOPE: begin
@@ -529,7 +534,7 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
                 MOMENTUM: begin
                     // An unsigned 8-bit mass needs a leading zero before it
                     // participates in signed multiplication.
-                    step_momentum <= $signed({1'b0, step_mass}) * $signed(step_vx);
+                    step_momentum <= mass_product;
                     // Compare the captured mass here, after the builder's count
                     // calculation has ended at step_mass's register boundary.
                     if (step_mass == remainder_mass) step_drive <= step_thrust + step_remainder;
@@ -583,13 +588,13 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
                             (step_vx_sum == -17'sd256 && pending_remainder_x < 0))
                             pending_remainder_x <= 0;
                     end
-                    phase <= VERTICAL_START;
+                    phase <= MOMENT_WAIT;
                 end
                 VERTICAL_START: begin
                     // Time-share the horizontal serial divider: no second divider
-                    // or multiplier is required for vertical rocket thrust.
+                    // or multiplier is required for vertical fan/rocket thrust.
                     if (step_vertical_force == 0 && remainder_y == 0)
-                        phase <= MOMENT_WAIT;
+                        phase <= SLOPE_FORCE;
                     else if (!divider_busy) begin
                         divider_input <= step_vertical_force +
                             (step_mass == remainder_mass ? remainder_y : 16'sd0);
@@ -601,6 +606,7 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
                     step_vy_sum <= $signed({step_vertical_base[16],step_vertical_base}) +
                                    $signed({{2{divider_quotient[15]}},divider_quotient});
                     pending_remainder_y <= divider_zero ? 16'sd0 : divider_remainder;
+                    step_down_accel <= net_gravity + $signed({divider_quotient[15],divider_quotient});
                     phase <= VERTICAL_CLAMP;
                 end
                 VERTICAL_CLAMP: begin
@@ -614,13 +620,22 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
                             (step_vy_sum == -18'sd512 && pending_remainder_y < 0))
                             pending_remainder_y <= 0;
                     end
-                    phase <= MOMENT_WAIT;
+                    phase <= VERTICAL_SLOPE;
+                end
+                VERTICAL_SLOPE: begin
+                    // Project the remaining downward acceleration after lift.
+                    // Enough upward thrust detaches without a downhill push.
+                    // Reuse the existing slope multiplier, after mass division.
+                    if (was_grounded && step_vy>=0 && step_down_accel>0)
+                        step_slope_product<=slope_product;
+                    else step_slope_product<=0;
+                    phase<=SLOPE_FORCE;
                 end
                 MOMENT_WAIT: begin
                     if (!step_moments_enabled) phase<=POSITION;
                     else if (moment_valid) begin
                         step_support_unstable<=contact_support_unstable;
-                        if (was_grounded && !sampled_spring && step_vy>=0 &&
+                        if (was_grounded && step_vy>=0 &&
                             !contact_support_unstable && last_ground_slope_valid) begin
                             if (desired_tilt!=held_target && !hold_ground_target) begin held_target<=desired_tilt; held_count<=0; end
                             else if (held_count!=2'd2) held_count<=held_count+1'b1;
@@ -628,11 +643,11 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
                         // Ground loses a quarter of spin; air loses an eighth.
                         // Active fan/rocket torque can still accelerate rotation.
                         step_angular_sum<=
-                            (was_grounded && !sampled_spring && step_vy>=0 && !contact_support_unstable ?
+                            (was_grounded && step_vy>=0 && !contact_support_unstable ?
                             $signed(ground_angular_velocity) :
                             $signed(air_angular_velocity))+$signed(supported_moment_accel)+
                             (contact_support_unstable && step_vy>=0 ? $signed(gravity_tilt_q8) : 18'sd0)+
-                            (was_grounded && !sampled_spring ?
+                            (was_grounded ?
                             (active_tip>0 ? 18'sd256 : active_tip<0 ? -18'sd256 : 18'sd0) : 18'sd0);
                         phase<=ROTATE_FORCE;
                     end
@@ -640,7 +655,7 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
                 ROTATE_FORCE: begin
                     // Ground contact can settle a quiet body; otherwise integrate
                     // signed fractional angle symmetrically in both directions.
-                    if (was_grounded && !sampled_spring && step_vy>=0 && !step_support_unstable && active_tip==0 && supported_moment_accel==0 &&
+                    if (was_grounded && step_vy>=0 && !step_support_unstable && active_tip==0 && supported_moment_accel==0 &&
                         (last_support_span_valid || (clamped_angular_velocity<14'sd256 && clamped_angular_velocity> -14'sd256))) begin
                         angular_velocity_q8<=0; moment_angle_remainder<=0; spin<=0; spin_frac<=0;
                         if (target_steady && settle_error>0) proposed_tilt<=vehicle_tilt+1'b1;
@@ -726,9 +741,6 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
                     end
                     velocity_x <= corrected_vx; velocity_y <= corrected_vy;
                     was_grounded <= grounded;
-                    // A spring may fire once per continuous contact. Re-arm
-                    // only when an accepted collision response releases it.
-                    if (!grounded) spring_fired <= 0;
                     if (grounded && ground_slope_valid && ground_slope >= -8'sd16 && ground_slope <= 8'sd16)
                         last_ground_slope <= ground_slope;
                     else last_ground_slope <= 0;
@@ -757,11 +769,13 @@ endmodule
 // One rigid body. Coordinates are quarter pixels relative to grid centre.
 // A single serial multiplier and divider are reused across all nine cells.
 module vehicle_moments #(parameter integer ROCKET_FORCE_SHIFT = 9,
-                         parameter integer WHEEL_TORQUE_SHIFT = 0) (
+                         parameter integer WHEEL_TORQUE_SHIFT = 0,
+                         parameter integer FAN_LIFT_FORCE_SHIFT = 8) (
     input wire clk, reset, start,
     input wire [26:0] build_grid,
     input wire [8:0] build_frames, intact_mask, frame_intact_mask,
     input wire [8:0] facing_left, rocket_vertical_mask,
+    input tri0 [8:0] fan_lift_mask,
     input wire fan_on, rocket_on, grounded,
     input wire signed [`LP_TILT_BITS-1:0] tilt,
     // Accepted terrain contacts in world x, relative to the grid centre (Q2).
@@ -806,9 +820,11 @@ module vehicle_moments #(parameter integer ROCKET_FORCE_SHIFT = 9,
         CONTACT_COM_Y_SECOND=38, CONTACT_COM_Y_RESULT=39,
         NORMAL_LEFT_START=40, NORMAL_LEFT_RESULT=41,
         NORMAL_RIGHT_START=42, NORMAL_RIGHT_RESULT=43,
-        NORMAL_CAP_LEFT_START=44, NORMAL_CAP_LEFT_RESULT=45, NORMAL_CAP_RIGHT_RESULT=46;
+        NORMAL_CAP_LEFT_START=44, NORMAL_CAP_LEFT_RESULT=45, NORMAL_CAP_RIGHT_RESULT=46,
+        LIFT_ACCEL_START=47, LIFT_ACCEL_WAIT=48, LIFT_NORMAL_START=49, LIFT_NORMAL_RESULT=50;
     reg [5:0] phase, mul_return;
-    reg [3:0] index, wheel_contacts, balloons;
+    reg [3:0] index, wheel_contacts, balloons, lift_fans;
+    reg [5:0] remaining_gravity;
     reg signed [9:0] support_min, support_max;
     reg actual_span_valid;
     reg signed [9:0] actual_left, actual_right, actual_y;
@@ -817,7 +833,7 @@ module vehicle_moments #(parameter integer ROCKET_FORCE_SHIFT = 9,
     reg [8:0] normal_scale;
     reg signed [18:0] normal_left_product;
     reg [26:0] grid;
-    reg [8:0] frames, alive, frame_alive, direction, vertical, contact_mask;
+    reg [8:0] frames, alive, frame_alive, direction, vertical, lift_mask, contact_mask;
     reg fans_active, rockets_active, on_ground, flipped;
     reg signed [9:0] cosine, sine, next_cosine, next_sine;
     reg signed [`LP_TILT_BITS-1:0] saved_tilt;
@@ -854,8 +870,11 @@ module vehicle_moments #(parameter integer ROCKET_FORCE_SHIFT = 9,
         cell_y=index<3 ? -7'sd32 : index<6 ? 7'sd0 : 7'sd32;
         cell_force=0; cell_axis_y=0; cell_is_wheel=0;
         if (alive[index]) case(part)
-            `LP_PART_FAN: if (fans_active)
-                cell_force=direction[index] ? 16'sd64 : -16'sd64;
+            `LP_PART_FAN: if (fans_active) begin
+                cell_axis_y=lift_mask[index];
+                if(lift_mask[index]) cell_force=-(16'sd1 <<< FAN_LIFT_FORCE_SHIFT);
+                else cell_force=direction[index] ? 16'sd64 : -16'sd64;
+            end
             `LP_PART_BOOSTER: if (rockets_active) begin
                 cell_axis_y=vertical[index];
                 if (vertical[index]) cell_force=direction[index] ? (16'sd1 <<< ROCKET_FORCE_SHIFT) : -(16'sd1 <<< ROCKET_FORCE_SHIFT);
@@ -978,8 +997,8 @@ module vehicle_moments #(parameter integer ROCKET_FORCE_SHIFT = 9,
             pivot_valid<=0; pivot_dx<=0; pivot_dy<=0; next_cosine<=0; next_sine<=0; old_com_x<=0; old_com_y<=0;
             saved_tilt<=0; pivot_point_x<=0; pivot_point_y<=0;
             com_x_q2<=0; com_y_q2<=0; body_mass<=0;
-            index<=0; wheel_contacts<=0; contact_mask<=0;
-            grid<=0; frames<=0; alive<=0; frame_alive<=0; direction<=0; vertical<=0;
+            index<=0; wheel_contacts<=0; contact_mask<=0; lift_fans<=0; remaining_gravity<=0;
+            grid<=0; frames<=0; alive<=0; frame_alive<=0; direction<=0; vertical<=0; lift_mask<=0;
             fans_active<=0; rockets_active<=0; on_ground<=0; flipped<=0;
             cosine<=0; sine<=0; mass_x<=0; mass_y<=0;
             force_cell<=0;
@@ -993,6 +1012,7 @@ module vehicle_moments #(parameter integer ROCKET_FORCE_SHIFT = 9,
                 IDLE: if(start) begin
                     grid<=build_grid; frames<=build_frames; alive<=intact_mask;
                     frame_alive<=frame_intact_mask; direction<=facing_left; vertical<=rocket_vertical_mask;
+                    lift_mask<=fan_lift_mask;
                     fans_active<=fan_on; rockets_active<=rocket_on; on_ground<=grounded;
                     actual_span_valid<=contact_span_valid;
                     actual_left<=contact_left_q2; actual_right<=contact_right_q2; actual_y<=contact_y_q2;
@@ -1006,13 +1026,14 @@ module vehicle_moments #(parameter integer ROCKET_FORCE_SHIFT = 9,
                     saved_tilt<=tilt;
                     index<=0; body_mass<=0; mass_x<=0; mass_y<=0;
                     contact_mask<=0; wheel_contacts<=0; torque_sum<=0;
-                    balloons<=0; support_min<=10'sd511; support_max<=-10'sd512;
+                    balloons<=0; lift_fans<=0; support_min<=10'sd511; support_max<=-10'sd512;
                     result_valid<=0; gravity_tilt_q8<=0;grounded_support_unstable<=0;
                     phase<=SCAN;
                 end
                 SCAN: begin
                     body_mass<=body_mass+cell_mass;
                     if(alive[index] && part==`LP_PART_BALLOON) balloons<=balloons+1'b1;
+                    if(alive[index] && part==`LP_PART_FAN && fans_active && lift_mask[index]) lift_fans<=lift_fans+1'b1;
                     // Grid centres are -32, 0, +32 quarter pixels: shifts only.
                     if(cell_x<0) mass_x<=mass_x-($signed({1'b0,cell_mass}) <<< 5);
                     else if(cell_x>0) mass_x<=mass_x+($signed({1'b0,cell_mass}) <<< 5);
@@ -1031,7 +1052,31 @@ module vehicle_moments #(parameter integer ROCKET_FORCE_SHIFT = 9,
                     dividend<={{4{mass_y[11]}},mass_y}; divisor<=body_mass;
                     divider_start<=1; phase<=MASS_Y_WAIT;
                 end
-                MASS_Y_WAIT: if(divider_done) begin com_y_q2<=quotient[6:0]; phase<=CONTACT_COM_FIRST; end
+                MASS_Y_WAIT: if(divider_done) begin
+                    com_y_q2<=quotient[6:0];
+                    if(on_ground && lift_fans!=0 && balloons<2 && body_mass!=0) phase<=LIFT_ACCEL_START;
+                    else phase<=CONTACT_COM_FIRST;
+                end
+                LIFT_ACCEL_START: if(!divider_busy) begin
+                    dividend<=$signed({12'd0,lift_fans}) <<< FAN_LIFT_FORCE_SHIFT;
+                    divisor<=body_mass; divider_start<=1; phase<=LIFT_ACCEL_WAIT;
+                end
+                LIFT_ACCEL_WAIT: if(divider_done) begin
+                    // Ground can only push up. Lift unloads its reaction;
+                    // it cannot become a force pulling the vehicle down.
+                    if(quotient>=(balloons==0 ? 16'sd32 : 16'sd8)) remaining_gravity<=0;
+                    else remaining_gravity<=(balloons==0 ? 6'd32 : 6'd8)-quotient;
+                    phase<=LIFT_NORMAL_START;
+                end
+                LIFT_NORMAL_START:
+                    multiply($signed({10'd0,remaining_gravity}),$signed({1'b0,normal_scale}),LIFT_NORMAL_RESULT);
+                LIFT_NORMAL_RESULT: begin
+                    // Fold the weight reduction into the existing normal
+                    // coefficient. No new divider or multiplier is instantiated.
+                    if(balloons==0) normal_scale<=product[13:5];
+                    else normal_scale<=product[11:3];
+                    phase<=CONTACT_COM_FIRST;
+                end
                 CONTACT_COM_FIRST: begin
                     if(actual_span_valid)
                         multiply({{9{com_x_q2[6]}},com_x_q2},cosine,CONTACT_COM_SECOND);
@@ -1114,8 +1159,10 @@ module vehicle_moments #(parameter integer ROCKET_FORCE_SHIFT = 9,
                     else begin
                         // tau = rx*Fy - ry*Fx. Power-of-two actuator forces
                         // replace the final multiply with a constant shift.
-                        if(part==`LP_PART_FAN)
-                            cell_torque<=(axis_y ^ force_cell[15]) ? (rotated_arm <<< 6) : -(rotated_arm <<< 6);
+                        if(part==`LP_PART_FAN) begin
+                            if(axis_y) cell_torque<=-(rotated_arm <<< FAN_LIFT_FORCE_SHIFT);
+                            else cell_torque<=force_cell[15] ? (rotated_arm <<< 6) : -(rotated_arm <<< 6);
+                        end
                         else
                             cell_torque<=(axis_y ^ force_cell[15]) ? (rotated_arm <<< ROCKET_FORCE_SHIFT) : -(rotated_arm <<< ROCKET_FORCE_SHIFT);
                         phase<=ADD_TORQUE;

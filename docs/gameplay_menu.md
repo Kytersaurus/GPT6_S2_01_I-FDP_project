@@ -24,15 +24,19 @@ The left OLED starts on DRIVE. Its bottom tabs are engine (x0..31), balloon (x32
 
 The top-right RETRY button (x66..95, y0..9) retries the current level. It restores the saved construction/direction and runtime parts, resets time and controls, returns to DRIVE, and preserves volume. EDIT returns to BUILD on the same level and restores the construction. Its hitbox is x40..65, y0..9 on DRIVE/SOUND; on POP it is x56..83, y14..23 so it does not cover a balloon. Retry/edit can cancel a movement transaction through the existing INIT_RUN/BUILD reset paths.
 
-Physical controls remain as lab/debug fallbacks: C launches/retries, U opens/closes the diary in BUILD or edits during RUN, D fully resets, L jumps, SW1 mutes, SW2 reverses, SW3 sets normal zoom, SW4 enables free look, SW15 selects JA map view. Result-screen NEXT after success still advances a level. BTNR remains reserved and silent.
+Physical controls remain as lab/debug fallbacks: C launches/retries, U opens/closes the diary in BUILD or edits during RUN, D fully resets, SW1 mutes, SW2 reverses, SW3 sets normal zoom, SW4 enables free look, SW15 selects JA map view. Result-screen NEXT after success still advances a level. BTNL is reserved and silent: the spring/jump mechanic and its button action have been removed. Legacy jump ports remain inactive for module compatibility.
 
 The timer on the Basys3 displays M.SS and runs through 4:15. Mouse-wheel steps select close (1.5x / 12-pixel sprites), normal (1.0x / 8-pixel sprites), and overview (0.5x / 4-pixel sprites) views. Positive wheel deltas zoom out; negative deltas zoom in. Overview covers 192 by 128 world pixels and subsamples the existing sprites with zero extra ROM. The two zoom bits encode the three hardware scales: {overview, zoomed_out} = 2'b00 (close), 2'b01 (normal), 2'b10 (overview). SW3 selects close/normal. Zoom changes are latched at frame boundaries.
 
 ## Physics integration
 
-Engine direction already feeds the existing physics inputs without modifying Kyle's arithmetic. `engine_balance` is the number of surviving right-facing engines minus surviving left-facing engines. The top supplies its absolute value as the effective engine count and XORs its sign with SW2 for reverse. Thus opposing engines cancel thrust, SW2 reverses the entire engine balance, and damage immediately updates the next movement sample. Existing ground-only thrust, boost, friction and jump rules remain.
+`engine_balance` is the number of surviving right-facing engines minus surviving left-facing engines. The top supplies its absolute value as the effective engine count and XORs its sign with SW2 for reverse. Thus opposing engines cancel thrust, SW2 reverses the entire engine balance, and damage updates the next movement sample. Ground-only wheel drive, boost and friction remain; wheels produce no turning moment. SW0 must be on before the engine icon can enable drive.
 
-Fan/rocket construction, sprites, stock and rocket direction storage are present. Their DRIVE controls display WAIT and stay disabled in the connected top until Kyle connects physics availability/readiness. `ui_controller.fan_available`, `rocket_available` and `rocket_ready` gate `fan_on` and the one-clock `rocket_req`; `ui_fan_on` and `ui_rocket_req` are named top wires for that integration. Do not enable these gates until physics consumes the outputs. The global frame snapshot is 268 bits (SNAPSHOT_WIDTH = 251 + 4*(LP_COORD_BITS-16) + (LP_TILT_BITS-4)).
+Fan and rocket controls are connected to physics and gated by surviving-part availability and rocket readiness. Engine and fan start off at launch/retry. Existing fans supply world-horizontal force `64`; rockets supply body-rotated force `1024`, with limited fuel. Both retain moments about the surviving vehicle COM.
+
+The future downward-blowing fan has physics only: world-up force `256` per enabled intact fan (`FAN_LIFT_FORCE_SHIFT=8`) and an off-centre lift moment. Its item, placement and sprite are not implemented. Future construction/status wiring must supply `live_lift_fan_count` and `fan_lift_mask`, and remove these cells from horizontal `fan_balance`; both inputs currently stay zero. No new on-screen control or stock entry is added.
+
+TNT still damages nearby non-pig contents and frames through the runtime damage masks. The pig and its frame are protected. Explosion audio/animation remain connected; explosions do not add a velocity kick. The global frame snapshot is 268 bits (SNAPSHOT_WIDTH = 251 + 4*(LP_COORD_BITS-16) + (LP_TILT_BITS-4)).
 
 ## Validation
 
