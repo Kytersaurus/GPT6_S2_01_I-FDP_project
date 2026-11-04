@@ -433,8 +433,8 @@ function [15:0] part_sprite_facing_dir;
     begin
         ix=x; iy=y;
         if (part==`LP_PART_BOOSTER) begin
-            ix=facing_left ? size-1-y : y;
-            iy=facing_left ? x : size-1-x;
+            ix=facing_down ? size-1-y : (facing_left ? size-1-x : x);
+            iy=facing_down ? x : y;
         end else if (part==`LP_PART_FAN && facing_down) begin
             ix=y;
             iy=size-1-x;

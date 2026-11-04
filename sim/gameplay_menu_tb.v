@@ -55,7 +55,7 @@ module gameplay_menu_tb;
         if(!dut.inventory_page) $fatal(1,"Extra inventory page did not open");
         click(74,8);click(44,28);click(44,28);
         if(!dut.build_facing_left[5]) $fatal(1,"Rocket click did not flip");
-        click(44,28);
+        click(44,28);if(!dut.build_facing_down[5] || dut.build_facing_left[5]) $fatal(1,"Rocket second click did not rotate up");click(44,28);
         if(dut.build_grid[17:15]!=`LP_PART_BOOSTER || dut.build_facing_left[5] || dut.rockets_left!=0)
             $fatal(1,"Right-facing side rocket not placed/accounted");
         place(3,2);

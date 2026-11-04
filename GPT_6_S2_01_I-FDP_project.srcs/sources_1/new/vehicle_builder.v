@@ -94,10 +94,12 @@ module vehicle_builder #(
     wire [8:0] fan_left_support  = side_support;
     wire [8:0] rocket_right_support = side_support;
     wire [8:0] rocket_left_support  = side_support;
+    wire [8:0] rocket_up_support    = frame_below | frame_left | frame_right;
 
     wire req_fan_support = edit_facing_down ? fan_down_support[edit_cell] :
                            (edit_facing_left ? fan_left_support[edit_cell] : fan_right_support[edit_cell]);
-    wire req_rocket_support = edit_facing_left ? rocket_left_support[edit_cell] : rocket_right_support[edit_cell];
+    wire req_rocket_support = edit_facing_down ? rocket_up_support[edit_cell] :
+                              (edit_facing_left ? rocket_left_support[edit_cell] : rocket_right_support[edit_cell]);
 
 
     // Decide once: this result controls both editing and the on-screen feedback.
@@ -145,7 +147,8 @@ module vehicle_builder #(
                     end
                     `LP_PART_BOOSTER: begin
                         if (build_grid[edit_cell*3 +: 3] == edit_part)
-                            edit_result = (build_facing_left[edit_cell]!=edit_facing_left) ? `LP_FEEDBACK_PLACED : `LP_FEEDBACK_NONE;
+                            edit_result = (build_facing_left[edit_cell]!=edit_facing_left ||
+                                           build_facing_down[edit_cell]!=edit_facing_down) ? `LP_FEEDBACK_PLACED : `LP_FEEDBACK_NONE;
                         else if (build_frames[edit_cell] || build_grid[edit_cell*3 +: 3] != `LP_PART_EMPTY) edit_result = `LP_FEEDBACK_OCCUPIED;
                         else if (!req_rocket_support) edit_result = `LP_FEEDBACK_NEED_FRAME;
                         else if (rockets_left==0) edit_result = `LP_FEEDBACK_NO_STOCK;
@@ -184,7 +187,7 @@ module vehicle_builder #(
                                 else edit_result = build_frames[edit_cell+3] ? `LP_FEEDBACK_PLACED : `LP_FEEDBACK_FRAME_BELOW;
                             `LP_PART_BOOSTER:
                                 if (build_frames[edit_cell]) edit_result = `LP_FEEDBACK_OCCUPIED;
-                                else edit_result = (build_facing_left[edit_source] ? rocket_left_support[edit_cell] : rocket_right_support[edit_cell]) ? `LP_FEEDBACK_PLACED : `LP_FEEDBACK_NEED_FRAME;
+                                else edit_result = (build_facing_down[edit_source] ? rocket_up_support[edit_cell] : (build_facing_left[edit_source] ? rocket_left_support[edit_cell] : rocket_right_support[edit_cell])) ? `LP_FEEDBACK_PLACED : `LP_FEEDBACK_NEED_FRAME;
                             `LP_PART_FAN:
                                 if (build_frames[edit_cell]) edit_result = `LP_FEEDBACK_OCCUPIED;
                                 else edit_result = (build_facing_down[edit_source] ? fan_down_support[edit_cell] : (build_facing_left[edit_source] ? fan_left_support[edit_cell] : fan_right_support[edit_cell])) ? `LP_FEEDBACK_PLACED : `LP_FEEDBACK_NEED_FRAME;
@@ -254,7 +257,7 @@ module vehicle_builder #(
                         build_grid[edit_cell*3 +: 3] <= edit_part;
                         build_facing_left[edit_cell] <= (edit_part==`LP_PART_ENGINE || edit_part==`LP_PART_BOOSTER ||
                                                          edit_part==`LP_PART_FAN) && edit_facing_left;
-                        build_facing_down[edit_cell] <= (edit_part==`LP_PART_FAN) && edit_facing_down;
+                        build_facing_down[edit_cell] <= (edit_part==`LP_PART_FAN || edit_part==`LP_PART_BOOSTER) && edit_facing_down;
                     end
                 end else if (edit_result == `LP_FEEDBACK_REMOVED) begin
                     if (edit_op == `LP_EDIT_RETURN) begin
@@ -308,7 +311,7 @@ module vehicle_builder #(
                     else if (!build_frames[index+3]) placement_valid = 0;
                 end
                 `LP_PART_BOOSTER:
-                    if (build_frames[index] || !(build_facing_left[index] ? rocket_left_support[index] : rocket_right_support[index])) placement_valid=0;
+                    if (build_frames[index] || !(build_facing_down[index] ? rocket_up_support[index] : (build_facing_left[index] ? rocket_left_support[index] : rocket_right_support[index]))) placement_valid=0;
                 `LP_PART_FAN:
                     if (build_frames[index] || !(build_facing_down[index] ? fan_down_support[index] : (build_facing_left[index] ? fan_left_support[index] : fan_right_support[index]))) placement_valid=0;
                 default: placement_valid = 0;
@@ -328,7 +331,8 @@ module vehicle_builder #(
                 end
                 `LP_PART_BOOSTER: begin
                     rocket_count=rocket_count+1; mass_units=mass_units+2;
-                    rocket_balance=rocket_balance+(build_facing_left[index] ? -5'sd1 : 5'sd1);
+                    if (!build_facing_down[index])
+                        rocket_balance=rocket_balance+(build_facing_left[index] ? -5'sd1 : 5'sd1);
                 end
                 `LP_PART_FAN: begin
                     fan_count=fan_count+1; mass_units=mass_units+2;

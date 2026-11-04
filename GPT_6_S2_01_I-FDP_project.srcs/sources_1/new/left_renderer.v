@@ -22,6 +22,7 @@ module left_renderer #(
     input tri0 inv_fan_left,
     input tri0 inv_fan_down,
     input tri0 inv_rocket_left,
+    input tri0 inv_rocket_down,
     input wire [1:0] inventory_page,
     input wire [3:0] rockets_left, fans_left,
     input wire [8:0] intact_mask,
@@ -64,12 +65,14 @@ module left_renderer #(
     reg [2:0] inventory_part;
     wire row_engine_left = inv_engine_left | (selected_part == `LP_PART_ENGINE && selected_left);
     wire row_rocket_left = inv_rocket_left | (selected_part == `LP_PART_BOOSTER && selected_left);
+    wire row_rocket_down = inv_rocket_down | (selected_part == `LP_PART_BOOSTER && selected_down);
     wire row_fan_left    = inv_fan_left    | (selected_part == `LP_PART_FAN && selected_left);
     wire row_fan_down    = inv_fan_down    | (selected_part == `LP_PART_FAN && selected_down);
     wire inv_row_left = (inventory_part == `LP_PART_ENGINE) ? row_engine_left :
                         (inventory_part == `LP_PART_BOOSTER) ? row_rocket_left :
                         (inventory_part == `LP_PART_FAN) ? row_fan_left : 1'b0;
-    wire inv_row_down = (inventory_part == `LP_PART_FAN) ? row_fan_down : 1'b0;
+    wire inv_row_down = (inventory_part == `LP_PART_FAN) ? row_fan_down :
+                        (inventory_part == `LP_PART_BOOSTER) ? row_rocket_down : 1'b0;
 
     wire in_build = (game_state == `LP_BUILD);
     wire in_result = (game_state == `LP_SUCCESS || game_state == `LP_FAIL);
@@ -240,8 +243,18 @@ module left_renderer #(
             end
             // Shift the selected cell's three bits into the bottom of the vector.
             part = build_grid >> (cell_index*3);
-            if (cell_x == 0 || cell_y == 0 || x == grid_left+grid_size-1 || y == grid_top+grid_size-1) pixel_data = 16'h7bef;
-            else begin
+            if (cell_x == 0 || cell_y == 0 || x == grid_left+grid_size-1 || y == grid_top+grid_size-1) begin
+                if (in_build && cursor_visible && cursor_x >= 7'd4 && cursor_x < 7'd52 && cursor_y >= 7'd4 && cursor_y < 7'd52 &&
+                    grid_dx[5:4] == ((cursor_x - 7'd4) >> 4) && grid_dy[5:4] == ((cursor_y - 7'd4) >> 4))
+                    pixel_data = 16'h07ff;
+                else
+                    pixel_data = 16'h7bef;
+            end else begin
+                if (in_build && cursor_visible && cursor_x >= 7'd4 && cursor_x < 7'd52 && cursor_y >= 7'd4 && cursor_y < 7'd52 &&
+                    grid_dx[5:4] == ((cursor_x - 7'd4) >> 4) && grid_dy[5:4] == ((cursor_y - 7'd4) >> 4)) begin
+                    if (cell_x == cell_pixels-1 || cell_y == cell_pixels-1) pixel_data = 16'h07ff;
+                    else if (!drag_active) pixel_data = 16'h0351;
+                end
                 // Damage diagram: a dim red cross under any destroyed part; survivors cover it.
                 if (!in_build && cell_x >= 3 && cell_x < cell_pixels-3 && (cell_x == cell_y || cell_x+cell_y == cell_pixels-1) &&
                     ((part != `LP_PART_EMPTY && !intact_mask[cell_index]) ||
@@ -304,9 +317,15 @@ module left_renderer #(
                 if (number_pixel || (remaining_parts >= 10 && tens_pixel)) pixel_data = 16'hffff;
             end
         end else if (x >= 56 && x < 92 && y >= 4 && y < 54) begin
-            pixel_data = 16'h18c3;
-            if (selected_part == inventory_part &&
-                (x == 56 || x == 91 || y == inventory_top || y == inventory_bottom)) pixel_data = 16'hffe0;
+            if (cursor_visible && cursor_x >= 56 && cursor_x < 92 && cursor_y >= inventory_top && cursor_y <= inventory_bottom)
+                pixel_data = 16'h0351;
+            else
+                pixel_data = 16'h18c3;
+            if ((x == 56 || x == 91 || y == inventory_top || y == inventory_bottom)) begin
+                if (selected_part == inventory_part) pixel_data = 16'hffe0;
+                else if (cursor_visible && cursor_x >= 56 && cursor_x < 92 && cursor_y >= inventory_top && cursor_y <= inventory_bottom)
+                    pixel_data = 16'h07ff;
+            end
             pixel_data = draw_part_icon(inventory_part, x-60, y-inventory_content_top,
                                         inv_row_left, inv_row_down, pixel_data);
             if (inventory_number_pixel) pixel_data = (inventory_number == 0) ? 16'hf800 : 16'hffff;
@@ -318,7 +337,7 @@ module left_renderer #(
             // Show the current facing for engine, rocket and fan; balloons point up.
             if (text_on(inventory_part==`LP_PART_BALLOON ? "^               " :
                         (inventory_part==`LP_PART_FAN) ? (row_fan_down ? "v               " : (row_fan_left ? "<               " : ">               ")) :
-                        (inventory_part==`LP_PART_BOOSTER) ? (row_rocket_left ? "<               " : ">               ") :
+                        (inventory_part==`LP_PART_BOOSTER) ? (row_rocket_down ? "^               " : (row_rocket_left ? "<               " : ">               ")) :
                         (row_engine_left ? "<               " : ">               "), 72, inventory_content_top+1, x, y)) pixel_data=16'h07ff;
         end
         if (in_build) begin

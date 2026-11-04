@@ -19,7 +19,6 @@ module ui_controller (
     output reg boost_req,
     output reg [1:0] diary_page,
     output reg [2:0] master_volume,
-    output reg [1:0] mouse_speed,
     output reg engine_on, fan_on, rocket_req,
     output reg sound_muted,
     output wire launch_flash
@@ -35,7 +34,7 @@ module ui_controller (
             left_was_down<=0; diary_page<=0; master_volume<=2;
             engine_on<=0;
             fan_on<=0; sound_muted<=0;
-            run_page<=0; boost_req<=0; mouse_speed<=1; // Default NORM
+            run_page<=0; boost_req<=0;
             home_req<=0; launch_req<=0; edit_req<=0; end_try_req<=0; guide_open_req<=0; guide_close_req<=0;
             rocket_req<=0; launch_ticks<=0;
             level_open_req<=0; level_close_req<=0; level_select_req<=0; selected_level<=0;
@@ -68,16 +67,13 @@ module ui_controller (
                         else if (mx >= 4 && mx <= 20 && my >= 46 && my <= 62)
                             level_open_req <= 1;
                     end else if (game_state==`LP_SETTINGS) begin
-                        // Box 1: Sound Settings / Volume (x: 6..30, y: 12..48)
-                        if (mx>=6 && mx<=30 && my>=12 && my<=48) begin
+                        // Box 1: Sound Settings / Volume (x: 8..44, y: 12..48)
+                        if (mx>=8 && mx<=44 && my>=12 && my<=48) begin
                             guide_open_req <= 1;
                             diary_page <= 3;
-                        // Box 2: Map Select (x: 36..60, y: 12..48)
-                        end else if (mx>=36 && mx<=60 && my>=12 && my<=48) begin
+                        // Box 2: Map Select (x: 51..87, y: 12..48)
+                        end else if (mx>=51 && mx<=87 && my>=12 && my<=48) begin
                             level_select_req <= 1;
-                        // Box 3: Mouse speed (x: 66..90, y: 12..48)
-                        end else if (mx>=66 && mx<=90 && my>=12 && my<=48) begin
-                            mouse_speed <= (mouse_speed == 2) ? 0 : mouse_speed + 1;
                         // Home button: [ ⌂ ] in bottom right (x: 70..95, y: 52..62)
                         end else if (mx>=70 && mx<=95 && my>=52 && my<=62) begin
                             home_req <= 1;
