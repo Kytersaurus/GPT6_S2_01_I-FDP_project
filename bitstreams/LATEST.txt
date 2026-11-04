@@ -1,1 +1,7 @@
-bad_piggies_top_20261104_1615.bit
+﻿Latest bitstream: 2026-11-04/bad_piggies_top_2026-11-04_171438_lut19962.bit
+Quick copy:       bitstreams/bad_piggies_top_latest.bit
+Built at:         2026-11-04 17:14:38 +08:00
+Source commit:    Merged origin/role4 (5826894) + RTL/TB fixes + LUT reduction + mouse scroll & Level 2 fan updates
+Top module:       My_Top_Module (XC7A35T-1CPG236C)
+Utilization:      19,962 / 20,800 Slice LUTs (95.97%), 48 / 50 RAMB36E1 (96.00%), 43 / 90 DSP48E1 (47.78%)
+Timing:           WNS +0.035 ns, TNS 0.000 ns (0 failing), WHS +0.024 ns, THS 0.000 ns (0 failing)

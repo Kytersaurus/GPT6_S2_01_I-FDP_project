@@ -163,8 +163,8 @@ module vehicle_builder_tb;
             edit(`LP_EDIT_REMOVE, cell_number, `LP_PART_EMPTY); check_unchanged();
         end
         edit(`LP_EDIT_PLACE, 0, `LP_PART_EMPTY); check_unchanged();
-        edit(`LP_EDIT_PLACE, 0, `LP_PART_BOOSTER); check_unchanged();
-        edit(`LP_EDIT_PLACE, 0, 3'd7); check_unchanged();
+        edit(`LP_EDIT_PLACE, 0, `LP_PART_PIG); check_unchanged();
+        edit(`LP_EDIT_PLACE, 0, `LP_PART_ENGINE); check_unchanged();
         edit(2'd2, 0, `LP_PART_FRAME); check_unchanged();
         edit(2'd3, 0, `LP_PART_FRAME); check_unchanged();
         // Move the pig to another frame; retry must restore this edited layout.

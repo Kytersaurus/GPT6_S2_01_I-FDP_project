@@ -14,6 +14,7 @@ module vehicle_builder #(
 ) (
     input wire clk, reset,
     input wire [2:0] game_state,
+    input tri0 [1:0] level_index,
     input wire run_init,
     output reg init_ready,
     input wire edit_valid,
@@ -47,7 +48,7 @@ module vehicle_builder #(
     output reg [3:0] frames_left, pigs_left, wheels_left, engines_left, balloons_left,
     output reg [7:0] mass_units
 );
-    reg [8:0] content_mask;
+    reg [8:0] content_mask, wheel_mask;
     reg [8:0] runtime_intact, runtime_frames;
     integer mask_index;
     integer damage_index;
@@ -56,9 +57,9 @@ module vehicle_builder #(
     assign intact_mask = game_state == `LP_BUILD ? content_mask : runtime_intact;
     assign frame_intact_mask = game_state == `LP_BUILD ? build_frames : runtime_frames;
     always @* begin
-        content_mask=0;
+        content_mask=0; wheel_mask=0;
         for (mask_index=0; mask_index<9; mask_index=mask_index+1)
-            content_mask[mask_index]=(build_grid[mask_index*3 +: 3] != `LP_PART_EMPTY);
+            begin content_mask[mask_index]=(build_grid[mask_index*3 +: 3] != `LP_PART_EMPTY); wheel_mask[mask_index]=(build_grid[mask_index*3 +: 3] == `LP_PART_WHEEL); end
     end
 
     // All runtime damage sources share this final safety gate.  Protecting the
@@ -82,6 +83,8 @@ module vehicle_builder #(
     reg [2:0] source_part;
     reg [31:0] feedback_count;
     assign damage_ready = (game_state == `LP_RUN) && !run_init;
+    wire [3:0] active_fan_limit = (level_index == `LP_LEVEL_FLIGHT) ? (FAN_LIMIT[3:0] + 4'd1) : FAN_LIMIT[3:0];
+    wire [3:0] active_rocket_limit = (level_index == `LP_LEVEL_FLIGHT) ? (ROCKET_LIMIT[3:0] + 4'd1) : ROCKET_LIMIT[3:0];
 
     // Shift the frame layer by one row or column in either direction; no edge wraps.
     wire [8:0] frame_left = (build_frames & 9'b011011011) << 1;
@@ -109,6 +112,8 @@ module vehicle_builder #(
     wire [8:0] loose_below = loose_parts >> 3;
     wire [8:0] can_point_right = wheel_support & ~occupied_on_right & ~loose_on_left;
     wire [8:0] can_point_left = wheel_support & ~occupied_on_left & ~loose_on_right;
+    wire [8:0] rocket_can_point_right = wheel_support & ~(((occupied & ~wheel_mask) & 9'b110110110) >> 1) & ~(((loose_parts & ~wheel_mask) & 9'b011011011) << 1);
+    wire [8:0] rocket_can_point_left  = wheel_support & ~(((occupied & ~wheel_mask) & 9'b011011011) << 1) & ~(((loose_parts & ~wheel_mask) & 9'b110110110) >> 1);
     wire [8:0] can_point_up = wheel_support & ~occupied_above & ~loose_below;
     wire [8:0] can_point_down = wheel_support & ~occupied_below & ~loose_above;
 
@@ -119,8 +124,8 @@ module vehicle_builder #(
         input [2:0] mounted_kind;
         input [3:0] part_cell;
         begin
-            usable_directions[0] = can_point_right[part_cell];
-            usable_directions[1] = can_point_left[part_cell];
+            usable_directions[0] = (mounted_kind == `LP_PART_FAN) ? can_point_right[part_cell] : rocket_can_point_right[part_cell];
+            usable_directions[1] = (mounted_kind == `LP_PART_FAN) ? can_point_left[part_cell] : rocket_can_point_left[part_cell];
             if (mounted_kind == `LP_PART_FAN) begin
                 usable_directions[2] = can_point_down[part_cell];
                 usable_directions[3] = 1'b0;
@@ -158,7 +163,9 @@ module vehicle_builder #(
     wire [2:0] scan_part = build_grid[mount_scan_cell*3 +: 3];
     wire [2:0] mount_part = resolving_edit ? edit_part : scan_part;
     wire [3:0] mount_usable = usable_directions(mount_part, mount_cell);
-    wire [1:0] edit_direction = resolve_direction({edit_facing_down, edit_facing_left}, mount_usable);
+    wire clean_facing_down = (edit_facing_down === 1'b1);
+    wire clean_facing_left = (edit_facing_left === 1'b1);
+    wire [1:0] edit_direction = resolve_direction({clean_facing_down, clean_facing_left}, mount_usable);
     wire [1:0] scan_direction = {build_facing_down[mount_scan_cell], build_facing_left[mount_scan_cell]};
     wire [1:0] scan_resolved = resolve_direction(scan_direction, mount_usable);
     wire edit_cell_changes_direction = edit_direction !=
@@ -421,9 +428,9 @@ module vehicle_builder #(
         wheels_left = (saved_wheels < WHEEL_LIMIT) ? WHEEL_LIMIT-saved_wheels : 0;
         engines_left = (saved_engines < ENGINE_LIMIT) ? ENGINE_LIMIT-saved_engines : 0;
         balloons_left = (saved_balloons < BALLOON_LIMIT) ? BALLOON_LIMIT-saved_balloons : 0;
-        rockets_left = saved_rockets < ROCKET_LIMIT ? ROCKET_LIMIT-saved_rockets : 0;
-        fans_left = saved_fans < FAN_LIMIT ? FAN_LIMIT-saved_fans : 0;
-        stock_valid = saved_rockets<=ROCKET_LIMIT && saved_fans<=FAN_LIMIT && saved_frames <= FRAME_LIMIT && saved_pigs <= PIG_LIMIT &&
+        rockets_left = saved_rockets < active_rocket_limit ? active_rocket_limit-saved_rockets : 0;
+        fans_left = saved_fans < active_fan_limit ? active_fan_limit-saved_fans : 0;
+        stock_valid = saved_rockets<=active_rocket_limit && saved_fans<=active_fan_limit && saved_frames <= FRAME_LIMIT && saved_pigs <= PIG_LIMIT &&
                       saved_wheels <= WHEEL_LIMIT && saved_engines <= ENGINE_LIMIT &&
                       saved_balloons <= BALLOON_LIMIT;
         build_valid = (saved_pigs == 1) && placement_valid && stock_valid;

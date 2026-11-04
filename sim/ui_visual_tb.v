@@ -75,7 +75,7 @@ module ui_visual_tb;
         force dut.draw_x=16'sd26624;force dut.draw_y=16'sd6656;
         force dut.draw_death_x=16'sd30720;force dut.draw_death_y=16'sd10240;
         force dut.draw_free_look=1'b0;force dut.draw_zoomed_out=1'b0;
-        death=1;pixel=36*96+54;@(posedge dut.oled_clk);#1;
+        death=1;pixel=24*96+39;@(posedge dut.oled_clk);#1;
         if(dut.right_pixel_data!==16'hffe0) $fatal(1,"Death burst did not follow 1.5x camera");
         force dut.draw_zoomed_out=1'b1;
         pixel=34*96+52;@(posedge dut.oled_clk);#1;

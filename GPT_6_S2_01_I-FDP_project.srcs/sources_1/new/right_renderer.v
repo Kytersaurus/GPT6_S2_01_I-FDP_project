@@ -47,7 +47,7 @@ module right_renderer #(
     input wire [1:0] hazard_count,
     input wire [`LP_HAZARD_BITS-1:0] hazard_rects,
     input wire [2*`LP_MAX_TNT-1:0] blast_phase,
-    input wire [1:0] death_phase,
+    input tri0 [1:0] death_phase,
     input wire signed [`LP_COORD_BITS-1:0] death_x, death_y,
     // Visual-only debris from a high-fall impact. The cells are animated
     // deterministically in this renderer; they are not separate physics bodies.
@@ -62,6 +62,7 @@ module right_renderer #(
     input wire [9:0] flag_x, flag_y,
     input wire [9:0] star_box_x, star_box_y,
     input wire star_box_collected,
+    input tri0 [7:0] run_seconds,
     output reg signed [10:0] map_x, map_y,
     input wire [2:0] map_class,
     output reg [15:0] pixel_data
@@ -158,7 +159,7 @@ module right_renderer #(
         if (game_state == `LP_SUCCESS) begin
             banner_text = "LEVEL CLEAR!    "; banner_left = 7'd12; banner_top = 7'd11;
         end else if (game_state == `LP_FAIL) begin
-            banner_text = "CRASHED!        "; banner_left = 7'd24; banner_top = 7'd14;
+            banner_text = "GAME OVER       "; banner_left = 7'd21; banner_top = 7'd14;
         end else begin
             banner_text = "GO!             "; banner_left = 7'd39; banner_top = 7'd1;
         end
@@ -166,7 +167,9 @@ module right_renderer #(
     wire banner_lit = text_on(banner_text, banner_left, banner_top, px, py);
     // Ending card layout: the clear card keeps its pig below the row of stars.
     wire [6:0] card_pig_top = (game_state == `LP_SUCCESS) ? 7'd36 : 7'd28;
+    wire [1:0] stars_earned = 2'd1 + (star_box_collected ? 2'd1 : 2'd0) + ((run_seconds < 8'd20) ? 2'd1 : 2'd0);
     reg [6:0] card_star_x;
+    reg card_star_earned;
 
     // World position to screen-scale position for sprites.
     function integer scaled;
@@ -383,14 +386,6 @@ module right_renderer #(
                 default: pixel_data = 16'h8410;
             endcase
         end
-        // World-space pig burst stays visible after the pig's intact bit clears.
-        tx=wx-($signed(death_x) >>> 8); ty=wy-($signed(death_y) >>> 8);
-        if (death_phase!=0) begin
-            distance=(tx<0 ? -tx : tx)+(ty<0 ? -ty : ty);
-            if (death_phase==1 && distance<=4) pixel_data=16'hffe0;
-            else if (death_phase==2 && distance<=7 && (tx==0 || ty==0 || tx==ty || tx==-ty)) pixel_data=16'hf800;
-            else if (death_phase==3 && distance>=7 && distance<=9 && (tx==6 || tx==-6 || ty==6 || ty==-6)) pixel_data=16'hb800;
-        end
         if (launch_flash && game_state==`LP_RUN && px>=34 && px<62 && py<10) begin
             pixel_data=16'h04b4;
             if (banner_lit) pixel_data=16'hffff;
@@ -405,10 +400,17 @@ module right_renderer #(
             if (banner_lit) pixel_data = (game_state == `LP_SUCCESS) ? 16'hffe0 : 16'hf800;
             if (game_state == `LP_SUCCESS) begin
                 // Three stars share one lookup: pick the star this column falls in.
-                if (px >= 66) card_star_x = px - 7'd66;
-                else if (px >= 42) card_star_x = px - 7'd42;
-                else card_star_x = px - 7'd18;
-                if (px >= 18) pixel_data = gold_star12(card_star_x, py - 20, pixel_data);
+                if (px >= 66) begin
+                    card_star_x = px - 7'd66;
+                    card_star_earned = (stars_earned == 2'd3);
+                end else if (px >= 42) begin
+                    card_star_x = px - 7'd42;
+                    card_star_earned = (stars_earned >= 2'd2);
+                end else begin
+                    card_star_x = px - 7'd18;
+                    card_star_earned = 1'b1;
+                end
+                if (px >= 18) pixel_data = gold_star12(card_star_earned ? 16'hfee0 : 16'h39e7, card_star_x, py - 20, pixel_data);
             end
             pixel_data = part_sprite16(`LP_PART_PIG, px - 40, py - card_pig_top, 1'b0, pixel_data);
             // Dizzy eyes: a small black and white check over each 2 by 2 eye.
@@ -416,12 +418,17 @@ module right_renderer #(
                 (px == 44 || px == 45 || px == 50 || px == 51))
                 pixel_data = ((px + py) & 1) ? 16'h0000 : 16'hffff;
         end
+        // World-space pig burst stays visible after the pig's intact bit clears.
+        tx=wx-($signed(death_x) >>> 8); ty=wy-($signed(death_y) >>> 8);
+        if (death_phase!=0) begin
+            distance=(tx<0 ? -tx : tx)+(ty<0 ? -ty : ty);
+            if (death_phase==1 && distance<=4) pixel_data=16'hffe0;
+            else if (death_phase==2 && distance<=7 && (tx==0 || ty==0 || tx==ty || tx==-ty)) pixel_data=16'hf800;
+            else if (death_phase==3 && distance>=7 && distance<=9 && (tx==6 || tx==-6 || ty==6 || ty==-6)) pixel_data=16'hb800;
+        end
         if (px == 0 || px == 95 || py == 0 || py == 63) begin
             if (game_state == `LP_SUCCESS) pixel_data = 16'h07e0;
             else if (game_state == `LP_FAIL) pixel_data = 16'hf800;
         end
     end
 endmodule
-
-
-
