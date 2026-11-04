@@ -47,7 +47,7 @@ module right_renderer #(
     input wire [1:0] hazard_count,
     input wire [`LP_HAZARD_BITS-1:0] hazard_rects,
     input wire [2*`LP_MAX_TNT-1:0] blast_phase,
-    input wire [1:0] death_phase,
+    input tri0 [1:0] death_phase,
     input wire signed [`LP_COORD_BITS-1:0] death_x, death_y,
     // Visual-only debris from a high-fall impact. The cells are animated
     // deterministically in this renderer; they are not separate physics bodies.
@@ -62,6 +62,7 @@ module right_renderer #(
     input wire [9:0] flag_x, flag_y,
     input wire [9:0] star_box_x, star_box_y,
     input wire star_box_collected,
+    input tri0 [7:0] run_seconds,
     output reg signed [10:0] map_x, map_y,
     input wire [2:0] map_class,
     output reg [15:0] pixel_data
@@ -167,6 +168,8 @@ module right_renderer #(
     // Ending card layout: the clear card keeps its pig below the row of stars.
     wire [6:0] card_pig_top = (game_state == `LP_SUCCESS) ? 7'd36 : 7'd28;
     reg [6:0] card_star_x;
+    reg card_star_lit;
+    wire time_star = (run_seconds <= 8'd30) && (|frame_intact_mask);
 
     // World position to screen-scale position for sprites.
     function integer scaled;
@@ -399,16 +402,24 @@ module right_renderer #(
         // Clear shows the title, three stars and a pig; crash shows a dizzy pig.
         // The chip is nearly full, so each drawing helper is used only once and
         // its position is chosen first. Each call is its own copy of the logic.
-        if (in_result_state && px >= 8 && px < 88 && py >= 8 && py < 56) begin
+        if (in_result_state && death_phase == 0 && px >= 8 && px < 88 && py >= 8 && py < 56) begin
             if (px == 8 || px == 87 || py == 8 || py == 55) pixel_data = 16'h4a69; // Card edge
             else pixel_data = 16'h0869; // Midnight navy
             if (banner_lit) pixel_data = (game_state == `LP_SUCCESS) ? 16'hffe0 : 16'hf800;
             if (game_state == `LP_SUCCESS) begin
                 // Three stars share one lookup: pick the star this column falls in.
-                if (px >= 66) card_star_x = px - 7'd66;
-                else if (px >= 42) card_star_x = px - 7'd42;
-                else card_star_x = px - 7'd18;
-                if (px >= 18) pixel_data = gold_star12(card_star_x, py - 20, pixel_data);
+                if (px >= 66) begin
+                    card_star_x = px - 7'd66;
+                    card_star_lit = star_box_collected && time_star;
+                end else if (px >= 42) begin
+                    card_star_x = px - 7'd42;
+                    card_star_lit = star_box_collected || time_star;
+                end else begin
+                    card_star_x = px - 7'd18;
+                    card_star_lit = 1'b1;
+                end
+                if (px >= 18 && gold_star12(card_star_x, py - 20, 16'h0000) != 16'h0000)
+                    pixel_data = card_star_lit ? 16'hfee0 : 16'h4208;
             end
             pixel_data = part_sprite16(`LP_PART_PIG, px - 40, py - card_pig_top, 1'b0, pixel_data);
             // Dizzy eyes: a small black and white check over each 2 by 2 eye.
@@ -422,6 +433,3 @@ module right_renderer #(
         end
     end
 endmodule
-
-
-

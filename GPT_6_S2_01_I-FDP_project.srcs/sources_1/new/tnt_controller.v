@@ -303,9 +303,7 @@ module tnt_controller (
                         // Always launch upward, and sideways away from the crate.
                         // Pushing down into the floor would be cancelled at once,
                         // so a crate hit from above still throws the vehicle up.
-                        knockback_x<=0;
-                        if (knockback_delta_x < 0) knockback_x<=-TNT_KNOCKBACK_IMPULSE;
-                        else if (knockback_delta_x > 0) knockback_x<=TNT_KNOCKBACK_IMPULSE;
+                        knockback_x <= (knockback_delta_x > 0) ? TNT_KNOCKBACK_IMPULSE : -TNT_KNOCKBACK_IMPULSE;
                         knockback_y<=-TNT_KNOCKBACK_IMPULSE;
                         knockback_valid<=1;
                         damage_valid<=1; explosion_event<=1; state<=WAIT_DAMAGE;

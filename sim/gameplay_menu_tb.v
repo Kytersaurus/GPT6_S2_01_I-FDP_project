@@ -58,9 +58,9 @@ module gameplay_menu_tb;
         mz=4'b1111;me=1;clocks(1);me=0;mz=0;clocks(3);
         if(!dut.inventory_page) $fatal(1,"Mouse scroll did not open extra inventory page");
         click(74,8);click(44,28);click(44,28);
-        if(!dut.build_facing_left[5]) $fatal(1,"Rocket click did not flip");
-        click(44,28);if(!dut.build_facing_down[5] || dut.build_facing_left[5]) $fatal(1,"Rocket second click did not rotate up");click(44,28);
-        if(dut.build_grid[17:15]!=`LP_PART_BOOSTER || dut.build_facing_left[5] || dut.rockets_left!=0)
+        if(!dut.build_facing_down[5] || dut.build_facing_left[5]) $fatal(1,"Rocket click did not rotate up");
+        click(44,28);if(!dut.build_facing_down[5] || !dut.build_facing_left[5]) $fatal(1,"Rocket second click did not rotate down");click(44,28);
+        if(dut.build_grid[17:15]!=`LP_PART_BOOSTER || dut.build_facing_left[5] || dut.build_facing_down[5] || dut.rockets_left!=0)
             $fatal(1,"Right-facing side rocket not placed/accounted");
         place(1,2);
         if(dut.fan_count!=1 || dut.fans_left!=0 || !dut.build_valid) $fatal(1,"Side fan placement failed");

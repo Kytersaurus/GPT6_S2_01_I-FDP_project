@@ -117,11 +117,11 @@ module crash_impact_tb;
         force dut.grounded = 1'b1;
         force dut.audio_was_grounded = 1'b0;
         force dut.proposed_vy = 16'sd800;
-        force dut.corrected_y = 20'sd98304;
+        force dut.corrected_y = 20'sd8192;
         clocks(1);
 
         if (dut.impact_damage_valid !== 1'b0)
-            $fatal(1, "Normal 384-pixel cave descent triggered impact damage!");
+            $fatal(1, "Normal 32-pixel drop triggered impact damage!");
         release dut.falling;
         release dut.fall_start_y;
         release dut.response_valid;
@@ -150,7 +150,7 @@ module crash_impact_tb;
         force dut.vehicle_tilt = 5'sd0;
         force dut.falling = 1'b1;
         force dut.fall_start_y = 20'sd0;
-        force dut.corrected_y = 20'sd114688;
+        force dut.corrected_y = 20'sd16384;
         clocks(1);
 
         if (dut.impact_damage_valid !== 1'b1)
@@ -192,7 +192,7 @@ module crash_impact_tb;
         force dut.vehicle_tilt = -5'sd16;
         force dut.falling = 1'b1;
         force dut.fall_start_y = 20'sd0;
-        force dut.corrected_y = 20'sd114688;
+        force dut.corrected_y = 20'sd16384;
         clocks(1);
 
         if (dut.impact_damage_valid !== 1'b1)

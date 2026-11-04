@@ -6,7 +6,7 @@
 function signed [`LP_TILT_BITS-1:0] sanitize_tilt;
     input signed [`LP_TILT_BITS-1:0] tilt;
     begin
-        sanitize_tilt=tilt;
+        sanitize_tilt=(^tilt === 1'bx) ? 5'sd0 : tilt;
     end
 endfunction
 

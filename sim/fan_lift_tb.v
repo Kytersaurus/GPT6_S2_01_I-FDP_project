@@ -17,7 +17,7 @@ module fan_lift_tb;
     wire signed [19:0] nx,ny;
     wire signed [15:0] vx,vy;
     wire signed [4:0] next_tilt;
-    integer waited, tests=0, i;
+    integer waited, tests=0, i; `include "rotation_geometry.vh"
     always #5 clk=~clk;
     physics_engine dut(.clk(clk),.reset(reset),.run_init(init),.game_state(state),
         .spawn_x(20'sd8192),.spawn_y(20'sd8192),.step_start(step),.update_release(release_step),
@@ -113,7 +113,7 @@ module fan_lift_tb;
         for(i=-16;i<16;i=i+1) begin
             accepted_tilt=i;facing=i[0] ? 9'h1ff : 9'd0;
             fan_on=0;restart();check_step(0,32);
-            fan_on=1;check_step(0,-32);
+            fan_on=1;check_step((2*$signed(rotation_sin(i)))/8,32+(-2*$signed(rotation_cos(i)))/8);
             if(dut.u_moments.torque_q10!=0)
                 $fatal(1,"Balanced lift fans spun at tilt %0d",i);
         end

@@ -75,6 +75,7 @@ module role4_game_display_tb;
     reg [6:0] look_x=0, look_y=0;
     reg [8:0] view_intact=9'b101110000;
     reg [7:0] view_seconds=0;
+    reg view_star_collected=0;
     reg [2*`LP_MAX_TNT-1:0] view_blast=0;
     reg view_phase=0;
     wire [26:0] grid = {`LP_PART_WHEEL,`LP_PART_EMPTY,`LP_PART_WHEEL,
@@ -109,7 +110,7 @@ module role4_game_display_tb;
         .spawn_x(spawn_x),.spawn_y(spawn_y),.terrain_count(terrain_count),.terrain_rects(terrain_rects),
         .goal_rect(goal_rect),.tnt_count(tnt_count),.tnt_positions(tnt_positions),.tnt_intact(tnt_intact),
         .hazard_count(hazard_count),.hazard_rects(hazard_rects),.blast_phase(view_blast),.anim_phase(view_phase),
-        .star_box_x(star_box_x),.star_box_y(star_box_y),.star_box_collected(1'b0),.pixel_data(right_colour)
+        .star_box_x(star_box_x),.star_box_y(star_box_y),.star_box_collected(view_star_collected),.run_seconds(view_seconds),.pixel_data(right_colour)
     );
 
     task clocks;
@@ -331,13 +332,27 @@ module role4_game_display_tb;
 
         view_state=`LP_FAIL;
         expect_right(0, 0, 16'hf800, "fail border");
+        // Right OLED ending card 3-star rating logic (1 star, 2 stars, 3 stars).
+        view_state=`LP_SUCCESS; view_seconds=45; view_star_collected=0;
+        expect_right(24, 24, 16'hfee0, "star 1 earned");
+        expect_right(48, 24, 16'h4208, "star 2 unlit");
+        expect_right(72, 24, 16'h4208, "star 3 unlit");
+        view_seconds=20; view_star_collected=0;
+        expect_right(24, 24, 16'hfee0, "star 1 earned (time)");
+        expect_right(48, 24, 16'hfee0, "star 2 earned (time)");
+        expect_right(72, 24, 16'h4208, "star 3 unlit (no box)");
+        view_seconds=20; view_star_collected=1;
+        expect_right(24, 24, 16'hfee0, "star 1 earned (all)");
+        expect_right(48, 24, 16'hfee0, "star 2 earned (all)");
+        expect_right(72, 24, 16'hfee0, "star 3 earned (all)");
+        view_star_collected=0; view_seconds=12;
 
         // Map view, Level 0 (Cave Arch): night sky above the start plateau and grass along its top edge (map ROM).
         level=0; view_state=`LP_BUILD; zoomed_out=0;
         expect_right(0, 0, 16'h4af1, "map sky");
         // The close-up camera uses the 43x29 world viewport, so the start
         // plateau appears at its corrected screen position.
-        expect_right(39, 39, 16'h4d86, "plateau grass");
+        expect_right(39, 39, 16'h3504, "plateau grass");
         // The camera follows the vehicle across the map, here to the finish flag.
         view_state=`LP_RUN; vehicle_x=570*256; vehicle_y=457*256;
         expect_right(61, 28, 16'hec05, "flag pole");

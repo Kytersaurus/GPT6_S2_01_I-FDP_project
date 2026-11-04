@@ -158,7 +158,9 @@ module vehicle_builder #(
     wire [2:0] scan_part = build_grid[mount_scan_cell*3 +: 3];
     wire [2:0] mount_part = resolving_edit ? edit_part : scan_part;
     wire [3:0] mount_usable = usable_directions(mount_part, mount_cell);
-    wire [1:0] edit_direction = resolve_direction({edit_facing_down, edit_facing_left}, mount_usable);
+    wire clean_facing_down = (edit_facing_down === 1'b1);
+    wire clean_facing_left = (edit_facing_left === 1'b1);
+    wire [1:0] edit_direction = resolve_direction({clean_facing_down, clean_facing_left}, mount_usable);
     wire [1:0] scan_direction = {build_facing_down[mount_scan_cell], build_facing_left[mount_scan_cell]};
     wire [1:0] scan_resolved = resolve_direction(scan_direction, mount_usable);
     wire edit_cell_changes_direction = edit_direction !=
