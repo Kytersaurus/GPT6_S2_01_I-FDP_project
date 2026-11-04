@@ -352,14 +352,15 @@ function [15:0] star_sprite12;
 endfunction
 
 // A plain 12 by 12 golden star for the level-clear card; the background shows around it.
-function [15:0] gold_star12;
+function [15:0] gold_star12; input [15:0] star_colour;
     input integer sprite_x, sprite_y;
     input [15:0] background;
     reg [11:0] row;
     begin
         row = 0;
         if (sprite_x >= 0 && sprite_x < 12 && sprite_y >= 0 && sprite_y < 12) case (sprite_y)
-            0, 1, 2: row = 12'b000001100000;
+            0: row = 12'b000001100000;
+            1, 2: row = 12'b000011110000;
             3: row = 12'b111111111111;
             4: row = 12'b011111111110;
             5: row = 12'b001111111100;
@@ -369,7 +370,7 @@ function [15:0] gold_star12;
             10: row = 12'b110000000011;
             default: row = 0;
         endcase
-        gold_star12 = row[11-sprite_x] ? 16'hfee0 : background;
+        gold_star12 = row[11-sprite_x] ? star_colour : background;
     end
 endfunction
 

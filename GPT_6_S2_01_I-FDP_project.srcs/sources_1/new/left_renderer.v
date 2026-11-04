@@ -276,7 +276,7 @@ module left_renderer #(
             if (seconds_pixel || (run_seconds >= 10 && seconds_tens_pixel)) pixel_data = 16'h07ff;
             if (in_result) begin
                 if (text_on("S               ", 7'd78, 6'd8, x, y)) pixel_data = 16'h07ff;
-                stars = 1 + (star_box_collected ? 1 : 0) + ((run_seconds <= 30 && remaining_parts >= 2) ? 1 : 0);
+                stars = 1 + (star_box_collected ? 1 : 0) + ((run_seconds < 20) ? 1 : 0);
                 // 3 Stars centered at x=59, 71, 83, y=25 (radiant gold fill, amber rim, white glint; unearned = slate/bronze outline)
                 if (y >= 22 && y <= 28) begin
                     // Star 1 (cx = 59)

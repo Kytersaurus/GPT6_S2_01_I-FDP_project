@@ -110,7 +110,7 @@ module role4_game_display_tb;
         .spawn_x(spawn_x),.spawn_y(spawn_y),.terrain_count(terrain_count),.terrain_rects(terrain_rects),
         .goal_rect(goal_rect),.tnt_count(tnt_count),.tnt_positions(tnt_positions),.tnt_intact(tnt_intact),
         .hazard_count(hazard_count),.hazard_rects(hazard_rects),.blast_phase(view_blast),.anim_phase(view_phase),
-        .star_box_x(star_box_x),.star_box_y(star_box_y),.star_box_collected(view_star_collected),.pixel_data(right_colour)
+        .star_box_x(star_box_x),.star_box_y(star_box_y),.star_box_collected(view_star_collected),.run_seconds(view_seconds),.pixel_data(right_colour)
     );
 
     task clocks;
@@ -333,7 +333,11 @@ module role4_game_display_tb;
         view_state=`LP_FAIL;
         expect_right(0, 0, 16'hf800, "fail border");
         // Right OLED ending card 3 gold stars.
-        view_state=`LP_SUCCESS;
+        view_state=`LP_SUCCESS; view_star_collected=0; view_seconds=25;
+        expect_right(24, 24, 16'hfee0, "star 1 gold (1 star)");
+        expect_right(48, 24, 16'h39e7, "star 2 unearned");
+        expect_right(72, 24, 16'h39e7, "star 3 unearned");
+        view_seconds=12; view_star_collected=1;
         expect_right(24, 24, 16'hfee0, "star 1 gold");
         expect_right(48, 24, 16'hfee0, "star 2 gold");
         expect_right(72, 24, 16'hfee0, "star 3 gold");

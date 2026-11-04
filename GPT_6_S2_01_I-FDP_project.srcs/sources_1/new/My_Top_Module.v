@@ -201,7 +201,8 @@ module My_Top_Module #(
     // Coordinates are Q12.8. The normal 24-pixel spawn drop stays harmless. A
     // 48-pixel ledge or balloon drop damages the contact row; a 96-pixel fall
     // tears off everything except the protected pig and its frame.
-    localparam signed [19:0] HIGH_FALL_DISTANCE_Q8  = 20'sd12288; // 48 px
+    localparam signed [19:0] ARCH_FALL_DISTANCE_Q8   = 20'sd16384; // 64 px (Map 1, 2x scale)
+    localparam signed [19:0] FLIGHT_FALL_DISTANCE_Q8 = 20'sd7168;  // 28 px (Map 2, 1x scale)
     localparam signed [19:0] FATAL_FALL_DISTANCE_Q8 = 20'sd24576; // 96 px
 
     wire wall_crash_right = ($signed(proposed_vx) >= 16'sd448 && $signed(corrected_vx) <= 0);
@@ -219,7 +220,9 @@ module My_Top_Module #(
     reg signed [`LP_COORD_BITS-1:0] fall_start_y;
     wire signed [`LP_COORD_BITS-1:0] fall_distance_q8 = $signed(corrected_y) - $signed(fall_start_y);
     wire high_fall_landing = response_valid && response_ready && grounded && !audio_was_grounded &&
-                              falling && (fall_distance_q8 >= HIGH_FALL_DISTANCE_Q8);
+                              falling && (airborne_ticks >= (map_id ? 6'd8 : 6'd12)) &&
+                              ($signed(proposed_vy) >= (map_id ? 16'sd384 : 16'sd512)) &&
+                              (fall_distance_q8 >= (map_id ? FLIGHT_FALL_DISTANCE_Q8 : ARCH_FALL_DISTANCE_Q8));
     always @(posedge clk) begin
         if (reset) begin
             audio_was_grounded <= 0;
@@ -242,7 +245,7 @@ module My_Top_Module #(
                     if (airborne_ticks < 6'd63) airborne_ticks <= airborne_ticks + 1'b1;
                     // Record the last grounded pose when leaving it. If the
                     // vehicle starts in the air, use its first airborne pose.
-                    if (audio_was_grounded || !falling || ($signed(previous_y) < $signed(fall_start_y))) fall_start_y <= previous_y;
+                    if (audio_was_grounded || !falling || ($signed(previous_y) < $signed(fall_start_y)) || ($signed(proposed_vy) <= 16'sd160)) fall_start_y <= previous_y;
                     falling <= 1'b1;
                 end else begin
                     airborne_ticks <= 6'd0;
@@ -264,7 +267,7 @@ module My_Top_Module #(
     always @* begin
         next_impact_mask = 9'd0;
         next_frame_mask = 9'd0;
-        if (vert_crash_event && vert_crash_fatal) begin
+        if (vert_crash_event) begin
             // A terminal high fall requests all cells/frames. vehicle_builder
             // still protects the pig through its final safety gate.
             next_impact_mask = 9'b111_111_111;
@@ -1014,7 +1017,7 @@ module My_Top_Module #(
         .death_phase(draw_death_phase), .death_x(draw_death_x), .death_y(draw_death_y), .launch_flash(draw_launch_flash),
         .scatter_mask(draw_scatter_mask), .scatter_x(draw_scatter_x), .scatter_y(draw_scatter_y), .scatter_phase(draw_scatter_phase),
         .anim_phase(wheel_anim_phase), .map_level(draw_map_level), .map_id(draw_map_id), .world_width(draw_world_width),
-        .world_height(draw_world_height), .flag_x(draw_flag_x), .flag_y(draw_flag_y), .star_box_x(draw_star_box_x), .star_box_y(draw_star_box_y), .star_box_collected(draw_star_box_collected),
+        .world_height(draw_world_height), .flag_x(draw_flag_x), .flag_y(draw_flag_y), .star_box_x(draw_star_box_x), .star_box_y(draw_star_box_y), .star_box_collected(draw_star_box_collected), .run_seconds(draw_seconds),
         .map_x(right_map_x), .map_y(right_map_y), .map_class(map_draw_class),
         .pixel_data(right_pixel_data)
     );

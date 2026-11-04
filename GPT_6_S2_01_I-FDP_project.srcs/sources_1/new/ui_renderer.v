@@ -194,29 +194,29 @@ module ui_renderer (
         end
     endfunction
 
-    function [15:0] cartoon_pencil;
+    function [15:0] cartoon_wrench;
         input signed [6:0] cx, cy, px, py;
         input [15:0] bg;
         reg signed [4:0] lx, ly;
+        reg [8:0] row;
         begin
             lx = px - cx;
             ly = py - cy;
-            // 45-degree angled pencil: graphite tip at (-3, 3), pink eraser at (3, -3)
-            if (lx == -3 && ly == 3)
-                cartoon_pencil = 16'h0000; // Graphite lead tip
-            else if ((lx == -2 && ly == 2) || (lx == -3 && ly == 2) || (lx == -2 && ly == 3))
-                cartoon_pencil = 16'hfdf0; // Wood sharpened collar
-            else if ((lx == -1 && (ly == 0 || ly == 1)) ||
-                     (lx == 0  && (ly == -1 || ly == 0 || ly == 1)) ||
-                     (lx == 1  && (ly == -2 || ly == -1 || ly == 0)) ||
-                     (lx == 2  && (ly == -2 || ly == -1)))
-                cartoon_pencil = 16'hffe0; // Yellow pencil shaft
-            else if ((lx == 2 && ly == -3) || (lx == 3 && ly == -2))
-                cartoon_pencil = 16'hc618; // Silver ferrule band
-            else if (lx == 3 && ly == -3)
-                cartoon_pencil = 16'hfcee; // Pink eraser
-            else
-                cartoon_pencil = bg;
+            row = 9'd0;
+            if (lx >= -4 && lx <= 4 && ly >= -4 && ly <= 4) begin
+                case (ly)
+                    -5'sd4: row = 9'b000001100; // Upper jaw tip
+                    -5'sd3: row = 9'b000011000; // Upper jaw
+                    -5'sd2: row = 9'b000011011; // Jaw base + lower jaw tip (open C-mouth)
+                    -5'sd1: row = 9'b000111110; // Neck + lower jaw
+                     5'sd0: row = 9'b001110000; // Diagonal shaft
+                     5'sd1: row = 9'b011100000; // Diagonal shaft
+                     5'sd2: row = 9'b111000000; // Handle
+                     5'sd3: row = 9'b110000000; // Handle end
+                    default: row = 9'd0;
+                endcase
+            end
+            cartoon_wrench = row[4 - lx] ? ((lx + ly <= -1) ? 16'hffff : 16'hc618) : bg;
         end
     endfunction
 
@@ -782,13 +782,13 @@ module ui_renderer (
                     if (is_stop_icon(7'd36, 6'd58, x, y)) pixel_data = 16'hf800; // Red stop icon
                 end
 
-                // Button 3: [ EDIT ] (x: 50..70, center 60) - Pencil Icon
+                // Button 3: [ EDIT ] (x: 50..70, center 60) - Wrench Icon
                 else if (x >= 50 && x <= 70) begin
                     if (x == 50 || x == 70 || y == 53 || y == 63)
                         pixel_data = (cursor_x >= 50 && cursor_x <= 70 && cursor_y >= 53 && cursor_y <= 63) ? 16'hffe0 : 16'h04b4;
                     else if (cursor_x >= 50 && cursor_x <= 70 && cursor_y >= 53 && cursor_y <= 63) pixel_data = 16'h0351;
                     else pixel_data = 16'h18e5;
-                    pixel_data = cartoon_pencil(7'd60, 6'd58, x, y, pixel_data);
+                    pixel_data = cartoon_wrench(7'd60, 6'd58, x, y, pixel_data);
                 end
 
                 // Button 4: [ GEAR ] (x: 74..94)
@@ -832,7 +832,7 @@ module ui_renderer (
                         else pixel_data = 16'hffdf;
                     end
                 end
-                // Button 3: [ NEXT / EDIT ] (x: 50..70) - Pencil Icon on Fail
+                // Button 3: [ NEXT / EDIT ] (x: 50..70) - Wrench Icon on Fail
                 else if (x >= 50 && x <= 70) begin
                     if (x == 50 || x == 70 || y == 53 || y == 63)
                         pixel_data = (cursor_x >= 50 && cursor_x <= 70 && cursor_y >= 53 && cursor_y <= 63) ? 16'hffe0 : 16'h04b4;
@@ -841,7 +841,7 @@ module ui_renderer (
                     if (game_state == `LP_SUCCESS) begin
                         if (is_play_icon(7'd60, 6'd58, x, y)) pixel_data = 16'h07e0; // Bright green play triangle
                     end else begin
-                        pixel_data = cartoon_pencil(7'd60, 6'd58, x, y, pixel_data);
+                        pixel_data = cartoon_wrench(7'd60, 6'd58, x, y, pixel_data);
                     end
                 end
                 // Button 4: [ GUIDE ] (x: 74..94)
