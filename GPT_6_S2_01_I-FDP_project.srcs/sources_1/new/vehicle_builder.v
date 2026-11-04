@@ -89,12 +89,12 @@ module vehicle_builder #(
     wire [8:0] frame_below = build_frames >> 3;
     wire [8:0] side_support = frame_left | frame_right;
     wire [8:0] wheel_support = frame_above | frame_below | side_support;
-    wire [8:0] fan_down_support  = frame_above | frame_left | frame_right;
-    wire [8:0] fan_right_support = side_support;
-    wire [8:0] fan_left_support  = side_support;
-    wire [8:0] rocket_right_support = side_support;
-    wire [8:0] rocket_left_support  = side_support;
-    wire [8:0] rocket_up_support    = frame_below | frame_left | frame_right;
+    wire [8:0] fan_down_support  = frame_above | frame_below | side_support;
+    wire [8:0] fan_right_support = frame_above | side_support;
+    wire [8:0] fan_left_support  = frame_above | side_support;
+    wire [8:0] rocket_right_support = frame_above | side_support;
+    wire [8:0] rocket_left_support  = frame_above | side_support;
+    wire [8:0] rocket_up_support    = frame_above | frame_below | side_support;
 
     wire req_fan_support = edit_facing_down ? fan_down_support[edit_cell] :
                            (edit_facing_left ? fan_left_support[edit_cell] : fan_right_support[edit_cell]);

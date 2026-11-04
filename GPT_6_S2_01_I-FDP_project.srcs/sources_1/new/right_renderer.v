@@ -313,13 +313,13 @@ module right_renderer #(
                 rel_x=2*rel_x;
                 rel_y=2*rel_y;
                 if (frame_intact_mask[cell_index]) pixel_data = part_sprite(`LP_PART_FRAME, rel_x, rel_y, 1'b0, pixel_data);
-                if (intact_mask[cell_index]) pixel_data = part_sprite_facing_dir(part, rel_x, rel_y, 8, build_facing_left[cell_index], build_facing_down[cell_index], anim_phase, pixel_data);
+                if (intact_mask[cell_index]) pixel_data = part_sprite_mounted(part, rel_x, rel_y, 8, build_facing_left[cell_index], build_facing_down[cell_index], frame_intact_mask, cell_index, anim_phase, pixel_data);
             end else if (zoomed_out_q) begin
                 if (frame_intact_mask[cell_index]) pixel_data = part_sprite(`LP_PART_FRAME, rel_x, rel_y, 1'b0, pixel_data);
-                if (intact_mask[cell_index]) pixel_data = part_sprite_facing_dir(part, rel_x, rel_y, 8, build_facing_left[cell_index], build_facing_down[cell_index], anim_phase, pixel_data);
+                if (intact_mask[cell_index]) pixel_data = part_sprite_mounted(part, rel_x, rel_y, 8, build_facing_left[cell_index], build_facing_down[cell_index], frame_intact_mask, cell_index, anim_phase, pixel_data);
             end else begin
                 if (frame_intact_mask[cell_index]) pixel_data = part_sprite12(`LP_PART_FRAME, rel_x, rel_y, 1'b0, pixel_data);
-                if (intact_mask[cell_index]) pixel_data = part_sprite_facing_dir(part, rel_x, rel_y, 12, build_facing_left[cell_index], build_facing_down[cell_index], anim_phase, pixel_data);
+                if (intact_mask[cell_index]) pixel_data = part_sprite_mounted(part, rel_x, rel_y, 12, build_facing_left[cell_index], build_facing_down[cell_index], frame_intact_mask, cell_index, anim_phase, pixel_data);
             end
         end
         // High-fall debris: show a compact three-piece scatter burst while the
