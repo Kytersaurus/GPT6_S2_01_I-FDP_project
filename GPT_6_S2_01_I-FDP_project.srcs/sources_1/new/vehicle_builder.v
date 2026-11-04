@@ -159,18 +159,19 @@ module vehicle_builder #(
     // so a neighbour being added or removed turns the part to a usable direction.
     reg [3:0] mount_scan_cell;
     wire resolving_edit = edit_valid && edit_cell < 9;
-    wire [3:0] mount_cell = resolving_edit ? edit_cell : mount_scan_cell;
     wire [2:0] scan_part = build_grid[mount_scan_cell*3 +: 3];
-    wire [2:0] mount_part = resolving_edit ? edit_part : scan_part;
-    wire [3:0] mount_usable = usable_directions(mount_part, mount_cell);
+    // The edit and the scan each have their own lookup: this is the design's tightest 100 MHz
+    // path, and a shared lookup would add a mux level in front of both.
+    wire [3:0] edit_usable = usable_directions(edit_part, edit_cell);
+    wire [3:0] scan_usable = usable_directions(scan_part, mount_scan_cell);
     wire clean_facing_down = (edit_facing_down === 1'b1);
     wire clean_facing_left = (edit_facing_left === 1'b1);
-    wire [1:0] edit_direction = resolve_direction({clean_facing_down, clean_facing_left}, mount_usable);
+    wire [1:0] edit_direction = resolve_direction({clean_facing_down, clean_facing_left}, edit_usable);
     wire [1:0] scan_direction = {build_facing_down[mount_scan_cell], build_facing_left[mount_scan_cell]};
-    wire [1:0] scan_resolved = resolve_direction(scan_direction, mount_usable);
+    wire [1:0] scan_resolved = resolve_direction(scan_direction, scan_usable);
     wire edit_cell_changes_direction = edit_direction !=
         {build_facing_down[edit_cell], build_facing_left[edit_cell]};
-    wire edit_cell_can_mount = |mount_usable;
+    wire edit_cell_can_mount = |edit_usable;
 
     // A moved part has not left its source yet, so the source would wrongly block
     // it here. Only require a frame; the scan picks the direction after the move.

@@ -345,14 +345,14 @@ module role4_game_display_tb;
         // Map view, Level 0 (Cave Arch): night sky above the start plateau and grass along its top edge (map ROM).
         level=0; view_state=`LP_BUILD; zoomed_out=0;
         expect_right(0, 0, 16'h4af1, "map sky");
-        // The close-up camera uses the 43x29 world viewport, so the start
-        // plateau appears at its corrected screen position.
-        expect_right(39, 39, 16'h3504, "plateau grass");
-        // The camera follows the vehicle across the map, here to the finish flag.
+        // The close-up camera uses the 64x43 world viewport that fills the 96x64 screen, which
+        // centres the vehicle. Camera (188,66) puts plateau world pixel (224,100) at screen (54,51).
+        expect_right(54, 51, 16'h3504, "plateau grass");
+        // The camera follows the vehicle across the map, here to the finish flag: camera (550,448).
         view_state=`LP_RUN; vehicle_x=570*256; vehicle_y=457*256;
-        expect_right(61, 28, 16'hec05, "flag pole");
-        expect_right(64, 30, 16'hffff, "flag white square");
-        expect_right(68, 30, 16'h0000, "flag black square");
+        expect_right(76, 37, 16'hec05, "flag pole");
+        expect_right(79, 39, 16'hffff, "flag white square");
+        expect_right(83, 39, 16'h0000, "flag black square");
         // Free look: the cursor, not the vehicle, picks the camera; the corners reach the map edges.
         free_look=1; look_x=0; look_y=0;
         expect_right(0, 0, 16'h322d, "free look top-left sky");

@@ -84,7 +84,7 @@ module left_renderer #(
     wire [6:0] drag_left = (cursor_x < 4) ? 7'd0 : (cursor_x > 92) ? 7'd88 : cursor_x - 7'd4;
     wire [6:0] drag_top = (cursor_y < 4) ? 7'd0 : (cursor_y > 60) ? 7'd56 : cursor_y - 7'd4;
     reg [3:0] inventory_number;
-    integer cell_index, cell_x, cell_y;
+    reg [3:0] cell_index, cell_x, cell_y;
     reg [5:0] grid_dx, grid_dy;
     reg [1:0] grid_col, grid_row;
     reg [2:0] part;
@@ -93,10 +93,15 @@ module left_renderer #(
     reg cell_hovered;
     reg [127:0] message;
     reg [15:0] message_colour;
-    reg [7:0] letter;
+    reg [7:0] letter, arrow_letter;
     reg [34:0] letter_bits;
-    integer text_column, text_row;
+    reg [2:0] text_column, text_row;
     reg [3:0] text_char_idx;
+    wire [6:0] message_column = x - ((text_char_idx << 2) + (text_char_idx << 1));
+    wire [6:0] arrow_column = x - 7'd72;
+    wire [6:0] arrow_row = y - inventory_content_top - 7'd1;
+    wire [5:0] message_row = y - 6'd56;
+    wire text_lit = (text_column < 3'd5) && letter_bits[34 - (text_row * 5 + text_column)];
 
     // Inventory and drag preview use the same sprites as the grid and the right OLED.
     function [15:0] draw_part_icon;
@@ -134,12 +139,32 @@ module left_renderer #(
                 endcase
             end
         endcase
+        // The facing arrow shows the part's direction: engine, rocket and fan; balloons point up.
+        case (inventory_part)
+            `LP_PART_BALLOON: arrow_letter = "^";
+            `LP_PART_FAN: begin
+                if (row_fan_down) arrow_letter = "v";
+                else arrow_letter = row_fan_left ? "<" : ">";
+            end
+            `LP_PART_BOOSTER: begin
+                if (row_rocket_down) arrow_letter = row_rocket_left ? "v" : "^";
+                else arrow_letter = row_rocket_left ? "<" : ">";
+            end
+            default: arrow_letter = row_engine_left ? "<" : ">";
+        endcase
         // Six pixels per character: five drawing columns, then a blank column.
         text_char_idx = ({9'd0, x} * 16'd43) >> 8;
-        letter = message >> ((15 - text_char_idx) * 8);
+        // Inventory arrows end above the status message's rows, so both share one font lookup.
+        if (y < 6'd55) begin
+            letter = arrow_letter;
+            text_column = (arrow_column < 7'd5) ? arrow_column[2:0] : 3'd5;
+            text_row = arrow_row[2:0];
+        end else begin
+            letter = message >> ((15 - text_char_idx) * 8);
+            text_column = message_column[2:0];
+            text_row = message_row[2:0];
+        end
         letter_bits = letter_pixels(letter);
-        text_column = x - ((text_char_idx << 2) + (text_char_idx << 1));
-        text_row = y - 56;
     end
 
     square u_grid_box (
@@ -271,16 +296,12 @@ module left_renderer #(
         if (in_build && x>=72 && x<79 && y>=inventory_content_top+1 && y<inventory_content_top+8 &&
             (inventory_part == `LP_PART_ENGINE || inventory_part == `LP_PART_BOOSTER ||
              inventory_part == `LP_PART_FAN || inventory_part == `LP_PART_BALLOON)) begin
-            // Show the current facing for engine, rocket and fan; balloons point up.
-            if (text_on(inventory_part==`LP_PART_BALLOON ? "^               " :
-                        (inventory_part==`LP_PART_FAN) ? (row_fan_down ? "v               " : (row_fan_left ? "<               " : ">               ")) :
-                        (inventory_part==`LP_PART_BOOSTER) ? (row_rocket_down ? (row_rocket_left ? "v               " : "^               ") : (row_rocket_left ? "<               " : ">               ")) :
-                        (row_engine_left ? "<               " : ">               "), 72, inventory_content_top+1, x, y)) pixel_data=16'h07ff;
+            if (text_lit) pixel_data=16'h07ff;
         end
         if (in_build) begin
             if (y >= 56 && y < 63 && !(feedback_code == `LP_FEEDBACK_NONE && x >= `LP_LEVEL_BUTTON_X)) begin
                 pixel_data = 16'h0841;
-                if (text_column < 5 && letter_bits[34-(text_row*5+text_column)]) pixel_data = message_colour;
+                if (text_lit) pixel_data = message_colour;
             end
         end else if (compact_run) begin
             // Runtime indicators for standalone compact_run testbenches.
