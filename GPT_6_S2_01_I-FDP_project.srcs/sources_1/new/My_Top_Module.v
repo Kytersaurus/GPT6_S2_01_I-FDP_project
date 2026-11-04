@@ -198,18 +198,11 @@ module My_Top_Module #(
     wire audio_cancel = run_init || (game_state == `LP_BUILD && previous_game_state != `LP_BUILD);
     wire pop_sound_event = pop_valid && damage_ready && (|pop_mask);
     // Crash damage is based on fall distance, not ordinary rolling speed.
-    // Coordinates are Q12.8. Cave Arch has a deliberate several-hundred-pixel
-    // descent, so keep its threshold high. Cave Flight is a much shorter map:
-    // a 128-pixel drop is already an abnormal fall, while the normal 24-pixel
-    // spawn drop and ordinary flight remain harmless.
-    localparam signed [19:0] ARCH_HIGH_FALL_DISTANCE_Q8   = 20'sd114688; // 448 px
-    localparam signed [19:0] FLIGHT_HIGH_FALL_DISTANCE_Q8 = 20'sd32768;  // 128 px
-    wire signed [19:0] high_fall_distance_limit_q8 = map_id ?
-        FLIGHT_HIGH_FALL_DISTANCE_Q8 : ARCH_HIGH_FALL_DISTANCE_Q8;
-    // Keep the terminal-impact boundary above ordinary gravity and TNT launch
-    // speeds. A truly extreme impact can still detach the remaining non-pig
-    // structure, while a high-but-survivable fall only damages its contact row.
-    localparam signed [15:0] CRASH_FATAL_THRESHOLD = 16'sd1024;
+    // Coordinates are Q12.8. The normal 24-pixel spawn drop stays harmless. A
+    // 48-pixel ledge or balloon drop damages the contact row; a 96-pixel fall
+    // tears off everything except the protected pig and its frame.
+    localparam signed [19:0] HIGH_FALL_DISTANCE_Q8  = 20'sd12288; // 48 px
+    localparam signed [19:0] FATAL_FALL_DISTANCE_Q8 = 20'sd24576; // 96 px
 
     wire wall_crash_right = ($signed(proposed_vx) >= 16'sd448 && $signed(corrected_vx) <= 0);
     wire wall_crash_left  = ($signed(proposed_vx) <= -16'sd448 && $signed(corrected_vx) >= 0);
@@ -226,7 +219,7 @@ module My_Top_Module #(
     reg signed [`LP_COORD_BITS-1:0] fall_start_y;
     wire signed [`LP_COORD_BITS-1:0] fall_distance_q8 = $signed(corrected_y) - $signed(fall_start_y);
     wire high_fall_landing = response_valid && response_ready && grounded && !audio_was_grounded &&
-                              falling && (fall_distance_q8 >= high_fall_distance_limit_q8);
+                              falling && (fall_distance_q8 >= HIGH_FALL_DISTANCE_Q8);
     always @(posedge clk) begin
         if (reset) begin
             audio_was_grounded <= 0;
@@ -263,7 +256,7 @@ module My_Top_Module #(
     // still handles walls and ceilings, but those contacts are harmless here.
     wire vehicle_is_flipped = (vehicle_tilt > 5'sd8 || vehicle_tilt < -5'sd8);
     wire vert_crash_event = high_fall_landing;
-    wire vert_crash_fatal = high_fall_landing && ($signed(proposed_vy) >= CRASH_FATAL_THRESHOLD);
+    wire vert_crash_fatal = high_fall_landing && (fall_distance_q8 >= FATAL_FALL_DISTANCE_Q8);
 
     reg [8:0] next_impact_mask;
     reg [8:0] next_frame_mask;
@@ -608,11 +601,20 @@ module My_Top_Module #(
         intact_mask[1] && build_grid[5:3]   == `LP_PART_BOOSTER && build_facing_down[1],
         intact_mask[0] && build_grid[2:0]   == `LP_PART_BOOSTER && build_facing_down[0]
     };
+    // Vertical rockets point up (facing_left=0) or down (facing_left=1).
+    // The balance is signed: negative pushes up, positive pushes down.
+    wire [8:0] rocket_down_mask = rocket_vertical_mask & build_facing_left;
+    wire [8:0] rocket_up_mask = rocket_vertical_mask & ~build_facing_left;
     wire [3:0] active_up_rockets =
-        rocket_vertical_mask[0] + rocket_vertical_mask[1] + rocket_vertical_mask[2] +
-        rocket_vertical_mask[3] + rocket_vertical_mask[4] + rocket_vertical_mask[5] +
-        rocket_vertical_mask[6] + rocket_vertical_mask[7] + rocket_vertical_mask[8];
-    wire signed [4:0] rocket_vertical_balance = -$signed({1'b0, active_up_rockets});
+        rocket_up_mask[0] + rocket_up_mask[1] + rocket_up_mask[2] +
+        rocket_up_mask[3] + rocket_up_mask[4] + rocket_up_mask[5] +
+        rocket_up_mask[6] + rocket_up_mask[7] + rocket_up_mask[8];
+    wire [3:0] active_down_rockets =
+        rocket_down_mask[0] + rocket_down_mask[1] + rocket_down_mask[2] +
+        rocket_down_mask[3] + rocket_down_mask[4] + rocket_down_mask[5] +
+        rocket_down_mask[6] + rocket_down_mask[7] + rocket_down_mask[8];
+    wire signed [4:0] rocket_vertical_balance =
+        $signed({1'b0, active_down_rockets}) - $signed({1'b0, active_up_rockets});
     physics_engine #(.ENGINE_FORCE(ENGINE_FORCE), .ROCKET_FORCE_SHIFT(ROCKET_FORCE_SHIFT), .WHEEL_TORQUE_SHIFT(WHEEL_TORQUE_SHIFT)) u_physics (
         .support_endpoint_y_valid(support_span_valid),
         .support_left_y_q2(support_left_y_q2),.support_right_y_q2(support_right_y_q2),

@@ -87,7 +87,7 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
                WAIT_WORLD = 12, CALC_FORCE = 13, SLOPE_FORCE = 14, APPLY_SLOPE = 15, AIR_FORCE = 16, VERTICAL_START = 17, VERTICAL_WAIT = 18, VERTICAL_CLAMP = 19, MOMENT_WAIT = 20, ROTATE_FORCE = 21,
                PIVOT_START = 22, PIVOT_WAIT = 23, APPLY_PIVOT = 24,
                ROCKET_HORIZONTAL = 25, ROCKET_VERTICAL = 26, ROCKET_DONE = 27,
-               VERTICAL_SLOPE = 28;
+               VERTICAL_SLOPE = 28, FAN_HORIZONTAL = 29, FAN_LIFT = 30;
     localparam signed [15:0] wheel_drag = 16'sd6;
     // A wheeled body resting on its side without wheels scrapes instead of rolling.
     // Bodies with no wheel sides reported (no wheels, or legacy inputs) keep the
@@ -101,7 +101,7 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
     // The limit returns to the normal value after the burst expires.
     localparam signed [15:0] TNT_MAX_VX = 16'sd768;
     localparam signed [15:0] TNT_MAX_VY = 16'sd768;
-    localparam [2:0] TNT_BLAST_STEPS = 3'd4;
+    localparam [4:0] TNT_BLAST_STEPS = 5'd16; // Physics updates (about 1/4 s at 60 Hz)
     // Two available balloons must overcome gravity (32); one slows a fall.
     localparam signed [15:0] lift_per_balloon = 16'sd24;
 
@@ -110,7 +110,7 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
     localparam [6:0] ROCKET_TICKS = 7'd90; // 1.5 s at the default 60 Hz
     reg [4:0] phase;
     reg signed [15:0] velocity_x, velocity_y;
-    reg [2:0] tnt_blast_steps;
+    reg [4:0] tnt_blast_steps;
     wire tnt_blast_active = tnt_blast_steps != 0;
     wire signed [15:0] active_vx_limit = tnt_blast_active ? TNT_MAX_VX : 16'sd256;
     wire signed [15:0] active_vy_limit = tnt_blast_active ? TNT_MAX_VY : 16'sd512;
@@ -131,13 +131,24 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
     reg rocket_spent;
     reg signed [4:0] sampled_fans, sampled_rockets, sampled_vertical_rockets;
     reg [3:0] sampled_lift_fans;
-    wire signed [15:0] fan_lift_force = -($signed({12'd0,sampled_lift_fans}) <<< FAN_LIFT_FORCE_SHIFT);
     reg signed [15:0] step_vertical_force;
     reg signed [9:0] sampled_rocket_cos, sampled_rocket_sin;
     reg [4:0] rocket_terms;
     reg signed [15:0] rocket_force_x, rocket_force_y;
     wire signed [15:0] rocket_unit_x=$signed({{6{sampled_rocket_cos[9]}},sampled_rocket_cos}) <<< (ROCKET_FORCE_SHIFT-8);
     wire signed [15:0] rocket_unit_y=$signed({{6{sampled_rocket_sin[9]}},sampled_rocket_sin}) <<< (ROCKET_FORCE_SHIFT-8);
+    // One fan's force along the tilted body axes. cos/sin are Q8 (256 = 1.0), so
+    // shift up by the force's power of two and drop the low 8 bits. Wiring only.
+    wire signed [23:0] fan_cos_wide=$signed({{14{sampled_rocket_cos[9]}},sampled_rocket_cos});
+    wire signed [23:0] fan_sin_wide=$signed({{14{sampled_rocket_sin[9]}},sampled_rocket_sin});
+    wire signed [23:0] fan_side_x_wide=fan_cos_wide <<< FAN_FORCE_SHIFT;
+    wire signed [23:0] fan_side_y_wide=fan_sin_wide <<< FAN_FORCE_SHIFT;
+    wire signed [23:0] fan_lift_x_wide=fan_cos_wide <<< FAN_LIFT_FORCE_SHIFT;
+    wire signed [23:0] fan_lift_y_wide=fan_sin_wide <<< FAN_LIFT_FORCE_SHIFT;
+    wire signed [15:0] fan_side_unit_x=fan_side_x_wide[23:8];
+    wire signed [15:0] fan_side_unit_y=fan_side_y_wide[23:8];
+    wire signed [15:0] fan_lift_unit_x=fan_lift_x_wide[23:8];
+    wire signed [15:0] fan_lift_unit_y=fan_lift_y_wide[23:8];
     reg signed [15:0] remainder_y, pending_remainder_y;
     reg signed [16:0] step_vertical_base;
     reg signed [17:0] step_vy_sum;
@@ -532,12 +543,12 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
                 CALC_FORCE: begin
                     // Part counting ends at the sampled registers above. Force
                     // multiplication/addition then has its own 100 MHz clock.
-                    step_vertical_force <= fan_lift_force;
+                    // Fan and rocket forces are summed serially by the phases below.
+                    step_vertical_force <= 0;
                     rocket_force_x<=0; rocket_force_y<=0;
-                    rocket_terms<=sampled_rockets<0 ? -sampled_rockets : sampled_rockets;
+                    rocket_terms<=sampled_fans<0 ? -sampled_fans : sampled_fans;
                     step_vertical_base <= vertical_sum;
-                    // Forward fan facing produces positive +X thrust.
-                    step_air_force <= -($signed({{11{sampled_fans[4]}},sampled_fans}) <<< FAN_FORCE_SHIFT);
+                    step_air_force <= 0;
                     step_thrust <= 0;
                     // With wheel sides reported, only wheels touching the ground drive.
                     if (sampled_engine_enabled && sampled_engines != 0 && (sampled_wheels != 0 || (!sampled_sided && !step_moments_enabled)) && was_grounded) begin
@@ -557,9 +568,34 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
                     if (was_grounded && net_gravity > 0)
                         step_slope_product <= slope_product;
                     else step_slope_product <= 0;
-                    if (sampled_rockets!=0 || sampled_vertical_rockets!=0) phase<=ROCKET_HORIZONTAL;
-                    else if (sampled_lift_fans!=0 || remainder_y!=0) phase<=VERTICAL_START;
+                    if (sampled_fans!=0 || sampled_lift_fans!=0 ||
+                        sampled_rockets!=0 || sampled_vertical_rockets!=0) phase<=FAN_HORIZONTAL;
+                    else if (remainder_y!=0) phase<=VERTICAL_START;
                     else phase<=SLOPE_FORCE;
+                end
+                FAN_HORIZONTAL: begin
+                    // A fan's force tilts with the body. A negative balance means
+                    // the fans push toward +X along the body's own axis.
+                    if(rocket_terms==0) begin
+                        rocket_terms<=sampled_lift_fans;
+                        phase<=FAN_LIFT;
+                    end else begin
+                        rocket_force_x<=rocket_force_x+(sampled_fans<0 ? fan_side_unit_x : -fan_side_unit_x);
+                        rocket_force_y<=rocket_force_y+(sampled_fans<0 ? fan_side_unit_y : -fan_side_unit_y);
+                        rocket_terms<=rocket_terms-1'b1;
+                    end
+                end
+                FAN_LIFT: begin
+                    // Downward fans push along the body's "up", so a tilted
+                    // vehicle drifts sideways instead of hovering straight up.
+                    if(rocket_terms==0) begin
+                        rocket_terms<=sampled_rockets<0 ? -sampled_rockets : sampled_rockets;
+                        phase<=ROCKET_HORIZONTAL;
+                    end else begin
+                        rocket_force_x<=rocket_force_x+fan_lift_unit_y;
+                        rocket_force_y<=rocket_force_y-fan_lift_unit_x;
+                        rocket_terms<=rocket_terms-1'b1;
+                    end
                 end
                 ROCKET_HORIZONTAL: begin
                     // The thrust vector rotates with the attached rocket. Sum
@@ -582,8 +618,8 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
                     end
                 end
                 ROCKET_DONE: begin
-                    step_air_force<=step_air_force+rocket_force_x;
-                    step_vertical_force<=fan_lift_force+rocket_force_y;
+                    step_air_force<=rocket_force_x;
+                    step_vertical_force<=rocket_force_y;
                     phase<=VERTICAL_START;
                 end
                 SLOPE_FORCE: begin

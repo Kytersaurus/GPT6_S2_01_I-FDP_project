@@ -54,6 +54,11 @@ module rotating_map_collision_engine (
     reg signed [15:0] result_vx, result_vy;
     reg signed [13:0] saved_pivot_dx, saved_pivot_dy;
     reg signed [7:0] result_slope;
+    // A body leaving the ground (TNT launch, fan or rocket lift) may still climb a
+    // small terrain step, so a 1-pixel floor edge cannot cancel its sideways speed
+    // on the launch update. It never snaps down, which is why allow_snap stays off.
+    localparam [2:0] LIFTING_STEP_PIXELS = 3'd2;
+    reg allow_lifting_step;
     reg moving_up, allow_snap, result_ground, refine_vertical;
     reg signed [1:0] result_tip;
     // Ground found on both sides of the contact: an even slope or floor, not an edge.
@@ -201,7 +206,7 @@ module rotating_map_collision_engine (
             candidate_x<=0; candidate_y<=0; safe_pos<=0; blocked_pos<=0; midpoint<=0;
             work_tilt<=0; wanted_tilt<=0; old_tilt<=0; result_vx<=0; result_vy<=0; result_slope<=0;
             saved_pivot_dx<=0; saved_pivot_dy<=0;
-            moving_up<=0; allow_snap<=0; result_ground<=0; refine_vertical<=0;
+            moving_up<=0; allow_snap<=0; allow_lifting_step<=0; result_ground<=0; refine_vertical<=0;
             attempts<=0; snap_attempt<=0; saved_width<=0; saved_height<=0;
             scan_left<=0; scan_right<=0; scan_bottom<=0; scan_x<=0; scan_y<=0;
             hit_x<=0; hit_y<=0; scan_pose_x<=0; scan_pose_y<=0;
@@ -247,7 +252,11 @@ module rotating_map_collision_engine (
                     end
                 end
                 OLD_SUPPORT: scan_body(work_x,work_y+1,OLD_SUPPORT_RESULT);
-                OLD_SUPPORT_RESULT: begin allow_snap<=scan_hit && !moving_up; phase<=TURN; end
+                OLD_SUPPORT_RESULT: begin
+                    allow_snap<=scan_hit && !moving_up;
+                    allow_lifting_step<=scan_hit && moving_up;
+                    phase<=TURN;
+                end
                 TURN: begin
                     if (wanted_tilt==work_tilt) phase<=H_NEXT;
                     else begin
@@ -287,7 +296,7 @@ module rotating_map_collision_engine (
                     if (!scan_hit) begin work_x<=candidate_x; work_y<=candidate_y; phase<=H_NEXT; end
                     // A grounded body steps up to 6 pixels: Cave Arch is shown at 2x,
                     // so this is the 3 map pixels the original allowance covered.
-                    else if (allow_snap && attempts<6) begin
+                    else if ((allow_snap && attempts<6) || (allow_lifting_step && attempts<LIFTING_STEP_PIXELS)) begin
                         candidate_y<=candidate_y-PIXEL; attempts<=attempts+1'b1; phase<=H_SCAN;
                     end else begin
                         result_vx<=0; refine_axis(0,work_x,candidate_x,V_SETUP);

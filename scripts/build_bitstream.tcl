@@ -13,7 +13,8 @@ set_property top My_Top_Module [get_filesets sources_1]
 update_compile_order -fileset sources_1
 
 # Synthesis
-read_xdc [file join $lp_repo_root GPT_6_S2_01_I-FDP_project.srcs constrs_1 new Basys3_Master.xdc]
+# read_xdc takes a list of files; [list] keeps a checkout path with spaces as one file.
+read_xdc [list [file join $lp_repo_root GPT_6_S2_01_I-FDP_project.srcs constrs_1 new Basys3_Master.xdc]]
 synth_design -top My_Top_Module -part xc7a35tcpg236-1
 
 # Implementation

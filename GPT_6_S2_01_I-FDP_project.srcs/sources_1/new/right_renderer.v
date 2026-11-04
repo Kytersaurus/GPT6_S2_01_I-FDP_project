@@ -269,12 +269,11 @@ module right_renderer #(
                 if (dx == 3 || dx == 22 || dy == 1 || dy == 16) pixel_data = 16'h3186;
                 else pixel_data = ((((dx-3) >>> 2) ^ ((dy-1) >>> 2)) & 1) ? 16'h0000 : 16'hffff;
             end
-            // Star box: an 8 by 8 world-pixel block like a TNT. It is drawn from world
-            // coordinates at every zoom (1.5x pixel repeats when close), which costs far
-            // less logic than a separate 12 by 12 close-view sprite.
+            // Star box: 12 by 12 close, 8 by 8 normal/overview, the same sizes as TNT.
             tx = star_box_x; ty = star_box_y;
             if (`LP_STAR_BOX_ENABLED && !star_box_collected)
-                pixel_data = star_sprite(wx - tx, wy - ty, pixel_data);
+                pixel_data = (zoomed_out_q || overview_q) ? star_sprite(wx - tx, wy - ty, pixel_data)
+                                          : star_sprite12(fx - scaled(tx, 1'b0), fy - scaled(ty, 1'b0), pixel_data);
         end
         // TNT: 12 by 12 close, 8 by 8 normal/overview (overview naturally samples it smaller).
         for (index = 0; index < `LP_MAX_TNT; index = index + 1) begin
@@ -376,6 +375,26 @@ module right_renderer #(
         if (launch_flash && game_state==`LP_RUN && px>=34 && px<62 && py<10) begin
             pixel_data=16'h04b4;
             if (text_on("GO!             ",39,1,px,py)) pixel_data=16'hffff;
+        end
+        // Ending card: a midnight navy panel over the map, 80 by 48 and centred.
+        // Clear shows the title, three stars and a pig; crash shows a dizzy pig.
+        if ((game_state == `LP_SUCCESS || game_state == `LP_FAIL) &&
+            px >= 8 && px < 88 && py >= 8 && py < 56) begin
+            if (px == 8 || px == 87 || py == 8 || py == 55) pixel_data = 16'h4a69; // Card edge
+            else pixel_data = 16'h0869; // Midnight navy
+            if (game_state == `LP_SUCCESS) begin
+                if (text_on("LEVEL CLEAR!    ", 12, 11, px, py)) pixel_data = 16'hffe0;
+                pixel_data = gold_star12(px - 18, py - 20, pixel_data);
+                pixel_data = gold_star12(px - 42, py - 20, pixel_data);
+                pixel_data = gold_star12(px - 66, py - 20, pixel_data);
+                pixel_data = part_sprite16(`LP_PART_PIG, px - 40, py - 36, 1'b0, pixel_data);
+            end else begin
+                if (text_on("CRASHED!        ", 24, 14, px, py)) pixel_data = 16'hf800;
+                pixel_data = part_sprite16(`LP_PART_PIG, px - 40, py - 28, 1'b0, pixel_data);
+                // Dizzy eyes: a small black and white check over each 2 by 2 eye.
+                if ((py == 34 || py == 35) && (px == 44 || px == 45 || px == 50 || px == 51))
+                    pixel_data = ((px + py) & 1) ? 16'h0000 : 16'hffff;
+            end
         end
         if (px == 0 || px == 95 || py == 0 || py == 63) begin
             if (game_state == `LP_SUCCESS) pixel_data = 16'h07e0;

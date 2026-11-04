@@ -113,17 +113,14 @@ module mouse_adapter (
         endcase
     end
 
-    // Frame presence around hovered/dragged cell (for placement and flipping validation)
-    wire c_has_frame_above = (hovered_cell >= 4'd3 && hovered_cell < 4'd9) ? build_frames[hovered_cell - 4'd3] : 1'b0;
-    wire c_has_frame_below = (hovered_cell <= 4'd5) ? build_frames[hovered_cell + 4'd3] : 1'b0;
-    wire c_has_frame_left  = (hovered_cell < 4'd9 && hovered_cell != 4'd0 && hovered_cell != 4'd3 && hovered_cell != 4'd6) ? build_frames[hovered_cell - 4'd1] : 1'b0;
-    wire c_has_frame_right = (hovered_cell < 4'd9 && hovered_cell != 4'd2 && hovered_cell != 4'd5 && hovered_cell != 4'd8) ? build_frames[hovered_cell + 4'd1] : 1'b0;
-    wire c_fan_supp_down     = c_has_frame_above || c_has_frame_below || c_has_frame_left || c_has_frame_right;
-    wire c_fan_supp_right    = c_has_frame_above || c_has_frame_left || c_has_frame_right;
-    wire c_fan_supp_left     = c_has_frame_above || c_has_frame_left || c_has_frame_right;
-    wire c_rocket_supp_right = c_has_frame_above || c_has_frame_left || c_has_frame_right;
-    wire c_rocket_supp_left  = c_has_frame_above || c_has_frame_left || c_has_frame_right;
-    wire c_rocket_supp_up    = c_has_frame_above || c_has_frame_below || c_has_frame_left || c_has_frame_right;
+    // Direction codes are {facing_down, facing_left}. Rockets cycle right, left,
+    // up, down; fans cycle right, left, down (code 2). vehicle_builder skips any
+    // direction blocked by what touches the part, so this only asks for the next.
+    wire [1:0] selected_direction = {selected_down, selected_left};
+    wire [1:0] next_rocket_direction = selected_direction + 2'd1;
+    wire [1:0] next_fan_direction = (selected_direction >= 2'd2) ? 2'd0 : selected_direction + 2'd1;
+    wire [1:0] next_inventory_rocket = {rocket_facing_down, rocket_facing_left} + 2'd1;
+    wire [1:0] next_inventory_fan = fan_facing_down ? 2'd0 : {fan_facing_down, fan_facing_left} + 2'd1;
 
     always @* begin
         mouse_value = 12'd0;
@@ -282,27 +279,11 @@ module mouse_adapter (
                         // Cycle inventory facing only on release inside the inventory (click without drag).
                         if (place_pending && !drag_from_grid && in_inventory && inv_cycle_pending) begin
                             if (selected_part == `LP_PART_BOOSTER && inventory_page != 0 && cur_y < 14) begin
-                                if (!rocket_facing_left && !rocket_facing_down) begin
-                                    rocket_facing_left <= 1; rocket_facing_down <= 0;
-                                    selected_left <= 1;      selected_down <= 0;
-                                end else if (rocket_facing_left && !rocket_facing_down) begin
-                                    rocket_facing_left <= 0; rocket_facing_down <= 1;
-                                    selected_left <= 0;      selected_down <= 1;
-                                end else begin
-                                    rocket_facing_left <= 0; rocket_facing_down <= 0;
-                                    selected_left <= 0;      selected_down <= 0;
-                                end
+                                {rocket_facing_down, rocket_facing_left} <= next_inventory_rocket;
+                                {selected_down, selected_left} <= next_inventory_rocket;
                             end else if (selected_part == `LP_PART_FAN && inventory_page != 0 && cur_y >= 14 && cur_y < 24) begin
-                                if (!fan_facing_left && !fan_facing_down) begin
-                                    fan_facing_left <= 1; fan_facing_down <= 0;
-                                    selected_left <= 1;   selected_down <= 0;
-                                end else if (fan_facing_left && !fan_facing_down) begin
-                                    fan_facing_left <= 0; fan_facing_down <= 1;
-                                    selected_left <= 0;   selected_down <= 1;
-                                end else begin
-                                    fan_facing_left <= 0; fan_facing_down <= 0;
-                                    selected_left <= 0;   selected_down <= 0;
-                                end
+                                {fan_facing_down, fan_facing_left} <= next_inventory_fan;
+                                {selected_down, selected_left} <= next_inventory_fan;
                             end else if (selected_part == `LP_PART_ENGINE && inventory_page == 0 && cur_y >= 34 && cur_y < 44) begin
                                 engine_facing_left <= !engine_facing_left;
                                 selected_left <= !engine_facing_left;
@@ -320,80 +301,15 @@ module mouse_adapter (
                                 selected_left <= !selected_left;    selected_down <= 0;
                                 engine_facing_left <= !selected_left;
                             end else if (selected_part == `LP_PART_BOOSTER) begin
-                                if (!selected_left && !selected_down) begin
-                                    if (c_rocket_supp_left) begin
-                                        edit_facing_left <= 1; edit_facing_down <= 0;
-                                        selected_left <= 1;    selected_down <= 0;
-                                        rocket_facing_left <= 1; rocket_facing_down <= 0;
-                                    end else if (c_rocket_supp_up) begin
-                                        edit_facing_left <= 0; edit_facing_down <= 1;
-                                        selected_left <= 0;    selected_down <= 1;
-                                        rocket_facing_left <= 0; rocket_facing_down <= 1;
-                                    end
-                                end else if (selected_left && !selected_down) begin
-                                    if (c_rocket_supp_up) begin
-                                        edit_facing_left <= 0; edit_facing_down <= 1;
-                                        selected_left <= 0;    selected_down <= 1;
-                                        rocket_facing_left <= 0; rocket_facing_down <= 1;
-                                    end else if (c_rocket_supp_right) begin
-                                        edit_facing_left <= 0; edit_facing_down <= 0;
-                                        selected_left <= 0;    selected_down <= 0;
-                                        rocket_facing_left <= 0; rocket_facing_down <= 0;
-                                    end
-                                end else begin
-                                    if (c_rocket_supp_right) begin
-                                        edit_facing_left <= 0; edit_facing_down <= 0;
-                                        selected_left <= 0;    selected_down <= 0;
-                                        rocket_facing_left <= 0; rocket_facing_down <= 0;
-                                    end else if (c_rocket_supp_left) begin
-                                        edit_facing_left <= 1; edit_facing_down <= 0;
-                                        selected_left <= 1;    selected_down <= 0;
-                                        rocket_facing_left <= 1; rocket_facing_down <= 0;
-                                    end
-                                end
+                                {edit_facing_down, edit_facing_left} <= next_rocket_direction;
                             end else if (selected_part == `LP_PART_FAN) begin
-                                if (!selected_left && !selected_down) begin
-                                    if (c_fan_supp_left) begin
-                                        edit_facing_left <= 1; edit_facing_down <= 0;
-                                        selected_left <= 1;    selected_down <= 0;
-                                        fan_facing_left <= 1;  fan_facing_down <= 0;
-                                    end else if (c_fan_supp_down) begin
-                                        edit_facing_left <= 0; edit_facing_down <= 1;
-                                        selected_left <= 0;    selected_down <= 1;
-                                        fan_facing_left <= 0;  fan_facing_down <= 1;
-                                    end
-                                end else if (selected_left && !selected_down) begin
-                                    if (c_fan_supp_down) begin
-                                        edit_facing_left <= 0; edit_facing_down <= 1;
-                                        selected_left <= 0;    selected_down <= 1;
-                                        fan_facing_left <= 0;  fan_facing_down <= 1;
-                                    end else if (c_fan_supp_right) begin
-                                        edit_facing_left <= 0; edit_facing_down <= 0;
-                                        selected_left <= 0;    selected_down <= 0;
-                                        fan_facing_left <= 0;  fan_facing_down <= 0;
-                                    end
-                                end else begin
-                                    if (c_fan_supp_right) begin
-                                        edit_facing_left <= 0; edit_facing_down <= 0;
-                                        selected_left <= 0;    selected_down <= 0;
-                                        fan_facing_left <= 0;  fan_facing_down <= 0;
-                                    end else if (c_fan_supp_left) begin
-                                        edit_facing_left <= 1; edit_facing_down <= 0;
-                                        selected_left <= 1;    selected_down <= 0;
-                                        fan_facing_left <= 1;  fan_facing_down <= 0;
-                                    end
-                                end
+                                {edit_facing_down, edit_facing_left} <= next_fan_direction;
                             end
                         end else if (place_pending && in_grid && (!drag_from_grid || hovered_cell != drag_source)) begin
                             edit_valid <= 1; edit_op <= `LP_EDIT_PLACE;
                             edit_cell <= hovered_cell;
                             edit_source <= drag_source;
                             if (drag_from_grid) edit_op <= `LP_EDIT_MOVE;
-                            else if ((selected_part == `LP_PART_BOOSTER || selected_part == `LP_PART_FAN) &&
-                                     !selected_down && !c_rocket_supp_right && c_has_frame_below) begin
-                                edit_facing_left <= 0;
-                                edit_facing_down <= 1;
-                            end
                             edit_part <= selected_part;
                         end
                     end

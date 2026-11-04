@@ -75,6 +75,7 @@ module vehicle_builder #(
         end
     end
     reg placement_valid, stock_valid;
+    reg [3:0] cell_usable_directions;
     integer index, saved_frames, saved_pigs, saved_wheels, saved_engines, saved_balloons, saved_rockets, saved_fans;
     reg [2:0] part;
     reg [2:0] edit_result;
@@ -89,18 +90,84 @@ module vehicle_builder #(
     wire [8:0] frame_below = build_frames >> 3;
     wire [8:0] side_support = frame_left | frame_right;
     wire [8:0] wheel_support = frame_above | frame_below | side_support;
-    wire [8:0] fan_down_support  = frame_above | frame_below | side_support;
-    wire [8:0] fan_right_support = frame_above | side_support;
-    wire [8:0] fan_left_support  = frame_above | side_support;
-    wire [8:0] rocket_right_support = frame_above | side_support;
-    wire [8:0] rocket_left_support  = frame_above | side_support;
-    wire [8:0] rocket_up_support    = frame_above | frame_below | side_support;
 
-    wire req_fan_support = edit_facing_down ? fan_down_support[edit_cell] :
-                           (edit_facing_left ? fan_left_support[edit_cell] : fan_right_support[edit_cell]);
-    wire req_rocket_support = edit_facing_down ? rocket_up_support[edit_cell] :
-                              (edit_facing_left ? rocket_left_support[edit_cell] : rocket_right_support[edit_cell]);
+    // Rocket and fan directions depend on what touches them, and this is the one
+    // place that decides it. A direction {facing_down, facing_left} is usable when
+    //   1. the cell it points into is completely empty (no frame, no part), and
+    //   2. the cell behind it holds no loose part (a frame there is a fine mount),
+    // and the part touches at least one frame. Rule 1 means that frame can never
+    // be in front, so the part always stays attached from behind or from the side.
+    wire [8:0] occupied = build_frames | content_mask;
+    wire [8:0] loose_parts = content_mask & ~build_frames;
+    wire [8:0] occupied_on_right = (occupied & 9'b110110110) >> 1;
+    wire [8:0] occupied_on_left = (occupied & 9'b011011011) << 1;
+    wire [8:0] occupied_above = (occupied << 3) & 9'h1ff;
+    wire [8:0] occupied_below = occupied >> 3;
+    wire [8:0] loose_on_right = (loose_parts & 9'b110110110) >> 1;
+    wire [8:0] loose_on_left = (loose_parts & 9'b011011011) << 1;
+    wire [8:0] loose_above = (loose_parts << 3) & 9'h1ff;
+    wire [8:0] loose_below = loose_parts >> 3;
+    wire [8:0] can_point_right = wheel_support & ~occupied_on_right & ~loose_on_left;
+    wire [8:0] can_point_left = wheel_support & ~occupied_on_left & ~loose_on_right;
+    wire [8:0] can_point_up = wheel_support & ~occupied_above & ~loose_below;
+    wire [8:0] can_point_down = wheel_support & ~occupied_below & ~loose_above;
 
+    // Usable directions of one cell, indexed by {facing_down, facing_left}.
+    // Rockets: 0 right, 1 left, 2 up, 3 down. Fans blow right, left or down only,
+    // and code 2 means down because a fan pointing up would only push the body down.
+    function [3:0] usable_directions;
+        input [2:0] mounted_kind;
+        input [3:0] part_cell;
+        begin
+            usable_directions[0] = can_point_right[part_cell];
+            usable_directions[1] = can_point_left[part_cell];
+            if (mounted_kind == `LP_PART_FAN) begin
+                usable_directions[2] = can_point_down[part_cell];
+                usable_directions[3] = 1'b0;
+            end else begin
+                usable_directions[2] = can_point_up[part_cell];
+                usable_directions[3] = can_point_down[part_cell];
+            end
+        end
+    endfunction
+
+    // First usable direction at or after the requested one, in cycling order.
+    // Returns the request unchanged when nothing is usable.
+    function [1:0] resolve_direction;
+        input [1:0] requested;
+        input [3:0] usable;
+        begin
+            if (usable[requested]) resolve_direction = requested;
+            else if (usable[requested + 2'd1]) resolve_direction = requested + 2'd1;
+            else if (usable[requested + 2'd2]) resolve_direction = requested + 2'd2;
+            else if (usable[requested + 2'd3]) resolve_direction = requested + 2'd3;
+            else resolve_direction = requested;
+        end
+    endfunction
+
+    function is_mounted_part;
+        input [2:0] candidate;
+        begin is_mounted_part = (candidate == `LP_PART_BOOSTER || candidate == `LP_PART_FAN); end
+    endfunction
+
+    // An edit is resolved immediately. Otherwise one cell per clock is re-checked,
+    // so a neighbour being added or removed turns the part to a usable direction.
+    reg [3:0] mount_scan_cell;
+    wire resolving_edit = edit_valid && edit_cell < 9;
+    wire [3:0] mount_cell = resolving_edit ? edit_cell : mount_scan_cell;
+    wire [2:0] scan_part = build_grid[mount_scan_cell*3 +: 3];
+    wire [2:0] mount_part = resolving_edit ? edit_part : scan_part;
+    wire [3:0] mount_usable = usable_directions(mount_part, mount_cell);
+    wire [1:0] edit_direction = resolve_direction({edit_facing_down, edit_facing_left}, mount_usable);
+    wire [1:0] scan_direction = {build_facing_down[mount_scan_cell], build_facing_left[mount_scan_cell]};
+    wire [1:0] scan_resolved = resolve_direction(scan_direction, mount_usable);
+    wire edit_cell_changes_direction = edit_direction !=
+        {build_facing_down[edit_cell], build_facing_left[edit_cell]};
+    wire edit_cell_can_mount = |mount_usable;
+
+    // A moved part has not left its source yet, so the source would wrongly block
+    // it here. Only require a frame; the scan picks the direction after the move.
+    wire move_cell_can_mount = wheel_support[edit_cell];
 
     // Decide once: this result controls both editing and the on-screen feedback.
     // Repeating the same placement or removing an empty cell is a quiet no-op.
@@ -145,22 +212,14 @@ module vehicle_builder #(
                         else if (balloons_left == 0) edit_result = `LP_FEEDBACK_NO_STOCK;
                         else edit_result = `LP_FEEDBACK_PLACED;
                     end
-                    `LP_PART_BOOSTER: begin
+                    `LP_PART_BOOSTER, `LP_PART_FAN: begin
+                        // Re-placing onto itself is a rotation. When wheels or
+                        // frames leave only one usable direction it stays quiet.
                         if (build_grid[edit_cell*3 +: 3] == edit_part)
-                            edit_result = (build_facing_left[edit_cell]!=edit_facing_left ||
-                                           build_facing_down[edit_cell]!=edit_facing_down) ? `LP_FEEDBACK_PLACED : `LP_FEEDBACK_NONE;
+                            edit_result = edit_cell_changes_direction ? `LP_FEEDBACK_PLACED : `LP_FEEDBACK_NONE;
                         else if (build_frames[edit_cell] || build_grid[edit_cell*3 +: 3] != `LP_PART_EMPTY) edit_result = `LP_FEEDBACK_OCCUPIED;
-                        else if (!req_rocket_support) edit_result = `LP_FEEDBACK_NEED_FRAME;
-                        else if (rockets_left==0) edit_result = `LP_FEEDBACK_NO_STOCK;
-                        else edit_result = `LP_FEEDBACK_PLACED;
-                    end
-                    `LP_PART_FAN: begin
-                        if (build_grid[edit_cell*3 +: 3] == edit_part)
-                            edit_result = (build_facing_left[edit_cell]!=edit_facing_left ||
-                                           build_facing_down[edit_cell]!=edit_facing_down) ? `LP_FEEDBACK_PLACED : `LP_FEEDBACK_NONE;
-                        else if (build_frames[edit_cell] || build_grid[edit_cell*3 +: 3] != `LP_PART_EMPTY) edit_result = `LP_FEEDBACK_OCCUPIED;
-                        else if (!req_fan_support) edit_result = `LP_FEEDBACK_NEED_FRAME;
-                        else if (fans_left==0) edit_result = `LP_FEEDBACK_NO_STOCK;
+                        else if (!edit_cell_can_mount) edit_result = `LP_FEEDBACK_NEED_FRAME;
+                        else if ((edit_part == `LP_PART_BOOSTER ? rockets_left : fans_left) == 0) edit_result = `LP_FEEDBACK_NO_STOCK;
                         else edit_result = `LP_FEEDBACK_PLACED;
                     end
                     default: begin end
@@ -185,12 +244,9 @@ module vehicle_builder #(
                                 if (build_frames[edit_cell]) edit_result = `LP_FEEDBACK_OCCUPIED;
                                 else if (edit_cell >= 6) edit_result = `LP_FEEDBACK_FRAME_BELOW;
                                 else edit_result = build_frames[edit_cell+3] ? `LP_FEEDBACK_PLACED : `LP_FEEDBACK_FRAME_BELOW;
-                            `LP_PART_BOOSTER:
+                            `LP_PART_BOOSTER, `LP_PART_FAN:
                                 if (build_frames[edit_cell]) edit_result = `LP_FEEDBACK_OCCUPIED;
-                                else edit_result = (build_facing_down[edit_source] ? rocket_up_support[edit_cell] : (build_facing_left[edit_source] ? rocket_left_support[edit_cell] : rocket_right_support[edit_cell])) ? `LP_FEEDBACK_PLACED : `LP_FEEDBACK_NEED_FRAME;
-                            `LP_PART_FAN:
-                                if (build_frames[edit_cell]) edit_result = `LP_FEEDBACK_OCCUPIED;
-                                else edit_result = (build_facing_down[edit_source] ? fan_down_support[edit_cell] : (build_facing_left[edit_source] ? fan_left_support[edit_cell] : fan_right_support[edit_cell])) ? `LP_FEEDBACK_PLACED : `LP_FEEDBACK_NEED_FRAME;
+                                else edit_result = move_cell_can_mount ? `LP_FEEDBACK_PLACED : `LP_FEEDBACK_NEED_FRAME;
                             default: begin end
                         endcase
                     end
@@ -214,6 +270,7 @@ module vehicle_builder #(
             runtime_intact <= 0;
             runtime_frames <= 0;
             init_ready <= 0;
+            mount_scan_cell <= 0;
             feedback_code <= `LP_FEEDBACK_NONE; feedback_cell <= 0; feedback_count <= 0;
         end
         else begin
@@ -238,6 +295,16 @@ module vehicle_builder #(
                 // Keep a restored runtime copy ready for the next launch.
                 runtime_intact <= content_mask;
                 runtime_frames <= build_frames;
+                // Keep every rocket and fan pointing somewhere usable as its
+                // neighbours change. With no usable direction the part stays put
+                // and the build reports the usual attachment error.
+                if (!resolving_edit) begin
+                    mount_scan_cell <= (mount_scan_cell >= 4'd8) ? 4'd0 : mount_scan_cell + 4'd1;
+                    if (is_mounted_part(scan_part) && scan_resolved != scan_direction) begin
+                        build_facing_down[mount_scan_cell] <= scan_resolved[1];
+                        build_facing_left[mount_scan_cell] <= scan_resolved[0];
+                    end
+                end
                 if (edit_result == `LP_FEEDBACK_PLACED) begin
                     if (edit_op == `LP_EDIT_MOVE) begin
                         // Source and destination change on the same edge; stock is unchanged.
@@ -255,9 +322,13 @@ module vehicle_builder #(
                     end else begin
                         // [start +: 3] selects one cell's three content bits.
                         build_grid[edit_cell*3 +: 3] <= edit_part;
-                        build_facing_left[edit_cell] <= (edit_part==`LP_PART_ENGINE || edit_part==`LP_PART_BOOSTER ||
-                                                         edit_part==`LP_PART_FAN) && edit_facing_left;
-                        build_facing_down[edit_cell] <= (edit_part==`LP_PART_FAN || edit_part==`LP_PART_BOOSTER) && edit_facing_down;
+                        if (is_mounted_part(edit_part)) begin
+                            build_facing_down[edit_cell] <= edit_direction[1];
+                            build_facing_left[edit_cell] <= edit_direction[0];
+                        end else begin
+                            build_facing_down[edit_cell] <= 1'b0;
+                            build_facing_left[edit_cell] <= (edit_part==`LP_PART_ENGINE) && edit_facing_left;
+                        end
                     end
                 end else if (edit_result == `LP_FEEDBACK_REMOVED) begin
                     if (edit_op == `LP_EDIT_RETURN) begin
@@ -310,10 +381,12 @@ module vehicle_builder #(
                     if (build_frames[index] || index >= 6) placement_valid = 0;
                     else if (!build_frames[index+3]) placement_valid = 0;
                 end
-                `LP_PART_BOOSTER:
-                    if (build_frames[index] || !(build_facing_down[index] ? rocket_up_support[index] : (build_facing_left[index] ? rocket_left_support[index] : rocket_right_support[index]))) placement_valid=0;
-                `LP_PART_FAN:
-                    if (build_frames[index] || !(build_facing_down[index] ? fan_down_support[index] : (build_facing_left[index] ? fan_left_support[index] : fan_right_support[index]))) placement_valid=0;
+                `LP_PART_BOOSTER, `LP_PART_FAN: begin
+                    cell_usable_directions = usable_directions(part, index[3:0]);
+                    if (build_frames[index] ||
+                        !cell_usable_directions[{build_facing_down[index], build_facing_left[index]}])
+                        placement_valid = 0;
+                end
                 default: placement_valid = 0;
             endcase
             // A frame and its contents both contribute to mass while intact.

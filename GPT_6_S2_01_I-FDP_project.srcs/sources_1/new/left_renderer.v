@@ -337,7 +337,7 @@ module left_renderer #(
             // Show the current facing for engine, rocket and fan; balloons point up.
             if (text_on(inventory_part==`LP_PART_BALLOON ? "^               " :
                         (inventory_part==`LP_PART_FAN) ? (row_fan_down ? "v               " : (row_fan_left ? "<               " : ">               ")) :
-                        (inventory_part==`LP_PART_BOOSTER) ? (row_rocket_down ? "^               " : (row_rocket_left ? "<               " : ">               ")) :
+                        (inventory_part==`LP_PART_BOOSTER) ? (row_rocket_down ? (row_rocket_left ? "v               " : "^               ") : (row_rocket_left ? "<               " : ">               ")) :
                         (row_engine_left ? "<               " : ">               "), 72, inventory_content_top+1, x, y)) pixel_data=16'h07ff;
         end
         if (in_build) begin

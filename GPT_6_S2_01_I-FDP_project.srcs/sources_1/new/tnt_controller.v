@@ -75,9 +75,25 @@ module tnt_controller (
     integer tnt_x_pixels, tnt_y_pixels, tnt_index;
     integer cell_x_pixels, cell_y_pixels;
     reg signed [12:0] delta_x, delta_y;
-    // Used only when contact occurs through an empty part of the 3x3 grid.
-    // It keeps the blast small but prevents a real TNT contact from becoming
-    // a no-op when every occupied cell centre is just outside the radius.
+    // The swept hull above only nominates TNT. It explodes when an intact cell
+    // really touches the crate, so empty corners of the 3x3 grid pass through.
+    // An 8 by 8 cell touches the 8 by 8 crate when their centres are within 8
+    // pixels on both axes, widened by this update's travel so that a fast
+    // vehicle still cannot tunnel through.
+    localparam [12:0] CELL_CONTACT_REACH = 13'd8;
+    wire signed [`LP_COORD_BITS:0] travel_x_q8 = $signed(vehicle_x) - $signed(previous_x);
+    wire signed [`LP_COORD_BITS:0] travel_y_q8 = $signed(vehicle_y) - $signed(previous_y);
+    wire [`LP_COORD_BITS:0] travel_x_abs = travel_x_q8 < 0 ? -travel_x_q8 : travel_x_q8;
+    wire [`LP_COORD_BITS:0] travel_y_abs = travel_y_q8 < 0 ? -travel_y_q8 : travel_y_q8;
+    reg [12:0] contact_reach_x, contact_reach_y;
+    reg contact_found;
+    wire cell_holds_part = intact_mask[cell_index] &&
+        build_grid[cell_index*`LP_PART_BITS +: `LP_PART_BITS] != `LP_PART_EMPTY;
+    wire cell_holds_frame = build_frames[cell_index] && frame_intact_mask[cell_index];
+    wire cell_touches_tnt = (cell_holds_part || cell_holds_frame) &&
+        distance_x <= contact_reach_x && distance_y <= contact_reach_y;
+    // Used when only the protected pig touched the crate: the blast must still
+    // remove something, so it takes the nearest surviving non-pig cell/frame.
     reg nearest_content_valid, nearest_frame_valid;
     reg [3:0] nearest_content_index, nearest_frame_index;
     reg [13:0] nearest_content_distance, nearest_frame_distance;
@@ -171,6 +187,7 @@ module tnt_controller (
             distance_x<=0; distance_y<=0;
             damage_valid<=0; damage_mask<=0; damage_frame_mask<=0;
             knockback_valid<=0; knockback_x<=0; knockback_y<=0;
+            contact_reach_x<=CELL_CONTACT_REACH; contact_reach_y<=CELL_CONTACT_REACH; contact_found<=0;
             nearest_content_valid<=0; nearest_frame_valid<=0;
             nearest_content_index<=0; nearest_frame_index<=0;
             nearest_content_distance<=14'h3fff; nearest_frame_distance<=14'h3fff;
@@ -198,6 +215,9 @@ module tnt_controller (
                         sweep_left_fp<=next_sweep_left; sweep_right_fp<=next_sweep_right;
                         sweep_top_fp<=next_sweep_top; sweep_bottom_fp<=next_sweep_bottom;
                         saved_tnt_positions<=tnt_positions; saved_tnt_count<=tnt_count;
+                        // Round the travel up to whole pixels so it never undershoots.
+                        contact_reach_x<=CELL_CONTACT_REACH + travel_x_abs[`LP_COORD_BITS:8] + (|travel_x_abs[7:0]);
+                        contact_reach_y<=CELL_CONTACT_REACH + travel_y_abs[`LP_COORD_BITS:8] + (|travel_y_abs[7:0]);
                         state<=CAPTURE_TRIGGERS;
                     end
                     CAPTURE_TRIGGERS: begin
@@ -211,6 +231,7 @@ module tnt_controller (
                             active_y<=saved_tnt_positions[selected_tnt*`LP_TNT_ENTRY_BITS+`LP_TNT_COORD_BITS +: `LP_TNT_COORD_BITS];
                             pending_triggers[selected_tnt]<=0;
                             damage_mask<=0; damage_frame_mask<=0; cell_index<=0;
+                            contact_found<=0;
                             nearest_content_valid<=0; nearest_frame_valid<=0;
                             nearest_content_distance<=14'h3fff; nearest_frame_distance<=14'h3fff;
                             state<=CELL_POSITION;
@@ -230,6 +251,7 @@ module tnt_controller (
                         state<=CHECK_CELL;
                     end
                     CHECK_CELL: begin
+                        if (cell_touches_tnt) contact_found<=1;
                         // Small circular blast radius measured at cell centres.
                         if (distance_x<=TNT_BLAST_RADIUS &&
                             distance_y<=TNT_BLAST_RADIUS &&
@@ -265,29 +287,26 @@ module tnt_controller (
                             nearest_frame_index<=cell_index;
                             nearest_frame_distance<=manhattan_distance;
                         end
-                        if (cell_index==8) state<=SEND_DAMAGE;
+                        // No intact cell touched it: the crate stays armed for a
+                        // later movement and nothing explodes.
+                        if (cell_index==8) state<=(contact_found || cell_touches_tnt) ? SEND_DAMAGE : SELECT_TNT;
                         else begin cell_index<=cell_index+1; state<=CELL_POSITION; end
                     end
                     SEND_DAMAGE: begin
-                        // A contact through an empty grid location can leave
-                        // the normal 12-pixel mask empty. Damage only the
-                        // nearest surviving non-pig cell/frame in that case.
+                        // A pig-only contact can leave the 12-pixel mask empty.
+                        // Damage only the nearest surviving non-pig cell/frame.
                         if (damage_mask==0 && nearest_content_valid)
                             damage_mask[nearest_content_index]<=1;
                         if (damage_frame_mask==0 && nearest_frame_valid)
                             damage_frame_mask[nearest_frame_index]<=1;
                         tnt_intact[active_tnt]<=0;
-                        // Push away from the TNT centre on both axes. This is
-                        // a radial one-shot velocity impulse; using the two
-                        // signs avoids a divider while still giving diagonal
-                        // blasts the expected outward direction.
-                        knockback_x<=0; knockback_y<=0;
+                        // Always launch upward, and sideways away from the crate.
+                        // Pushing down into the floor would be cancelled at once,
+                        // so a crate hit from above still throws the vehicle up.
+                        knockback_x<=0;
                         if (knockback_delta_x < 0) knockback_x<=-TNT_KNOCKBACK_IMPULSE;
                         else if (knockback_delta_x > 0) knockback_x<=TNT_KNOCKBACK_IMPULSE;
-                        if (knockback_delta_y < 0) knockback_y<=-TNT_KNOCKBACK_IMPULSE;
-                        else if (knockback_delta_y > 0) knockback_y<=TNT_KNOCKBACK_IMPULSE;
-                        if (knockback_delta_x == 0 && knockback_delta_y == 0)
-                            knockback_y<=-TNT_KNOCKBACK_IMPULSE;
+                        knockback_y<=-TNT_KNOCKBACK_IMPULSE;
                         knockback_valid<=1;
                         damage_valid<=1; explosion_event<=1; state<=WAIT_DAMAGE;
                     end

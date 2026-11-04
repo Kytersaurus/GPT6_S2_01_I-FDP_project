@@ -86,10 +86,10 @@ function [15:0] sprite_colour;
                 4'h4: sprite_colour = 16'h18c3;  // Black letters
             endcase
             `LP_PALETTE_STAR: case (entry)
-                4'h1: sprite_colour = 16'h6371;  // Slate outline
-                4'h2: sprite_colour = 16'hcf1f;  // Pale blue box
-                4'h3: sprite_colour = 16'hffff;  // White glint
-                4'h4: sprite_colour = 16'hfee0;  // Yellow star
+                4'h1: sprite_colour = 16'h7a00;  // Dark wood border
+                4'h2: sprite_colour = 16'ha285;  // Wood crate
+                4'h3: sprite_colour = 16'hdd0c;  // Light wood plank
+                4'h4: sprite_colour = 16'hfee0;  // Golden star
             endcase
         endcase
     end
@@ -310,8 +310,7 @@ function [15:0] tnt_sprite12;
     end
 endfunction
 
-// Star box, 8 by 8, the size of a TNT block (drawn from world coordinates at every zoom): a pale blue box with a slate
-// outline, a white glint and a yellow star in the middle.
+// Star box, 8 by 8, the size of a TNT block: a wooden crate with a symmetric golden star.
 function [15:0] star_sprite;
     input integer sprite_x, sprite_y;
     input [15:0] background;
@@ -319,14 +318,58 @@ function [15:0] star_sprite;
     begin
         row = 0;
         if (sprite_x >= 0 && sprite_x < 8 && sprite_y >= 0 && sprite_y < 8) case (sprite_y)
-            1: row = 32'h13244221;
+            1: row = 32'h12244221;
             2: row = 32'h14444441;
             3, 4: row = 32'h12444421;
-            5: row = 32'h14422441;
-            6: row = 32'h12222221;
+            5: row = 32'h12422421;
+            6: row = 32'h14222241;
             default: row = 32'h11111111;
         endcase
         star_sprite = sprite_colour(`LP_PALETTE_STAR, row >> ((7-sprite_x)*4), background);
+    end
+endfunction
+
+// The same star box at 12 by 12 for the 1.5x close-up view.
+function [15:0] star_sprite12;
+    input integer sprite_x, sprite_y;
+    input [15:0] background;
+    reg [47:0] row;
+    begin
+        row = 0;
+        if (sprite_x >= 0 && sprite_x < 12 && sprite_y >= 0 && sprite_y < 12) case (sprite_y)
+            1: row = 48'h133333333331;
+            2, 3: row = 48'h122224422221;
+            4: row = 48'h124444444421;
+            5, 7: row = 48'h122444444221;
+            6: row = 48'h122244442221;
+            8: row = 48'h122442244221;
+            9: row = 48'h124422224421;
+            10: row = 48'h122222222221;
+            default: row = 48'h111111111111;
+        endcase
+        star_sprite12 = sprite_colour(`LP_PALETTE_STAR, row >> ((11-sprite_x)*4), background);
+    end
+endfunction
+
+// A plain 12 by 12 golden star for the level-clear card; the background shows around it.
+function [15:0] gold_star12;
+    input integer sprite_x, sprite_y;
+    input [15:0] background;
+    reg [11:0] row;
+    begin
+        row = 0;
+        if (sprite_x >= 0 && sprite_x < 12 && sprite_y >= 0 && sprite_y < 12) case (sprite_y)
+            0, 1, 2: row = 12'b000001100000;
+            3: row = 12'b111111111111;
+            4: row = 12'b011111111110;
+            5: row = 12'b001111111100;
+            6, 7: row = 12'b001111111100;
+            8: row = 12'b011110011110;
+            9: row = 12'b011100001110;
+            10: row = 12'b110000000011;
+            default: row = 0;
+        endcase
+        gold_star12 = row[11-sprite_x] ? 16'hfee0 : background;
     end
 endfunction
 
@@ -433,8 +476,14 @@ function [15:0] part_sprite_facing_dir;
     begin
         ix=x; iy=y;
         if (part==`LP_PART_BOOSTER) begin
-            ix=facing_down ? size-1-y : (facing_left ? size-1-x : x);
-            iy=facing_down ? x : y;
+            // Vertical rockets: facing_left selects nose down instead of nose up.
+            if (facing_down) begin
+                ix=facing_left ? y : size-1-y;
+                iy=x;
+            end else begin
+                ix=facing_left ? size-1-x : x;
+                iy=y;
+            end
         end else if (part==`LP_PART_FAN && facing_down) begin
             ix=y;
             iy=size-1-x;
@@ -458,6 +507,9 @@ function [15:0] part_sprite_mounted;
     input [15:0] background;
     reg signed [7:0] ix, iy, stem_x, post_y, base_y, fin_x;
     reg has_above, has_below, has_left, has_right;
+    // The tile is drawn relative to the metal it touches: a rocket's bracket turns
+    // toward the frame beside it, and a fan's motor stem only shows against a frame
+    // behind it. vehicle_builder never lets either point into a frame.
     begin
         ix = x;
         iy = y;
@@ -471,7 +523,8 @@ function [15:0] part_sprite_mounted;
         fin_x  = (size == 16) ? 8'sd10 : (size == 12) ? 8'sd7 : 8'sd5;
         if (part == `LP_PART_BOOSTER) begin
             if (facing_down) begin
-                ix = size - 1 - y;
+                // Nose up by default; facing_left turns the same tile nose down.
+                ix = facing_left ? y : (size - 1 - y);
                 iy = (has_left && !has_right) ? (size - 1 - x) : x;
                 if (!has_left && !has_right && (iy >= base_y || (iy >= post_y && ix < fin_x)))
                     ix = -8'sd1;
@@ -487,15 +540,11 @@ function [15:0] part_sprite_mounted;
                 ix = y;
                 if (!has_above && (ix < stem_x - 1))
                     ix = -8'sd1;
-                if (has_below && (y >= size - stem_x))
-                    ix = size - 1 - y;
             end else begin
                 ix = facing_left ? (size - 1 - x) : x;
                 iy = y;
                 if ((facing_left ? !has_right : !has_left) && (ix < stem_x - 1))
                     ix = -8'sd1;
-                if ((facing_left ? has_left : has_right) && (facing_left ? (x < stem_x) : (x >= size - stem_x)))
-                    ix = facing_left ? x : (size - 1 - x);
             end
         end else if (part == `LP_PART_ENGINE && facing_left) begin
             ix = size - 1 - x;
