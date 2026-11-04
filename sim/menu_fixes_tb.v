@@ -30,10 +30,10 @@ module menu_fixes_tb;
     task settings_checks;begin
         // Sound's entire old overlapping row must enter Sound, even while muted.
         for(edge_index=0;edge_index<4;edge_index=edge_index+1) begin
-            click(edge_index[0] ? 30 : 6,edge_index[1] ? 48 : 12);
+            click(edge_index[0] ? 44 : 8,edge_index[1] ? 48 : 12);
             if(dut.game_state!=`LP_GUIDE || dut.diary_page!=3) $fatal(1,"Sound edge misrouted");
             click(12,59);
-            click(edge_index[0] ? 60 : 36,edge_index[1] ? 48 : 12);
+            click(edge_index[0] ? 87 : 51,edge_index[1] ? 48 : 12);
             if(dut.game_state!=`LP_LEVEL_SELECT) $fatal(1,"Map edge not selectable");
             click(12,59);
         end
@@ -43,11 +43,11 @@ module menu_fixes_tb;
         if(dut.master_volume!=4) $fatal(1,"4/4 volume unreachable");
         click(12,59);
         if(dut.game_state!=`LP_SETTINGS) $fatal(1,"Sound Back lost Settings");
-        click(78,35);
-        if(dut.game_state!=`LP_SETTINGS || dut.mouse_speed!=2) $fatal(1,"Sensitivity opened map");
-        click(78,35);click(78,35);
-        if(dut.mouse_speed!=1) $fatal(1,"Sensitivity cycle broken");
-        click(48,35);
+
+
+
+
+        click(69,35);
         if(dut.game_state!=`LP_LEVEL_SELECT) $fatal(1,"Map not reachable");
         click(12,59);
         if(dut.game_state!=`LP_SETTINGS || dut.start_screen_active) $fatal(1,"Map Back went Home");

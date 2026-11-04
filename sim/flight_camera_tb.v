@@ -13,7 +13,7 @@ module flight_camera_tb;
     wire signed [10:0] map_x, map_y;
     wire [15:0] pixel_data;
 
-    right_renderer dut (
+    right_renderer #(.USE_PIXEL_INDEX(0)) dut (
         .clk(clk), .pixel_index(13'd0), .in_x(in_x), .in_y(in_y),
         .zoomed_out(1'b0), .overview(1'b0), .free_look(1'b0),
         .cursor_x(7'd0), .cursor_y(7'd0), .game_state(`LP_RUN),

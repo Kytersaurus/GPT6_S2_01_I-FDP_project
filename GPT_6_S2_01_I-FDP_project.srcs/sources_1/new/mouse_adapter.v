@@ -11,7 +11,6 @@ module mouse_adapter (
     input wire [11:0] mouse_x, mouse_y,
     input wire mouse_left, mouse_right, mouse_event,
     input tri0 [3:0] mouse_z,
-    input wire [1:0] mouse_speed,
     output reg [11:0] mouse_value,
     output reg setx, sety, setmax_x, setmax_y,
     output wire [6:0] cursor_x, cursor_y,
@@ -23,6 +22,7 @@ module mouse_adapter (
     output reg fan_facing_left,
     output reg fan_facing_down,
     output reg rocket_facing_left,
+    output reg rocket_facing_down,
     output reg edit_facing_left,
     output reg edit_facing_down,
     output wire drag_active,
@@ -41,72 +41,41 @@ module mouse_adapter (
     output reg fan_toggle_req,
     output reg [3:0] fan_toggle_cell
 );
-    localparam SETUP_SETMAX_X = 3'd0;
-    localparam SETUP_SETMAX_Y = 3'd1;
-    localparam SETUP_SET_XY   = 3'd2;
-    localparam SETUP_IDLE     = 3'd3;
-    localparam RECONFIG_MAX_X = 3'd4;
-    localparam RECONFIG_MAX_Y = 3'd5;
-    localparam RECONFIG_POS_X = 3'd6;
-    localparam RECONFIG_POS_Y = 3'd7;
+    localparam SETUP_SETMAX_X = 2'd0;
+    localparam SETUP_SETMAX_Y = 2'd1;
+    localparam SETUP_SET_XY   = 2'd2;
+    localparam SETUP_IDLE     = 2'd3;
 
-    reg [2:0] setup_state;
-    reg [1:0] active_speed;
-    reg [6:0] frozen_cursor_x, frozen_cursor_y;
-    reg is_reconfiguring;
-    reg [11:0] init_x_pos, init_y_pos;
-
-
-
-
-
-
+    reg [1:0] setup_state;
     reg left_was_down, right_was_down;
     reg place_pending, inventory_armed;
     assign drag_active = place_pending && game_state == `LP_BUILD && input_enabled;
 
-    wire [1:0] safe_speed = (mouse_speed === 2'bzz || mouse_speed === 2'bxx) ? 2'd1 : mouse_speed;
-
-    // Zero-latency dynamic scaling for left OLED (96x64):
-    // Speed 0 (Slow, 0.5x): MouseCtl ranges 0..191, 0..127 -> shift right 1 bit = 0..95, 0..63
-    // Speed 1 (Norm, 1.0x): MouseCtl ranges 0..95, 0..63   -> 1:1 direct mapping = 0..95, 0..63
-    // Speed 2 (Fast, 2.0x): MouseCtl ranges 0..47, 0..31   -> shift left 1 bit  = 0..95, 0..63
-    wire [6:0] scaled_x = 
-        (active_speed == 2'd0) ? ((mouse_x >= 12'd191) ? 7'd95 : mouse_x[7:1]) :
-        (active_speed == 2'd2) ? ((mouse_x >= 12'd47)  ? 7'd95 : {mouse_x[5:0], 1'b0}) :
-                               ((mouse_x >= 12'd95)  ? 7'd95 : mouse_x[6:0]);
-
-    wire [6:0] scaled_y = 
-        (active_speed == 2'd0) ? ((mouse_y >= 12'd127) ? 7'd63 : mouse_y[6:1]) :
-        (active_speed == 2'd2) ? ((mouse_y >= 12'd31)  ? 7'd63 : {mouse_y[4:0], 1'b0}) :
-                               ((mouse_y >= 12'd63)  ? 7'd63 : mouse_y[5:0]);
+    wire [6:0] clamped_x = (mouse_x >= 12'd95) ? 7'd95 : mouse_x[6:0];
+    wire [6:0] clamped_y = (mouse_y >= 12'd63) ? 7'd63 : mouse_y[5:0];
 
     reg has_moved;
-    assign cursor_x = is_reconfiguring ? frozen_cursor_x : ((has_moved || mouse_event) ? scaled_x : 7'd24);
-    assign cursor_y = is_reconfiguring ? frozen_cursor_y : ((has_moved || mouse_event) ? scaled_y : 7'd24);
+    assign cursor_x = (has_moved || mouse_event) ? clamped_x : 7'd24;
+    assign cursor_y = (has_moved || mouse_event) ? clamped_y : 7'd24;
 
     wire [11:0] cur_x = {5'd0, cursor_x};
     wire [11:0] cur_y = {5'd0, cursor_y};
 
     wire build_grid_area = cur_x >= 4 && cur_x < 52 && cur_y >= 4 && cur_y < 52;
-    wire pop_grid_area = cur_x >= 4 && cur_x < 40 && cur_y >= 12 && cur_y < 48;
     wire run_grid_big = cur_x >= 24 && cur_x < 72 && cur_y >= 2 && cur_y < 50;
 
     wire in_grid = (game_state == `LP_BUILD) ? build_grid_area :
-                   (run_page == 2'd1) ? pop_grid_area :
-                   (run_page == 2'd0) ? run_grid_big : 1'b0;
+                   (game_state == `LP_RUN)   ? run_grid_big : 1'b0;
     wire in_inventory = cur_x >= 56 && cur_x < 92 && cur_y >= 4 && cur_y < 54;
     // Find grid rows and columns with fixed range checks instead of division.
     wire building = game_state == `LP_BUILD;
     wire [1:0] build_col = cur_x < 20 ? 2'd0 : cur_x < 36 ? 2'd1 : 2'd2;
     wire [1:0] build_row = cur_y < 20 ? 2'd0 : cur_y < 36 ? 2'd1 : 2'd2;
-    wire [1:0] pop_col = cur_x < 16 ? 2'd0 : cur_x < 28 ? 2'd1 : 2'd2;
-    wire [1:0] pop_row = cur_y < 24 ? 2'd0 : cur_y < 36 ? 2'd1 : 2'd2;
     wire [1:0] run_col_big = cur_x < 40 ? 2'd0 : cur_x < 56 ? 2'd1 : 2'd2;
     wire [1:0] run_row_big = cur_y < 18 ? 2'd0 : cur_y < 34 ? 2'd1 : 2'd2;
 
-    wire [1:0] hovered_col = building ? build_col : (run_page == 2'd1 ? pop_col : run_col_big);
-    wire [1:0] hovered_row = building ? build_row : (run_page == 2'd1 ? pop_row : run_row_big);
+    wire [1:0] hovered_col = building ? build_col : run_col_big;
+    wire [1:0] hovered_row = building ? build_row : run_row_big;
     reg [3:0] hovered_cell;
     reg [2:0] hovered_part;
     reg hovered_frame, hovered_facing_left, hovered_facing_down;
@@ -144,15 +113,6 @@ module mouse_adapter (
         endcase
     end
 
-    // Configure the MouseCtl bounds and initial position based on selected speed
-    wire [11:0] target_max_x = (safe_speed == 2'd0) ? 12'd191 :
-                               (safe_speed == 2'd2) ? 12'd47  : 12'd95;
-    wire [11:0] target_max_y = (safe_speed == 2'd0) ? 12'd127 :
-                               (safe_speed == 2'd2) ? 12'd31  : 12'd63;
-
-    reg [3:0] last_mouse_z;
-    // mouse_z_changed removed
-
     // Frame presence around dragged cell (for flipping validation)
     wire c_has_frame_above = (drag_source >= 4'd3) ? build_frames[drag_source - 4'd3] : 1'b0;
     wire c_has_frame_below = (drag_source <= 4'd5) ? build_frames[drag_source + 4'd3] : 1'b0;
@@ -163,6 +123,7 @@ module mouse_adapter (
     wire c_fan_supp_left     = c_has_frame_left || c_has_frame_right;
     wire c_rocket_supp_right = c_has_frame_left || c_has_frame_right;
     wire c_rocket_supp_left  = c_has_frame_left || c_has_frame_right;
+    wire c_rocket_supp_up    = c_has_frame_below || c_has_frame_left || c_has_frame_right;
 
     always @* begin
         mouse_value = 12'd0;
@@ -174,10 +135,6 @@ module mouse_adapter (
             SETUP_SETMAX_X: begin mouse_value = 12'd95; setmax_x = 1'b1; end
             SETUP_SETMAX_Y: begin mouse_value = 12'd63; setmax_y = 1'b1; end
             SETUP_SET_XY:   begin mouse_value = 12'd24; setx = 1'b1; sety = 1'b1; end
-            RECONFIG_MAX_X: begin mouse_value = target_max_x; setmax_x = 1'b1; end
-            RECONFIG_MAX_Y: begin mouse_value = target_max_y; setmax_y = 1'b1; end
-            RECONFIG_POS_X: begin mouse_value = init_x_pos;   setx = 1'b1; end
-            RECONFIG_POS_Y: begin mouse_value = init_y_pos;   sety = 1'b1; end
             default: begin end
         endcase
     end
@@ -186,12 +143,6 @@ module mouse_adapter (
         if (reset) begin
             has_moved <= 1'b0;
             setup_state <= SETUP_SETMAX_X;
-            active_speed <= safe_speed;
-            is_reconfiguring <= 1'b0;
-            frozen_cursor_x <= 7'd24;
-            frozen_cursor_y <= 7'd24;
-            init_x_pos <= 12'd24;
-            init_y_pos <= 12'd24;
             left_was_down <= 0;
             right_was_down <= 0;
             place_pending <= 0;
@@ -205,6 +156,7 @@ module mouse_adapter (
             fan_facing_left <= 0;
             fan_facing_down <= 0;
             rocket_facing_left <= 0;
+            rocket_facing_down <= 0;
             inventory_page <= 0;
             selected_down <= 0;
             edit_facing_left <= 0;
@@ -220,7 +172,6 @@ module mouse_adapter (
             engine_toggle_req <= 0;
             fan_toggle_req <= 0;
             fan_toggle_cell <= 0;
-            last_mouse_z <= 4'd0;
         end else begin
             edit_valid <= 0;
             pop_req <= 0;
@@ -240,29 +191,7 @@ module mouse_adapter (
                 SETUP_SETMAX_X: setup_state <= SETUP_SETMAX_Y;
                 SETUP_SETMAX_Y: setup_state <= SETUP_SET_XY;
                 SETUP_SET_XY:   setup_state <= SETUP_IDLE;
-                SETUP_IDLE: begin
-                    if (safe_speed != active_speed) begin
-                        frozen_cursor_x <= cursor_x;
-                        frozen_cursor_y <= cursor_y;
-                        is_reconfiguring <= 1'b1;
-                        init_x_pos <= (safe_speed == 2'd0) ? {4'd0, cursor_x, 1'b0} :
-                                      (safe_speed == 2'd2) ? {6'd0, cursor_x[6:1]} :
-                                                             {5'd0, cursor_x};
-                        init_y_pos <= (safe_speed == 2'd0) ? {5'd0, cursor_y, 1'b0} :
-                                      (safe_speed == 2'd2) ? {7'd0, cursor_y[5:1]} :
-                                                             {6'd0, cursor_y};
-                        setup_state <= RECONFIG_MAX_X;
-                    end
-                end
-                RECONFIG_MAX_X: setup_state <= RECONFIG_MAX_Y;
-                RECONFIG_MAX_Y: setup_state <= RECONFIG_POS_X;
-                RECONFIG_POS_X: setup_state <= RECONFIG_POS_Y;
-                RECONFIG_POS_Y: begin
-                    setup_state <= SETUP_IDLE;
-                    active_speed <= safe_speed;
-                    is_reconfiguring <= 1'b0;
-                end
-                default: setup_state <= SETUP_IDLE;
+                default:        setup_state <= SETUP_IDLE;
             endcase
 
             // Leaving construction cancels a drag, even if no mouse packet arrives.
@@ -298,13 +227,27 @@ module mouse_adapter (
                             // Basic parts use five rows; page two splits the panel between two parts.
                             if (inventory_page!=0) begin
                                 if (cur_y<28) begin
-                                    selected_down <= 0;
                                     if (selected_part == `LP_PART_BOOSTER && cur_x >= 70) begin
-                                        rocket_facing_left <= !rocket_facing_left;
-                                        selected_left <= !rocket_facing_left;
+                                        if (!rocket_facing_left && !rocket_facing_down) begin
+                                            rocket_facing_left <= 1;
+                                            rocket_facing_down <= 0;
+                                            selected_left <= 1;
+                                            selected_down <= 0;
+                                        end else if (rocket_facing_left && !rocket_facing_down) begin
+                                            rocket_facing_left <= 0;
+                                            rocket_facing_down <= 1;
+                                            selected_left <= 0;
+                                            selected_down <= 1;
+                                        end else begin
+                                            rocket_facing_left <= 0;
+                                            rocket_facing_down <= 0;
+                                            selected_left <= 0;
+                                            selected_down <= 0;
+                                        end
                                     end else begin
                                         selected_part <= `LP_PART_BOOSTER;
                                         selected_left <= rocket_facing_left;
+                                        selected_down <= rocket_facing_down;
                                     end
                                 end else if (cur_y>28) begin
                                     if (selected_part == `LP_PART_FAN && cur_x >= 70) begin
@@ -366,7 +309,7 @@ module mouse_adapter (
                                 selected_down <= hovered_facing_down;
                                 case (hovered_part)
                                     `LP_PART_ENGINE:  begin engine_facing_left <= hovered_facing_left; end
-                                    `LP_PART_BOOSTER: begin rocket_facing_left <= hovered_facing_left; end
+                                    `LP_PART_BOOSTER: begin rocket_facing_left <= hovered_facing_left; rocket_facing_down <= hovered_facing_down; end
                                     `LP_PART_FAN:     begin fan_facing_left    <= hovered_facing_left; fan_facing_down <= hovered_facing_down; end
                                     default: begin end
                                 endcase
@@ -392,14 +335,36 @@ module mouse_adapter (
                                 selected_left <= !selected_left;    selected_down <= 0;
                                 engine_facing_left <= !selected_left;
                             end else if (selected_part == `LP_PART_BOOSTER) begin
-                                if (!selected_left && c_rocket_supp_left) begin
-                                    edit_facing_left <= 1; edit_facing_down <= 0;
-                                    selected_left <= 1;    selected_down <= 0;
-                                    rocket_facing_left <= 1;
-                                end else if (selected_left && c_rocket_supp_right) begin
-                                    edit_facing_left <= 0; edit_facing_down <= 0;
-                                    selected_left <= 0;    selected_down <= 0;
-                                    rocket_facing_left <= 0;
+                                if (!selected_left && !selected_down) begin
+                                    if (c_rocket_supp_left) begin
+                                        edit_facing_left <= 1; edit_facing_down <= 0;
+                                        selected_left <= 1;    selected_down <= 0;
+                                        rocket_facing_left <= 1; rocket_facing_down <= 0;
+                                    end else if (c_rocket_supp_up) begin
+                                        edit_facing_left <= 0; edit_facing_down <= 1;
+                                        selected_left <= 0;    selected_down <= 1;
+                                        rocket_facing_left <= 0; rocket_facing_down <= 1;
+                                    end
+                                end else if (selected_left && !selected_down) begin
+                                    if (c_rocket_supp_up) begin
+                                        edit_facing_left <= 0; edit_facing_down <= 1;
+                                        selected_left <= 0;    selected_down <= 1;
+                                        rocket_facing_left <= 0; rocket_facing_down <= 1;
+                                    end else if (c_rocket_supp_right) begin
+                                        edit_facing_left <= 0; edit_facing_down <= 0;
+                                        selected_left <= 0;    selected_down <= 0;
+                                        rocket_facing_left <= 0; rocket_facing_down <= 0;
+                                    end
+                                end else begin
+                                    if (c_rocket_supp_right) begin
+                                        edit_facing_left <= 0; edit_facing_down <= 0;
+                                        selected_left <= 0;    selected_down <= 0;
+                                        rocket_facing_left <= 0; rocket_facing_down <= 0;
+                                    end else if (c_rocket_supp_left) begin
+                                        edit_facing_left <= 1; edit_facing_down <= 0;
+                                        selected_left <= 1;    selected_down <= 0;
+                                        rocket_facing_left <= 1; rocket_facing_down <= 0;
+                                    end
                                 end
                             end else if (selected_part == `LP_PART_FAN) begin
                                 if (!selected_left && !selected_down) begin

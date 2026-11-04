@@ -73,7 +73,7 @@ module My_Top_Module #(
     wire [1:0] inventory_page, draw_inventory_page;
     wire [8:0] build_facing_left, draw_facing_left;
     wire [8:0] build_facing_down;
-    wire engine_facing_left, fan_facing_left, fan_facing_down, rocket_facing_left;
+    wire engine_facing_left, fan_facing_left, fan_facing_down, rocket_facing_left, rocket_facing_down;
     wire signed [4:0] engine_balance, fan_balance, rocket_balance;
     wire rocket_ready, rocket_active;
     wire [3:0] drive_engines = engine_balance<0 ? -engine_balance : engine_balance;
@@ -86,7 +86,7 @@ module My_Top_Module #(
     wire ui_fan_on, ui_rocket_req, ui_sound_muted;
     assign engine_reverse = reverse_switch_enabled ^ (engine_balance<0);
     wire engine_switch_changed, ui_engine_on, ui_launch, ui_edit, ui_guide_open, ui_guide_close;
-    wire [1:0] diary_page, death_phase, mouse_speed;
+    wire [1:0] diary_page, death_phase;
     wire [2:0] master_volume, draw_master_volume;
     wire [2:0] guide_return_state;
     wire signed [`LP_COORD_BITS-1:0] death_x, death_y;
@@ -359,7 +359,7 @@ module My_Top_Module #(
     wire start_screen_active;
     wire ui_home_req;
     wire ui_level_open_req, btn_level_open_req;
-    wire ui_pop_req, mouse_pop_req;
+    wire mouse_pop_req;
     wire [3:0] mouse_pop_cell;
     wire ui_boost_req, mouse_boost_req, combined_boost_req;
     wire mouse_engine_toggle_req, mouse_fan_toggle_req, ui_end_try;
@@ -441,7 +441,7 @@ module My_Top_Module #(
         .level_open_req(ui_level_open_req), .level_close_req(level_close_req),
         .level_select_req(level_select_req), .selected_level(selected_level),
         .run_page(run_page), .boost_req(ui_boost_req), .diary_page(diary_page),
-        .master_volume(master_volume), .mouse_speed(mouse_speed), .engine_on(ui_engine_on),
+        .master_volume(master_volume), .engine_on(ui_engine_on),
         .fan_on(ui_fan_on), .rocket_req(ui_rocket_req), .sound_muted(ui_sound_muted),
         .launch_flash(launch_flash)
     );
@@ -485,10 +485,10 @@ module My_Top_Module #(
         .clk(clk), .reset(reset), .input_enabled(builder_input_enabled && !start_screen_active), .game_state(game_state),
         .build_grid(build_grid), .build_frames(build_frames), .build_facing_left(build_facing_left), .build_facing_down(build_facing_down),
         .run_page(run_page), .selected_left(selected_left), .selected_down(selected_down), .inventory_page(inventory_page),
-        .engine_facing_left(engine_facing_left), .fan_facing_left(fan_facing_left), .fan_facing_down(fan_facing_down), .rocket_facing_left(rocket_facing_left),
+        .engine_facing_left(engine_facing_left), .fan_facing_left(fan_facing_left), .fan_facing_down(fan_facing_down), .rocket_facing_left(rocket_facing_left), .rocket_facing_down(rocket_facing_down),
         .edit_facing_left(edit_facing_left), .edit_facing_down(edit_facing_down), .mouse_x(mouse_x), .mouse_y(mouse_y),
         .mouse_left(mouse_left), .mouse_right(mouse_right), .mouse_event(mouse_event), .mouse_z(mouse_z),
-        .mouse_value(mouse_value), .setx(setx), .sety(sety), .setmax_x(setmax_x), .setmax_y(setmax_y), .mouse_speed(mouse_speed),
+        .mouse_value(mouse_value), .setx(setx), .sety(sety), .setmax_x(setmax_x), .setmax_y(setmax_y),
         .cursor_x(cursor_x), .cursor_y(cursor_y), .selected_part(selected_part),
         .drag_active(drag_active), .drag_from_grid(drag_from_grid), .drag_source(drag_source), .drag_contents(drag_contents),
         .edit_valid(edit_valid), .edit_op(edit_op), .edit_cell(edit_cell), .edit_source(edit_source), .edit_part(edit_part),
@@ -575,6 +575,44 @@ module My_Top_Module #(
         (intact_mask[7] && build_grid[23:21] == `LP_PART_FAN && build_facing_down[7]) +
         (intact_mask[8] && build_grid[26:24] == `LP_PART_FAN && build_facing_down[8]);
 
+    wire [8:0] fan_lift_mask = {
+        intact_mask[8] && build_grid[26:24] == `LP_PART_FAN && build_facing_down[8],
+        intact_mask[7] && build_grid[23:21] == `LP_PART_FAN && build_facing_down[7],
+        intact_mask[6] && build_grid[20:18] == `LP_PART_FAN && build_facing_down[6],
+        intact_mask[5] && build_grid[17:15] == `LP_PART_FAN && build_facing_down[5],
+        intact_mask[4] && build_grid[14:12] == `LP_PART_FAN && build_facing_down[4],
+        intact_mask[3] && build_grid[11:9]  == `LP_PART_FAN && build_facing_down[3],
+        intact_mask[2] && build_grid[8:6]   == `LP_PART_FAN && build_facing_down[2],
+        intact_mask[1] && build_grid[5:3]   == `LP_PART_FAN && build_facing_down[1],
+        intact_mask[0] && build_grid[2:0]   == `LP_PART_FAN && build_facing_down[0]
+    };
+    wire [8:0] fan_horiz_mask = {
+        build_grid[26:24] == `LP_PART_FAN && !build_facing_down[8],
+        build_grid[23:21] == `LP_PART_FAN && !build_facing_down[7],
+        build_grid[20:18] == `LP_PART_FAN && !build_facing_down[6],
+        build_grid[17:15] == `LP_PART_FAN && !build_facing_down[5],
+        build_grid[14:12] == `LP_PART_FAN && !build_facing_down[4],
+        build_grid[11:9]  == `LP_PART_FAN && !build_facing_down[3],
+        build_grid[8:6]   == `LP_PART_FAN && !build_facing_down[2],
+        build_grid[5:3]   == `LP_PART_FAN && !build_facing_down[1],
+        build_grid[2:0]   == `LP_PART_FAN && !build_facing_down[0]
+    };
+    wire [8:0] rocket_vertical_mask = {
+        intact_mask[8] && build_grid[26:24] == `LP_PART_BOOSTER && build_facing_down[8],
+        intact_mask[7] && build_grid[23:21] == `LP_PART_BOOSTER && build_facing_down[7],
+        intact_mask[6] && build_grid[20:18] == `LP_PART_BOOSTER && build_facing_down[6],
+        intact_mask[5] && build_grid[17:15] == `LP_PART_BOOSTER && build_facing_down[5],
+        intact_mask[4] && build_grid[14:12] == `LP_PART_BOOSTER && build_facing_down[4],
+        intact_mask[3] && build_grid[11:9]  == `LP_PART_BOOSTER && build_facing_down[3],
+        intact_mask[2] && build_grid[8:6]   == `LP_PART_BOOSTER && build_facing_down[2],
+        intact_mask[1] && build_grid[5:3]   == `LP_PART_BOOSTER && build_facing_down[1],
+        intact_mask[0] && build_grid[2:0]   == `LP_PART_BOOSTER && build_facing_down[0]
+    };
+    wire [3:0] active_up_rockets =
+        rocket_vertical_mask[0] + rocket_vertical_mask[1] + rocket_vertical_mask[2] +
+        rocket_vertical_mask[3] + rocket_vertical_mask[4] + rocket_vertical_mask[5] +
+        rocket_vertical_mask[6] + rocket_vertical_mask[7] + rocket_vertical_mask[8];
+    wire signed [4:0] rocket_vertical_balance = -$signed({1'b0, active_up_rockets});
     physics_engine #(.ENGINE_FORCE(ENGINE_FORCE), .ROCKET_FORCE_SHIFT(ROCKET_FORCE_SHIFT), .WHEEL_TORQUE_SHIFT(WHEEL_TORQUE_SHIFT)) u_physics (
         .support_endpoint_y_valid(support_span_valid),
         .support_left_y_q2(support_left_y_q2),.support_right_y_q2(support_right_y_q2),
@@ -584,9 +622,9 @@ module My_Top_Module #(
         .support_left_q2(support_left_q2),.support_right_q2(support_right_q2),.support_y_q2(support_y_q2),
         .moments_enabled(body_moments_enabled),.build_grid(build_grid),.build_frames(build_frames),
         .intact_mask(intact_mask),.frame_intact_mask(frame_intact_mask),
-        .build_facing_left(build_facing_left),.rocket_vertical_mask(9'd0),
-        .fan_balance(fan_balance), .rocket_balance(rocket_balance), .rocket_count(rocket_count),
-        .active_down_fans(active_down_fans),
+        .build_facing_left(build_facing_left ^ fan_horiz_mask),.rocket_vertical_mask(rocket_vertical_mask),
+        .fan_balance(-fan_balance), .rocket_balance(rocket_balance), .rocket_vertical_balance(rocket_vertical_balance), .rocket_count(rocket_count),
+
         .fan_enabled(ui_fan_on), .rocket_req(ui_rocket_req), .rocket_ready(rocket_ready), .rocket_active(rocket_active),
         .clk(clk), .reset(reset), .game_state(game_state), .run_init(run_init), .init_ready(init_ready[1]),
         .spawn_x(spawn_x), .spawn_y(spawn_y), .step_start(step_start), .update_release(update_release),
@@ -595,7 +633,7 @@ module My_Top_Module #(
         .mass_units(mass_units), .engine_enabled(engine_enabled), .engine_reverse(engine_reverse), .jump_press(1'b0), .boost_req(boost_req), .boost_active(boost_active),
         .tnt_knockback_valid(tnt_knockback_valid), .tnt_knockback_x(tnt_knockback_x), .tnt_knockback_y(tnt_knockback_y),
         // Future lift-fan placement supplies these; no item/sprite exists yet.
-        .live_lift_fan_count(4'd0), .fan_lift_mask(9'd0),
+        .live_lift_fan_count(active_down_fans), .fan_lift_mask(fan_lift_mask),
         .move_valid(move_valid), .move_ready(move_ready),
         .previous_x(previous_x), .previous_y(previous_y), .proposed_x(proposed_x), .proposed_y(proposed_y),
         .proposed_vx(proposed_vx), .proposed_vy(proposed_vy), .response_valid(response_valid),
@@ -649,10 +687,10 @@ module My_Top_Module #(
 
     // Base snapshot width is adjusted for the current three TNT slots and
     // carries both the filtered display pose and committed physics pose.
-    localparam SNAPSHOT_WIDTH = 251 + 3*(`LP_MAX_TNT-4) +
+    localparam SNAPSHOT_WIDTH = 249 + 3*(`LP_MAX_TNT-4) +
                                 4*(`LP_COORD_BITS-16) + (`LP_TILT_BITS-4) +
                                 2*`LP_COORD_BITS + 9 + 2*`LP_COORD_BITS + 6;
-    wire [SNAPSHOT_WIDTH-1:0] snapshot_in = {start_screen_active, fan_available, ui_fan_on, star_box_collected, rocket_available, rocket_ready, vehicle_tilt, mouse_speed, audio_muted, run_page, selected_left, inventory_page, build_facing_left, rockets_left, fans_left, master_volume, diary_page, guide_return_state, death_phase, death_x, death_y, launch_flash, boost_active, drag_from_grid, drag_source, drag_contents,
+    wire [SNAPSHOT_WIDTH-1:0] snapshot_in = {start_screen_active, fan_available, ui_fan_on, star_box_collected, rocket_available, rocket_ready, vehicle_tilt, audio_muted, run_page, selected_left, inventory_page, build_facing_left, rockets_left, fans_left, master_volume, diary_page, guide_return_state, death_phase, death_x, death_y, launch_flash, boost_active, drag_from_grid, drag_source, drag_contents,
                               game_state, build_grid, intact_mask, frame_intact_mask, build_valid, build_error,
                               display_x, display_y, vehicle_x, vehicle_y, engine_enabled, frames_left, pigs_left, wheels_left,
                               engines_left, balloons_left, cursor_x, cursor_y, selected_part, drag_active,
@@ -662,7 +700,7 @@ module My_Top_Module #(
     wire draw_audio_muted;
     wire draw_start_screen_active;
     wire draw_fan_available, draw_fan_on, draw_rocket_available, draw_rocket_ready;
-    wire [1:0] draw_mouse_speed;
+
     wire signed [`LP_TILT_BITS-1:0] draw_tilt;
     wire [1:0] draw_diary_page, draw_death_phase;
     wire [2:0] draw_guide_return;
@@ -716,7 +754,7 @@ module My_Top_Module #(
     wire [6:0] map_x = show_map ? left_x : right_x;
     wire [5:0] map_y = show_map ? left_y : right_y;
     wire [15:0] left_pixel_data, right_pixel_data, base_left_pixel_data;
-    assign {draw_start_screen_active, draw_fan_available, draw_fan_on, draw_star_box_collected, draw_rocket_available, draw_rocket_ready, draw_tilt, draw_mouse_speed, draw_audio_muted, draw_run_page, draw_selected_left, draw_inventory_page, draw_facing_left, draw_rockets_left, draw_fans_left, draw_master_volume, draw_diary_page, draw_guide_return, draw_death_phase, draw_death_x, draw_death_y, draw_launch_flash, draw_boost_active, draw_drag_from_grid, draw_drag_source, draw_drag_contents,
+    assign {draw_start_screen_active, draw_fan_available, draw_fan_on, draw_star_box_collected, draw_rocket_available, draw_rocket_ready, draw_tilt, draw_audio_muted, draw_run_page, draw_selected_left, draw_inventory_page, draw_facing_left, draw_rockets_left, draw_fans_left, draw_master_volume, draw_diary_page, draw_guide_return, draw_death_phase, draw_death_x, draw_death_y, draw_launch_flash, draw_boost_active, draw_drag_from_grid, draw_drag_source, draw_drag_contents,
             draw_state, draw_grid, draw_intact, draw_frames, draw_valid, draw_error, draw_x, draw_y, draw_camera_x, draw_camera_y, draw_engine,
             draw_frames_left, draw_pigs_left, draw_wheels_left, draw_engines_left, draw_balloons_left,
             draw_cursor_x, draw_cursor_y, draw_selected_part, draw_drag_active,
@@ -776,7 +814,7 @@ module My_Top_Module #(
             engine_frames <= 0;
             wheel_frames <= 0;
         end else if (left_frame && draw_state == `LP_RUN) begin
-            if (draw_engine)
+            if (draw_engine || draw_fan_on || draw_boost_active)
                 engine_frames <= engine_frames + (draw_boost_active ? 4'd2 : 4'd1);
             wheel_frames <= wheel_frames + 1'b1;
         end
@@ -794,6 +832,7 @@ module My_Top_Module #(
     reg inv_fan_l_meta, inv_fan_l_sync, draw_inv_fan_left;
     reg inv_fan_d_meta, inv_fan_d_sync, draw_inv_fan_down;
     reg inv_rkt_meta, inv_rkt_sync, draw_inv_rocket_left;
+    reg inv_rkt_d_meta, inv_rkt_d_sync, draw_inv_rocket_down;
 
     always @(posedge oled_clk) begin
         if (oled_reset) begin
@@ -807,6 +846,7 @@ module My_Top_Module #(
             inv_fan_l_meta <= 0; inv_fan_l_sync <= 0; draw_inv_fan_left <= 0;
             inv_fan_d_meta <= 0; inv_fan_d_sync <= 0; draw_inv_fan_down <= 0;
             inv_rkt_meta <= 0; inv_rkt_sync <= 0; draw_inv_rocket_left <= 0;
+            inv_rkt_d_meta <= 0; inv_rkt_d_sync <= 0; draw_inv_rocket_down <= 0;
         end else begin
             zoom_meta_display <= zoomed_out; zoom_sync_display <= zoom_meta_display;
             overview_meta_display <= overview; overview_sync_display <= overview_meta_display;
@@ -818,6 +858,7 @@ module My_Top_Module #(
             inv_fan_l_meta <= fan_facing_left; inv_fan_l_sync <= inv_fan_l_meta;
             inv_fan_d_meta <= fan_facing_down; inv_fan_d_sync <= inv_fan_d_meta;
             inv_rkt_meta <= rocket_facing_left; inv_rkt_sync <= inv_rkt_meta;
+            inv_rkt_d_meta <= rocket_facing_down; inv_rkt_d_sync <= inv_rkt_d_meta;
             if (left_frame) begin
                 draw_zoomed_out <= zoom_sync_display;
                 draw_overview <= overview_sync_display;
@@ -829,6 +870,7 @@ module My_Top_Module #(
                 draw_inv_fan_left <= inv_fan_l_sync;
                 draw_inv_fan_down <= inv_fan_d_sync;
                 draw_inv_rocket_left <= inv_rkt_sync;
+                draw_inv_rocket_down <= inv_rkt_d_sync;
             end
         end
     end
@@ -844,15 +886,15 @@ module My_Top_Module #(
         .flag_x(draw_flag_x), .flag_y(draw_flag_y), .star_box_x(draw_star_box_x), .star_box_y(draw_star_box_y)
     );
     // Scrolling horizontal offset for Start Screen background and clouds
-    reg [9:0] start_scroll_x;
-    reg [1:0] scroll_div;
+
+
     reg [6:0] cloud_scroll_fg;
     reg [6:0] cloud_scroll_bg;
     reg [1:0] cloud_div;
     always @(posedge oled_clk) begin
         if (oled_reset) begin
-            start_scroll_x <= 0;
-            scroll_div <= 0;
+
+
             cloud_scroll_fg <= 7'd0;
             cloud_scroll_bg <= 7'd0;
             cloud_div <= 2'd0;
@@ -866,10 +908,10 @@ module My_Top_Module #(
             if (cloud_div == 2'd3) begin
                 cloud_scroll_bg <= (cloud_scroll_bg >= 7'd95) ? 7'd0 : (cloud_scroll_bg + 7'd1);
             end
-            scroll_div <= scroll_div + 1'b1;
-            if (scroll_div == 2'd1) begin
-                scroll_div <= 0;
-                start_scroll_x <= (start_scroll_x >= 10'd480) ? 10'd0 : start_scroll_x + 1'b1;
+
+            if (1'b0) begin
+    
+
             end
         end
     end
@@ -890,6 +932,17 @@ module My_Top_Module #(
         .query_x(collision_query_x), .query_y(collision_query_y),
         .query_class(), .query_solid(collision_query_solid)
     );
+    wire [8:0] draw_active_fans = {
+        draw_intact[8] && draw_grid[26:24] == `LP_PART_FAN && draw_fan_on,
+        draw_intact[7] && draw_grid[23:21] == `LP_PART_FAN && draw_fan_on,
+        draw_intact[6] && draw_grid[20:18] == `LP_PART_FAN && draw_fan_on,
+        draw_intact[5] && draw_grid[17:15] == `LP_PART_FAN && draw_fan_on,
+        draw_intact[4] && draw_grid[14:12] == `LP_PART_FAN && draw_fan_on,
+        draw_intact[3] && draw_grid[11:9]  == `LP_PART_FAN && draw_fan_on,
+        draw_intact[2] && draw_grid[8:6]   == `LP_PART_FAN && draw_fan_on,
+        draw_intact[1] && draw_grid[5:3]   == `LP_PART_FAN && draw_fan_on,
+        draw_intact[0] && draw_grid[2:0]   == `LP_PART_FAN && draw_fan_on
+    };
     left_renderer #(
         .USE_PIXEL_INDEX(0),
         .ENABLE_COMPACT_RUN_SPRITES(0)
@@ -899,7 +952,7 @@ module My_Top_Module #(
         .build_facing_down(draw_facing_down),
         .selected_left(draw_selected_left), .selected_down(draw_selected_down),
         .inv_engine_left(draw_inv_engine_left), .inv_fan_left(draw_inv_fan_left),
-        .inv_fan_down(draw_inv_fan_down), .inv_rocket_left(draw_inv_rocket_left),
+        .inv_fan_down(draw_inv_fan_down), .inv_rocket_left(draw_inv_rocket_left), .inv_rocket_down(draw_inv_rocket_down),
         .inventory_page(draw_inventory_page),
         .rockets_left(draw_rockets_left), .fans_left(draw_fans_left), .intact_mask(draw_intact), .frame_intact_mask(draw_frames),
         .build_valid(draw_valid), .build_error(draw_error), .engine_enabled(draw_engine), .boost_active(draw_boost_active),
@@ -921,11 +974,11 @@ module My_Top_Module #(
         .inventory_page(draw_inventory_page),
         .selected_left(draw_selected_left), .audio_muted(draw_audio_muted),
         .selected_part(draw_selected_part),
-        .master_volume(draw_master_volume), .mouse_speed(draw_mouse_speed),
+        .master_volume(draw_master_volume),
         .level_index(draw_level),
         .build_valid(draw_valid), .engine_enabled(draw_engine), .boost_active(draw_boost_active),
         .engine_available(draw_has_engine),
-        .fan_available(draw_fan_available), .fan_on(draw_fan_on),
+        .fan_available(draw_fan_available), .fan_on(draw_fan_on), .active_fans(draw_active_fans),
         .rocket_available(draw_rocket_available), .rocket_ready(draw_rocket_ready),
         .balloon_available(draw_has_balloon),
         .anim_phase(anim_phase),
@@ -947,7 +1000,7 @@ module My_Top_Module #(
         .clk(oled_clk), .zoomed_out(draw_zoomed_out), .overview(draw_overview),
         .free_look(draw_free_look), .cursor_x(draw_cursor_x), .cursor_y(draw_cursor_y),
         .pixel_index(13'd0), .in_x(map_x), .in_y(map_y), .game_state((draw_state==`LP_LEVEL_SELECT || draw_state==`LP_SETTINGS) ? `LP_BUILD : (draw_state==`LP_GUIDE ? draw_guide_return : draw_state)), .build_grid(draw_grid),
-        .build_facing_left(draw_facing_left), .build_facing_down(draw_facing_down), .intact_mask(draw_intact), .frame_intact_mask(draw_frames),
+        .build_facing_left(draw_facing_left), .build_facing_down(draw_facing_down), .active_fans(draw_active_fans), .intact_mask(draw_intact), .frame_intact_mask(draw_frames),
         // Follow the filtered pose for both the vehicle and camera. This keeps
         // the wheels attached to the moving ground instead of making the map
         // jump on every raw physics-pixel update.

@@ -108,10 +108,10 @@
 `define LP_MAX_HAZARDS   2   // Same {height, width, y, x} packing as terrain.
 `define LP_HAZARD_BITS   64
 
-// Left OLED MAP button, clicked in BUILD; x=[78,96), y=[55,64).
-`define LP_LEVEL_BUTTON_X 78
+// Left OLED Settings Gear button, clicked in BUILD; x=[80,96), y=[55,64).
+`define LP_LEVEL_BUTTON_X 80
 `define LP_LEVEL_BUTTON_Y 55
-`define LP_LEVEL_BUTTON_W 18
+`define LP_LEVEL_BUTTON_W 16
 `define LP_LEVEL_BUTTON_H 9
 
 // Left OLED boost button, clicked in RUN; x=[56,72), y=[36,52).

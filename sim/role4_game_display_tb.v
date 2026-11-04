@@ -291,12 +291,12 @@ module role4_game_display_tb;
 
         // Left view: level button text, then result messages.
         level=0; view_state=`LP_BUILD;
-        expect_left(`LP_LEVEL_BUTTON_X, `LP_LEVEL_BUTTON_Y, 16'h7bef, "button border");
-        expect_left(`LP_LEVEL_BUTTON_X+1, `LP_LEVEL_BUTTON_Y+1, 16'hffff, "button L");
-        expect_left(`LP_LEVEL_BUTTON_X+9, `LP_LEVEL_BUTTON_Y+1, 16'hffff, "button 1");
-        expect_left(`LP_LEVEL_BUTTON_X+8, `LP_LEVEL_BUTTON_Y+1, 16'h0010, "button 1 gap");
+        expect_left(`LP_LEVEL_BUTTON_X, `LP_LEVEL_BUTTON_Y, 16'h0841, "clean background without legacy L1 button");
+        expect_left(`LP_LEVEL_BUTTON_X+1, `LP_LEVEL_BUTTON_Y+1, 16'h0841, "clean background without legacy L1 text");
+        expect_left(`LP_LEVEL_BUTTON_X+9, `LP_LEVEL_BUTTON_Y+1, 16'h0841, "clean background without legacy 1");
+        expect_left(`LP_LEVEL_BUTTON_X+8, `LP_LEVEL_BUTTON_Y+1, 16'h0841, "clean background without legacy gap");
         level=1;
-        expect_left(`LP_LEVEL_BUTTON_X+8, `LP_LEVEL_BUTTON_Y+1, 16'hffff, "button 2");
+        expect_left(`LP_LEVEL_BUTTON_X+8, `LP_LEVEL_BUTTON_Y+1, 16'h0841, "clean background without legacy 2");
         view_state=`LP_FAIL; view_reason=`LP_FAIL_PIG;
         expect_left(0, 56, 16'h0841, "clean background without PIG LOST text");
         expect_left(83, 56, 16'h0841, "no button after run");
