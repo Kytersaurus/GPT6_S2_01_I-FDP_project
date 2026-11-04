@@ -110,7 +110,7 @@ module role4_game_display_tb;
         .spawn_x(spawn_x),.spawn_y(spawn_y),.terrain_count(terrain_count),.terrain_rects(terrain_rects),
         .goal_rect(goal_rect),.tnt_count(tnt_count),.tnt_positions(tnt_positions),.tnt_intact(tnt_intact),
         .hazard_count(hazard_count),.hazard_rects(hazard_rects),.blast_phase(view_blast),.anim_phase(view_phase),
-        .star_box_x(star_box_x),.star_box_y(star_box_y),.star_box_collected(view_star_collected),.run_seconds(view_seconds),.pixel_data(right_colour)
+        .star_box_x(star_box_x),.star_box_y(star_box_y),.star_box_collected(view_star_collected),.pixel_data(right_colour)
     );
 
     task clocks;
@@ -332,20 +332,11 @@ module role4_game_display_tb;
 
         view_state=`LP_FAIL;
         expect_right(0, 0, 16'hf800, "fail border");
-        // Right OLED ending card 3-star rating logic (1 star, 2 stars, 3 stars).
-        view_state=`LP_SUCCESS; view_seconds=45; view_star_collected=0;
-        expect_right(24, 24, 16'hfee0, "star 1 earned");
-        expect_right(48, 24, 16'h4208, "star 2 unlit");
-        expect_right(72, 24, 16'h4208, "star 3 unlit");
-        view_seconds=20; view_star_collected=0;
-        expect_right(24, 24, 16'hfee0, "star 1 earned (time)");
-        expect_right(48, 24, 16'hfee0, "star 2 earned (time)");
-        expect_right(72, 24, 16'h4208, "star 3 unlit (no box)");
-        view_seconds=20; view_star_collected=1;
-        expect_right(24, 24, 16'hfee0, "star 1 earned (all)");
-        expect_right(48, 24, 16'hfee0, "star 2 earned (all)");
-        expect_right(72, 24, 16'hfee0, "star 3 earned (all)");
-        view_star_collected=0; view_seconds=12;
+        // Right OLED ending card 3 gold stars.
+        view_state=`LP_SUCCESS;
+        expect_right(24, 24, 16'hfee0, "star 1 gold");
+        expect_right(48, 24, 16'hfee0, "star 2 gold");
+        expect_right(72, 24, 16'hfee0, "star 3 gold");
 
         // Map view, Level 0 (Cave Arch): night sky above the start plateau and grass along its top edge (map ROM).
         level=0; view_state=`LP_BUILD; zoomed_out=0;

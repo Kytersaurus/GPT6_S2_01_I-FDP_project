@@ -34,7 +34,11 @@ module ui_renderer (
     `include "ui_font.vh"
     `include "part_sprites.vh"
 
-    integer example_local_x, example_local_y, example_row, example_col;
+    reg [3:0] example_local_x, example_local_y;
+    reg [1:0] example_row, example_col;
+    reg [2:0] example_part, tip_part;
+    reg [3:0] tip_local_y;
+    reg run_part_anim, run_part_dim;
 
     // Helper function to evaluate 2x comic bubble title font ("LAGGY PIGGIES")
     // Glyphs: 0:L, 1:A, 2:G, 3:Y, 4:P, 5:I, 6:E, 7:S
@@ -537,30 +541,30 @@ module ui_renderer (
                             example_local_x == 11 || example_local_y == 11) pixel_data = (example_row == 0) ? 16'h2945 : 16'h7bef;
                         if (example_row == 1)
                             pixel_data = part_sprite12(`LP_PART_FRAME, example_local_x, example_local_y, 1'b0, pixel_data);
-                        if (example_row == 1 && example_col == 0)
-                            pixel_data = part_sprite12(`LP_PART_ENGINE, example_local_x, example_local_y, 1'b0, pixel_data);
-                        if (example_row == 1 && example_col == 1)
-                            pixel_data = part_sprite12(`LP_PART_PIG, example_local_x, example_local_y, 1'b0, pixel_data);
-                        if (example_row == 2 && (example_col == 0 || example_col == 2))
-                            pixel_data = part_sprite12(`LP_PART_WHEEL, example_local_x, example_local_y, 1'b0, pixel_data);
+                        if (example_row == 1 && example_col == 0) example_part = `LP_PART_ENGINE;
+                        else if (example_row == 1 && example_col == 1) example_part = `LP_PART_PIG;
+                        else if (example_row == 2 && (example_col == 0 || example_col == 2)) example_part = `LP_PART_WHEEL;
+                        else example_part = `LP_PART_EMPTY;
+                        if (example_part != `LP_PART_EMPTY)
+                            pixel_data = part_sprite12(example_part, example_local_x, example_local_y, 1'b0, pixel_data);
                     end
                 end
                 2: begin
                     if (text_on("PARTS TIPS 3/3  ", 2, 2, x, y)) pixel_data = 16'h07ff;
-                    if (x >= 4 && x < 12 && y >= 11 && y < 19)
-                        pixel_data = part_sprite(`LP_PART_PIG, x - 4, y - 11, 1'b0, pixel_data);
+                    tip_part = `LP_PART_EMPTY;
+                    tip_local_y = 0;
+                    if (y >= 11 && y < 19) begin tip_part = `LP_PART_PIG; tip_local_y = y - 6'd11; end
+                    else if (y >= 31 && y < 39) begin tip_part = `LP_PART_ENGINE; tip_local_y = y - 6'd31; end
+                    else if (y >= 41 && y < 49) begin tip_part = `LP_PART_WHEEL; tip_local_y = y - 6'd41; end
+                    if (x >= 4 && x < 12 && tip_part != `LP_PART_EMPTY)
+                        pixel_data = part_sprite(tip_part, x - 7'd4, tip_local_y, 1'b0, pixel_data);
                     if (text_on("KEEP PIG SAFE   ", 16, 12, x, y)) pixel_data = 16'hffff;
 
                     if (x >= 4 && x < 12 && y >= 21 && y < 29)
                         pixel_data = tnt_sprite(x - 4, y - 21, pixel_data);
                     if (text_on("AVOID TNT       ", 16, 22, x, y)) pixel_data = 16'hf800;
 
-                    if (x >= 4 && x < 12 && y >= 31 && y < 39)
-                        pixel_data = part_sprite(`LP_PART_ENGINE, x - 4, y - 31, 1'b0, pixel_data);
                     if (text_on("MOTOR DRIVE     ", 16, 32, x, y)) pixel_data = 16'h07e0;
-
-                    if (x >= 4 && x < 12 && y >= 41 && y < 49)
-                        pixel_data = part_sprite(`LP_PART_WHEEL, x - 4, y - 41, 1'b0, pixel_data);
                     if (text_on("GROUND GRIP     ", 16, 42, x, y)) pixel_data = 16'hffe0;
                 end
                 default: begin
@@ -732,35 +736,23 @@ module ui_renderer (
                         pixel_data = part_sprite16(`LP_PART_FRAME, run_cell_x, run_cell_y, 1'b0, pixel_data);
                     end
 
-                    // Part sprite layer with active / dimmed rendering
+                    // Part sprite layer with active / dimmed rendering (single shared sprite lookup)
                     if (intact_mask[run_cell_index] && run_part != `LP_PART_EMPTY) begin
                         if (run_part == `LP_PART_ENGINE) begin
-                            if (engine_enabled && sw0_engine) begin
-                                pixel_data = part_sprite_facing(run_part, run_cell_x, run_cell_y, 16, build_facing_left[run_cell_index], anim_phase, pixel_data);
-                            end else begin
-                                // Grayed out / dimmed inactive engine
-                                run_spr = part_sprite_facing(run_part, run_cell_x, run_cell_y, 16, build_facing_left[run_cell_index], 1'b0, pixel_data);
-                                pixel_data = (run_spr != pixel_data) ? ((run_spr & 16'hf7de) >> 1) : pixel_data;
-                            end
+                            run_part_anim = (engine_enabled && sw0_engine) ? anim_phase : 1'b0;
+                            run_part_dim  = !(engine_enabled && sw0_engine);
                         end else if (run_part == `LP_PART_FAN) begin
-                            if (fan_on || active_fans[run_cell_index]) begin
-                                pixel_data = part_sprite_mounted(run_part, run_cell_x, run_cell_y, 16, build_facing_left[run_cell_index], build_facing_down[run_cell_index], frame_intact_mask, run_cell_index, anim_phase, pixel_data);
-                            end else begin
-                                // Grayed out / dimmed inactive fan
-                                run_spr = part_sprite_mounted(run_part, run_cell_x, run_cell_y, 16, build_facing_left[run_cell_index], build_facing_down[run_cell_index], frame_intact_mask, run_cell_index, 1'b0, pixel_data);
-                                pixel_data = (run_spr != pixel_data) ? ((run_spr & 16'hf7de) >> 1) : pixel_data;
-                            end
+                            run_part_anim = (fan_on || active_fans[run_cell_index]) ? anim_phase : 1'b0;
+                            run_part_dim  = !(fan_on || active_fans[run_cell_index]);
                         end else if (run_part == `LP_PART_BOOSTER) begin
-                            if (boost_active || rocket_ready) begin
-                                pixel_data = part_sprite_mounted(run_part, run_cell_x, run_cell_y, 16, build_facing_left[run_cell_index], build_facing_down[run_cell_index], frame_intact_mask, run_cell_index, boost_active ? anim_phase : 1'b0, pixel_data);
-                            end else begin
-                                // Grayed out / dimmed spent rocket
-                                run_spr = part_sprite_mounted(run_part, run_cell_x, run_cell_y, 16, build_facing_left[run_cell_index], build_facing_down[run_cell_index], frame_intact_mask, run_cell_index, 1'b0, pixel_data);
-                                pixel_data = (run_spr != pixel_data) ? ((run_spr & 16'hf7de) >> 1) : pixel_data;
-                            end
+                            run_part_anim = boost_active ? anim_phase : 1'b0;
+                            run_part_dim  = !(boost_active || rocket_ready);
                         end else begin
-                            pixel_data = part_sprite_facing_dir(run_part, run_cell_x, run_cell_y, 16, build_facing_left[run_cell_index], build_facing_down[run_cell_index], anim_phase, pixel_data);
+                            run_part_anim = anim_phase;
+                            run_part_dim  = 1'b0;
                         end
+                        run_spr = part_sprite_mounted(run_part, run_cell_x, run_cell_y, 16, build_facing_left[run_cell_index], build_facing_down[run_cell_index], frame_intact_mask, run_cell_index, run_part_anim, pixel_data);
+                        pixel_data = (run_part_dim && run_spr != pixel_data) ? ((run_spr & 16'hf7de) >> 1) : run_spr;
                     end
                 end
             end
