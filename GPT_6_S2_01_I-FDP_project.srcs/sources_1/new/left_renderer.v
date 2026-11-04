@@ -189,25 +189,26 @@ module left_renderer #(
     );
     always @* begin
         // Fixed row boundaries avoid dividing and multiplying the pixel position by ten.
-        inventory_number = frames_left; inventory_part = `LP_PART_FRAME; inventory_top = 4;
-        inventory_content_top = 5; inventory_bottom = 13;
+        // Both inventory pages use uniform 10-pixel rows (Row 0: y=4..13, Row 1: y=14..23, etc.).
+        inventory_top = 4; inventory_content_top = 5; inventory_bottom = 13;
+        inventory_number = (inventory_page == 1) ? rockets_left : frames_left;
+        inventory_part   = (inventory_page == 1) ? `LP_PART_BOOSTER : `LP_PART_FRAME;
         if (y >= 14 && y < 24) begin
-            inventory_number = pigs_left; inventory_part = `LP_PART_PIG; inventory_top = 14; inventory_content_top = 15; inventory_bottom = 23;
+            inventory_top = 14; inventory_content_top = 15; inventory_bottom = 23;
+            inventory_number = (inventory_page == 1) ? fans_left : pigs_left;
+            inventory_part   = (inventory_page == 1) ? `LP_PART_FAN : `LP_PART_PIG;
         end else if (y >= 24 && y < 34) begin
-            inventory_number = wheels_left; inventory_part = `LP_PART_WHEEL; inventory_top = 24; inventory_content_top = 25; inventory_bottom = 33;
+            inventory_top = 24; inventory_content_top = 25; inventory_bottom = 33;
+            inventory_number = wheels_left;
+            inventory_part   = (inventory_page == 1) ? `LP_PART_EMPTY : `LP_PART_WHEEL;
         end else if (y >= 34 && y < 44) begin
-            inventory_number = engines_left; inventory_part = `LP_PART_ENGINE; inventory_top = 34; inventory_content_top = 35; inventory_bottom = 43;
+            inventory_top = 34; inventory_content_top = 35; inventory_bottom = 43;
+            inventory_number = engines_left;
+            inventory_part   = (inventory_page == 1) ? `LP_PART_EMPTY : `LP_PART_ENGINE;
         end else if (y >= 44 && y < 54) begin
-            inventory_number = balloons_left; inventory_part = `LP_PART_BALLOON; inventory_top = 44; inventory_content_top = 45; inventory_bottom = 53;
-        end
-        if (inventory_page==1) begin
-            if (y < 28) begin
-                inventory_top=4; inventory_bottom=27; inventory_content_top=12;
-                inventory_part=`LP_PART_BOOSTER; inventory_number=rockets_left;
-            end else begin
-                inventory_top=29; inventory_bottom=53; inventory_content_top=37;
-                inventory_part=`LP_PART_FAN; inventory_number=fans_left;
-            end
+            inventory_top = 44; inventory_content_top = 45; inventory_bottom = 53;
+            inventory_number = balloons_left;
+            inventory_part   = (inventory_page == 1) ? `LP_PART_EMPTY : `LP_PART_BALLOON;
         end
     end
 
@@ -263,7 +264,7 @@ module left_renderer #(
                 if (frame_intact_mask[cell_index] && !(in_build && drag_active && drag_from_grid && selected_part==`LP_PART_FRAME && drag_source == cell_index))
                     pixel_data = compact_run ? part_sprite12(`LP_PART_FRAME, cell_x, cell_y, 1'b0, pixel_data) : part_sprite16(`LP_PART_FRAME, cell_x, cell_y, 1'b0, pixel_data);
                 if (intact_mask[cell_index] && !(in_build && drag_active && drag_from_grid && drag_source == cell_index))
-                    pixel_data = part_sprite_facing_dir(part, cell_x, cell_y, compact_run ? 12 : 16, build_facing_left[cell_index], build_facing_down[cell_index], anim_phase, pixel_data);
+                    pixel_data = part_sprite_mounted(part, cell_x, cell_y, compact_run ? 12 : 16, build_facing_left[cell_index], build_facing_down[cell_index], frame_intact_mask, cell_index, anim_phase, pixel_data);
             end
             if (feedback_code != `LP_FEEDBACK_NONE && feedback_cell < 9 &&
                 cell_index == feedback_cell &&
@@ -316,7 +317,7 @@ module left_renderer #(
                 if (text_on("S               ", 7'd82, 6'd19, x, y)) pixel_data = 16'h07ff;
                 if (number_pixel || (remaining_parts >= 10 && tens_pixel)) pixel_data = 16'hffff;
             end
-        end else if (x >= 56 && x < 92 && y >= 4 && y < 54) begin
+        end else if (x >= 56 && x < 92 && y >= 4 && (inventory_page == 1 ? y < 24 : y < 54)) begin
             if (cursor_visible && cursor_x >= 56 && cursor_x < 92 && cursor_y >= inventory_top && cursor_y <= inventory_bottom)
                 pixel_data = 16'h0351;
             else
@@ -330,7 +331,6 @@ module left_renderer #(
                                         inv_row_left, inv_row_down, pixel_data);
             if (inventory_number_pixel) pixel_data = (inventory_number == 0) ? 16'hf800 : 16'hffff;
         end
-        if (in_build && inventory_page==1 && x>=56 && x<92 && y==28) pixel_data=16'h7bef;
         if (in_build && x>=72 && x<79 && y>=inventory_content_top+1 && y<inventory_content_top+8 &&
             (inventory_part == `LP_PART_ENGINE || inventory_part == `LP_PART_BOOSTER ||
              inventory_part == `LP_PART_FAN || inventory_part == `LP_PART_BALLOON)) begin

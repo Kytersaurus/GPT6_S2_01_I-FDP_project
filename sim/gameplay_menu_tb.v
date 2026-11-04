@@ -6,6 +6,7 @@ module gameplay_menu_tb;
     reg [15:0] sw=1;
     reg [11:0] mx=0,my=0;
     reg ml=0,mr=0,me=0;
+    reg [3:0] mz=0;
     tri1 PS2Clk,PS2Data;
     reg [26:0] saved_grid;
     reg [8:0] saved_frames,saved_direction;
@@ -18,6 +19,7 @@ module gameplay_menu_tb;
     initial begin
         force dut.mouse_x=mx;force dut.mouse_y=my;
         force dut.mouse_left=ml;force dut.mouse_right=mr;force dut.mouse_event=me;
+        force dut.mouse_z=mz;
     end
     task clocks;input integer count;begin repeat(count) @(negedge clk);end endtask
     task packet;input integer x,y;input l,right;
@@ -52,13 +54,15 @@ module gameplay_menu_tb;
         if(!dut.build_frames[3] || dut.build_frames[8]) $fatal(1,"Empty frame did not move independently");
         place(2,6);place(2,7);place(4,0);
         click(50,59);
-        if(!dut.inventory_page) $fatal(1,"Extra inventory page did not open");
+        if(dut.inventory_page) $fatal(1,"Removed 1/2 page button still switched page");
+        mz=4'b1111;me=1;clocks(1);me=0;mz=0;clocks(3);
+        if(!dut.inventory_page) $fatal(1,"Mouse scroll did not open extra inventory page");
         click(74,8);click(44,28);click(44,28);
         if(!dut.build_facing_left[5]) $fatal(1,"Rocket click did not flip");
         click(44,28);if(!dut.build_facing_down[5] || dut.build_facing_left[5]) $fatal(1,"Rocket second click did not rotate up");click(44,28);
         if(dut.build_grid[17:15]!=`LP_PART_BOOSTER || dut.build_facing_left[5] || dut.rockets_left!=0)
             $fatal(1,"Right-facing side rocket not placed/accounted");
-        place(3,2);
+        place(1,2);
         if(dut.fan_count!=1 || dut.fans_left!=0 || !dut.build_valid) $fatal(1,"Side fan placement failed");
         // Side attachment cannot wrap from the end of one row to the next.
         saved_grid=dut.build_grid;move(2,8);

@@ -653,23 +653,6 @@ module ui_renderer (
                     else pixel_data = build_valid ? 16'h18e5 : 16'h18c3;
                     if (is_checkmark_icon(7'd8, 6'd59, x, y)) pixel_data = build_valid ? 16'h07e0 : 16'h7bef;
                 end
-                // Inventory Page 1 / 2 Buttons
-                else if (x >= 20 && x <= 40) begin
-                    if (x == 20 || x == 40 || y == 55 || y == 63)
-                        pixel_data = (cursor_x >= 20 && cursor_x <= 40 && cursor_y >= 55) ? 16'hffe0 : 16'h04b4;
-                    else if (cursor_x >= 20 && cursor_x <= 40 && cursor_y >= 55)
-                        pixel_data = 16'h0351;
-                    else pixel_data = 16'h18e5;
-                    if (text_on("1               ", 28, 56, x, y)) pixel_data = (inventory_page == 0) ? 16'hffe0 : 16'hffff;
-                end
-                else if (x >= 41 && x < 62) begin
-                    if (x == 41 || x == 61 || y == 55 || y == 63)
-                        pixel_data = (cursor_x >= 41 && cursor_x < 62 && cursor_y >= 55) ? 16'hffe0 : 16'h04b4;
-                    else if (cursor_x >= 41 && cursor_x < 62 && cursor_y >= 55)
-                        pixel_data = 16'h0351;
-                    else pixel_data = 16'h18e5;
-                    if (text_on("2               ", 49, 56, x, y)) pixel_data = (inventory_page == 1) ? 16'hffe0 : 16'hffff;
-                end
                 // Open Book Diary Icon (x: 64..79)
                 else if (x >= 64 && x < 80) begin
                     if (x == 64 || x == 79 || y == 55 || y == 63)
@@ -761,18 +744,18 @@ module ui_renderer (
                             end
                         end else if (run_part == `LP_PART_FAN) begin
                             if (fan_on || active_fans[run_cell_index]) begin
-                                pixel_data = part_sprite_facing_dir(run_part, run_cell_x, run_cell_y, 16, build_facing_left[run_cell_index], build_facing_down[run_cell_index], anim_phase, pixel_data);
+                                pixel_data = part_sprite_mounted(run_part, run_cell_x, run_cell_y, 16, build_facing_left[run_cell_index], build_facing_down[run_cell_index], frame_intact_mask, run_cell_index, anim_phase, pixel_data);
                             end else begin
                                 // Grayed out / dimmed inactive fan
-                                run_spr = part_sprite_facing_dir(run_part, run_cell_x, run_cell_y, 16, build_facing_left[run_cell_index], build_facing_down[run_cell_index], 1'b0, pixel_data);
+                                run_spr = part_sprite_mounted(run_part, run_cell_x, run_cell_y, 16, build_facing_left[run_cell_index], build_facing_down[run_cell_index], frame_intact_mask, run_cell_index, 1'b0, pixel_data);
                                 pixel_data = (run_spr != pixel_data) ? ((run_spr & 16'hf7de) >> 1) : pixel_data;
                             end
                         end else if (run_part == `LP_PART_BOOSTER) begin
                             if (boost_active || rocket_ready) begin
-                                pixel_data = part_sprite_facing_dir(run_part, run_cell_x, run_cell_y, 16, build_facing_left[run_cell_index], build_facing_down[run_cell_index], boost_active ? anim_phase : 1'b0, pixel_data);
+                                pixel_data = part_sprite_mounted(run_part, run_cell_x, run_cell_y, 16, build_facing_left[run_cell_index], build_facing_down[run_cell_index], frame_intact_mask, run_cell_index, boost_active ? anim_phase : 1'b0, pixel_data);
                             end else begin
                                 // Grayed out / dimmed spent rocket
-                                run_spr = part_sprite_facing_dir(run_part, run_cell_x, run_cell_y, 16, build_facing_left[run_cell_index], build_facing_down[run_cell_index], 1'b0, pixel_data);
+                                run_spr = part_sprite_mounted(run_part, run_cell_x, run_cell_y, 16, build_facing_left[run_cell_index], build_facing_down[run_cell_index], frame_intact_mask, run_cell_index, 1'b0, pixel_data);
                                 pixel_data = (run_spr != pixel_data) ? ((run_spr & 16'hf7de) >> 1) : pixel_data;
                             end
                         end else begin

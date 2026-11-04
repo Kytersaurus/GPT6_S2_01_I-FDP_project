@@ -155,7 +155,7 @@ function [15:0] part_sprite;
                     0, 7: row = 32'h00011000;
                     1, 6: row = sprite_phase ? 32'h00144100 : 32'h00122100;
                     2, 5: row = sprite_phase ? 32'h00122100 : 32'h00144100;
-                    default: row = 32'h77155100;
+                    default: row = 32'h77157100;
                 endcase
                 default: row = 0;
             endcase
@@ -260,8 +260,8 @@ function [15:0] part_sprite16;
                     2, 13: row = 64'h0000122222210000;
                     3, 5, 10, 12: row = sprite_phase ? 64'h0000140000410000 : 64'h0000100440010000;
                     4, 11: row = sprite_phase ? 64'h0000142222410000 : 64'h0000122442210000;
-                    6, 9: row = 64'h5777122552210000;
-                    7, 8: row = 64'h5777104554010000;
+                    6, 9: row = 64'h5777122572210000;
+                    7, 8: row = 64'h5777104574010000;
                     default: row = 64'h0000012222100000;
                 endcase
                 default: row = 0;
@@ -413,7 +413,7 @@ function [15:0] part_sprite12;
                     2, 9: row = 48'h000122221000;
                     3, 8: row = sprite_phase ? 48'h000140041000 : 48'h000104401000;
                     4, 7: row = sprite_phase ? 48'h000142241000 : 48'h000124421000;
-                    5, 6: row = 48'h777105501000;
+                    5, 6: row = 48'h777105701000;
                     default: row = 48'h000012210000;
                 endcase
                 default: row = 0;
@@ -444,6 +444,65 @@ function [15:0] part_sprite_facing_dir;
         if (size==16) part_sprite_facing_dir=part_sprite16(part,ix,iy,phase,background);
         else if (size==12) part_sprite_facing_dir=part_sprite12(part,ix,iy,phase,background);
         else part_sprite_facing_dir=part_sprite(part,ix,iy,phase,background);
+    end
+endfunction
+
+function [15:0] part_sprite_mounted;
+    input [2:0] part;
+    input signed [7:0] x, y;
+    input integer size;
+    input facing_left, facing_down;
+    input [8:0] frames;
+    input [3:0] cell_idx;
+    input phase;
+    input [15:0] background;
+    reg signed [7:0] ix, iy, stem_x, post_y, base_y, fin_x;
+    reg has_above, has_below, has_left, has_right;
+    begin
+        ix = x;
+        iy = y;
+        has_above = (cell_idx >= 4'd3 && cell_idx < 4'd9) ? frames[cell_idx - 4'd3] : 1'b0;
+        has_below = (cell_idx <= 4'd5) ? frames[cell_idx + 4'd3] : 1'b0;
+        has_left  = (cell_idx != 4'd0 && cell_idx != 4'd3 && cell_idx != 4'd6 && cell_idx < 4'd9) ? frames[cell_idx - 4'd1] : 1'b0;
+        has_right = (cell_idx != 4'd2 && cell_idx != 4'd5 && cell_idx != 4'd8 && cell_idx < 4'd9) ? frames[cell_idx + 4'd1] : 1'b0;
+        stem_x = (size == 16) ? 8'sd4 : (size == 12) ? 8'sd3 : 8'sd2;
+        post_y = (size == 16) ? 8'sd10 : (size == 12) ? 8'sd9 : 8'sd6;
+        base_y = (size == 16) ? 8'sd12 : (size == 12) ? 8'sd11 : 8'sd7;
+        fin_x  = (size == 16) ? 8'sd10 : (size == 12) ? 8'sd7 : 8'sd5;
+        if (part == `LP_PART_BOOSTER) begin
+            if (facing_down) begin
+                ix = size - 1 - y;
+                iy = (has_left && !has_right) ? (size - 1 - x) : x;
+                if (!has_left && !has_right && (iy >= base_y || (iy >= post_y && ix < fin_x)))
+                    ix = -8'sd1;
+            end else begin
+                ix = facing_left ? (size - 1 - x) : x;
+                iy = (has_above && !has_below) ? (size - 1 - y) : y;
+                if (!has_below && !has_above && (iy >= base_y || (iy >= post_y && ix < fin_x)))
+                    ix = -8'sd1;
+            end
+        end else if (part == `LP_PART_FAN) begin
+            if (facing_down) begin
+                iy = size - 1 - x;
+                ix = y;
+                if (!has_above && (ix < stem_x - 1))
+                    ix = -8'sd1;
+                if (has_below && (y >= size - stem_x))
+                    ix = size - 1 - y;
+            end else begin
+                ix = facing_left ? (size - 1 - x) : x;
+                iy = y;
+                if ((facing_left ? !has_right : !has_left) && (ix < stem_x - 1))
+                    ix = -8'sd1;
+                if ((facing_left ? has_left : has_right) && (facing_left ? (x < stem_x) : (x >= size - stem_x)))
+                    ix = facing_left ? x : (size - 1 - x);
+            end
+        end else if (part == `LP_PART_ENGINE && facing_left) begin
+            ix = size - 1 - x;
+        end
+        if (size == 16) part_sprite_mounted = part_sprite16(part, ix, iy, phase, background);
+        else if (size == 12) part_sprite_mounted = part_sprite12(part, ix, iy, phase, background);
+        else part_sprite_mounted = part_sprite(part, ix, iy, phase, background);
     end
 endfunction
 
