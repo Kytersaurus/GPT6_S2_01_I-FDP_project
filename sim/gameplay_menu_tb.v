@@ -55,7 +55,7 @@ module gameplay_menu_tb;
         place(2,6);place(2,7);place(4,0);
         click(50,59);
         if(dut.inventory_page) $fatal(1,"Removed 1/2 page button still switched page");
-        mz=4'b1111;me=1;clocks(1);me=0;mz=0;clocks(3);
+        mz=4'b0001;me=1;clocks(1);me=0;mz=0;clocks(3);
         if(!dut.inventory_page) $fatal(1,"Mouse scroll did not open extra inventory page");
         click(74,8);click(44,28);click(44,28);
         if(!dut.build_facing_down[5] || dut.build_facing_left[5]) $fatal(1,"Rocket click did not rotate up");

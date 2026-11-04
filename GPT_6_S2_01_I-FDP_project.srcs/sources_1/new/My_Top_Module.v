@@ -506,7 +506,7 @@ module My_Top_Module #(
         .ENGINE_LIMIT(ENGINE_LIMIT), .BALLOON_LIMIT(BALLOON_LIMIT),
         .ROCKET_LIMIT(ROCKET_LIMIT), .FAN_LIMIT(FAN_LIMIT), .FEEDBACK_CYCLES(FEEDBACK_CYCLES)
     ) u_builder (
-        .clk(clk), .reset(reset), .game_state(game_state), .run_init(run_init), .init_ready(init_ready[0]),
+        .clk(clk), .reset(reset), .game_state(game_state), .level_index(level_index), .run_init(run_init), .init_ready(init_ready[0]),
         .edit_valid(edit_valid), .edit_op(edit_op), .edit_cell(edit_cell), .edit_source(edit_source), .edit_part(edit_part), .edit_facing_left(edit_facing_left),
         .edit_facing_down(edit_facing_down),
         .build_facing_left(build_facing_left), .build_facing_down(build_facing_down), .engine_balance(engine_balance),

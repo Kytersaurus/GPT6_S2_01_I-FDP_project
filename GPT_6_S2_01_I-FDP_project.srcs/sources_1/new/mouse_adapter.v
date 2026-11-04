@@ -179,9 +179,9 @@ module mouse_adapter (
 
             if (input_enabled && game_state == `LP_BUILD && mouse_event && mouse_z != 0) begin
                 if (!mouse_z[3]) begin
-                    inventory_page <= 2'd0;
-                end else begin
                     inventory_page <= 2'd1;
+                end else begin
+                    inventory_page <= 2'd0;
                 end
             end
 

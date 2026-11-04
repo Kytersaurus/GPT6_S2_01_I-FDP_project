@@ -14,6 +14,7 @@ module vehicle_builder #(
 ) (
     input wire clk, reset,
     input wire [2:0] game_state,
+    input tri0 [1:0] level_index,
     input wire run_init,
     output reg init_ready,
     input wire edit_valid,
@@ -82,6 +83,7 @@ module vehicle_builder #(
     reg [2:0] source_part;
     reg [31:0] feedback_count;
     assign damage_ready = (game_state == `LP_RUN) && !run_init;
+    wire [3:0] active_fan_limit = (level_index == `LP_LEVEL_FLIGHT) ? (FAN_LIMIT[3:0] + 4'd1) : FAN_LIMIT[3:0];
 
     // Shift the frame layer by one row or column in either direction; no edge wraps.
     wire [8:0] frame_left = (build_frames & 9'b011011011) << 1;
@@ -424,8 +426,8 @@ module vehicle_builder #(
         engines_left = (saved_engines < ENGINE_LIMIT) ? ENGINE_LIMIT-saved_engines : 0;
         balloons_left = (saved_balloons < BALLOON_LIMIT) ? BALLOON_LIMIT-saved_balloons : 0;
         rockets_left = saved_rockets < ROCKET_LIMIT ? ROCKET_LIMIT-saved_rockets : 0;
-        fans_left = saved_fans < FAN_LIMIT ? FAN_LIMIT-saved_fans : 0;
-        stock_valid = saved_rockets<=ROCKET_LIMIT && saved_fans<=FAN_LIMIT && saved_frames <= FRAME_LIMIT && saved_pigs <= PIG_LIMIT &&
+        fans_left = saved_fans < active_fan_limit ? active_fan_limit-saved_fans : 0;
+        stock_valid = saved_rockets<=ROCKET_LIMIT && saved_fans<=active_fan_limit && saved_frames <= FRAME_LIMIT && saved_pigs <= PIG_LIMIT &&
                       saved_wheels <= WHEEL_LIMIT && saved_engines <= ENGINE_LIMIT &&
                       saved_balloons <= BALLOON_LIMIT;
         build_valid = (saved_pigs == 1) && placement_valid && stock_valid;
