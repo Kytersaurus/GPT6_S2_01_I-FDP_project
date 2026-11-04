@@ -71,7 +71,7 @@ module gameplay_menu_tb;
         click(8,59);clocks(30);
         if(dut.game_state!=`LP_RUN || dut.run_page!=0 || !dut.engine_reverse || dut.drive_engines!=1 || dut.engine_enabled)
             $fatal(1,"DRIVE default or left-engine physics contract incorrect");
-        sw=5;clocks(5);if(dut.engine_reverse) $fatal(1,"SW2 failed to reverse saved engine direction");sw=1;clocks(5);
+        sw=16'h4001;clocks(5);if(dut.engine_reverse) $fatal(1,"SW14 failed to reverse saved engine direction");sw=1;clocks(5);
         click(48,10);if(!dut.engine_enabled) $fatal(1,"Engine OFF menu missing");
         packet(48,10,1,0);packet(48,10,1,0);packet(48,10,0,0);
         if(dut.engine_enabled) $fatal(1,"Held engine menu repeated");

@@ -63,6 +63,7 @@ module ui_visual_tb;
         force dut.draw_inventory_page=1'b0;force dut.draw_selected_part=`LP_PART_FRAME;
         force dut.draw_selected_left=1'b0;force dut.draw_facing_left=9'd0;
         state=`LP_GUIDE;frame("ui_diary_1");page=1;frame("ui_diary_2");page=2;frame("ui_diary_3");
+        force dut.draw_level=`LP_LEVEL_FLIGHT;frame("ui_diary_3_l2");force dut.draw_level=2'd0;
         page=3;frame("ui_sound");
         state=`LP_SETTINGS;frame("ui_settings");state=`LP_LEVEL_SELECT;frame("ui_levels");
         force dut.draw_level=`LP_LEVEL_FLIGHT;frame("ui_levels_l2");force dut.draw_level=2'd0;
@@ -94,5 +95,5 @@ module ui_visual_tb;
         $display("PASS ui_visual_tb: build, diary, RUN controls, transition and death pixels exported without unknowns");
         $finish;
     end
-    initial begin #20000000;$fatal(1,"UI pixel export timed out");end
+    initial begin #25000000;$fatal(1,"UI pixel export timed out");end
 endmodule

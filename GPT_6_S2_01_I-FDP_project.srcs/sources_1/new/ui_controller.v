@@ -10,6 +10,7 @@ module ui_controller (
     input wire next_press,
     input wire engine_switch_changed,
     input wire engine_switch, engine_toggle_req, fan_toggle_req,
+    input tri0 [3:0] fan_toggle_cell,
     input tri0 rocket_toggle_req,
     input wire fan_available, rocket_available, rocket_ready, balloon_available,
     output reg home_req, launch_req, edit_req, end_try_req, guide_open_req, guide_close_req,
@@ -19,13 +20,17 @@ module ui_controller (
     output reg boost_req,
     output reg [1:0] diary_page,
     output reg [2:0] master_volume,
-    output reg engine_on, fan_on, rocket_req,
+    output reg engine_on,
+    output wire fan_on,
+    output reg [8:0] active_fans,
+    output reg rocket_req,
     output reg sound_muted,
     output wire launch_flash
 );
     reg left_was_down;
     reg [4:0] launch_ticks;
     assign launch_flash = launch_ticks!=0;
+    assign fan_on = |active_fans;
     wire [7:0] mx = (mouse_x[11:8] != 4'd0) ? 8'd255 : mouse_x[7:0];
     wire [6:0] my = (mouse_y[11:7] != 5'd0) ? 7'd127 : mouse_y[6:0];
 
@@ -33,7 +38,7 @@ module ui_controller (
         if (reset) begin
             left_was_down<=0; diary_page<=0; master_volume<=2;
             engine_on<=0;
-            fan_on<=0; sound_muted<=0;
+            active_fans<=9'd0; sound_muted<=0;
             run_page<=0; boost_req<=0;
             home_req<=0; launch_req<=0; edit_req<=0; end_try_req<=0; guide_open_req<=0; guide_close_req<=0;
             rocket_req<=0; launch_ticks<=0;
@@ -42,16 +47,24 @@ module ui_controller (
             home_req<=0; launch_req<=0; edit_req<=0; end_try_req<=0; guide_open_req<=0; guide_close_req<=0; rocket_req<=0;
             level_open_req<=0; level_close_req<=0; level_select_req<=0;
             boost_req<=0;
-            if (run_init) begin engine_on<=0; fan_on<=0; run_page<=0; end
-            if (engine_toggle_req && engine_switch && game_state==`LP_RUN && !run_init) engine_on<=!engine_on;
-            if (fan_toggle_req && fan_available && game_state==`LP_RUN && !run_init) fan_on<=!fan_on;
-            if (rocket_toggle_req && rocket_available && rocket_ready && game_state==`LP_RUN && !run_init) begin
-                rocket_req<=1;
-                boost_req<=1;
+            if (run_init) begin
+                engine_on<=0;
+                active_fans<=9'd0;
+                run_page<=0;
+            end else if (game_state==`LP_RUN) begin
+                if (engine_toggle_req) engine_on<=!engine_on;
+                else if (engine_switch_changed) engine_on<=engine_switch;
+                if (fan_toggle_req && fan_available && fan_toggle_cell < 4'd9)
+                    active_fans[fan_toggle_cell] <= !active_fans[fan_toggle_cell];
+                if (rocket_toggle_req && rocket_available && rocket_ready) begin
+                    rocket_req<=1;
+                    boost_req<=1;
+                end
             end
-            // SW0 is a master inhibit. Each launch starts with actuators off.
-            if (!engine_switch || run_init) engine_on<=0;
-            if (!fan_available || (game_state!=`LP_RUN && game_state!=`LP_SETTINGS && game_state!=`LP_GUIDE)) fan_on<=0;
+            if (!fan_available || (game_state!=`LP_RUN && game_state!=`LP_SETTINGS && game_state!=`LP_GUIDE))
+                active_fans<=9'd0;
+            if (game_state!=`LP_RUN && game_state!=`LP_SETTINGS && game_state!=`LP_GUIDE)
+                engine_on<=0;
             if (game_state!=`LP_RUN) launch_ticks<=0;
             else if (launch_event) launch_ticks<=30;
             else if (physics_tick && launch_ticks!=0) launch_ticks<=launch_ticks-1;
@@ -113,12 +126,18 @@ module ui_controller (
                             else if (mx>=74 && mx<=93) diary_page <= 2'd2;
                         end
                     end else if (game_state==`LP_SUCCESS || game_state==`LP_FAIL) begin
-                        // Bottom action bar (y: 53..63): [ HOME ] [ MAP SELECT ] [ NEXT / EDIT ] [ GUIDE ]
-                        if (my>=53 && my<=63) begin
-                            if (mx >= 2 && mx <= 22) home_req <= 1;
-                            else if (mx >= 26 && mx <= 46) level_open_req <= 1;
-                            else if (mx >= 50 && mx <= 70) edit_req <= 1;
-                            else if (mx >= 74 && mx <= 94) begin guide_open_req <= 1; diary_page <= 0; end
+                        // Right Panel stacked big buttons (x: 56..92):
+                        // Top button: [ NEXT / EDIT ] (y: 6..26)
+                        if (mx >= 56 && mx <= 92 && my >= 6 && my <= 26) begin
+                            edit_req <= 1;
+                        // Bottom button: [ RETRY ] (y: 30..50)
+                        end else if (mx >= 56 && mx <= 92 && my >= 30 && my <= 50) begin
+                            launch_req <= 1;
+                        // Bottom action bar (y: 53..63): [ HOME ] [ MAP SELECT ] [ GUIDE ]
+                        end else if (my >= 53 && my <= 63) begin
+                            if (mx >= 2 && mx <= 28) home_req <= 1;
+                            else if (mx >= 35 && mx <= 61) level_open_req <= 1;
+                            else if (mx >= 68 && mx <= 94) begin guide_open_req <= 1; diary_page <= 0; end
                         end
                     end else if (game_state==`LP_RUN) begin
                         // Bottom Navigation Bar in run mode (y: 53..63): [TRY] [END] [EDIT] [GEAR]

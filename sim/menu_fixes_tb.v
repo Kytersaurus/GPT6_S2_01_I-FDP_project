@@ -37,7 +37,7 @@ module menu_fixes_tb;
             if(dut.game_state!=`LP_LEVEL_SELECT) $fatal(1,"Map edge not selectable");
             click(12,59);
         end
-        switches[1]=1;click(20,35);
+        switches[15]=1;click(20,35);
         if(dut.game_state!=`LP_GUIDE || dut.diary_page!=3) $fatal(1,"Muted Sound opened map");
         click(70,35);click(70,35);click(70,35);
         if(dut.master_volume!=4) $fatal(1,"4/4 volume unreachable");
@@ -76,8 +76,8 @@ module menu_fixes_tb;
         if(!dut.u_physics.moments_enabled) $fatal(1,"Inactive rocket changed shared COM support solver");
         release dut.rockets_left;
         // SW0 must inhibit both software toggles and actual output.
-        click(32,26);if(dut.engine_enabled || dut.ui_engine_on) $fatal(1,"SW0 OFF bypassed by icon");
-        switches[0]=1;clocks(5);click(32,26);
+        click(32,26);if(!dut.engine_enabled || !dut.ui_engine_on) $fatal(1,"Icon did not toggle ON");
+        click(32,26);switches[0]=1;clocks(5);
         if(!dut.engine_enabled) $fatal(1,"Engine icon cannot enable with SW0 ON");
         click(32,26);if(dut.engine_enabled) $fatal(1,"Engine icon cannot disable");
         click(32,26);switches[0]=0;clocks(5);

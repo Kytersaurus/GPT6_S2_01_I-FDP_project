@@ -65,7 +65,7 @@ module volume_audio_tb;
         clocks(2500);
         if(dut.audio_busy || dut.u_bgm.volume!=1 || dut.u_bgm.bass_volume!=1)
             $fatal(1,"Gameplay melody and bass did not resume together");
-        sw=2;clocks(300);
+        sw=16'h8000;clocks(300);
         if(dut.bgm_sample!=0 || dut.u_audio.pwm_level!=128 || dut.JXADC[3]!=0 || dut.master_volume!=2)
             $fatal(1,"Mute did not override/preserve volume");
         sw=0;clocks(300);

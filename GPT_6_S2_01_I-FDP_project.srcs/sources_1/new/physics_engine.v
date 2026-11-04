@@ -31,6 +31,7 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
     // The matching per-cell mask supplies their lever arms to the moments unit.
     input tri0 [3:0] live_lift_fan_count,
     input tri0 [8:0] fan_lift_mask,
+    input tri1 [8:0] fan_active_mask,
     // Future placement logic supplies body-vertical rockets: down minus up.
     input tri0 signed [4:0] rocket_vertical_balance,
     input tri0 [3:0] rocket_count,
@@ -202,7 +203,7 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
         .start(phase==IDLE && step_start && moments_enabled && game_state==`LP_RUN && !run_init),
         .build_grid(build_grid),.build_frames(build_frames),.intact_mask(intact_mask),
         .frame_intact_mask(frame_intact_mask),.facing_left(build_facing_left),
-        .rocket_vertical_mask(rocket_vertical_mask),.fan_lift_mask(fan_lift_mask),
+        .rocket_vertical_mask(rocket_vertical_mask),.fan_lift_mask(fan_lift_mask),.fan_active_mask(fan_active_mask),
         .fan_on(fan_enabled),.rocket_on(rocket_active),
         .grounded(was_grounded),.tilt(vehicle_tilt),.wheel_force_valid(wheel_force_valid),
         .contact_span_valid(last_support_span_valid),
@@ -901,6 +902,7 @@ module vehicle_moments #(parameter integer ROCKET_FORCE_SHIFT = 9,
     input wire [8:0] build_frames, intact_mask, frame_intact_mask,
     input wire [8:0] facing_left, rocket_vertical_mask,
     input tri0 [8:0] fan_lift_mask,
+    input tri1 [8:0] fan_active_mask,
     input wire fan_on, rocket_on, grounded,
     input wire signed [`LP_TILT_BITS-1:0] tilt,
     // Accepted terrain contacts in world x, relative to the grid centre (Q2).
@@ -958,7 +960,7 @@ module vehicle_moments #(parameter integer ROCKET_FORCE_SHIFT = 9,
     reg [8:0] normal_scale;
     reg signed [18:0] normal_left_product;
     reg [26:0] grid;
-    reg [8:0] frames, alive, frame_alive, direction, vertical, lift_mask, contact_mask;
+    reg [8:0] frames, alive, frame_alive, direction, vertical, lift_mask, active_fan_mask, contact_mask;
     reg fans_active, rockets_active, on_ground, flipped;
     reg signed [9:0] cosine, sine, next_cosine, next_sine;
     reg signed [`LP_TILT_BITS-1:0] saved_tilt;
@@ -995,7 +997,7 @@ module vehicle_moments #(parameter integer ROCKET_FORCE_SHIFT = 9,
         cell_y=index<3 ? -7'sd32 : index<6 ? 7'sd0 : 7'sd32;
         cell_force=0; cell_axis_y=0; cell_is_wheel=0;
         if (alive[index]) case(part)
-            `LP_PART_FAN: if (fans_active) begin
+            `LP_PART_FAN: if (fans_active && active_fan_mask[index]) begin
                 cell_axis_y=lift_mask[index];
                 if(lift_mask[index]) cell_force=-(16'sd1 <<< FAN_LIFT_FORCE_SHIFT);
                 else cell_force=direction[index] ? 16'sd64 : -16'sd64;
@@ -1123,7 +1125,7 @@ module vehicle_moments #(parameter integer ROCKET_FORCE_SHIFT = 9,
             saved_tilt<=0; pivot_point_x<=0; pivot_point_y<=0;
             com_x_q2<=0; com_y_q2<=0; body_mass<=0;
             index<=0; wheel_contacts<=0; contact_mask<=0; lift_fans<=0; remaining_gravity<=0;
-            grid<=0; frames<=0; alive<=0; frame_alive<=0; direction<=0; vertical<=0; lift_mask<=0;
+            grid<=0; frames<=0; alive<=0; frame_alive<=0; direction<=0; vertical<=0; lift_mask<=0; active_fan_mask<=0;
             fans_active<=0; rockets_active<=0; on_ground<=0; flipped<=0;
             cosine<=0; sine<=0; mass_x<=0; mass_y<=0;
             force_cell<=0;
@@ -1137,7 +1139,7 @@ module vehicle_moments #(parameter integer ROCKET_FORCE_SHIFT = 9,
                 IDLE: if(start) begin
                     grid<=build_grid; frames<=build_frames; alive<=intact_mask;
                     frame_alive<=frame_intact_mask; direction<=facing_left; vertical<=rocket_vertical_mask;
-                    lift_mask<=fan_lift_mask;
+                    lift_mask<=fan_lift_mask; active_fan_mask<=fan_active_mask;
                     fans_active<=fan_on; rockets_active<=rocket_on; on_ground<=grounded;
                     actual_span_valid<=contact_span_valid;
                     actual_left<=contact_left_q2; actual_right<=contact_right_q2; actual_y<=contact_y_q2;
@@ -1158,7 +1160,7 @@ module vehicle_moments #(parameter integer ROCKET_FORCE_SHIFT = 9,
                 SCAN: begin
                     body_mass<=body_mass+cell_mass;
                     if(alive[index] && part==`LP_PART_BALLOON) balloons<=balloons+1'b1;
-                    if(alive[index] && part==`LP_PART_FAN && fans_active && lift_mask[index]) lift_fans<=lift_fans+1'b1;
+                    if(alive[index] && part==`LP_PART_FAN && fans_active && active_fan_mask[index] && lift_mask[index]) lift_fans<=lift_fans+1'b1;
                     // Grid centres are -32, 0, +32 quarter pixels: shifts only.
                     if(cell_x<0) mass_x<=mass_x-($signed({1'b0,cell_mass}) <<< 5);
                     else if(cell_x>0) mass_x<=mass_x+($signed({1'b0,cell_mass}) <<< 5);

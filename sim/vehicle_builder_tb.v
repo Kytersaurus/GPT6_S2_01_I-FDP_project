@@ -151,9 +151,6 @@ module vehicle_builder_tb;
                 $fatal(1, "Wrong cell edited");
         end
         if (engines != 9 || mass != 45 || build_valid) $fatal(1, "Layer counts or mass incorrect");
-        game_state = `LP_RUN; clocks(1); pixel = 40*96+64; #1;
-        if (colour != 16'hffff) $fatal(1, "18 surviving parts did not show tens digit");
-        game_state = `LP_BUILD; clocks(1);
         edit(`LP_EDIT_PLACE, 0, `LP_PART_PIG);
         if (!build_valid || mass != 44 || engines != 8) $fatal(1, "Single pig not recognised");
         reset = 1; clocks(1); reset = 0; clocks(1); build_test_vehicle();

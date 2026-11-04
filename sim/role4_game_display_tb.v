@@ -309,9 +309,9 @@ module role4_game_display_tb;
         expect_left(5, 58, 16'h07e0, "runtime valid indicator");
         // Timer 12: tens digit 1 on the right segments, ones digit 2 starts with the top bar.
         view_seconds=12;
-        expect_left(64, 8, 16'h07ff, "timer tens");
-        expect_left(70, 6, 16'h07ff, "timer ones");
-        expect_left(83, 19, 16'h07ff, "seconds label");
+        expect_left(64, 8, 16'h0841, "timer tens removed");
+        expect_left(70, 6, 16'h0841, "timer ones removed");
+        expect_left(83, 19, 16'h0841, "seconds label removed");
         // RUN uses the compact12-pixel grid at(4,12); BUILD/results retain16-pixel cells.
         expect_left(21, 27, 16'h07e0, "left pig sprite");
         expect_left(17, 34, 16'ha285, "left frame sprite");
