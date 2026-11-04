@@ -88,43 +88,43 @@ module ui_renderer (
         end
     endfunction
 
-    // Helper function to draw an Apple iOS-style metallic spoked settings gear
+    // Helper function to draw an Apple-style metallic 8-tooth settings gear
     function [15:0] cartoon_gear;
         input signed [6:0] center_x, center_y, px, py;
         input [15:0] bg;
-        reg signed [4:0] lx, ly;
-        reg [1:0] pix_code; // 0: bg/cutout, 1: bright white-silver, 2: mid-silver, 3: slate tooth/shadow
+        reg signed [6:0] lx, ly;
+        reg [1:0] pix_code; // 0: bg/valley, 1: bright white-silver, 2: brushed light silver, 3: metallic slate bevel
         begin
             lx = px - center_x;
             ly = py - center_y;
             pix_code = 2'd0;
             cartoon_gear = bg;
             if (center_y == 7'sd59) begin
-                // Compact 7x7 Apple-style spoked gear for 9px-tall BUILD toolbar button (y=55..63)
+                // Compact 7x7 8-tooth metallic gear for 9px-tall BUILD toolbar button (y=55..63)
                 if (lx >= -3 && lx <= 3 && ly >= -3 && ly <= 3) begin
                     case (ly)
-                        -5'sd3: case (lx) -5'sd2, 5'sd2: pix_code = 2'd3; -5'sd1, 5'sd0, 5'sd1: pix_code = 2'd1; default: pix_code = 2'd0; endcase
-                        -5'sd2: case (lx) -5'sd3, 5'sd3: pix_code = 2'd3; -5'sd2, 5'sd0, 5'sd2: pix_code = 2'd1; -5'sd1, 5'sd1: pix_code = 2'd2; default: pix_code = 2'd0; endcase
-                        -5'sd1: case (lx) -5'sd3, 5'sd0: pix_code = 2'd1; -5'sd2, 5'sd2: pix_code = 2'd2; 5'sd3: pix_code = 2'd3; default: pix_code = 2'd0; endcase
-                         5'sd0: case (lx) -5'sd3, -5'sd1, 5'sd1: pix_code = 2'd1; -5'sd2, 5'sd2: pix_code = 2'd2; 5'sd3: pix_code = 2'd3; default: pix_code = 2'd0; endcase
-                         5'sd1: case (lx) -5'sd3, -5'sd1, 5'sd1: pix_code = 2'd1; -5'sd2, 5'sd2: pix_code = 2'd2; 5'sd3: pix_code = 2'd3; default: pix_code = 2'd0; endcase
-                         5'sd2: case (lx) -5'sd3, 5'sd3: pix_code = 2'd3; -5'sd2, 5'sd2: pix_code = 2'd1; -5'sd1, 5'sd0, 5'sd1: pix_code = 2'd2; default: pix_code = 2'd0; endcase
-                         5'sd3: case (lx) -5'sd2, 5'sd2: pix_code = 2'd3; -5'sd1, 5'sd0, 5'sd1: pix_code = 2'd2; default: pix_code = 2'd0; endcase
+                        -7'sd3: case (lx)  7'sd0: pix_code = 2'd1; default: pix_code = 2'd0; endcase
+                        -7'sd2: case (lx) -7'sd2,  7'sd0,  7'sd2: pix_code = 2'd1; default: pix_code = 2'd0; endcase
+                        -7'sd1: case (lx) -7'sd1,  7'sd0: pix_code = 2'd1;  7'sd1: pix_code = 2'd2; default: pix_code = 2'd0; endcase
+                         7'sd0: case (lx) -7'sd3, -7'sd2, -7'sd1: pix_code = 2'd1;  7'sd1,  7'sd2: pix_code = 2'd2;  7'sd3: pix_code = 2'd3; default: pix_code = 2'd0; endcase
+                         7'sd1: case (lx) -7'sd1: pix_code = 2'd1;  7'sd0,  7'sd1: pix_code = 2'd2; default: pix_code = 2'd0; endcase
+                         7'sd2: case (lx) -7'sd2: pix_code = 2'd2;  7'sd0,  7'sd2: pix_code = 2'd3; default: pix_code = 2'd0; endcase
+                         7'sd3: case (lx)  7'sd0: pix_code = 2'd3; default: pix_code = 2'd0; endcase
                         default: pix_code = 2'd0;
                     endcase
                 end
             end else if (lx >= -4 && lx <= 4 && ly >= -4 && ly <= 4) begin
-                // 9x9 Apple iOS Settings spoked gear: outer teeth + silver rim + 3 Y-spokes + dark cutouts + center hole
+                // 9x9 8-tooth metallic settings gear: distinct N/S/E/W + NW/NE/SW/SE teeth, silver ring, round center hole
                 case (ly)
-                    -5'sd4: case (lx) -5'sd3, 5'sd3: pix_code = 2'd3; -5'sd1, 5'sd0, 5'sd1: pix_code = 2'd1; default: pix_code = 2'd0; endcase
-                    -5'sd3: case (lx) -5'sd4, 5'sd4: pix_code = 2'd3; -5'sd3, -5'sd2, 5'sd2, 5'sd3: pix_code = 2'd1; -5'sd1, 5'sd0, 5'sd1: pix_code = 2'd2; default: pix_code = 2'd0; endcase
-                    -5'sd2: case (lx) -5'sd3, 5'sd0: pix_code = 2'd1; -5'sd2, 5'sd2: pix_code = 2'd2; 5'sd3: pix_code = 2'd3; default: pix_code = 2'd0; endcase
-                    -5'sd1: case (lx) -5'sd4, 5'sd0: pix_code = 2'd1; -5'sd3, 5'sd3: pix_code = 2'd2; 5'sd4: pix_code = 2'd3; default: pix_code = 2'd0; endcase
-                     5'sd0: case (lx) -5'sd4, -5'sd1, 5'sd1: pix_code = 2'd1; -5'sd3, 5'sd3: pix_code = 2'd2; 5'sd4: pix_code = 2'd3; default: pix_code = 2'd0; endcase
-                     5'sd1: case (lx) -5'sd4, -5'sd2, 5'sd2: pix_code = 2'd1; -5'sd3, 5'sd3: pix_code = 2'd2; 5'sd4: pix_code = 2'd3; default: pix_code = 2'd0; endcase
-                     5'sd2: case (lx) -5'sd3, -5'sd1, 5'sd1: pix_code = 2'd2; -5'sd2, 5'sd2: pix_code = 2'd1; 5'sd3: pix_code = 2'd3; default: pix_code = 2'd0; endcase
-                     5'sd3: case (lx) -5'sd4, -5'sd2, 5'sd2, 5'sd4: pix_code = 2'd3; -5'sd3, 5'sd3: pix_code = 2'd1; -5'sd1, 5'sd0, 5'sd1: pix_code = 2'd2; default: pix_code = 2'd0; endcase
-                     5'sd4: case (lx) -5'sd3, -5'sd1, 5'sd0, 5'sd1, 5'sd3: pix_code = 2'd3; default: pix_code = 2'd0; endcase
+                    -7'sd4: case (lx)  7'sd0: pix_code = 2'd1; default: pix_code = 2'd0; endcase
+                    -7'sd3: case (lx) -7'sd3, -7'sd1,  7'sd0,  7'sd1: pix_code = 2'd1;  7'sd3: pix_code = 2'd2; default: pix_code = 2'd0; endcase
+                    -7'sd2: case (lx) -7'sd2, -7'sd1,  7'sd0: pix_code = 2'd1;  7'sd1,  7'sd2: pix_code = 2'd2; default: pix_code = 2'd0; endcase
+                    -7'sd1: case (lx) -7'sd3, -7'sd2: pix_code = 2'd1; -7'sd1,  7'sd1: pix_code = 2'd3;  7'sd2,  7'sd3: pix_code = 2'd2; default: pix_code = 2'd0; endcase
+                     7'sd0: case (lx) -7'sd4, -7'sd3, -7'sd2: pix_code = 2'd1;  7'sd2,  7'sd3: pix_code = 2'd2;  7'sd4: pix_code = 2'd3; default: pix_code = 2'd0; endcase
+                     7'sd1: case (lx) -7'sd3, -7'sd2: pix_code = 2'd1; -7'sd1,  7'sd1: pix_code = 2'd3;  7'sd2,  7'sd3: pix_code = 2'd2; default: pix_code = 2'd0; endcase
+                     7'sd2: case (lx) -7'sd2, -7'sd1: pix_code = 2'd1;  7'sd0,  7'sd1,  7'sd2: pix_code = 2'd2; default: pix_code = 2'd0; endcase
+                     7'sd3: case (lx) -7'sd3: pix_code = 2'd2; -7'sd1,  7'sd0,  7'sd1: pix_code = 2'd2;  7'sd3: pix_code = 2'd3; default: pix_code = 2'd0; endcase
+                     7'sd4: case (lx)  7'sd0: pix_code = 2'd3; default: pix_code = 2'd0; endcase
                     default: pix_code = 2'd0;
                 endcase
             end
@@ -231,7 +231,7 @@ module ui_renderer (
 
     function is_checkmark_icon;
         input signed [6:0] cx, cy, px, py;
-        reg signed [4:0] lx, ly;
+        reg signed [6:0] lx, ly;
         begin
             lx = px - cx;
             ly = py - cy;
@@ -247,28 +247,28 @@ module ui_renderer (
 
     function is_retry_icon;
         input signed [6:0] cx, cy, px, py;
-        reg signed [4:0] lx, ly;
-        reg [10:0] row;
+        reg signed [6:0] lx, ly;
+        reg [8:0] row;
         begin
             lx = px - cx;
             ly = py - cy;
-            row = 11'd0;
+            row = 9'd0;
             is_retry_icon = 1'b0;
-            // Bold 11x9 circular refresh arrow with wide open center & crisp right-pointing top arrowhead
-            if (lx >= -5 && lx <= 5 && ly >= -4 && ly <= 4) begin
+            // Clean 9x9 clockwise circular refresh arrow with 2-o'clock corner arrowhead (◢) & wide open gap
+            if (lx >= -4 && lx <= 4 && ly >= -4 && ly <= 4) begin
                 case (ly)
-                    -5'sd4: row = 11'b00000010000; // Upper arrowhead barb (lx = +1)
-                    -5'sd3: row = 11'b00011111000; // Top 2px arc + upper arrowhead (lx = -2..+2)
-                    -5'sd2: row = 11'b00111111100; // Top 2px arc + arrowhead tip (lx = -3..+3)
-                    -5'sd1: row = 11'b01100001100; // Left 2px arc + lower arrowhead (lx = +1..+2)
-                     5'sd0: row = 11'b01100001000; // Left 2px arc + lower arrowhead barb (lx = +1)
-                     5'sd1: row = 11'b01100000000; // Left 2px arc + open gap on right
-                     5'sd2: row = 11'b01110001100; // Lower-left + lower-right 2px arc
-                     5'sd3: row = 11'b00111111000; // Bottom 2px arc
-                     5'sd4: row = 11'b00011110000; // Bottom 2px arc
-                    default: row = 11'd0;
+                    -7'sd4: row = 9'b001111001; // Top 2px arc (lx = -2..+1) + upper arrowhead tip (lx = +4)
+                    -7'sd3: row = 9'b011111111; // Top 2px arc (lx = -3..+2) + arrowhead (lx = +3..+4)
+                    -7'sd2: row = 9'b110000111; // Left 2px arc (lx = -4..-3) + arrowhead body (lx = +2..+4)
+                    -7'sd1: row = 9'b110001111; // Left 2px arc (lx = -4..-3) + arrowhead base (lx = +1..+4)
+                     7'sd0: row = 9'b110000000; // Left 2px arc (lx = -4..-3) + wide open gap on right
+                     7'sd1: row = 9'b110000000; // Left 2px arc (lx = -4..-3) + wide open gap on right
+                     7'sd2: row = 9'b111000110; // Bottom-left arc (lx = -4..-2) + bottom-right tail (lx = +2..+3)
+                     7'sd3: row = 9'b011111110; // Bottom 2px arc (lx = -3..+3)
+                     7'sd4: row = 9'b001111100; // Bottom 2px arc (lx = -2..+2)
+                    default: row = 9'd0;
                 endcase
-                is_retry_icon = row[5 - lx];
+                is_retry_icon = row[4 - lx];
             end
         end
     endfunction
@@ -736,12 +736,10 @@ module ui_renderer (
                         ((x == 82 || x == 89) && (y == 19 || y == 21)) ||
                         ((x == 83 || x == 88) && (y == 18 || y == 22)))
                         pixel_data = 16'h07ff;
-                    // Switch 13 Icon: Green Magnifier / Zoom + (x: 54..61, y: 37..44)
-                    if ((x >= 55 && x <= 59 && (y == 37 || y == 41)) ||
-                        (y >= 37 && y <= 41 && (x == 55 || x == 59)) ||
-                        (x == 57 && y >= 38 && y <= 40) ||
-                        (y == 39 && x >= 56 && x <= 58) ||
-                        (x == 60 && y == 42) || (x == 61 && y == 43))
+                    // Switch 13 Icon: Green Magnifier / Zoom (x: 54..61, y: 36..43)
+                    if ((x >= 55 && x <= 57 && (y == 36 || y == 40)) ||
+                        (y >= 37 && y <= 39 && (x == 54 || x == 58)) ||
+                        (x == 59 && y == 41) || (x == 60 && y == 42) || (x == 61 && y == 43))
                         pixel_data = 16'h07e0;
                     // Switch 12 Icon: Yellow Camera / Viewfinder (x: 82..90, y: 37..43)
                     if ((x >= 82 && x <= 90 && (y == 38 || y == 43)) ||
