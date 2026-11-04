@@ -149,6 +149,25 @@ module right_renderer #(
         tilt_q <= before_launch ? 0 : sanitize_tilt(vehicle_tilt);
     end
 
+    // One text line is shared by the launch "GO!" and the ending card titles:
+    // they are never on screen together, and each text_on call costs real logic.
+    wire in_result_state = (game_state == `LP_SUCCESS || game_state == `LP_FAIL);
+    reg [127:0] banner_text;
+    reg [6:0] banner_left, banner_top;
+    always @* begin
+        if (game_state == `LP_SUCCESS) begin
+            banner_text = "LEVEL CLEAR!    "; banner_left = 7'd12; banner_top = 7'd11;
+        end else if (game_state == `LP_FAIL) begin
+            banner_text = "CRASHED!        "; banner_left = 7'd24; banner_top = 7'd14;
+        end else begin
+            banner_text = "GO!             "; banner_left = 7'd39; banner_top = 7'd1;
+        end
+    end
+    wire banner_lit = text_on(banner_text, banner_left, banner_top, px, py);
+    // Ending card layout: the clear card keeps its pig below the row of stars.
+    wire [6:0] card_pig_top = (game_state == `LP_SUCCESS) ? 7'd36 : 7'd28;
+    reg [6:0] card_star_x;
+
     // World position to screen-scale position for sprites.
     function integer scaled;
         input integer world;
@@ -374,27 +393,28 @@ module right_renderer #(
         end
         if (launch_flash && game_state==`LP_RUN && px>=34 && px<62 && py<10) begin
             pixel_data=16'h04b4;
-            if (text_on("GO!             ",39,1,px,py)) pixel_data=16'hffff;
+            if (banner_lit) pixel_data=16'hffff;
         end
         // Ending card: a midnight navy panel over the map, 80 by 48 and centred.
         // Clear shows the title, three stars and a pig; crash shows a dizzy pig.
-        if ((game_state == `LP_SUCCESS || game_state == `LP_FAIL) &&
-            px >= 8 && px < 88 && py >= 8 && py < 56) begin
+        // The chip is nearly full, so each drawing helper is used only once and
+        // its position is chosen first. Each call is its own copy of the logic.
+        if (in_result_state && px >= 8 && px < 88 && py >= 8 && py < 56) begin
             if (px == 8 || px == 87 || py == 8 || py == 55) pixel_data = 16'h4a69; // Card edge
             else pixel_data = 16'h0869; // Midnight navy
+            if (banner_lit) pixel_data = (game_state == `LP_SUCCESS) ? 16'hffe0 : 16'hf800;
             if (game_state == `LP_SUCCESS) begin
-                if (text_on("LEVEL CLEAR!    ", 12, 11, px, py)) pixel_data = 16'hffe0;
-                pixel_data = gold_star12(px - 18, py - 20, pixel_data);
-                pixel_data = gold_star12(px - 42, py - 20, pixel_data);
-                pixel_data = gold_star12(px - 66, py - 20, pixel_data);
-                pixel_data = part_sprite16(`LP_PART_PIG, px - 40, py - 36, 1'b0, pixel_data);
-            end else begin
-                if (text_on("CRASHED!        ", 24, 14, px, py)) pixel_data = 16'hf800;
-                pixel_data = part_sprite16(`LP_PART_PIG, px - 40, py - 28, 1'b0, pixel_data);
-                // Dizzy eyes: a small black and white check over each 2 by 2 eye.
-                if ((py == 34 || py == 35) && (px == 44 || px == 45 || px == 50 || px == 51))
-                    pixel_data = ((px + py) & 1) ? 16'h0000 : 16'hffff;
+                // Three stars share one lookup: pick the star this column falls in.
+                if (px >= 66) card_star_x = px - 7'd66;
+                else if (px >= 42) card_star_x = px - 7'd42;
+                else card_star_x = px - 7'd18;
+                if (px >= 18) pixel_data = gold_star12(card_star_x, py - 20, pixel_data);
             end
+            pixel_data = part_sprite16(`LP_PART_PIG, px - 40, py - card_pig_top, 1'b0, pixel_data);
+            // Dizzy eyes: a small black and white check over each 2 by 2 eye.
+            if (game_state == `LP_FAIL && (py == 34 || py == 35) &&
+                (px == 44 || px == 45 || px == 50 || px == 51))
+                pixel_data = ((px + py) & 1) ? 16'h0000 : 16'hffff;
         end
         if (px == 0 || px == 95 || py == 0 || py == 63) begin
             if (game_state == `LP_SUCCESS) pixel_data = 16'h07e0;
