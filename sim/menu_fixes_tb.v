@@ -75,13 +75,13 @@ module menu_fixes_tb;
         release dut.fans_left;force dut.rockets_left=4'd0;clocks(1);
         if(!dut.u_physics.moments_enabled) $fatal(1,"Inactive rocket changed shared COM support solver");
         release dut.rockets_left;
-        // SW0 must inhibit both software toggles and actual output.
+        // SW1 must inhibit both software toggles and actual output.
         click(32,26);if(!dut.engine_enabled || !dut.ui_engine_on) $fatal(1,"Icon did not toggle ON");
-        click(32,26);switches[0]=1;clocks(5);
-        if(!dut.engine_enabled) $fatal(1,"Engine icon cannot enable with SW0 ON");
+        click(32,26);switches[1]=1;clocks(5);
+        if(!dut.engine_enabled) $fatal(1,"Engine icon cannot enable with SW1 ON");
         click(32,26);if(dut.engine_enabled) $fatal(1,"Engine icon cannot disable");
-        click(32,26);switches[0]=0;clocks(5);
-        if(dut.engine_enabled || dut.ui_engine_on) $fatal(1,"SW0 did not inhibit engine");
+        click(32,26);switches[1]=0;clocks(5);
+        if(dut.engine_enabled || dut.ui_engine_on) $fatal(1,"SW1 did not inhibit engine");
         click(84,59);settings_checks();click(40,59);
         if(dut.game_state!=`LP_RUN) $fatal(1,"Run settings Back lost running page");
         click(84,59);click(82,59);

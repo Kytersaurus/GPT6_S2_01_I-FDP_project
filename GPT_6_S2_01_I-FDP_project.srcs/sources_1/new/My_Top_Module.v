@@ -11,8 +11,8 @@
 
 `include "game_defs.vh"
 
-// SW0 engine, SW1 mute, SW2 reverse, SW15 JA map view; BTNL reserved, BTNC launch/retry,
-// BTNU edit/next level after success, BTNR reserved and BTND reset.
+// SW0 1-OLED JA map view, SW1 engine debug, SW2 reverse, SW13 free-look pan, SW14 zoom, SW15 mute;
+// BTNL reserved, BTNC launch/retry, BTNU edit/next level after success, BTNR reserved and BTND reset.
 module My_Top_Module #(
     parameter integer PHYSICS_CYCLES = 1666667,
     parameter integer BUTTON_DEBOUNCE_CYCLES = 20000000,
@@ -91,9 +91,9 @@ module My_Top_Module #(
     wire [2:0] guide_return_state;
     wire signed [`LP_COORD_BITS-1:0] death_x, death_y;
     wire launch_flash; wire [2:0] game_state, init_ready; wire run_init, step_start, update_release;
-    // SW0 changes the shared engine state; in hardware SW0 enables directly during RUN.
+    // SW1 changes the shared engine state; in hardware SW1 enables directly during RUN.
 `ifdef SYNTHESIS
-    assign engine_enabled = (game_state == `LP_RUN && !run_init) ? (ui_engine_on || sw[0]) : 1'b0;
+    assign engine_enabled = (game_state == `LP_RUN && !run_init) ? (ui_engine_on || sw[1]) : 1'b0;
 `else
     assign engine_enabled = (game_state == `LP_RUN && !run_init) ? ui_engine_on : 1'b0;
 `endif
@@ -119,12 +119,12 @@ module My_Top_Module #(
     reg view_meta_game, view_sync_game, view_ack_meta, view_ack_game;
     reg view_meta_display, view_sync_display, show_map;
     wire builder_input_enabled = !view_sync_game && !view_ack_game;
-    // SW15 chooses the JA view; publish the change only between complete frames.
+    // SW0 chooses the 1-OLED JA map view; publish the change only between complete frames.
     always @(posedge clk) begin
         if (reset) begin
             view_meta_game <= 0; view_sync_game <= 0; view_ack_meta <= 0; view_ack_game <= 0;
         end else begin
-            view_meta_game <= sw[1]; view_sync_game <= view_meta_game;
+            view_meta_game <= sw[0]; view_sync_game <= view_meta_game;
             view_ack_meta <= show_map; view_ack_game <= view_ack_meta;
         end
     end
@@ -333,7 +333,7 @@ module My_Top_Module #(
         .DEBOUNCE_CYCLES(BUTTON_DEBOUNCE_CYCLES), .RELEASE_CYCLES(BUTTON_RELEASE_CYCLES)
     ) u_input (
         .clk(clk), .reset(reset), .btnC(btnC), .btnU(btnU), .btnL(btnL), .btnR(btnR),
-        .engine_switch(sw[0]), .mute_switch(sw[15]), .reverse_switch(sw[14]), .start_press(start_press), .edit_press(edit_press),
+        .engine_switch(sw[1]), .mute_switch(sw[15]), .reverse_switch(sw[2]), .start_press(start_press), .edit_press(edit_press),
         .right_press(right_press),
         .engine_switch_changed(engine_switch_changed),
         .audio_muted(switch_audio_muted), .engine_reverse(reverse_switch_enabled), .jump_press(jump_press)
@@ -363,7 +363,7 @@ module My_Top_Module #(
         .mouse_x(effective_mouse_x), .mouse_y(effective_mouse_y),
         .mouse_left(mouse_left), .mouse_right(mouse_right), .mouse_event(mouse_event),
         .next_press(start_press), .engine_switch_changed(engine_switch_changed),
-        .engine_switch(sw[0]), .engine_toggle_req(mouse_engine_toggle_req),
+        .engine_switch(sw[1]), .engine_toggle_req(mouse_engine_toggle_req),
         .fan_toggle_req(mouse_fan_toggle_req), .fan_toggle_cell(mouse_fan_toggle_cell), .rocket_toggle_req(mouse_boost_req),
         .fan_available(fan_available), .rocket_available(rocket_available),
         .rocket_ready(rocket_ready), .balloon_available(balloon_count != 4'd0),
@@ -427,7 +427,7 @@ module My_Top_Module #(
         .engine_toggle_req(mouse_engine_toggle_req), .fan_toggle_req(mouse_fan_toggle_req), .fan_toggle_cell(mouse_fan_toggle_cell)
     );
     zoom_control u_zoom (
-        .clk(clk), .reset(reset), .zoom_switch(sw[13]), .mouse_event(mouse_event), .mouse_z(mouse_z),
+        .clk(clk), .reset(reset), .zoom_switch(sw[14]), .mouse_event(mouse_event), .mouse_z(mouse_z),
         .zoomed_out(zoomed_out), .overview(overview)
     );
     balloon_control u_balloons (
@@ -701,6 +701,7 @@ module My_Top_Module #(
         .game_clk(clk), .game_reset(reset), .display_clk(oled_clk), .display_reset(oled_reset),
         .frame_begin(left_frame), .game_data(snapshot_in), .display_data(snapshot_out)
     );
+    wire in_diary_walkthrough = (draw_state == `LP_GUIDE) && (draw_diary_page != 2'd3);
     // Engine pistons step once every eight frames while running with SW0 on; boost doubles the rate.
     reg [3:0] engine_frames;
     // Wheels use a faster independent phase so their spokes do not appear to
@@ -710,8 +711,8 @@ module My_Top_Module #(
         if (oled_reset) begin
             engine_frames <= 0;
             wheel_frames <= 0;
-        end else if (left_frame && draw_state == `LP_RUN) begin
-            if (draw_engine || draw_fan_on || draw_boost_active)
+        end else if (left_frame && (draw_state == `LP_RUN || in_diary_walkthrough)) begin
+            if (draw_engine || draw_fan_on || draw_boost_active || in_diary_walkthrough)
                 engine_frames <= engine_frames + (draw_boost_active ? 4'd2 : 4'd1);
             wheel_frames <= wheel_frames + 1'b1;
         end
@@ -745,7 +746,7 @@ module My_Top_Module #(
         end else begin
             zoom_meta_display <= zoomed_out; zoom_sync_display <= zoom_meta_display;
             overview_meta_display <= overview; overview_sync_display <= overview_meta_display;
-            look_meta_display <= sw[12]; look_sync_display <= look_meta_display;
+            look_meta_display <= sw[13]; look_sync_display <= look_meta_display;
             facing_down_meta <= build_facing_down; facing_down_sync <= facing_down_meta; active_fans_meta <= ui_active_fans; active_fans_sync <= active_fans_meta;
             selected_down_meta <= selected_down; selected_down_sync <= selected_down_meta;
             inv_eng_meta <= engine_facing_left; inv_eng_sync <= inv_eng_meta;
@@ -853,50 +854,63 @@ module My_Top_Module #(
         .x(left_x), .y(left_y), .base_pixel(base_left_pixel_data), .game_state(draw_state),
         .feedback_code(draw_feedback_code),
         .start_screen_active(draw_start_screen_active),
-        .map_draw_class(map_draw_class),
-        .diary_page(draw_diary_page), .run_page(draw_run_page),
-        .inventory_page(draw_inventory_page),
-        .selected_left(draw_selected_left), .audio_muted(draw_audio_muted),
-        .selected_part(draw_selected_part),
+        .diary_page(draw_diary_page),
+        .audio_muted(draw_audio_muted),
         .master_volume(draw_master_volume),
         .level_index(draw_level),
-        .build_valid(draw_valid), .engine_enabled(draw_engine), .boost_active(draw_boost_active),
-        .engine_available(1'b0),
-        .fan_available(draw_fan_available), .fan_on(draw_fan_on), .active_fans(draw_active_fans),
-        .rocket_available(draw_rocket_available), .rocket_ready(draw_rocket_ready),
-        .balloon_available(1'b0),
-        .anim_phase(anim_phase),
+        .build_valid(draw_valid),
         .cursor_x(draw_cursor_x), .cursor_y(draw_cursor_y),
-        .build_grid(draw_grid),
-        .intact_mask(draw_intact),
-        .frame_intact_mask(draw_frames),
-        .build_frames(draw_saved_frames),
-        .build_facing_left(draw_facing_left),
-        .build_facing_down(draw_facing_down),
-        .sw0_engine(1'b0),
         .cloud_scroll_fg(cloud_scroll_fg),
         .cloud_scroll_bg(cloud_scroll_bg),
         .pixel_data(left_pixel_data)
     );
+    // Dual-OLED Diary Walkthrough: pan the Right OLED camera to the selected checkpoint
+    // and pose the recommended demo vehicle on the live cave terrain.
+    wire signed [19:0] diary_pose_x = (draw_map_id == 1'b0) ?
+        ((draw_diary_page == 2'd0) ? {12'd240, 8'd0} : (draw_diary_page == 2'd1) ? {12'd186, 8'd0} : {12'd564, 8'd0}) :
+        ((draw_diary_page == 2'd0) ? {12'd100, 8'd0} : (draw_diary_page == 2'd1) ? {12'd512, 8'd0} : {12'd732, 8'd0});
+    wire signed [19:0] diary_pose_y = (draw_map_id == 1'b0) ?
+        ((draw_diary_page == 2'd0) ? {12'd72,  8'd0} : (draw_diary_page == 2'd1) ? {12'd375, 8'd0} : {12'd462, 8'd0}) :
+        ((draw_diary_page == 2'd0) ? {12'd162, 8'd0} : (draw_diary_page == 2'd1) ? {12'd87,  8'd0} : {12'd40,  8'd0});
+    wire [26:0] diary_grid = (draw_map_id == 1'b0) ?
+        {`LP_PART_WHEEL, `LP_PART_EMPTY,  `LP_PART_WHEEL,   `LP_PART_BOOSTER, `LP_PART_PIG, `LP_PART_ENGINE, `LP_PART_EMPTY,   `LP_PART_EMPTY, `LP_PART_EMPTY} :
+        {`LP_PART_WHEEL, `LP_PART_ENGINE, `LP_PART_WHEEL,   `LP_PART_BOOSTER, `LP_PART_PIG, `LP_PART_FAN,    `LP_PART_BALLOON, `LP_PART_EMPTY, `LP_PART_BALLOON};
+    wire [8:0] diary_frames = (draw_map_id == 1'b0) ? 9'b000_111_000 : 9'b010_111_000;
+    wire [8:0] diary_intact = (draw_map_id == 1'b0) ? 9'b101_111_000 :
+                              ((draw_diary_page == 2'd1) ? 9'b111_111_100 : 9'b111_111_101);
+    wire [8:0] diary_active_fans = (draw_map_id == 1'b1) ? 9'b000_001_000 : 9'd0;
+
     right_renderer #(
         .USE_PIXEL_INDEX(0)
     ) u_right_renderer (
-        .clk(oled_clk), .zoomed_out(draw_zoomed_out), .overview(draw_overview),
+        .clk(oled_clk), .zoomed_out(in_diary_walkthrough ? !draw_zoomed_out : draw_zoomed_out), .overview(draw_overview),
         .free_look(draw_free_look), .cursor_x(draw_cursor_x), .cursor_y(draw_cursor_y),
-        .pixel_index(13'd0), .in_x(map_x), .in_y(map_y), .game_state((draw_state==`LP_LEVEL_SELECT || draw_state==`LP_SETTINGS) ? `LP_BUILD : (draw_state==`LP_GUIDE ? draw_guide_return : draw_state)), .build_grid(draw_grid),
-        .build_facing_left(draw_facing_left), .build_facing_down(draw_facing_down), .active_fans(draw_active_fans), .intact_mask(draw_intact), .frame_intact_mask(draw_frames),
+        .pixel_index(13'd0), .in_x(map_x), .in_y(map_y),
+        .game_state(in_diary_walkthrough ? `LP_RUN : ((draw_state==`LP_LEVEL_SELECT || draw_state==`LP_SETTINGS) ? `LP_BUILD : (draw_state==`LP_GUIDE ? draw_guide_return : draw_state))),
+        .build_grid(in_diary_walkthrough ? diary_grid : draw_grid),
+        .build_facing_left(in_diary_walkthrough ? 9'd0 : draw_facing_left),
+        .build_facing_down(in_diary_walkthrough ? 9'd0 : draw_facing_down),
+        .active_fans(in_diary_walkthrough ? diary_active_fans : draw_active_fans),
+        .intact_mask(in_diary_walkthrough ? diary_intact : draw_intact),
+        .frame_intact_mask(in_diary_walkthrough ? diary_frames : draw_frames),
         // Follow the filtered pose for both the vehicle and camera. This keeps
         // the wheels attached to the moving ground instead of making the map
         // jump on every raw physics-pixel update.
-        .vehicle_x(draw_x), .vehicle_y(draw_y), .camera_x(draw_x), .camera_y(draw_y), .vehicle_tilt(draw_tilt),
+        .vehicle_x(in_diary_walkthrough ? diary_pose_x : draw_x),
+        .vehicle_y(in_diary_walkthrough ? diary_pose_y : draw_y),
+        .camera_x(in_diary_walkthrough ? diary_pose_x : draw_x),
+        .camera_y(in_diary_walkthrough ? diary_pose_y : draw_y),
+        .vehicle_tilt(in_diary_walkthrough ? 6'sd0 : draw_tilt),
         .spawn_x(draw_spawn_x), .spawn_y(draw_spawn_y),
         .terrain_count(draw_terrain_count), .terrain_rects(draw_terrain_rects), .goal_rect(draw_goal_rect),
         .tnt_count(draw_tnt_count), .tnt_positions(draw_tnt_positions), .tnt_intact(draw_tnt_intact),
         .hazard_count(draw_hazard_count), .hazard_rects(draw_hazard_rects), .blast_phase(draw_blast),
-        .death_phase(draw_death_phase), .death_x(draw_death_x), .death_y(draw_death_y), .launch_flash(draw_launch_flash),
-        .scatter_mask(draw_scatter_mask), .scatter_x(draw_scatter_x), .scatter_y(draw_scatter_y), .scatter_phase(draw_scatter_phase),
+        .death_phase(in_diary_walkthrough ? 2'd0 : draw_death_phase), .death_x(draw_death_x), .death_y(draw_death_y),
+        .launch_flash(in_diary_walkthrough ? 1'b0 : draw_launch_flash),
+        .scatter_mask(in_diary_walkthrough ? 9'd0 : draw_scatter_mask), .scatter_x(draw_scatter_x), .scatter_y(draw_scatter_y), .scatter_phase(draw_scatter_phase),
         .anim_phase(wheel_anim_phase), .map_level(draw_map_level), .map_id(draw_map_id), .world_width(draw_world_width),
-        .world_height(draw_world_height), .flag_x(draw_flag_x), .flag_y(draw_flag_y), .star_box_x(draw_star_box_x), .star_box_y(draw_star_box_y), .star_box_collected(draw_star_box_collected), .run_seconds(draw_seconds),
+        .world_height(draw_world_height), .flag_x(draw_flag_x), .flag_y(draw_flag_y), .star_box_x(draw_star_box_x), .star_box_y(draw_star_box_y),
+        .star_box_collected(in_diary_walkthrough ? 1'b0 : draw_star_box_collected), .run_seconds(draw_seconds),
         .map_x(right_map_x), .map_y(right_map_y), .map_class(map_draw_class),
         .pixel_data(right_pixel_data)
     );

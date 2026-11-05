@@ -130,7 +130,7 @@ module game_audio_tb;
             $fatal(1,"AMP2 pins/idle PWM incorrect");
         // Selection, placement, removal, edit and engine switch are deliberately silent.
         click(74,8); click(12,12); packet(12,12,0,1); packet(12,12,0,0);
-        btnU=1; sw=1; clocks(20); btnU=0; sw=0; clocks(20);
+        btnU=1; sw=2; clocks(20); btnU=0; sw=0; clocks(20);
         if (top_starts!=0 || dut.audio_busy || dut.u_audio.pwm_level!=128)
             $fatal(1,"Ordinary controls triggered an unintended click sound");
         // U now opens the diary; return through its real BACK button before editing.

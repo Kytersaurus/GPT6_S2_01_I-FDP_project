@@ -39,7 +39,7 @@ module single_oled_tb;
         if(dut.show_map || dut.u_left_oled.pixel_data!==16'h7bef)
             $fatal(1,"JA did not show the upright builder grid");
         force dut.left_frame=1'b0;
-        sw=16'h0002;clocks(100);
+        sw=16'h0001;clocks(100);
         if(dut.show_map) $fatal(1,"View changed inside a frame");
         force dut.left_frame=1'b1;clocks(200);
         if(!dut.show_map || dut.u_left_oled.pixel_data!==16'h4af1 || dut.u_right_oled.pixel_data!==0)
@@ -53,16 +53,16 @@ module single_oled_tb;
             $fatal(1,"Returning to the builder retained a stale press or wrong pixels");
         click(74,8);click(12,12);
         if(dut.build_frames!==9'b000000001) $fatal(1,"Visible builder did not accept placement");
-        packet(74,8,1);packet(28,12,1);sw=16'h0002;clocks(200);packet(28,12,0);
+        packet(74,8,1);packet(28,12,1);sw=16'h0001;clocks(200);packet(28,12,0);
         if(dut.build_frames!==9'b000000001 || dut.drag_active || dut.engine_enabled || dut.audio_muted)
             $fatal(1,"View change left a pending drag or interfered with engine/mute");
         if(!dut.u_bgm.enabled || dut.u_bgm.fast) $fatal(1,"Builder music was disabled by the map view");
         force dut.game_state=`LP_RUN;clocks(2);
         if(!dut.u_bgm.enabled || !dut.u_bgm.fast) $fatal(1,"Gameplay did not select the faster music tempo");
-        sw=16'h8002;clocks(8);
+        sw=16'h8001;clocks(8);
         if(dut.u_bgm.enabled || dut.bgm_sample!=0 || dut.JXADC[3]!==0)
             $fatal(1,"Global mute did not stop background music and the amplifier");
-        sw=16'h0002;force dut.game_state=`LP_SUCCESS;clocks(8);
+        sw=16'h0001;force dut.game_state=`LP_SUCCESS;clocks(8);
         if(dut.u_bgm.enabled || dut.bgm_sample!=0) $fatal(1,"Result state did not stop background music");
         release dut.game_state;
         release dut.left_frame;release dut.left_pixel_index;release dut.right_pixel_index;

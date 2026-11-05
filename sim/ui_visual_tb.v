@@ -11,7 +11,7 @@ module ui_visual_tb;
     reg [26:0] grid=0;
     tri1 PS2Clk,PS2Data;
     integer p,left_file,right_file;
-    My_Top_Module dut(.clk(clk),.btnD(1'b0),.btnC(1'b0),.btnU(1'b0),.btnL(1'b0),.btnR(1'b0),.sw(16'd1),
+    My_Top_Module dut(.clk(clk),.btnD(1'b0),.btnC(1'b0),.btnU(1'b0),.btnL(1'b0),.btnR(1'b0),.sw(16'd2),
         .PS2Clk(PS2Clk),.PS2Data(PS2Data),.JA(),.JB(),.JXADC(),.led(),.seg(),.an(),.dp());
     always #5 clk=~clk;
     initial begin
@@ -63,9 +63,9 @@ module ui_visual_tb;
         force dut.draw_inventory_page=1'b0;force dut.draw_selected_part=`LP_PART_FRAME;
         force dut.draw_selected_left=1'b0;force dut.draw_facing_left=9'd0;
         state=`LP_GUIDE;frame("ui_diary_1");page=1;frame("ui_diary_2");page=2;frame("ui_diary_3");
-        force dut.draw_level=`LP_LEVEL_FLIGHT;frame("ui_diary_3_l2");force dut.draw_level=2'd0;
+        force dut.draw_level=`LP_LEVEL_FLIGHT;page=0;frame("ui_diary_1_l2");page=1;frame("ui_diary_2_l2");page=2;frame("ui_diary_3_l2");force dut.draw_level=2'd0;
         page=3;frame("ui_sound");
-        state=`LP_SETTINGS;frame("ui_settings");state=`LP_LEVEL_SELECT;frame("ui_levels");
+        state=`LP_SETTINGS;page=0;frame("ui_settings");page=1;frame("ui_settings_mouse");page=2;frame("ui_settings_ctrl");page=0;state=`LP_LEVEL_SELECT;frame("ui_levels");
         force dut.draw_level=`LP_LEVEL_FLIGHT;frame("ui_levels_l2");force dut.draw_level=2'd0;
         state=`LP_RUN;frame("ui_run");
         force dut.draw_run_page=2'd1;grid[2:0]=`LP_PART_BALLOON;intact[0]=1;frame("ui_pop");grid[2:0]=0;intact[0]=0;
@@ -96,5 +96,5 @@ module ui_visual_tb;
         $display("PASS ui_visual_tb: build, diary, RUN controls, transition and death pixels exported without unknowns");
         $finish;
     end
-    initial begin #25000000;$fatal(1,"UI pixel export timed out");end
+    initial begin #35000000;$fatal(1,"UI pixel export timed out");end
 endmodule

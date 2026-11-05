@@ -12,13 +12,14 @@ module directional_parts_tb;
     wire signed [4:0] balance, fan_balance, rocket_balance;
     wire [3:0] engines,rockets,fans;
     wire [2:0] feedback;
+    wire build_valid;
     always #5 clk=~clk;
     vehicle_builder #(.FRAME_LIMIT(9),.ENGINE_LIMIT(2)) dut(
         .clk(clk),.reset(reset),.game_state(state),.run_init(init),.init_ready(),
         .edit_valid(edit),.edit_op(op),.edit_cell(cell_id),.edit_source(source),.edit_part(part),.edit_facing_left(left),
         .damage_valid(damage),.damage_ready(),.damage_mask(mask),.damage_frame_mask(9'd0),
         .build_grid(grid),.build_frames(frames),.build_facing_left(direction),.engine_balance(balance),.fan_balance(fan_balance),.rocket_balance(rocket_balance),
-        .intact_mask(intact),.frame_intact_mask(),.engine_count(engines),.rockets_left(rockets),.fans_left(fans),
+        .intact_mask(intact),.frame_intact_mask(),.build_valid(build_valid),.engine_count(engines),.rockets_left(rockets),.fans_left(fans),
         .feedback_code(feedback));
     task clocks;input integer n;begin repeat(n) @(negedge clk);end endtask
     task put;input integer dest;input [2:0] kind;input face;
@@ -52,7 +53,11 @@ module directional_parts_tb;
         cell_id=3;op=`LP_EDIT_REMOVE;edit=1;clocks(1);edit=0;clocks(2);
         if(direction[3] || !frames[3] || grid[11:9]!=0) $fatal(1,"Removing contents did not clear only their direction");
         put(3,`LP_PART_PIG,1);
-        if(direction[3]) $fatal(1,"Nondirectional part retained an engine direction");
+        if(direction[3] || !build_valid) $fatal(1,"Nondirectional part retained an engine direction or invalidated build");
+        put(1,`LP_PART_BALLOON,0);put(6,`LP_PART_WHEEL,0);
+        if(!build_valid) $fatal(1,"Adjacent balloon or wheel invalidated fan/rocket placement");
+        source=7;cell_id=5;part=`LP_PART_FAN;op=`LP_EDIT_MOVE;edit=1;clocks(1);edit=0;clocks(1);
+        if(!build_valid || grid[17:15]!=`LP_PART_FAN) $fatal(1,"Moved fan did not immediately resolve a valid direction");
         $display("PASS directional_parts_tb: no side wrap, stock, opposing engine balance, damage/retry, filled-frame rejection and direction cleanup");
         $finish;
     end

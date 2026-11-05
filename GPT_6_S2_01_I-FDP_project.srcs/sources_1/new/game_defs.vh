@@ -114,12 +114,6 @@
 `define LP_LEVEL_BUTTON_W 16
 `define LP_LEVEL_BUTTON_H 9
 
-// Left OLED boost button, clicked in RUN; x=[56,72), y=[36,52).
-`define LP_BOOST_BUTTON_X 56
-`define LP_BOOST_BUTTON_Y 32
-`define LP_BOOST_BUTTON_W 39
-`define LP_BOOST_BUTTON_H 10
-
 // Why the last run failed; checked in this priority order.  LP_FAIL_PIG is
 // retained for display/backward compatibility, but the game never generates
 // it: the pig is protected from runtime damage in Bad Piggies mode.

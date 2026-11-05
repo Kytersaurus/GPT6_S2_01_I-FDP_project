@@ -48,7 +48,7 @@ module vehicle_builder #(
     output reg [3:0] frames_left, pigs_left, wheels_left, engines_left, balloons_left,
     output reg [7:0] mass_units
 );
-    reg [8:0] content_mask, wheel_mask;
+    reg [8:0] content_mask;
     reg [8:0] runtime_intact, runtime_frames;
     integer mask_index;
     integer damage_index;
@@ -57,9 +57,9 @@ module vehicle_builder #(
     assign intact_mask = game_state == `LP_BUILD ? content_mask : runtime_intact;
     assign frame_intact_mask = game_state == `LP_BUILD ? build_frames : runtime_frames;
     always @* begin
-        content_mask=0; wheel_mask=0;
-        for (mask_index=0; mask_index<9; mask_index=mask_index+1)
-            begin content_mask[mask_index]=(build_grid[mask_index*3 +: 3] != `LP_PART_EMPTY); wheel_mask[mask_index]=(build_grid[mask_index*3 +: 3] == `LP_PART_WHEEL); end
+        content_mask = 0;
+        for (mask_index = 0; mask_index < 9; mask_index = mask_index + 1)
+            content_mask[mask_index] = (build_grid[mask_index*3 +: 3] != `LP_PART_EMPTY);
     end
 
     // All runtime damage sources share this final safety gate.  Protecting the
@@ -94,28 +94,15 @@ module vehicle_builder #(
     wire [8:0] side_support = frame_left | frame_right;
     wire [8:0] wheel_support = frame_above | frame_below | side_support;
 
-    // Rocket and fan directions depend on what touches them, and this is the one
-    // place that decides it. A direction {facing_down, facing_left} is usable when
-    //   1. the cell it points into is completely empty (no frame, no part), and
-    //   2. the cell behind it holds no loose part (a frame there is a fine mount),
-    // and the part touches at least one frame. Rule 1 means that frame can never
-    // be in front, so the part always stays attached from behind or from the side.
-    wire [8:0] occupied = build_frames | content_mask;
-    wire [8:0] loose_parts = content_mask & ~build_frames;
-    wire [8:0] occupied_on_right = (occupied & 9'b110110110) >> 1;
-    wire [8:0] occupied_on_left = (occupied & 9'b011011011) << 1;
-    wire [8:0] occupied_above = (occupied << 3) & 9'h1ff;
-    wire [8:0] occupied_below = occupied >> 3;
-    wire [8:0] loose_on_right = (loose_parts & 9'b110110110) >> 1;
-    wire [8:0] loose_on_left = (loose_parts & 9'b011011011) << 1;
-    wire [8:0] loose_above = (loose_parts << 3) & 9'h1ff;
-    wire [8:0] loose_below = loose_parts >> 3;
-    wire [8:0] can_point_right = wheel_support & ~occupied_on_right & ~loose_on_left;
-    wire [8:0] can_point_left = wheel_support & ~occupied_on_left & ~loose_on_right;
-    wire [8:0] rocket_can_point_right = wheel_support & ~(((occupied & ~wheel_mask) & 9'b110110110) >> 1) & ~(((loose_parts & ~wheel_mask) & 9'b011011011) << 1);
-    wire [8:0] rocket_can_point_left  = wheel_support & ~(((occupied & ~wheel_mask) & 9'b011011011) << 1) & ~(((loose_parts & ~wheel_mask) & 9'b110110110) >> 1);
-    wire [8:0] can_point_up = wheel_support & ~occupied_above & ~loose_below;
-    wire [8:0] can_point_down = wheel_support & ~occupied_below & ~loose_above;
+    // Rocket and fan directions depend on their supporting frames:
+    // a direction {facing_down, facing_left} is usable when the cell touches at least
+    // one supporting frame (wheel_support) and is not pointing directly into an adjacent
+    // wood frame (~frame_right / ~frame_left / ~frame_above / ~frame_below).
+    // Adjacent loose parts (wheels, balloons, second fans/rockets) never block placement.
+    wire [8:0] can_point_right = wheel_support & ~frame_right;
+    wire [8:0] can_point_left  = wheel_support & ~frame_left;
+    wire [8:0] can_point_up    = wheel_support & ~frame_above;
+    wire [8:0] can_point_down  = wheel_support & ~frame_below;
 
     // Usable directions of one cell, indexed by {facing_down, facing_left}.
     // Rockets: 0 right, 1 left, 2 up, 3 down. Fans blow right, left or down only,
@@ -124,8 +111,8 @@ module vehicle_builder #(
         input [2:0] mounted_kind;
         input [3:0] part_cell;
         begin
-            usable_directions[0] = (mounted_kind == `LP_PART_FAN) ? can_point_right[part_cell] : rocket_can_point_right[part_cell];
-            usable_directions[1] = (mounted_kind == `LP_PART_FAN) ? can_point_left[part_cell] : rocket_can_point_left[part_cell];
+            usable_directions[0] = can_point_right[part_cell];
+            usable_directions[1] = can_point_left[part_cell];
             if (mounted_kind == `LP_PART_FAN) begin
                 usable_directions[2] = can_point_down[part_cell];
                 usable_directions[3] = 1'b0;
@@ -156,7 +143,7 @@ module vehicle_builder #(
     endfunction
 
     // An edit is resolved immediately. Otherwise one cell per clock is re-checked,
-    // so a neighbour being added or removed turns the part to a usable direction.
+    // so a frame being added or removed turns the part to a usable direction.
     reg [3:0] mount_scan_cell;
     wire resolving_edit = edit_valid && edit_cell < 9;
     wire [2:0] scan_part = build_grid[mount_scan_cell*3 +: 3];
@@ -164,18 +151,14 @@ module vehicle_builder #(
     // path, and a shared lookup would add a mux level in front of both.
     wire [3:0] edit_usable = usable_directions(edit_part, edit_cell);
     wire [3:0] scan_usable = usable_directions(scan_part, mount_scan_cell);
-    wire clean_facing_down = (edit_facing_down === 1'b1);
-    wire clean_facing_left = (edit_facing_left === 1'b1);
+    wire clean_facing_down = (edit_op == `LP_EDIT_MOVE && edit_source < 9) ? build_facing_down[edit_source] : (edit_facing_down === 1'b1);
+    wire clean_facing_left = (edit_op == `LP_EDIT_MOVE && edit_source < 9) ? build_facing_left[edit_source] : (edit_facing_left === 1'b1);
     wire [1:0] edit_direction = resolve_direction({clean_facing_down, clean_facing_left}, edit_usable);
     wire [1:0] scan_direction = {build_facing_down[mount_scan_cell], build_facing_left[mount_scan_cell]};
     wire [1:0] scan_resolved = resolve_direction(scan_direction, scan_usable);
     wire edit_cell_changes_direction = edit_direction !=
         {build_facing_down[edit_cell], build_facing_left[edit_cell]};
     wire edit_cell_can_mount = |edit_usable;
-
-    // A moved part has not left its source yet, so the source would wrongly block
-    // it here. Only require a frame; the scan picks the direction after the move.
-    wire move_cell_can_mount = wheel_support[edit_cell];
 
     // Decide once: this result controls both editing and the on-screen feedback.
     // Repeating the same placement or removing an empty cell is a quiet no-op.
@@ -254,7 +237,7 @@ module vehicle_builder #(
                                 else edit_result = build_frames[edit_cell+3] ? `LP_FEEDBACK_PLACED : `LP_FEEDBACK_FRAME_BELOW;
                             `LP_PART_BOOSTER, `LP_PART_FAN:
                                 if (build_frames[edit_cell]) edit_result = `LP_FEEDBACK_OCCUPIED;
-                                else edit_result = move_cell_can_mount ? `LP_FEEDBACK_PLACED : `LP_FEEDBACK_NEED_FRAME;
+                                else edit_result = edit_cell_can_mount ? `LP_FEEDBACK_PLACED : `LP_FEEDBACK_NEED_FRAME;
                             default: begin end
                         endcase
                     end
@@ -318,10 +301,15 @@ module vehicle_builder #(
                         // Source and destination change on the same edge; stock is unchanged.
                         build_grid[edit_source*3 +: 3] <= `LP_PART_EMPTY;
                         build_grid[edit_cell*3 +: 3] <= source_part;
-                        build_facing_left[edit_cell] <= build_facing_left[edit_source];
                         build_facing_left[edit_source] <= 0;
-                        build_facing_down[edit_cell] <= build_facing_down[edit_source];
                         build_facing_down[edit_source] <= 0;
+                        if (is_mounted_part(source_part)) begin
+                            build_facing_down[edit_cell] <= edit_direction[1];
+                            build_facing_left[edit_cell] <= edit_direction[0];
+                        end else begin
+                            build_facing_left[edit_cell] <= build_facing_left[edit_source];
+                            build_facing_down[edit_cell] <= build_facing_down[edit_source];
+                        end
                         if (edit_part == `LP_PART_FRAME) begin
                             build_frames[edit_source] <= 0; build_frames[edit_cell] <= 1;
                         end

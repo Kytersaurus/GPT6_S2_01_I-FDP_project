@@ -13,7 +13,7 @@ module boost_controls_tb;
     My_Top_Module #(
         .BUTTON_DEBOUNCE_CYCLES(2), .BUTTON_RELEASE_CYCLES(2)
     ) dut (
-        .clk(clk), .btnC(1'b0), .btnU(1'b0), .btnR(1'b0), .btnL(1'b0), .btnD(btnD), .sw(16'h0001), // SW0 on
+        .clk(clk), .btnC(1'b0), .btnU(1'b0), .btnR(1'b0), .btnL(1'b0), .btnD(btnD), .sw(16'h0002), // SW1 on
         .PS2Clk(PS2Clk), .PS2Data(PS2Data), .led(), .JA(), .JB(), .JXADC()
     );
 

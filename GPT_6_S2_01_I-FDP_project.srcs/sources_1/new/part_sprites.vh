@@ -318,12 +318,12 @@ function [15:0] star_sprite;
     begin
         row = 0;
         if (sprite_x >= 0 && sprite_x < 8 && sprite_y >= 0 && sprite_y < 8) case (sprite_y)
-            1: row = 32'h12244221;
-            2: row = 32'h14444441;
-            3, 4: row = 32'h12444421;
-            5: row = 32'h12422421;
-            6: row = 32'h14222241;
-            default: row = 32'h11111111;
+            1, 2: row = 32'h31144113;
+            3:    row = 32'h34444443;
+            4:    row = 32'h31444413;
+            5:    row = 32'h34411443;
+            6:    row = 32'h34111143;
+            default: row = 32'h33333333;
         endcase
         star_sprite = sprite_colour(`LP_PALETTE_STAR, row >> ((7-sprite_x)*4), background);
     end
@@ -337,14 +337,15 @@ function [15:0] star_sprite12;
     begin
         row = 0;
         if (sprite_x >= 0 && sprite_x < 12 && sprite_y >= 0 && sprite_y < 12) case (sprite_y)
-            1: row = 48'h133333333331;
-            2, 3: row = 48'h122224422221;
-            4: row = 48'h124444444421;
-            5, 7: row = 48'h122444444221;
-            6: row = 48'h122244442221;
-            8: row = 48'h122442244221;
-            9: row = 48'h124422224421;
-            10: row = 48'h122222222221;
+            0:    row = 48'h133333333331;
+            1, 2: row = 48'h311114411111;
+            3:    row = 48'h344444444441;
+            4:    row = 48'h314444444411;
+            5, 7: row = 48'h311444444111;
+            6:    row = 48'h311144441111;
+            8:    row = 48'h314441144411;
+            9:    row = 48'h314411114411;
+            10:   row = 48'h344111111441;
             default: row = 48'h111111111111;
         endcase
         star_sprite12 = sprite_colour(`LP_PALETTE_STAR, row >> ((11-sprite_x)*4), background);
@@ -359,15 +360,16 @@ function [15:0] gold_star12; input [15:0] star_colour;
     begin
         row = 0;
         if (sprite_x >= 0 && sprite_x < 12 && sprite_y >= 0 && sprite_y < 12) case (sprite_y)
-            0: row = 12'b000001100000;
-            1, 2: row = 12'b000011110000;
-            3: row = 12'b111111111111;
-            4: row = 12'b011111111110;
-            5: row = 12'b001111111100;
-            6, 7: row = 12'b001111111100;
-            8: row = 12'b011110011110;
-            9: row = 12'b011100001110;
-            10: row = 12'b110000000011;
+            0:    row = 12'b000001000000;
+            1, 2: row = 12'b000011100000;
+            3:    row = 12'b111111111110;
+            4:    row = 12'b011111111100;
+            5, 7: row = 12'b001111111000;
+            6:    row = 12'b000111110000;
+            8:    row = 12'b001110111000;
+            9:    row = 12'b011100011100;
+            10:   row = 12'b011000001100;
+            11:   row = 12'b100000000010;
             default: row = 0;
         endcase
         gold_star12 = row[11-sprite_x] ? star_colour : background;

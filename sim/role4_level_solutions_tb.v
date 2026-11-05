@@ -5,7 +5,7 @@
 // wheels in 0 and 2) with engine enabled.
 module role4_level_solutions_tb;
     reg clk=0, btnC=0, btnU=0, btnD=1;
-    reg [15:0] sw=2'b01;
+    reg [15:0] sw=2'b10;
     wire [15:0] led;
     wire [7:0] JA, JB;
     tri1 PS2Clk, PS2Data;

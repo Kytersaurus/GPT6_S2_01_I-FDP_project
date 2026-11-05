@@ -3,7 +3,7 @@
 `include "game_defs.vh"
 module game_baseline_tb;
     reg clk=0, btnC=0, btnU=0, btnD=1;
-    reg [15:0] sw=1;
+    reg [15:0] sw=2;
     wire [15:0] led;
     wire [7:0] JA, JB;
     tri1 PS2Clk, PS2Data;
@@ -79,7 +79,7 @@ module game_baseline_tb;
         if (launches != 2) $fatal(1,"Retry did not initialise a fresh run");
         btnU=1; clocks(12); btnU=0; clocks(12);
         if (dut.game_state != `LP_BUILD) $fatal(1,"EDIT did not return to BUILD");
-        sw=1; clocks(8); btnC=1; clocks(12); btnC=0;
+        sw=2; clocks(8); btnC=1; clocks(12); btnC=0;
         wait(dut.game_state==`LP_RUN);clocks(1);dut.u_ui_control.engine_on=1;
         cycles=0;
         while (dut.vehicle_x <= 20'sd17408 && cycles < 400000) begin clocks(1); cycles=cycles+1; end

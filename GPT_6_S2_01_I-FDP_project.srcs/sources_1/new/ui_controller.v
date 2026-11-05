@@ -80,19 +80,26 @@ module ui_controller (
                         else if (mx >= 4 && mx <= 20 && my >= 46 && my <= 62)
                             level_open_req <= 1;
                     end else if (game_state==`LP_SETTINGS) begin
-                        // Box 1: Sound Settings / Volume (x: 8..44, y: 12..48)
-                        if (mx>=8 && mx<=44 && my>=12 && my<=48) begin
+                        // Box 1: Sound Settings / Volume (x: 8..44, y: 12..48) on main settings view
+                        if (diary_page != 2'd1 && diary_page != 2'd2 && mx>=8 && mx<=44 && my>=12 && my<=48) begin
                             guide_open_req <= 1;
                             diary_page <= 3;
-                        // Box 2: Map Select (x: 51..87, y: 12..48)
-                        end else if (mx>=51 && mx<=87 && my>=12 && my<=48) begin
+                        // Box 2: Map Select (x: 51..87, y: 12..48) on main settings view
+                        end else if (diary_page != 2'd1 && diary_page != 2'd2 && mx>=51 && mx<=87 && my>=12 && my<=48) begin
                             level_select_req <= 1;
+                        // Bottom-Left Controls Toggle [ ? ]: (x: 2..25, y: 52..62) cycles Settings (0) -> Mouse (1) -> Switches (2) -> Settings (0)
+                        end else if (mx>=2 && mx<=25 && my>=52 && my<=62) begin
+                            if (diary_page == 2'd1) diary_page <= 2'd2;
+                            else if (diary_page == 2'd2) diary_page <= 2'd0;
+                            else diary_page <= 2'd1;
                         // Home button: [ ⌂ ] in bottom right (x: 70..95, y: 52..62)
                         end else if (mx>=70 && mx<=95 && my>=52 && my<=62) begin
                             home_req <= 1;
+                            diary_page <= 2'd0;
                         // Back button: [ ◀ ] in bottom center (x: 28..68, y: 52..62)
                         end else if (mx>=28 && mx<=68 && my>=52 && my<=62) begin
-                            level_close_req <= 1;
+                            if (diary_page == 2'd1 || diary_page == 2'd2) diary_page <= 2'd0;
+                            else level_close_req <= 1;
                         end
                     end else if (game_state==`LP_LEVEL_SELECT) begin
                         // Back button: (x: 0..27, y: 52..63)
@@ -119,6 +126,7 @@ module ui_controller (
                         // Back button (x: 0..27, y: 52..63)
                         if (mx<=27 && my>=52 && my<=63) begin
                             guide_close_req <= 1;
+                            diary_page <= 2'd0;
                         // Page buttons [1] (32..51), [2] (53..72), [3] (74..93) at y: 55..63
                         end else if (diary_page!=3 && my>=55 && my<=63) begin
                             if (mx>=32 && mx<=51) diary_page <= 2'd0;

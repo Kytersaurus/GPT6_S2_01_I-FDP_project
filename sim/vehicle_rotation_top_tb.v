@@ -13,7 +13,7 @@ module vehicle_rotation_top_tb;
         .PHYSICS_CYCLES(128), .BUTTON_DEBOUNCE_CYCLES(2), .BUTTON_RELEASE_CYCLES(2)
     ) dut (
         .clk(clk),.btnC(btnC),.btnU(1'b0),.btnR(1'b0),.btnL(1'b0),.btnD(btnD),
-        .sw(16'd1),.PS2Clk(PS2Clk),.PS2Data(PS2Data)
+        .sw(16'd2),.PS2Clk(PS2Clk),.PS2Data(PS2Data)
     );
     initial begin
         force dut.level_index=2'd0;

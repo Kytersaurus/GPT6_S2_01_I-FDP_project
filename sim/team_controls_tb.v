@@ -37,15 +37,15 @@ module team_controls_tb;
     initial begin
         clocks(20);btnD=0;clocks(280);build_test_vehicle();
         sw=16'h8000;clocks(8);
-        if(!dut.audio_muted || dut.engine_reverse || dut.engine_enabled) $fatal(1,"SW1 conflicts with DRIVE control");
-        sw=16'h4000;clocks(8);
+        if(!dut.audio_muted || dut.engine_reverse || dut.engine_enabled) $fatal(1,"SW15 conflicts with DRIVE control");
+        sw=16'h0004;clocks(8);
         if(dut.audio_muted || !dut.engine_reverse || dut.engine_enabled) $fatal(1,"SW2 does not independently reverse");
         btnR=1;clocks(16);btnR=0;clocks(16);
         if(beep_pulses!=0 || jump_pulses!=0) $fatal(1,"Reserved BTNR made a sound or jumped");
         btnL=1;clocks(16);btnL=0;clocks(16);
         if(beep_pulses!=0 || jump_pulses!=0) $fatal(1,"Reserved BTNL requested a jump or test audio");
         // Real reverse movement must use SW2, with audio unmuted.
-        sw=16'h4001;clocks(8);btnC=1;clocks(16);btnC=0;
+        sw=16'h0006;clocks(8);btnC=1;clocks(16);btnC=0;
         wait(dut.game_state==`LP_RUN);clocks(1);dut.u_ui_control.engine_on=1;
         waited=0;while(dut.vehicle_x>=dut.level_spawn_x && waited<500000) begin clocks(1);waited=waited+1;end
         if(dut.game_state!=`LP_RUN || dut.vehicle_x>=dut.level_spawn_x || dut.audio_muted) $fatal(1,"Reverse did not drive left independently");
