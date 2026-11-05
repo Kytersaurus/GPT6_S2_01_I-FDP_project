@@ -1,7 +1,7 @@
-Latest bitstream: 2026-11-04/bad_piggies_top_2026-11-04_175006_lut20334.bit
+Latest bitstream: 2026-11-05/142200_My_Top_Module.bit
 Quick copy:       bitstreams/bad_piggies_top_latest.bit
-Built at:         2026-11-04 17:50:06 +08:00
-Source commit:    22562b9 (1-3 star rating, GAME OVER text, edit wrench icon, +1 Level 2 rocket/fan, horizontal rocket next to wheels, per-map fall damage)
+Built at:         2026-11-05 14:22:00 +08:00
+Source commit:    5081b2d (Optimize renderer LUT sharing (16,896 LUTs), update Diary contraptions, LED launch/outcome animations, and switch cleanup)
 Top module:       My_Top_Module (XC7A35T-1CPG236C)
-Utilization:      20,334 / 20,800 Slice LUTs (97.76%), 48 / 50 RAMB36E1 (96.00%), 43 / 90 DSP48E1 (47.78%)
-Timing:           WNS +0.019 ns, TNS 0.000 ns (0 failing), WHS +0.028 ns, THS 0.000 ns (0 failing)
+Utilization:      16,896 / 20,800 Slice LUTs (81.23%), 48 / 50 RAMB36E1 (96.00%), 16 / 90 DSP48E1 (17.78%)
+Timing:           WNS -0.129 ns, WHS +0.052 ns, THS 0.000 ns (0 hold failing endpoints)

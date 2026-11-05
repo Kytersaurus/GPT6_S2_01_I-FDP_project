@@ -11,18 +11,30 @@ try {
 
     $bitFile = Join-Path $repoRoot 'tmp\bitstream_build\My_Top_Module.bit'
     if (Test-Path $bitFile) {
-        $timestamp = Get-Date -Format 'yyyyMMdd_HHmm'
-        $todayDir = Join-Path $repoRoot "bitstreams\$(Get-Date -Format 'yyyy-MM-dd')"
+        $dateStr = Get-Date -Format 'yyyy-MM-dd'
+        $timeStr = Get-Date -Format 'HHmmss'
+        $builtIso = Get-Date -Format 'yyyy-MM-dd HH:mm:ss zzz'
+        $todayDir = Join-Path $repoRoot "bitstreams\$dateStr"
         New-Item -ItemType Directory -Force -Path $todayDir | Out-Null
-        $archivedFile = Join-Path $todayDir "bad_piggies_top_${timestamp}.bit"
+        $relPath = "$dateStr/${timeStr}_My_Top_Module.bit"
+        $archivedFile = Join-Path $todayDir "${timeStr}_My_Top_Module.bit"
         Copy-Item -LiteralPath $bitFile -Destination $archivedFile -Force
         Copy-Item -LiteralPath $bitFile -Destination (Join-Path $repoRoot 'bitstreams\bad_piggies_top_latest.bit') -Force
-        
-        $rptUtil = Join-Path $repoRoot 'tmp\bitstream_build\utilization_routed.rpt'
-        $rptTiming = Join-Path $repoRoot 'tmp\bitstream_build\timing_routed.rpt'
+
+        $commitShort = (git rev-parse --short HEAD 2>$null)
+        if (-not $commitShort) { $commitShort = 'working-tree' }
+        $latestTxt = @(
+            "Latest bitstream: $relPath"
+            "Quick copy:       bitstreams/bad_piggies_top_latest.bit"
+            "Built at:         $builtIso"
+            "Source commit:    $commitShort"
+            "Top module:       My_Top_Module (XC7A35T-1CPG236C)"
+        )
+        Set-Content -Path (Join-Path $repoRoot 'bitstreams\LATEST.txt') -Value $latestTxt -Encoding UTF8
+
         Write-Host "=========================================="
         Write-Host "SUCCESS: Bitstream generated and archived!"
-        Write-Host "  -> $archivedFile"
+        Write-Host "  -> bitstreams/$relPath"
         Write-Host "  -> bitstreams/bad_piggies_top_latest.bit"
         Write-Host "=========================================="
     } else {
@@ -31,4 +43,3 @@ try {
 } finally {
     Pop-Location
 }
-
