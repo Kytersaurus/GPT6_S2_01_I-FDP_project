@@ -182,15 +182,22 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
     wire [3:0] wheel_side=tilt_flipped(vehicle_tilt) ? wheels_up : wheels_down;
     wire [3:0] legacy_contact_wheels=(wheels_down|wheels_up)==0 ? wheel_count : wheel_side;
     wire [3:0] contact_wheels=last_support_span_valid ? last_support_wheel_count : legacy_contact_wheels;
+    reg signed [`LP_TILT_BITS-1:0] slope_tilt;
+    wire signed [`LP_TILT_BITS-1:0] desired_tilt=tilt_flipped(vehicle_tilt) ? slope_tilt+5'b10000 : slope_tilt;
+    // Shortest way round: the 5-bit difference wraps to -16..15.
+    wire signed [`LP_TILT_BITS-1:0] settle_error=desired_tilt-vehicle_tilt;
     wire has_intact_frames = (frame_intact_mask & build_frames) != 9'd0;
     wire signed [10:0] support_span_width_q2 = $signed(last_support_right_q2) - $signed(last_support_left_q2);
     wire single_wheel_grounded = was_grounded && last_support_span_valid &&
                                  (legacy_contact_wheels == 4'd1) && has_intact_frames;
     wire single_wheel_scraping = single_wheel_grounded &&
-                                 ((last_support_wheel_count == 4'd0) ||
-                                  ((last_support_wheel_count == 4'd1) && (support_span_width_q2 > 11'sd52)));
-    wire single_wheel_only = single_wheel_grounded && !single_wheel_scraping;
-    wire effective_support_unstable = contact_support_unstable && !single_wheel_scraping;
+                                 (last_support_wheel_count == 4'd1) && (support_span_width_q2 > 11'sd52);
+    wire frame_tip_only = was_grounded && last_support_span_valid && has_intact_frames &&
+                          (last_support_wheel_count == 4'd0) && (support_span_width_q2 <= 11'sd52) &&
+                          (settle_error[2:0] != 3'd0);
+    wire single_wheel_only = (single_wheel_grounded && (last_support_wheel_count == 4'd1) &&
+                              (support_span_width_q2 <= 11'sd52)) || frame_tip_only;
+    wire effective_support_unstable = contact_support_unstable;
     wire signed [13:0] clamped_angular_velocity=step_angular_sum>18'sd4096 ? 14'sd4096 :
         step_angular_sum< -18'sd4096 ? -14'sd4096 : step_angular_sum[13:0];
     wire pivot_about_contact = was_grounded && step_vy>=0 && last_support_span_valid &&
@@ -250,7 +257,6 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
     // Terrain contact is committed before WAIT_WORLD. Cache the slope from the
     // accepted collision response itself; using last_ground_slope here would
     // add an extra physics update before the body starts rotating.
-    reg signed [`LP_TILT_BITS-1:0] slope_tilt;
     always @(posedge clk) begin
         if (reset || run_init) slope_tilt<=0;
         else if (game_state==`LP_RUN && response_valid && response_ready && grounded && ground_slope_valid &&
@@ -259,9 +265,6 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
         else if (game_state==`LP_RUN && response_valid && response_ready && !grounded)
             slope_tilt<=0;
     end
-    wire signed [`LP_TILT_BITS-1:0] desired_tilt=tilt_flipped(vehicle_tilt) ? slope_tilt+5'b10000 : slope_tilt;
-    // Shortest way round: the 5-bit difference wraps to -16..15.
-    wire signed [`LP_TILT_BITS-1:0] settle_error=desired_tilt-vehicle_tilt;
     // Keep the target registers for compatibility with the existing moments
     // state machine, but do not wait for three identical slope samples. The
     // accepted collision slope is already filtered by the terrain probe, so a
@@ -524,7 +527,7 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
                     // settles one angle step per update onto the ground under it.
                     // Airborne angular drag brings unpowered spin to rest.
                     step_moments_enabled<=moments_enabled; wheel_force_valid<=0;
-                    step_support_unstable<=was_grounded && last_support_unstable && !single_wheel_scraping;
+                    step_support_unstable<=was_grounded && last_support_unstable;
                     step_pivot_x<=0; step_pivot_y<=0;
                     if (moments_enabled) begin
                         proposed_tilt<=vehicle_tilt;
