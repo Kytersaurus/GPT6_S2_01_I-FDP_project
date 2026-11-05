@@ -1,61 +1,22 @@
-# Basys3 Bitstream Archive
+# Bitstreams Directory
 
-This directory organizes all verified programming bitstreams generated for the Basys3 FPGA (`xc7a35tcpg236-1`).
+This directory stores pre-built FPGA bitstreams (`.bit`) for the **Digilent Basys 3 (`XC7A35T-1CPG236C`)** board.
 
----
+## Building a Fresh Bitstream
 
-## 🌟 Latest Recommended Build for Board Testing
+To synthesize, place, route, and generate a fresh bitstream from the current RTL sources, run:
 
-| Property | Value |
-| :--- | :--- |
-| **Bitstream File** | **[2026-11-04/bad_piggies_top_20261104_0731.bit](2026-11-04/bad_piggies_top_20261104_0731.bit)** (or [bad_piggies_top_latest.bit](bad_piggies_top_latest.bit)) |
-| **Pointer File** | [LATEST.txt](LATEST.txt) |
-| **Source Commit** | `700de5f` (merged `main`) |
-| **Build Timestamp**| 2026-11-04 07:31:24 (SGT) |
-| **Timing Slack** | **WNS = +0.051 ns**, **WHS = +0.023 ns**, **TNS = 0.000 ns** (Timing cleanly MET at 100 MHz) |
-| **Resource Utilization** | **94.29% LUTs** (19,613 / 20,800), **96.00% BRAM** (48 / 50 tiles), **47.78% DSPs** (43 / 90) |
-| **Implementation Checks** | **Vivado DRC: 0 errors; routed timing met at 100 MHz** |
-| **Key Features** | • **Initial Component State: ALL OFF**: Fans, engines, and booster start completely OFF in RUN mode until explicitly triggered by the player.<br>• **Directional Fans & Vertical Lift**: Fans can face DOWN (providing vertical lift to counteract gravity, height control), RIGHT, or LEFT.<br>• **Independent Fan Control**: Multiple fans can be toggled independently (e.g. one for lift, one for horizontal propulsion).<br>• **Physical Directional Support Constraints**: Downward fans require frame support above or to the sides; horizontal fans and rockets strictly require frame attachment on the side opposite thrust. Direction flipping only cycles through physically valid orientations.<br>• **Discrete Inventory Scroll**: Mouse wheel scroll steps cleanly between inventory pages (page 0 / 1).<br>• **SW0 Engine Master Override**: SW0 low permanently inhibits engine; SW0 high allows normal UI engine toggle.<br>• **Complete UI/Audio Polish**: Sound settings volume bars, SW1 mute indicator without text bleed, back button glow & tightened hitboxes, pencil edit icon, circular retry icon, symmetrical STOP/EDIT buttons, and Map Select return navigation. |
+```powershell
+vivado -mode batch -source scripts/build_bitstream.tcl
+```
 
-### How Teammates Can Test on the Hardware:
-1. Connect your **Basys3 board** via USB and power it on.
-2. Connect your **OLED display(s)**:
-   - Left OLED to **Pmod JA** (pin 1 facing up).
-   - Right OLED to **Pmod JB** (optional for dual-OLED mode; SW15 up enables single-OLED mode on JA).
-3. Connect your **PS/2 Mouse** to the USB-HID port via adapter.
-4. Connect the **Pmod AMP2 speaker** to **JXADC** (pins 1–6):
-   > [!CAUTION]
-   > **HARDWARE SAFETY WARNING:** JXADC has 12 pins (2 rows of 6). Plug AMP2 into the **TOP ROW (pins 1–6) ONLY** with Pin 1 on the left and Pin 6 on the right. **DO NOT** plug into the bottom row (pins 7–12) or upside down (swapping VCC and GND), or the module will short-circuit and burn! Connect an **8-ohm mono speaker only**; do not plug stereo headphones into the mono BTL amplifier jack.
-5. Open **Vivado > Hardware Manager > Open Target > Program Device**.
-6. Select **`bitstreams/bad_piggies_top_latest.bit`** (or `bitstreams/2026-11-03/bad_piggies_top_20261103_0025.bit`) and click **Program**.
+The build script outputs:
+- Routed bitstream: `tmp/bitstream_build/My_Top_Module.bit`
+- Resource utilization report: `tmp/bitstream_build/utilization_routed.rpt`
+- Timing summary report: `tmp/bitstream_build/timing_routed.rpt`
 
----
-
-## 📅 Chronological Bitstream History
-
-| Build Date & Time (SGT) | File Link | Source Commit | Description & Milestone |
-| :--- | :--- | :--- | :--- |
-| **2026-11-03 22:16:00** | [2026-11-03/bad_piggies_top_20261103_2216.bit](2026-11-03/bad_piggies_top_20261103_2216.bit) | Working Tree | **Full LUT Division Elimination & Component Launch OFF**: Replaced runtime division/modulus ladders with subtraction ladders and shift-lookups, saving over 1,400 LUTs down to 18,992 LUTs (91.31%). All actuators initialize OFF upon RUN entry; downward fans provide vertical lift (+40); independent fan control; discrete scroll; SW0 engine override; full UI polish. WNS +0.076 ns, WHS +0.024 ns, 48 BRAMs (96.00%). |
-| **2026-11-04 07:31:24** | [2026-11-04/bad_piggies_top_20261104_0731.bit](2026-11-04/bad_piggies_top_20261104_0731.bit) | `700de5f` | **Merged main hardware build** with terrain following, TNT impact recovery, updated UI/physics, and latest teammate changes. WNS +0.051 ns, WHS +0.023 ns, 19,613 LUTs (94.29%), 48 BRAMs (96.00%), DRC clean. |
-| **2026-11-03 22:16:00** | [2026-11-03/bad_piggies_top_20261103_2216.bit](2026-11-03/bad_piggies_top_20261103_2216.bit) | Working Tree | **Full LUT Division Elimination & Component Launch OFF**: Replaced runtime division/modulus ladders with subtraction ladders and shift-lookups, saving over 1,400 LUTs down to 18,992 LUTs (91.31%). All actuators initialize OFF upon RUN entry; downward fans provide vertical lift (+40); independent fan control; discrete scroll; SW0 engine override; full UI polish. WNS +0.076 ns, WHS +0.024 ns, 48 BRAMs (96.00%). |
-| **2026-11-03 00:25:00** | [2026-11-03/bad_piggies_top_20261103_0025.bit](2026-11-03/bad_piggies_top_20261103_0025.bit) | Working Tree | Initial component state all OFF at RUN start; downward fans with vertical lift (+40); independent fan control; physical support rules for fans & rockets; discrete mouse wheel inventory scrolling; SW0 engine override; sound volume bars & SW1 mute indicator; full UI polish. WNS +0.015 ns, WHS +0.041 ns, 19,870 LUTs (95.53%), 48 BRAMs (96.00%). |
-| **2026-11-02 21:01:10** | [2026-11-02/210110_My_Top_Module.bit](2026-11-02/210110_My_Top_Module.bit) | Working Tree | Downward & independent fans (vertical lift +40), horizontal rockets with physical support validation, SW0 hardware engine override, volume bars in sound settings, back button glow & hitbox clamped, end screen text bleed fix, symmetrical STOP/EDIT buttons, and Map Select return navigation. WNS +0.132 ns, WHS +0.021 ns, 19,825 LUTs (95.31%), 48 BRAMs (96.00%). |
-| **2026-11-02 18:10:25** | [2026-11-02/181025_My_Top_Module.bit](2026-11-02/181025_My_Top_Module.bit) | `69b4635` | Integrated Yap Ting collision impact and TNT updates with complete UI polish: cartoon pencil edit icon, clean circular refresh retry icon, 4 stepped volume indicator bars, SW1 audio mute indicator in sound settings and main settings, 3px thick mute slash, back button ocean-teal hover glow, bottom row hitbox fix, SW0 permanent off banner & dimmed sprite, and removed separator line. WNS +0.007 ns, WHS +0.026 ns, 19,778 LUTs (95.09%), 48 BRAMs (96.00%). |
-| **2026-11-02 11:35:38** | [2026-11-02/113538_My_Top_Module.bit](2026-11-02/113538_My_Top_Module.bit) | `de54989` | Integrated Physics Rework PR #9, mouse sensitivity teleport fix, calibrated crash impact physics (airborne filter >= 12, upright frame preservation), full UI iconification with tightened hitboxes (0 extra BRAM). All 74 tests passing; WNS +0.003 ns, 94.60% LUTs, 48 BRAMs. |
-| **2026-10-31 16:56:01** | [2026-10-31/165601_My_Top_Module.bit](2026-10-31/165601_My_Top_Module.bit) | 98ca1e1 | Option B Bad Piggies title screen ('LAGGY PIGGIES' bubble font, Play & Gear buttons), Right OLED live world view, 20s negative countdown timer on 7-seg only, big 16x16 interactive grid with part toggles, SW0 engine status box, 3 centered icon boxes in Settings with mouse speed scaling, wide sound layout with SW1 mute banner, transposed static-free BGM with boosted gain, and LEDs tied to switches. WNS +0.142 ns, 90.89% LUTs, 48 BRAMs (96%). |
-| **2026-10-31 16:56:01** | [2026-10-31/165601_My_Top_Module.bit](2026-10-31/165601_My_Top_Module.bit) | `98ca1e1` | Bulletproof dividers, animated moving cave Start Screen, blanked Right OLED during Title, centered run damage diagram, squarish action buttons. WNS +0.253 ns, 79.87% LUTs, 48 BRAMs. |
-| **2026-10-30 12:41:52** | [2026-10-30/124152_My_Top_Module.bit](2026-10-30/124152_My_Top_Module.bit) | `64c496f` | Smoothed Cave Arch terrain, display_y camera smoothing, tilt hold, steep-slope tip guard, 2 cave levels. WNS +0.154 ns, 82.00% LUTs. |
-| **2026-10-30 01:25:41** | [2026-10-30/012541_two_cave_levels_stripped_rects.bit](2026-10-30/012541_two_cave_levels_stripped_rects.bit) | `99bd13c` | **2-Cave Levels Milestone**: Stripped placeholder maps & rectangle collision engine. Cave Arch 2x scale & Cave Flight. |
-| **2026-10-29 22:14:20** | [2026-10-29/221420_cave-arch-loop-physics.bit](2026-10-29/221420_cave-arch-loop-physics.bit) | `cdac53e` | **Role 4 Test Build (Marcus)**: Cave Arch drivable end to end at 2x, 360-degree rotation, dual-sided wheel support, edge tipping. |
-| **2026-10-29 15:10:47** | [2026-10-29/151047_My_Top_Module.bit](2026-10-29/151047_My_Top_Module.bit) | `4f1912b` | **Rotation Geometry (Kyle)**: 32-angle tables, separating-axis occupancy collision, and synthesized collision ROM repair. |
-| **2026-10-29 14:21:48** | [2026-10-29/142148_My_Top_Module.bit](2026-10-29/142148_My_Top_Module.bit) | `b7c525f` | **Rotation Latency Test**: Natural 45-degree settling and coherent display transfer test. |
-| **2026-10-28 15:36:41** | [2026-10-28/153641_My_Top_Module.bit](2026-10-28/153641_My_Top_Module.bit) | `aa0efb1` | **Slope Physics**: Downhill gravity, uphill climbing resistance, and terrain ROM query integration. |
-| **2026-10-27 14:13:37** | [2026-10-27/141337_My_Top_Module.bit](2026-10-27/141337_My_Top_Module.bit) | `ce62986` | **Map BRAM Cascade Fix**: BRAM cascade fixes, builder validation updates, coordinate expansion. |
-| **2026-10-26 23:54:39** | [2026-10-26/235439_My_Top_Module.bit](2026-10-26/235439_My_Top_Module.bit) | `e013816` | **Directional Construction**: In-cell engine/rocket flipping, facing validation, mouse grid optimizations. |
-| **2026-10-26 16:37:45** | [2026-10-26/163745_My_Top_Module.bit](2026-10-26/163745_My_Top_Module.bit) | `bab2d96` | **UI & Run Controls**: Left OLED DRIVE / POP / SOUND tabs and map camera navigation. |
-| **2026-10-25 18:01:42** | [2026-10-25/180142_map-view-12px.bit](2026-10-25/180142_map-view-12px.bit) | `b79d73a` | **Map View 12px**: 1.5x map view with 12x12 sprites, SW3/wheel zoom, SW4 free look. |
-| **2026-10-25 17:30:35** | [2026-10-25/173035_cave-arch-camera.bit](2026-10-25/173035_cave-arch-camera.bit) | `3f58d16` | **Camera Following**: 16x16 sprites, Cave Arch preview, following camera. |
-| **2026-10-25 00:00:34** | [2026-10-25/000034_all-role-merge.bit](2026-10-25/000034_all-role-merge.bit) | `0e960d4` | **All-Role Merge**: Initial 4-role merge with TNT damage, collision, and audio. |
-| **2026-10-24 22:59:54** | [2026-10-24/225954_engine-boost-audio.bit](2026-10-24/225954_engine-boost-audio.bit) | `9fd5776` | **Engine Boost & Audio**: Multi-note audio events and engine boost controls. |
-| **2026-10-24 20:08:20** | [2026-10-24/200820_vivado-build.bit](2026-10-24/200820_vivado-build.bit) | Baseline | Earlier Vivado baseline build before audio events. |
-| **2026-10-21 19:11:39** | [2026-10-21/191139_balloon-test.bit](2026-10-21/191139_balloon-test.bit) | Baseline | Interactive balloon popping test build. |
+### Target Hardware Verification Metrics
+- **Slice LUTs:** $\le 20,800$ (current build: ~17,199 LUTs / 82.69%)
+- **Block RAM Tiles (`RAMB36E1`):** $48 / 50$ (96.00%)
+- **DSP48E1 Slices:** $16 / 90$ (17.78%)
+- **Worst Negative Slack (WNS):** $> 0.000\text{ ns}$ (0 failing endpoints at 100 MHz logic / 6.25 MHz SPI)

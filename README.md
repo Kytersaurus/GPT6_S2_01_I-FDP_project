@@ -1,138 +1,182 @@
-# Bad Piggies FPGA Project
+# Bad Piggies FPGA ("Laggy Piggies") — Hardware-Accelerated Physics & Dual-OLED Game Engine
 
-A hardware-accelerated clone of *Bad Piggies* running entirely in Verilog/VHDL on the **Digilent Basys 3** FPGA (Xilinx Artix-7 `XC7A35T-1CPG236C`).
+![Basys 3 FPGA](https://img.shields.io/badge/FPGA-Xilinx_Artix--7_(Basys_3)-blue)
+![Clock](https://img.shields.io/badge/Logic_Clock-100_MHz-brightgreen)
+![Display](https://img.shields.io/badge/Display-Dual_96x64_RGB_OLED_(6.25_MHz)-orange)
+![LUTs](https://img.shields.io/badge/Slice_LUTs-17,199_%2F_20,800_(82.69%25)-success)
+![BRAM](https://img.shields.io/badge/Block_RAM-48_%2F_50_(96.00%25)-informational)
+![Tests](https://img.shields.io/badge/Test_Suite-51%2F51_Passing-brightgreen)
 
-The design integrates interactive mouse-driven vehicle construction, a 3×3 grid with physical mounting constraints, a Newtonian physics engine with 32-angle quantized rotation, a Separating Axis Theorem (SAT) raster terrain collision engine, swept-AABB TNT explosions, dynamic vertical and horizontal crash damage, dual 96×64 RGB OLED displays with follower camera zoom, an active-low 7-segment run timer, and a real-time dual-voice audio synthesizer driving a Pmod AMP2 speaker.
-
----
-
-## 1. Hardware Architecture & System Specifications
-
-* **Target Device:** Digilent Basys 3 (`XC7A35T-1CPG236C`)
-* **Logic Clock:** 100 MHz onboard oscillator
-* **Dual OLED Displays:** Two 96×64 RGB OLEDs (SSD1331 controller via SPI at 6.25 MHz)
-  - **Left OLED (PMOD JA):** Builder grid, inventory pages, minimal run-screen damage diagram, action buttons, and animated Title Screen. Rotated 180° in hardware (`95 - x`, `63 - y`) to compensate for the Basys 3 upside-down PMOD JA socket.
-  - **Right OLED (PMOD JB):** World follower camera with 3 zoom levels (1.5x, 1.0x, 0.5x), terrain rendering, vehicle rotation, dynamic smoke/explosion particles, and goal flag. Blanked on Title Screen and Level Select.
-* **Audio:** 8-bit PWM driving Pmod AMP2 on header JXADC (gain on `JXADC[1]`, active shutdown on `JXADC[3]`).
-* **Input Interface:** Standard PS/2 streaming mouse on PMOD JC (scaled coordinate clamping $[0..95, 0..63]$).
-* **Onboard I/O:** 4-digit active-low 7-segment display (M.SS run timer), slide switches (SW0–SW4, SW15), pushbuttons (BTNC, BTNU, BTNL, BTNR, BTND), and 16 LEDs.
+A complete hardware-accelerated clone of **Bad Piggies** built from scratch in Verilog/VHDL on the **Digilent Basys 3** (`XC7A35T-1CPG236C`) FPGA. The system features a real-time Q12.8 fixed-point rigid-body physics engine with 32-step vehicle rotation, Separating Axis Theorem (SAT) cave terrain collision, swept-AABB TNT explosions with cell-level damage masks, dual-voice PWM music synthesis, PS/2 mouse drag-and-drop construction, and a dual-screen 96×64 RGB OLED display pipeline.
 
 ---
 
-## 2. Team Ownership & Responsibilities
+## 1. Team Roles & Ownership
 
-The codebase is organized into modular subsystems developed by four team members:
-
-| Role & Owner | Primary Subsystems | Owned Source Modules |
+| Role | Member | Subsystems & Responsibilities |
 | :--- | :--- | :--- |
-| **Role 1 (Kaushal)** | Vehicle Builder, Inventory/Stock, Mouse Input & Drag-and-Drop, Audio Pipeline (BGM + SFX), 7-Segment Timer, Left OLED UI | `vehicle_builder.v`, `mouse_adapter.v`, `sound_controller.v`, `sound_generator.v`, `bgm_player.v`, `seven_seg_timer.v`, `left_renderer.v`, `ui_renderer.v`, `balloon_control.v` |
-| **Role 2 (Kyle)** | Newtonian Physics Engine, Fixed-Point Kinematics (Q12.8), 16-Cycle Signed Divider, Tilt Dynamics & Settling | `physics_engine.v`, `signed_divider16.v`, `rotation_geometry.vh` |
-| **Role 3 (Yap Ting)** | Terrain Collision Engine (SAT Raster Scanner), TNT Explosions & Damage Masks, World Outcomes (Goal, Hazards, Death) | `rotating_map_collision_engine.v`, `tnt_controller.v`, `world_outcomes.v`, `pig_death_effect.v` |
-| **Role 4 (Marcus)** | Master Game Controller FSM, Level Data, Dual-OLED Renderers (Follow-Camera, Viewports), CDC Display Snapshot | `game_controller.v`, `display_snapshot.v`, `right_renderer.v`, `level_map.v`, `level_button.v`, `zoom_control.v` |
+| **Role 1** | **Kaushal** | Vehicle Builder (`vehicle_builder.v`), Inventory/Stock & Mounting Rules, PS/2 Mouse Drag-and-Drop (`mouse_adapter.v`, `ui_controller.v`), Audio Pipeline (`bgm_player.v`, `sound_generator.v`, `sound_controller.v`), 7-Segment Countdown Timer (`seven_seg_timer.v`), Left OLED UI Layouts (`ui_renderer.v`, `left_renderer.v`), Dual-OLED Diary Walkthrough & Settings `[ ? ]` Switch Guide |
+| **Role 2** | **Kyle** | Rigid-Body Physics Engine (`physics_engine.v`), Newtonian Kinematics in Q12.8 Fixed-Point, 16-Cycle Restoring Signed Divider (`signed_divider16.v`), Rotational Moment Calculation & 32-Step Tilt Dynamics (`rotation_geometry.vh`) |
+| **Role 3** | **Yap Ting** | Terrain Collision Engine (`rotating_map_collision_engine.v`, `collision_engine.v`), Swept-AABB TNT Explosions & Radial Damage Masks (`tnt_controller.v`, `explosion_fx.v`), World Outcomes (`world_outcomes.v`, `pig_death_effect.v`) |
+| **Role 4** | **Marcus** | Master Game Controller FSM (`game_controller.v`), Level Data & BRAM Terrain Maps (`level_data.v`, `level_map.v`), Dual-OLED Follow-Camera & Zoom Renderers (`right_renderer.v`, `zoom_control.v`), Clock Domain Crossing Snapshot (`display_snapshot.v`) |
 
 ---
 
-## 3. Game Controls & Input Mapping
+## 2. System Architecture
 
-### 3.1 Basys 3 Board Controls
-| Control | Function | Description |
-| :--- | :--- | :--- |
-| **Mouse Left-Click / Drag** | Part Placement / Balloon Pop | During **BUILD**: Drag parts from inventory pages or grid onto 3×3 cells. Releasing drops the part.<br>During **RUN**: Click surviving balloons on the Left OLED diagram or action bar to pop them. |
-| **Mouse Right-Click** | Part Removal | During **BUILD**: First click clears cell contents (pig, engine, wheel, etc.); second click clears the wooden frame. Cancels active drag. |
-| **Mouse Scroll Wheel** | Follow-Camera Zoom | Steps through 3 zoom levels: Close (1.5x) $\leftrightarrow$ Normal (1.0x) $\leftrightarrow$ Overview (0.5x). |
-| **SW0** | Engine Throttle | Enables ground wheel motor thrust. |
-| **SW1** | Audio Mute | `1` mutes all BGM and sound effects instantly; `0` enables audio. |
-| **SW2** | Engine Reverse | Reverses engine drive torque (`1` = reverse, `0` = forward). |
-| **SW3** | Zoom Toggle | Hardware switch shortcut for toggling camera zoom without a wheel mouse. |
-| **SW4** | Free Look Mode | Enables mouse-controlled camera panning across the terrain. |
-| **SW15** | Single-OLED Mode | `0`: Normal dual-OLED mode (JA = UI/Builder, JB = Follow-Camera).<br>`1`: Single-OLED mode (JA displays camera/world view; JB blanked). |
-| **BTNC** | Launch / Retry | Launches vehicle from BUILD mode; retries current level after SUCCESS or FAIL. |
-| **BTNU** | Edit / Next Level | Returns to BUILD from RUN/FAIL; advances to the next level after SUCCESS. |
-| **BTNL** | Spring Impulse | Triggers a vertical impulse jump (+512 Q8 velocity) when grounded. |
-| **BTNR** | Reserved | Debounced input; reserved for future controls (silent). |
-| **BTND** | Master Reset | Resets entire game state, inventory, and hardware pipelines. |
+The design is partitioned across two synchronous clock domains connected via a registered 4-phase toggle CDC handshake (`display_snapshot.v`):
+1. **100 MHz Core Domain:** Input debouncing, PS/2 mouse decoding, master game FSM, vehicle builder validation, Q12.8 physics simulation, SAT terrain collision scanning, TNT explosion detection, and dual-voice audio PWM generation.
+2. **6.25 MHz Display Domain:** Dual SSD1331 96×64 16-bit RGB OLED controllers (`Oled_Display.v`), UI overlay composition, rotated sprite rasterization, and multi-zoom world viewport rendering.
 
-### 3.2 Onboard Indicators
-* **7-Segment Display:** Formatted as active-low `M.SS` elapsed run timer (e.g., `0.15` for 15 seconds) with decimal point lit on Digit 2 (`an = 4'b1011, dp = 0`). Uses a hardware subtraction ladder to avoid runtime division.
-* **LEDs [2:0]:** Game State (`000` = BUILD, `001` = INIT_RUN, `010` = RUN, `011` = SUCCESS, `100` = FAIL).
-* **LED 3:** World outcome pending.
-* **LED 4:** Pig alive flag (`1` = alive, `0` = pig knocked out).
-* **LED 5:** Build validity flag (`1` = valid build with 1 pig and supported attachments).
-* **LED 6:** Engine active flag.
-* **LEDs [15:7]:** 9-bit runtime intact mask for vehicle cells 8 down to 0.
+```mermaid
+flowchart TD
+    subgraph Inputs ["Input Subsystem (100 MHz)"]
+        PS2[PS/2 Mouse - PMOD JC] --> MA[mouse_adapter.v]
+        BTNS[Basys 3 Buttons & Switches] --> BD[button_debouncer.v]
+        MA --> IC[input_controller.v]
+        BD --> IC
+        MA --> UC[ui_controller.v]
+    end
 
----
+    subgraph Core ["Game Core & Physics (100 MHz)"]
+        IC & UC --> VB[vehicle_builder.v]
+        IC & UC --> GC[game_controller.v]
+        VB --> BC[balloon_control.v]
+        GC --> PE[physics_engine.v]
+        PE <-->|Handshake| CE[rotating_map_collision_engine.v]
+        PE --> TC[tnt_controller.v]
+        PE --> WO[world_outcomes.v]
+        TC -->|Damage Masks| VB
+        WO -->|Goal / Hazard / Death| GC
+    end
 
-## 4. Subsystem Highlights & Engineering Innovations
+    subgraph Audio ["Audio Pipeline (100 MHz)"]
+        GC --> SC[sound_controller.v]
+        GC --> BP[bgm_player.v]
+        SC --> SG[sound_generator.v]
+        BP --> SG
+        SG --> PWM[audio_pwm -> JXADC Pmod AMP2]
+    end
 
-### 4.1 Zero Extra BRAM Architecture (48 / 50 Tiles — 96.00%)
-* The Basys 3 FPGA contains exactly 50 Block RAM tiles (`RAMB36E1`), of which 48 are utilized for cave terrain maps and solid collision tables.
-* **Port B Multiplexing for Animated Title Screen:** During the Title Screen, the Right OLED (JB) is completely blanked. Port B of the terrain BRAM (`level_map.v`) is multiplexed into the Left OLED raster pipeline with an offset scroll counter. This produces an animated, live parallax cave background on the Title Screen at **0% additional Block RAM cost**.
-* All UI glyphs, start screen buttons, 5×7 font characters, star badges, and part sprites are rendered via distributed logic (LUT ROMs).
-
-### 4.2 Minimalist Left OLED UI Layout
-* **Title Screen:** Live animated cave background, Bad Piggies title logo, Play button, and Settings icon.
-* **Build Screen:** 16-pixel cell grid, numbered inventory pages (P1/P2), part orientation flip, live drag preview, Go/Launch button, and level selector menu (Cave Arch 2x vs Cave Flight).
-* **Run Screen:** Centered 12px vehicle damage diagram, interactive click-to-pop balloons, top action bar (`[RETRY]`, `[GEAR]`, `[EDIT]`), and bottom squarish action buttons (`ENG`, `FAN`, `RCKT`, `BOOST`). Fully backward-compatible with legacy testbench click coordinates.
-
-### 4.3 Rigid Body Physics & Newtonian Kinematics
-* Vehicle state represented in signed Q12.8 fixed-point coordinates (`velocity_x`, `velocity_y`, `pos_x`, `pos_y`).
-* Quantized rotation into 32 discrete angular steps (11.25° increments) covering -16..+15 tilt values via [`rotation_geometry.vh`](file:///c:/Users/kaush/EE2026Labs/GPT6_S2_01_I-FDP_project/GPT_6_S2_01_I-FDP_project.srcs/sources_1/new/rotation_geometry.vh).
-* Mass-based force division ($a = F / m$) calculated via a sequential 16-cycle restoring divider ([`signed_divider16.v`](file:///c:/Users/kaush/EE2026Labs/GPT6_S2_01_I-FDP_project/GPT_6_S2_01_I-FDP_project.srcs/sources_1/new/signed_divider16.v)) to eliminate combinational divider trees.
-* Slope acceleration dynamically sampled from terrain gradient $dy/dx$ (Q4.4).
-* Alpha-beta smoothing on `display_y` removes discrete 2-pixel terrain step jitter.
-
-### 4.4 Swept-AABB TNT & Realistic Crash Damage
-* **Tunneling Prevention:** Swept-AABB bounding box between current and previous frame coordinates guarantees fast-moving vehicles never tunnel through TNT blocks.
-* **Radial Explosion Damage:** Exploding TNT calculates radial squared distance to each cell, blowing off components, destroying wooden frames, kicking vehicle velocity outward, and spawning visual smoke particles.
-* **Hard Vertical Landings:** Falling at excessive downward velocity ($v_y \ge 768$ Q8/frame) damages bottom-row cells (or top-row cells if flipped).
-* **Horizontal Wall Ramming:** Ramming into solid cliff faces at high speed ($|v_x| \ge 768$ Q8/frame stopped by terrain) knocks out the leading column (cells 2, 5, 8 for right wall; cells 0, 3, 6 for left wall).
-* **Frame Durability:** Wooden frames survive moderate collisions ($768 \le |v| < 1280$), but catastrophic terminal velocity impacts ($|v| \ge 1280$) completely demolish all parts and wooden frames (`9'b111_111_111`).
-
-### 4.5 Dual-Voice BGM & Instant-Attack SFX
-* **Immediate Sound Attack:** Removed sluggish amplitude fading counters; all sound effects trigger with instantaneous full-volume attack.
-* **Dynamic SFX Profiles:**
-  - `LAUNCH`: Rising fanfare (660 Hz $\to$ 990 Hz).
-  - `POP`: Crisp high-frequency pop (1600 Hz).
-  - `COLLISION`: 3-stage mechanical downward pitch crunch (400 Hz $\to$ 200 Hz $\to$ 100 Hz in 60 ms).
-  - `EXPLOSION`: Low-frequency rumble (160 Hz $\to$ 110 Hz $\to$ 70 Hz).
-  - `SUCCESS`: Victorious arpeggio (660 Hz $\to$ 880 Hz $\to$ 1320 Hz).
-  - `FAILURE`: Descending sad trombone (440 Hz $\to$ 330 Hz $\to$ 220 Hz).
-* **Dual-Voice Synthesizer:**
-  - Build Mode: *The Entertainer* by Scott Joplin (96 BPM).
-  - Run Mode: *Bad Piggies Theme* (155 BPM dual-voice bassline, attenuated for SFX headroom).
-  - Title Mode: *Start Screen Fanfare* (135 BPM upbeat title melody).
-
----
-
-## 5. Verification & Regression Testing
-
-The test suite contains **74 automated testbenches** covering every module, interface handshake, and physical invariant.
-
-### 5.1 Running the Regression Suite
-Run all testbenches in PowerShell:
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\run_simulations.ps1
+    subgraph Display ["Display Pipeline (6.25 MHz)"]
+        PE & VB & GC --> DS[display_snapshot.v - 318-bit CDC]
+        DS --> LR[left_renderer.v]
+        DS --> UR[ui_renderer.v]
+        DS --> RR[right_renderer.v]
+        LR --> UR
+        UR --> OLED_L[Left OLED - PMOD JA]
+        RR --> OLED_R[Right OLED - PMOD JB]
+        LM[level_map.v - 48 BRAM Tiles] <--> CE
+        LM <--> RR
+        LM -.->|Title Cave Scroll| UR
+    end
 ```
 
-Or run an individual testbench using Vivado `xvlog`/`xelab`/`xsim`:
+---
+
+## 3. Hardware Setup & Controls
+
+### 3.1 PMOD & Onboard Connections
+| Interface | Basys 3 Port | Description |
+| :--- | :--- | :--- |
+| **Left OLED (SSD1331)** | **PMOD JA** | UI, Vehicle Builder, Interactive Run Diagram, Menus & Title Screen (hardware rotated 180° inside RTL because JA is mounted upside-down) |
+| **Right OLED (SSD1331)** | **PMOD JB** | World Follow-Camera, Cave Terrain, Rotated Vehicle, TNT & Goal Flag (or Visual Walkthrough Diagram when viewing the Diary) |
+| **Audio Amplifier (AMP2)** | **JXADC** | `JXADC[0]` = Audio PWM (`AIN`), `JXADC[1]` = Gain, `JXADC[3]` = Active-Low Shutdown (`~SHDN`) |
+| **PS/2 Mouse** | **USB Host (HID) / JC** | Cursor navigation, drag-and-drop building, scroll-wheel zoom, and interactive part activation |
+
+### 3.2 Basys 3 Switch Mapping (`SW15`–`SW0`)
+Switches are grouped into two ergonomic clusters: **Right-hand Gameplay Switches (`SW0`–`SW2`)** and **Left-hand Camera, Display & Audio Switches (`SW12`–`SW15`)**.
+
+| Switch | Signal / Role | `0` (Down / OFF) | `1` (Up / ON) |
+| :--- | :--- | :--- | :--- |
+| **`SW0`** | **Title Screen Bypass** (`title_enable_sw`) | Normal boot into animated `"LAGGY PIGGIES"` Title Screen | Bypasses Title Screen directly into `BUILD` mode |
+| **`SW1`** | **Engine Master Switch** (`engine_switch`) | **Disables wheel engine drive** (`SW1 OFF` warning on Left OLED) | **Enables wheel engine drive** (allows on-screen `[ENG]` & click toggling; flipping `SW1` during `RUN` also syncs engine state) |
+| **`SW2`** | **Engine Reverse** (`reverse_switch`) | Forward wheel engine drive (rightward thrust) | **Reverse wheel engine drive** (leftward thrust; affects wheel engines only, never fans or rockets) |
+| **`SW3`–`SW11`** | *Unused in game logic* | `LED[11:3]` OFF | `LED[11:3]` ON (`assign led = sw;`) |
+| **`SW12`** | **Single-OLED Mode** (`show_map`) | **Dual-OLED Mode:** Left OLED (`JA`) shows UI/Builder, Right OLED (`JB`) shows World Map | **Single-OLED Mode:** Left OLED (`JA`) displays the World Map directly; Right OLED (`JB`) is blanked |
+| **`SW13`** | **Free Look Camera** (`free_look`) | Camera automatically follows the vehicle with alpha-beta vertical smoothing | **Mouse Free Look:** Moving the mouse pans the viewport across the entire cave map |
+| **`SW14`** | **Camera Zoom Toggle** (`zoom_switch`) | **Close View (1.5×)** — 64×42 world viewport (12×12 part sprites) | **Normal View (1.0×)** — 96×64 world viewport (8×8 part sprites). *Mouse scroll wheel also steps across 1.5×, 1.0×, and 0.5× Overview* |
+| **`SW15`** | **Hardware Audio Mute** (`mute_switch`) | Audio enabled (controlled by on-screen Sound menu) | **Hardware Mute:** Immediately mutes all BGM & SFX, shows `SW15 MUTE` in Sound menu, and pulls `JXADC[3]` low |
+
+### 3.3 Basys 3 Pushbutton & Onboard Indicator Mapping
+
+| Control | Function | Behavior Across Modes |
+| :--- | :--- | :--- |
+| **`BTNC`** | **Launch / Retry** | Launches the vehicle from `BUILD` (when build is valid); retries the current level from `RUN`, `SUCCESS`, or `FAIL` |
+| **`BTNU`** | **Edit / Guide / Back** | Opens/closes the Diary (`GUIDE`) in `BUILD`; returns to `BUILD` from `RUN`, `SUCCESS`, or `FAIL`; backs out of `LEVEL_SELECT` or `SETTINGS` |
+| **`BTNR`** | **Rocket Boost Shortcut** | Fires the Rocket Booster / Engine Boost pulse during `RUN` mode (parallel to `[RCKT]` / `[BOOST]` and direct rocket clicks) |
+| **`BTNL`** | *Reserved* | Tied inactive (`1'b0`) |
+| **`BTND`** | **Master Hardware Reset** | Synchronized active-high system reset; resets FSM, inventory, and displays |
+| **`LED[15:0]`** | **Switch Indicators** | Directly mirrors `SW[15:0]` (`assign led = sw;`) |
+| **7-Segment Display** | **20s Par Countdown Timer** | Displays active-low `SS.T` 20.0-second par countdown (`20.0` $\to$ `0.0`), then counts negative overtime (`-0.1`, `-0.2`, ...) if par expires. Exclusively rendered on the 4-digit 7-segment display |
+
+---
+
+## 4. Key Engineering Features
+
+### 4.1 Vehicle Construction & Bulletproof Directional Mounting (`vehicle_builder.v`)
+* **3×3 Grid (24×24 World Pixels):** Players assemble a custom contraption using up to 7 part types across two inventory pages:
+  - **Page 1 (Core Parts):** **Wood Frames**, **Pig Pilot**, **Wheels**, **Engine**, and **Balloons**.
+  - **Page 2 (Propulsion Parts):** **Rocket Booster** and **Propeller Fan**.
+* **Mounting & Exhaust Rules:**
+  - `PIG` and `ENGINE` must sit inside a `FRAME` cell.
+  - `WHEEL` requires a supporting `FRAME` directly above or below.
+  - `BALLOON` requires a supporting `FRAME` below, left, or right.
+  - `FAN` and `ROCKET` can sit **inside** a `FRAME` cell or attach externally to an adjacent `FRAME` (`wheel_support`: frame in cell, above, below, left, or right) and automatically orient away from the supporting frame so their **thrust / exhaust face is not blocked by a solid wood frame** (`~frame_right`, `~frame_left`, `~frame_above`, `~frame_below`). Non-frame neighbors (wheels, balloons, or a second fan/rocket) never obstruct fan or rocket placement.
+  - **Propulsion Physics:** A Fan pointing right blows air right and pushes the vehicle **left** (`-X`), while a Fan pointing left blows air left and pushes the vehicle **right** (`+X`). Rockets fire high-impulse forward(`+X`) or upward(`-Y`) thrust from their rear nozzle. `SW2` (Reverse) reverses wheel engines only, allowing independent counter-thrust or combined thrust with fans.
+* **Non-Destructive Run Damage:** During `RUN` mode, terrain impacts and TNT explosions apply `damage_mask` and `damage_frame_mask` to knock out parts dynamically without corrupting the player's saved blueprint on `RETRY` or `EDIT`.
+
+### 4.2 Dual-OLED UI, Interactive Run Grid & Visual Guides (`ui_renderer.v`, `left_renderer.v`, `right_renderer.v`)
+* **Zero-BRAM Title Screen Scrolling:** On the `"LAGGY PIGGIES"` Title Screen, Right OLED (`JB`) is turned off and its idle Port B on `level_map.v` is multiplexed to Left OLED (`JA`) with an animated horizontal scroll counter, rendering a live scrolling cave background at **0% extra BRAM cost**.
+* **Interactive Run Screen (Left OLED):**
+  - Displays a large centered **3×3 interactive vehicle diagram (16×16 px per cell)** matching the Build screen's proportions, with live structural damage overlays.
+  - **Direct Cell Clicking:** Left-clicking directly on an intact **Balloon** pops that specific balloon; clicking an **Engine** toggles wheel drive; clicking an **intact Fan** toggles **only that specific fan cell (`fan_Manual_Mask[cell]`)** so multiple fans can be controlled independently; clicking a **Rocket** fires a boost pulse.
+  - **Action Bar & Top Bar:** Top bar provides `[RETRY]`, `[GEAR]`, and `[EDIT]`; bottom bar provides `[ENG]` (or `SW1 OFF` alert), `[FAN]`, `[RCKT]`, and `[BOOST]`.
+* **Dual-OLED Field Diary (`GUIDE` Mode):**
+  - Clicking the Book icon (`[BOOK]`) or pressing `BTNU` in `BUILD` opens a **3-page interactive Field Diary across both OLEDs**:
+    - **Left OLED (`JA`):** Concise page instructions (`1/3 GOAL`, `2/3 BUILD`, `3/3 RUN`) with `[BACK]`, `[<]`, and `[>]` buttons.
+    - **Right OLED (`JB`):** Synchronized **live visual diagrams** — Page 1 renders a **Pig $\to$ Goal Flag** diagram, Page 2 renders an **Inventory $\to$ 3×3 Grid + `[GO]`** assembly diagram, and Page 3 renders a **3×3 Interactive Click Grid + Action Bar** diagram.
+* **Settings Menu & `[ ? ]` Hardware Switch Guide:**
+  - Accessible from the Title Screen, Build Screen, or Run Screen via the Gear icon (`[GEAR]`), providing **Mouse Speed (`SLOW / NORM / FAST`)**, **Sound Mixer (`ALL / BGM / SFX / MUTE`)**, **Level Select (`MAP 1 / 2 / 3`)**, **`[TITLE]`**, and a top-right **`[ ? ]` How to Play / Switch Guide** toggle that displays all hardware switch mappings (`SW0–SW2`, `SW12–SW15`, `BTNC/U/R`).
+
+### 4.3 Q12.8 Rigid-Body Physics & 32-Step Rotation (`physics_engine.v`)
+* **Newtonian Kinematics:** Position and velocity are integrated in signed Q12.8 fixed-point arithmetic (`1/256` pixel sub-step precision).
+* **Sequential Mass Division:** Acceleration $a = F / m$ is computed via a 16-cycle restoring divider (`signed_divider16.v`), avoiding combinational `/` LUT explosion.
+* **32-Step Angular Quantization:** Vehicle tilt spans 32 discrete angles ($11.25^\circ$ per step) using lookup tables in `rotation_geometry.vh`, accounting for center-of-mass torque, balloon buoyancy moments, fan/rocket thrust vectors, and terrain slope gradients.
+
+### 4.4 SAT Raster Collision & Swept-AABB TNT (`rotating_map_collision_engine.v`, `tnt_controller.v`)
+* **Rotated Terrain Scanner:** Evaluates the rotated 24×24 vehicle footprint against the 1-bit solidity BRAM, computing floor step-up snapping (up to 3 px, or 6 px while turning), wall blocking, $dy/dx$ slope gradients, and overhang tipping (`tip_dir`).
+* **Swept-AABB TNT Detection:** Interpolates between previous and current vehicle coordinates so fast-moving vehicles never tunnel through TNT crates. Detonation computes radial squared distance to each of the 9 vehicle cells, knocking out nearby parts/frames and applying an impulse velocity kick.
+
+### 4.5 Dual-Voice Audio Synthesis (`bgm_player.v`, `sound_generator.v`)
+* **3 Distinct BGM Tracks:**
+  - **Title Screen (`2'b10`):** *Start Screen Fanfare* (135 BPM upbeat theme).
+  - **Build Mode (`2'b00`):** *The Entertainer* by Scott Joplin (96 BPM ragtime melody + bassline).
+  - **Run Mode (`2'b01`):** *Bad Piggies Theme* (155 BPM fast-tempo lead + dual-voice bassline, attenuated to preserve headroom for gameplay SFX).
+* **Prioritized SFX:** $\text{Failure} > \text{Success} > \text{Explosion} > \text{Collision} > \text{Pop} > \text{Launch} > \text{Test}$.
+
+---
+
+## 5. Verification & Synthesis Results
+
+### 5.1 Running the 51-Testbench Regression Suite
+All subsystems are verified by **51 self-checking testbenches** in [`sim/`](file:///c:/Users/kaush/EE2026Labs/GPT6_S2_01_I-FDP_project/sim). Run the entire suite in PowerShell:
 ```powershell
-xvlog --sv -i GPT_6_S2_01_I-FDP_project.srcs/sources_1/new sim/crash_impact_tb.v GPT_6_S2_01_I-FDP_project.srcs/sources_1/new/*.v
-xelab work.crash_impact_tb -s crash_impact_sim
-xsim crash_impact_sim -runall
+.\scripts\run_all_tests.ps1
 ```
 
-### 5.2 Building Bitstream
-Run synthesis, placement, routing, and bitstream generation via Vivado batch mode:
+### 5.2 Building the Bitstream
+Generate the routed bitstream and utilization/timing reports in batch mode:
 ```powershell
 vivado -mode batch -source scripts/build_bitstream.tcl
 ```
 
-Resource reports and timing closure results will be output to `tmp/bitstream_build/`:
-- `utilization_routed.rpt`
-- `timing_routed.rpt`
-
-### 5.3 Hardware Budgets & Timing Constraints
-* **Slice LUTs:** $\le 20,800$ (Current utilization: ~16,500 / 79.34%)
-* **Block RAM Tiles:** $\le 48 / 50$ (Strict 0 extra BRAM rule)
-* **Worst Negative Slack (WNS):** $> 0.000\text{ ns}$ (Clean timing closure at 100 MHz logic / 6.25 MHz SPI)
+### 5.3 Post-Route Resource Utilization & Timing (`XC7A35T-1CPG236C`)
+| Resource | Used | Available | Utilization |
+| :--- | :---: | :---: | :---: |
+| **Slice LUTs** | **17,199** | 20,800 | **82.69%** (3,601 LUTs free) |
+| **Slice Registers** | **5,689** | 41,600 | **13.68%** |
+| **Block RAM Tiles (`RAMB36E1`)** | **48** | 50 | **96.00%** |
+| **DSP48E1 Slices** | **16** | 90 | **17.78%** |
+| **Worst Negative Slack (WNS)** | **> 0.000 ns** | 100 MHz / 6.25 MHz | **Timing Closed (0 Failing Endpoints)** |
+| **Worst Hold Slack (WHS)** | **+0.042 ns** | 100 MHz / 6.25 MHz | **Timing Closed (0 Failing Endpoints)** |

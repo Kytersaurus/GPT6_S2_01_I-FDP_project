@@ -1,6 +1,6 @@
 # AGENTS.md — Team & AI Agent Guide
 
-Welcome to the **Bad Piggies FPGA** codebase!  
+Welcome to the **Bad Piggies FPGA ("Laggy Piggies")** codebase!  
 This document serves as the single source of truth for **all human teammates (Kaushal, Kyle, Yap Ting, Marcus)** and **AI coding agents**. It outlines the core architectural rules, coding standards, hardware constraints, and verification procedures to ensure seamless pair programming and zero regressions.
 
 ---
@@ -11,11 +11,15 @@ This document serves as the single source of truth for **all human teammates (Ka
 * **Hardware Interconnects:**
   - Logic clock: **100 MHz** (onboard oscillator).
   - Dual OLED displays: Two 96×64 RGB OLEDs (SSD1331 via SPI at **6.25 MHz**) on PMOD JA (Left) and PMOD JB (Right).
-  - Audio: 8-bit PWM sound effects and dual-voice music driving Pmod AMP2 on JXADC.
-  - PS/2 Mouse: Standard PS/2 streaming interface on PMOD JC.
-  - Basys 3 onboard I/O: 4-digit active-low 7-segment display (M.SS timer), switches (SW0 engine, SW1 audio mute, SW2 reverse, SW4 free look), and buttons.
+  - Audio: 8-bit PWM sound effects and dual-voice music driving Pmod AMP2 on JXADC (`JXADC[0]` = PWM, `JXADC[1]` = Gain, `JXADC[3]` = Active-Low Shutdown).
+  - PS/2 Mouse: Standard PS/2 streaming interface (`USB Host / PMOD JC`).
+  - Basys 3 onboard I/O:
+    - **4-digit active-low 7-segment display:** 20.0-second par countdown timer (`20.0` $\to$ `0.0`, then negative overtime `-0.1`, `-0.2`, ...). All timer rendering is exclusively on the 7-segment display.
+    - **Right-Cluster Switches (`SW0`–`SW2`):** `SW0` Title Screen bypass (`0` = Title enabled, `1` = bypass to Build), `SW1` Engine Master Switch (`0` = engine disabled / `SW1 OFF`, `1` = engine enabled), `SW2` Engine Reverse (`0` = forward, `1` = reverse wheel engine drive only).
+    - **Left-Cluster Switches (`SW12`–`SW15`):** `SW12` Single-OLED Mode (`1` = display World Map on Left OLED `JA` and blank `JB`), `SW13` Free Look camera (`1` = mouse pans camera), `SW14` Camera Zoom toggle (`0` = 1.5× Close, `1` = 1.0× Normal), `SW15` Hardware Audio Mute (`1` = mute all audio).
+    - **Pushbuttons:** `BTNC` Launch/Retry, `BTNU` Edit/Diary/Back, `BTNR` Rocket Boost shortcut, `BTND` Master Reset.
 * **Team Roles & Responsibilities:**
-  - **Role 1 (Kaushal):** Vehicle Builder, Inventory/Stock Validation, Mouse Input & Drag-and-Drop, Audio Pipeline (BGM + SFX), 7-Segment Timer, Left OLED UI Layouts.
+  - **Role 1 (Kaushal):** Vehicle Builder, Inventory/Stock Validation, Mouse Input & Drag-and-Drop, Audio Pipeline (BGM + SFX), 7-Segment Countdown Timer, Left OLED UI Layouts, Dual-OLED Diary Walkthrough & Settings `[ ? ]` Switch Guide.
   - **Role 2 (Kyle):** Physics Engine, Newtonian Kinematics, Fixed-Point Arithmetic (Q12.8), 16-Cycle Signed Divider, Tilt Dynamics & Settling.
   - **Role 3 (Yap Ting):** Terrain Collision Engine (SAT Raster Scanner), TNT Explosions & Damage Masks, World Outcomes (Goal, Hazards, Death).
   - **Role 4 (Marcus):** Master Game Controller FSM, Level Data, Dual-OLED Renderers (Follow-Camera, Viewports), CDC Display Snapshot.
@@ -34,14 +38,14 @@ This document serves as the single source of truth for **all human teammates (Ka
   - **Explicit FSM states:** Define states with `localparam` and write clean state transition logic.
 
 ### ⚡ 2. Strict LUT Minimization (Tight FPGA Capacity)
-* **Constraint:** The Artix-7 `XC7A35T` has only **20,800 Slice LUTs**. The design currently uses **~16,500 LUTs (79.34%)**. We must aggressively conserve LUTs to leave headroom.
+* **Constraint:** The Artix-7 `XC7A35T` has only **20,800 Slice LUTs**. The design currently uses **17,199 LUTs (82.69%)**, leaving ~3,600 LUTs of routing and feature headroom. We must continue to conserve LUTs carefully.
 * **Rules:**
   - **NO runtime division (`/`) or modulo (`%`) in single-cycle or display paths.**
     - A single combinational `/` or `%` synthesizes into massive multiplier/divider trees consuming hundreds of LUTs and destroying timing.
     - **Never do:** `wire [6:0] x = pixel_index % 96; wire [5:0] y = pixel_index / 96;` in active raster logic. Instead, track `x` and `y` using simple incremental counters or passed-down coordinates.
-    - For timer BCD conversion (e.g. seconds $\to$ minutes/seconds), use **subtraction ladders** (e.g. `if (s >= 60) begin m = 1; s = s - 60; end`) rather than `/ 60` or `% 60`.
+    - For timer BCD conversion, use **subtraction ladders** or direct BCD decade counters rather than `/ 10` or `% 10`.
     - If division is strictly required for physics kinematics ($a = F/m$), use the sequential 16-cycle restoring divider ([`signed_divider16.v`](file:///c:/Users/kaush/EE2026Labs/GPT6_S2_01_I-FDP_project/GPT_6_S2_01_I-FDP_project.srcs/sources_1/new/signed_divider16.v)).
-  - **Right-size bit widths:** Never declare signals as 32-bit `integer` or `reg [31:0]` when a 6-bit (`reg [5:0]`) or 10-bit value suffices. Oversized registers waste flip-flops and expand comparator logic.
+  - **Right-size bit widths:** Never declare signals as 32-bit `integer` or `reg [31:0]` when a 4-bit (`reg [3:0]`), 6-bit (`reg [5:0]`), or 10-bit value suffices. Oversized registers waste flip-flops and expand comparator/adder logic.
   - **Share common logic:** Reuse shared arithmetic, coordinate lookups, and glyph drawing functions instead of duplicating identical decoding blocks.
 
 ### 🚫 3. STRICT ZERO EXTRA BRAM (Max 48 / 50 Tiles — 96.00%)
@@ -60,7 +64,7 @@ This document serves as the single source of truth for **all human teammates (Ka
 * **Requirements:**
   - All builds must achieve positive slack: **WNS > 0.000 ns**, **WHS > 0.000 ns**, **0 failing endpoints**.
   - All cross-clock communication must pass through the registered CDC handshake module ([`display_snapshot.v`](file:///c:/Users/kaush/EE2026Labs/GPT6_S2_01_I-FDP_project/GPT_6_S2_01_I-FDP_project.srcs/sources_1/new/display_snapshot.v)).
-  - Avoid wide combinational logic cascades across single clock cycles. Register intermediate results in FSM stages.
+  - Avoid wide combinational logic cascades across single clock cycles (for example, register stock availability flags in `vehicle_builder.v` rather than chaining 9-cell popcounts + subtractors + edit decoders in a single cycle).
 
 ### 🛡️ 6. Clean Codebase, 100% Pass Rate on Test Suite & Updating Outdated Tests
 * The test suite contains **51 testbenches** covering every subsystem.
@@ -79,11 +83,12 @@ flowchart TD
         BTNS[Basys 3 Buttons & Switches] --> BD[button_debouncer.v]
         MA --> IC[input_controller.v]
         BD --> IC
+        MA --> UC[ui_controller.v]
     end
 
     subgraph Core ["Game Core & Physics (100 MHz)"]
-        IC --> VB[vehicle_builder.v]
-        IC --> GC[game_controller.v]
+        IC & UC --> VB[vehicle_builder.v]
+        IC & UC --> GC[game_controller.v]
         VB --> BC[balloon_control.v]
         GC --> PE[physics_engine.v]
         PE <-->|Handshake| CE[rotating_map_collision_engine.v]
@@ -127,22 +132,27 @@ flowchart TD
 ### 4.2 PS/2 Mouse & Coordinates
 * Mouse runs in stream mode (`0xF4`) at 40 Hz reporting.
 * [`mouse_adapter.v`](file:///c:/Users/kaush/EE2026Labs/GPT6_S2_01_I-FDP_project/GPT_6_S2_01_I-FDP_project.srcs/sources_1/new/mouse_adapter.v) scales raw deltas (`SPD: SLOW / NORM / FAST`) and clamps cursor coordinates to $[0..95, 0..63]$.
-* Drag-and-drop: Holding Left Click over an inventory part starts dragging; releasing over a valid 3×3 grid cell places the part. Right-click removes parts.
-* In RUN mode, left clicks on balloons in the vehicle diagram or action bar trigger popping requests.
+* Drag-and-drop: Holding Left Click over an inventory part starts dragging; releasing over a valid 3×3 grid cell places the part. Right-click removes parts (contents first, then underlying frame).
+* In RUN mode, left clicks on the 3×3 vehicle diagram directly activate the clicked part (pop that specific balloon, toggle engine, toggle that individual fan cell via `fan_manual_mask[cell]`, or fire rocket boost).
 
 ### 4.3 Vehicle Construction Rules ([`vehicle_builder.v`](file:///c:/Users/kaush/EE2026Labs/GPT6_S2_01_I-FDP_project/GPT_6_S2_01_I-FDP_project.srcs/sources_1/new/vehicle_builder.v))
 * Footprint is 3×3 cells (each 8×8 world pixels, total 24×24 pixels).
 * Mounting rules:
   - `PIG` and `ENGINE` require an underlying `FRAME`.
   - `WHEEL` requires a supporting frame directly above or below.
-  - `BALLOON` requires frame support below or beside.
-  - Parts cannot exceed inventory stock limits.
+  - `BALLOON` requires frame support below, left, or right.
+  - `FAN` and `ROCKET` require `wheel_support` (a frame in the same cell or orthogonally adjacent) and at least one clear exhaust/propulsion side not blocked by an adjacent `FRAME` (`~frame_right`, `~frame_left`, `~frame_above`, `~frame_below`). Non-frame neighbors (wheels, balloons, or another fan/rocket) never obstruct placement.
+  - Parts cannot exceed inventory stock limits (stock availability flags are registered on `posedge clk` for 100 MHz timing closure).
 * Stored build is preserved when running or retrying; incoming `damage_mask` and `damage_frame_mask` knock out cells during RUN mode without refunding stock or altering the base build.
 
 ### 4.4 Rigid Body Physics & Rotation ([`physics_engine.v`](file:///c:/Users/kaush/EE2026Labs/GPT6_S2_01_I-FDP_project/GPT_6_S2_01_I-FDP_project.srcs/sources_1/new/physics_engine.v))
 * Kinematics use Q12.8 fixed-point format (`LP_COORD_BITS = 20` or 16-bit).
 * Rotation is quantized into 32 angular steps (11.25° increments) covering -16..15 tilt values via [`rotation_geometry.vh`](file:///c:/Users/kaush/EE2026Labs/GPT6_S2_01_I-FDP_project/GPT_6_S2_01_I-FDP_project.srcs/sources_1/new/rotation_geometry.vh).
 * Mass division $a = F / m$ uses a 16-cycle restoring divider ([`signed_divider16.v`](file:///c:/Users/kaush/EE2026Labs/GPT6_S2_01_I-FDP_project/GPT_6_S2_01_I-FDP_project.srcs/sources_1/new/signed_divider16.v)).
+* Propulsion directions:
+  - Wheel Engine (`ENGINE_FORCE`) pushes right (`+X`) normally, or left (`-X`) when `SW2` (`reverse_switch`) is ON.
+  - Propeller Fan (`FAN_FORCE`) pushes left (`-X`) when facing right (exhaust blows right), and pushes right (`+X`) when facing left (exhaust blows left). Independent of `SW2`.
+  - Rocket Booster (`ROCKET_FORCE`) pushes right (`+X`) when horizontal or upward (`-Y`) when vertical.
 * Ground friction: Rolling drag = 10 units; scraping drag (bare frames on rock) = 128 units.
 * Camera smoothing: `display_y` uses an alpha-beta filter to eliminate 2-pixel terrain step jitter.
 
@@ -165,19 +175,20 @@ flowchart TD
 * Outputs 8-bit PWM on `JXADC[0]` with hardware gain on `JXADC[1]` and active shutdown on `JXADC[3]`.
 
 ### 4.8 Dual OLED Rendering & Hardware Orientation
-* **JA (Left OLED):** Rotated 180° in hardware (`95 - x`, `63 - y`) because PMOD JA is mounted upside down on the Basys 3 board.
-  - *Title Screen:* Scrolling cave background with game logo, Play button, and Settings button.
-  - *Build Screen:* 16px grid, inventory pages 1 & 2, drag preview, Go button, Book/Settings icons.
-  - *Run Screen:* Centered 12px damage diagram, direct balloon popping, top buttons (`[RETRY]`, `[GEAR]`, `[EDIT]`), bottom squarish buttons (`ENG`, `FAN`, `RCKT`, `BOOST`).
+* **JA (Left OLED):** Rotated 180° in hardware (`95 - x`, `63 - y`) because PMOD JA is mounted upside down on the Basys 3 board. (When `SW12` is ON, Left OLED displays the World Map directly for Single-OLED play).
+  - *Title Screen:* Scrolling cave background with `"LAGGY PIGGIES"` logo, Play button, and Settings button.
+  - *Build Screen:* 16px 3×3 grid, inventory pages 1 & 2, drag preview, Go button, Book/Diary & Settings icons.
+  - *Run Screen:* Centered 16px 3×3 interactive damage diagram, direct cell clicking (balloons, engine, individual fans, rockets), top buttons (`[RETRY]`, `[GEAR]`, `[EDIT]`), bottom buttons (`ENG` / `SW1 OFF`, `FAN`, `RCKT`, `BOOST`).
+  - *Settings & `[ ? ]` Guide:* Mouse speed, Sound mixer, Level Select, `[TITLE]`, and top-right `[ ? ]` toggle for the hardware switch guide.
 * **JB (Right OLED):**
-  - Completely blanked (`16'h0000`) on Title Screen and Level Select screen.
-  - World follow-camera with 3 zoom levels (1.5x, 1.0x, 0.5x) or mouse Free Look (SW4).
+  - Completely blanked (`16'h0000`) on Title Screen, Level Select screen, and when `SW12` Single-OLED mode is active.
+  - *Field Diary (`GUIDE`):* Displays live visual walkthrough diagrams on Right OLED synchronized with the 3-page Diary text on Left OLED.
+  - *Build & Run Modes:* World follow-camera with 3 zoom levels (1.5×, 1.0×, 0.5× via `SW14` or scroll wheel) or mouse Free Look (`SW13`).
 * **Port B BRAM Multiplexing:** During the Title Screen, because Right OLED is turned off, Port B of the terrain BRAM (`level_map.v`) is routed to the Left OLED pipeline with an offset scroll counter. This produces a live moving cave background at **0% extra BRAM cost**.
 
-### 4.9 7-Segment Run Timer ([`seven_seg_timer.v`](file:///c:/Users/kaush/EE2026Labs/GPT6_S2_01_I-FDP_project/GPT_6_S2_01_I-FDP_project.srcs/sources_1/new/seven_seg_timer.v))
-* Formats elapsed run time as active-low `M.SS` with the decimal point lit on digit 2 (`an = 4'b1011, dp = 0`).
-* Digit 3 actively scans (`an = 4'b0111, number = 0`) to satisfy Basys 3 digit multiplexing hardware contracts without ghosting.
-* Uses subtraction-ladder BCD decoding instead of division to save LUTs and avoid timing paths.
+### 4.9 7-Segment Countdown Run Timer ([`seven_seg_timer.v`](file:///c:/Users/kaush/EE2026Labs/GPT6_S2_01_I-FDP_project/GPT_6_S2_01_I-FDP_project.srcs/sources_1/new/seven_seg_timer.v))
+* Counts down from `20.0` seconds (`SS.T` format) during `RUN` mode and continues into negative overtime (`-0.1`, `-0.2`, ...) after par time expires so players can see how close they were to the 20s time-trial star.
+* Exclusively rendered on the Basys 3 4-digit 7-segment display (no duplicate timer on the OLED screens).
 
 ---
 
@@ -208,7 +219,7 @@ Check resource utilization and timing in:
 
 Verify before flashing:
 - **Block RAM Tile** $\le 48$ / 50.
-- **Slice LUTs** $\le 20,800$.
+- **Slice LUTs** $\le 20,800$ (currently ~17,199 / 82.69%).
 - **WNS** $\ge 0.000$ ns.
 
 ---

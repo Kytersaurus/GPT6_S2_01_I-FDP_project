@@ -1,103 +1,56 @@
-# Starter module connections
+# Hardware Connections, Switches & Subsystem Integration
 
-Owner: Shared integration - all roles; Role 4 (Marcus) coordinates updates.
+This document summarizes the hardware pinouts, switch/button assignments, and top-level integration for **Bad Piggies FPGA ("Laggy Piggies")** on the Digilent Basys 3 (`XC7A35T-1CPG236C`).
 
-All game modules live beside `My_Top_Module.v` in the existing design source folder. The top module contains the named port connections below. Each owner can extend their module while coordinating interface changes with the receiving teammate.
+---
 
-## Connected game path
+## 1. PMOD & Peripheral Connections
 
-| From | To | Ports and meaning |
-| --- | --- | --- |
-| Basys3 `clk` input in the top | All game modules | The shared 100 MHz clock is connected directly as `.clk(clk)` |
-| `clock_control` | All game modules | `reset` combines the synchronised reset button and power-on reset |
-| `custom_clk_divider` inside `clock_control` | Both OLED drivers | The user's divider produces 6.25 MHz with `freq_count=7`, connected directly to `oled_clk` |
-| `clock_control` | `game_controller` | `physics_tick` requests an update approximately 60 times per second |
-| `input_controller` | `game_controller` | `start_press` connects to both `launch_req` and `retry_req`; the current state chooses the action. `edit_press` connects to `edit_req` |
-| `input_controller`, `ui_controller` | `physics_engine` | SW0 inhibits engine drive, the engine icon toggles it while SW0 is on, and SW2 supplies reverse. BTNL is reserved; legacy `jump_press` is inactive |
-| Future fan metadata | `physics_engine` | `live_lift_fan_count[3:0]` and `fan_lift_mask[8:0]` select downward-blowing fans for world-up force and moments. Both are tied zero until the item exists; exclude these fans from horizontal `fan_balance` |
-| `input_controller`, accepted game events | `sound_controller` | Launch, applied pop, collision/landing, success and failure; SW1 supplies mute (BTNR reserved) |
-| `sound_controller` | `sound_generator` | Chosen three-bit sound ID and start; busy/active ID return for priority decisions |
-| `sound_generator`, reset/mute wiring | Pmod AMP2 on JXADC | `JXADC[0]` PWM audio, `JXADC[1]` high for 6 dB gain, `JXADC[2]` zero/NC, `JXADC[3]` high only outside reset/mute |
-| `vehicle_builder` | `physics_engine` | Four-bit `wheel_count`, `engine_count`, `balloon_count` and eight-bit `mass_units` describe surviving parts |
-| `vehicle_builder` | `game_controller` | `build_valid` gates launch; the top masks it while `edit_valid` is high so concurrent edits cannot launch using old validity. `pig_alive` is retained for status/display compatibility; runtime damage protects the pig |
-| `MouseCtl` | `mouse_adapter` | Completed `new_event` packets supply 12-bit x/y positions and held button levels |
-| `mouse_adapter` | `MouseCtl` | `value`, `setx/y` and `setmax_x/y` configure 96 by 64 coordinates and the initial cursor |
-| `mouse_adapter` | `vehicle_builder` | One-cycle `edit_valid` plus operation, cell and part; place on left release, remove on right press |
-| `mouse_adapter` | `balloon_control` | One-cycle `pop_req` and four-bit `pop_cell` on a fresh left press in the RUN grid |
-| `balloon_control` | `game_controller` | `pop_pending` connects to `gameplay_pending` and blocks a new movement step |
-| `game_controller` | `balloon_control` | `gameplay_ready` is high in RUN when no movement/world update is outstanding |
-| `balloon_control` | `vehicle_builder` | `pop_valid` and nine-bit `pop_mask` use the content damage channel during the reserved idle clock; frame damage stays zero |
-| `vehicle_builder`, `mouse_adapter` | Left renderer through snapshot | Five stock counts, selected part, cursor position and `drag_active` for the moving part preview |
-| `vehicle_builder` | Left renderer through snapshot | Three-bit `feedback_code` and four-bit `feedback_cell` describe the one-second edit result and target outline |
-| `level_data` | `physics_engine` | Signed 16-bit `spawn_x` and `spawn_y` load the initial position |
-| `game_controller` | Builder, physics, world outcomes | `run_init` stays high in INIT_RUN; each module returns one bit of the three-bit `init_ready` bus |
-| `game_controller` | `physics_engine` | `step_start` samples properties, followed by staged force/division/velocity/position calculation clocks; `update_release` allows the following update after world checks finish |
-| `physics_engine` | `collision_engine` | `move_valid`/`move_ready` transfer `previous_x/y`, `proposed_x/y` and `proposed_vx/vy` |
-| `collision_engine` | `physics_engine` | `response_valid`/`response_ready` transfer `corrected_x/y`, `corrected_vx/vy` and `grounded`; an accepted hard contact also pulses directional impact flags to the top |
-| `physics_engine` | `world_outcomes` | `movement_committed` pulses after `vehicle_x/y` have been updated; the world module samples those committed coordinates |
-| `vehicle_builder`, `level_data` | `world_outcomes` | `build_grid`, `intact_mask` and `goal_rect` locate the surviving pig and test the goal |
-| `world_outcomes` | `game_controller` | `world_valid`/`world_ready` transfer `goal_hit`, `hazard_hit` and `out_of_bounds`; failure outranks success |
+| Peripheral | Basys 3 Connector | Signal Pins | Notes |
+| :--- | :--- | :--- | :--- |
+| **Left OLED (`left_oled`)** | **PMOD JA** | `JA[7:0]` (`cs`, `sdin`, `sclk`, `d_cn`, `resn`, `vccen`, `pmoden`) | 96×64 SSD1331 RGB OLED at 6.25 MHz SPI; rotated 180° inside RTL (`95 - x`, `63 - y`) because PMOD JA is mounted upside-down |
+| **Right OLED (`right_oled`)** | **PMOD JB** | `JB[7:0]` (`cs`, `sdin`, `sclk`, `d_cn`, `resn`, `vccen`, `pmoden`) | 96×64 SSD1331 RGB OLED at 6.25 MHz SPI; displays world follow-camera or Diary walkthrough diagrams |
+| **Audio Amplifier (`Pmod AMP2`)** | **JXADC** | `JXADC[0]` = `AIN` (PWM), `JXADC[1]` = `GAIN`, `JXADC[3]` = `~SHUTDOWN` | 8-bit PWM audio output with dual-voice BGM + prioritized SFX |
+| **USB / PS/2 Mouse** | **USB Host (`PS2Clk`, `PS2Data`)** | `C17` (`PS2Clk`), `B17` (`PS2Data`) | PS/2 streaming mode (`0xF4`) with scroll-wheel Z packet support |
+| **7-Segment Display** | **Onboard (`seg`, `an`, `dp`)** | 4-digit active-low anodes (`an[3:0]`), segments (`seg[6:0]`), decimal (`dp`) | 20.0-second par countdown timer (`SS.T`) with negative overtime (`-0.1`, `-0.2`, ...) |
 
-Every movement coordinate and velocity is signed with eight fractional bits: 256 units equals one pixel. Valid/ready payloads stay unchanged until a rising-edge transfer. Physics waits for world completion before sampling properties for another step.
+---
 
-`input_controller` instantiates the user's `button_debouncer` for BTNC, BTNU and BTNR. Each uses the shared 100 MHz clock, `freq_count=19,999,999` for 200 ms of lockout, and `RELEASE_CYCLES=2,000,000` for a stable 20 ms release before rearming. BTNL has no debouncer or action; its legacy `jump_press` output is tied low, and the hardware top also ties the physics jump input low. The top exposes cycle-count parameters so simulations can use short intervals. SW1 uses two sampling registers, with mute asserted during reset. Physical port names remain compatible with the existing board constraints.
+## 2. Basys 3 Slide Switches (`SW15`–`SW0`)
 
-Audio uses accepted launch/pop/landing/success/failure events, with TNT explosion events also connected. Failure outranks success, explosion, collision/landing, pop, and launch. Higher priority interrupts; held/equal/lower requests do not replay or queue. The generator plays short tone sequences with instant attack and complete PWM frames. Mute/reset/retry/edit cancel old playback; the carrier and enabled amplifier remain running between sounds. The XDC enables JXADC pins 1-4 and disables the old JC outputs. See [audio setup](audio_setup.md).
+Slide switches are organized into **Right-hand Gameplay Controls (`SW0`–`SW2`)** and **Left-hand Display, Camera & Audio Controls (`SW12`–`SW15`)**. All 16 switches are mirrored directly onto `LED[15:0]` (`assign led = sw;`).
 
-## Connected drawing path
+| Switch | RTL Signal | `0` (Down / OFF) | `1` (Up / ON) |
+| :--- | :--- | :--- | :--- |
+| **`SW0`** | `title_enable_sw` | **Normal Boot:** Starts on the animated `"LAGGY PIGGIES"` Title Screen (`LP_TITLE`) | **Title Screen Bypass:** Skips Title Screen and boots directly into `LP_BUILD` |
+| **`SW1`** | `engine_switch` | **Engine Master OFF:** Permanently inhibits wheel engine thrust and displays `SW1 OFF` warning on Left OLED | **Engine Master ON:** Enables wheel engine drive (`[ENG]` button and direct engine clicking active; flipping `SW1` during `RUN` also syncs engine state) |
+| **`SW2`** | `reverse_switch` | **Forward Engine Drive:** Wheel engines push right (`+X`) | **Reverse Engine Drive:** Wheel engines push left (`-X`). *Only affects wheel engines, never fans or rockets* |
+| **`SW3`–`SW11`** | *Unassigned* | `LED[11:3]` OFF | `LED[11:3]` ON |
+| **`SW12`** | `show_map` | **Dual-OLED Mode:** Left OLED (`JA`) shows UI/Builder/Run Grid; Right OLED (`JB`) shows World Map | **Single-OLED Mode:** Left OLED (`JA`) renders the World Map directly; Right OLED (`JB`) is blanked (`16'h0000`) |
+| **`SW13`** | `free_look` | **Follow Camera:** Viewport automatically tracks the vehicle with alpha-beta vertical smoothing | **Free Look Camera:** Mouse cursor `X/Y` pans the viewport across the entire cave map |
+| **`SW14`** | `zoom_switch` | **Close Zoom (`1.5×`):** 64×42 world viewport with 12×12 part sprites | **Normal Zoom (`1.0×`):** 96×64 world viewport with 8×8 part sprites. *(Mouse scroll wheel also steps across `1.5×`, `1.0×`, and `0.5×` Overview)* |
+| **`SW15`** | `mute_switch` | **Audio Enabled:** Follows the on-screen Sound menu (`ALL / BGM / SFX / MUTE`) | **Hardware Audio Mute:** Mutes all BGM and SFX immediately, displays `SW15 MUTE` in the Sound menu, and pulls `JXADC[3]` low |
 
-The top packs game state, content grid, content/frame intact masks, validation, vehicle position, engine status, five inventory counts, cursor coordinates, selected part, `drag_active`, three-bit `feedback_code`, four-bit `feedback_cell`, `level_index`, `fail_reason`, `tnt_intact`, saved `build_frames`, `run_seconds` and `blast_phase` into a 171-bit bus for `display_snapshot`. The snapshot module transfers a held payload from the game clock to the OLED clock, then publishes it at a frame boundary. Both renderers consume the same published snapshot. The saved `build_frames` cross so the left damage diagram can mark destroyed frames. The left renderer centres the carried part at the cursor; `drag_from_grid`, `drag_source` and `drag_contents` cross in the same snapshot so a held source can be hidden and frame contents can follow it. Saved construction and stock change only on an accepted release. BUILD also shows the builder's one-second green/red cell outline and bottom message, then returns to the saved build's overall status.
+---
 
-Each `Oled_Display` instance produces its own `pixel_index`; its renderer returns `pixel_data`. JA passes `6143 - left_pixel_index` to its renderer to rotate the entire 96 by 64 view by 180 degrees for its mounting orientation. Mouse hit testing and game coordinates stay in the logical upright view, and JB is unchanged. The left driver connects to JA and the right driver to JB. Both drivers share the 6.25 MHz clock and display reset, so their frame counters start together. The right renderer reads a second `level_data` instance indexed by the snapshot copy of `level_index`, so the map changes with the published frame.
+## 3. Basys 3 Pushbuttons (`BTNC`, `BTNU`, `BTNR`, `BTNL`, `BTND`)
 
-A single physical OLED can be used on JA for both views while JB is empty: SW15 down selects the builder, SW15 up selects the map and blanks JB. The top reuses the map renderer with JA's rotated pixel index, switching only at frame boundaries. Hidden builder/level actions are disabled and pending drags cancelled, while the game continues. The SPI displays do not return acknowledgements, so the missing screen does not stall either driver or the game. The view switch does not require moving a display or reprogramming the board.
+| Button | RTL Signal | Function |
+| :--- | :--- | :--- |
+| **`BTNC`** | `btnC` (`center_press`) | **Launch / Retry:** Launches the vehicle from `BUILD` (when build is valid); retries the current level from `RUN`, `SUCCESS`, or `FAIL` |
+| **`BTNU`** | `btnU` (`up_press`) | **Edit / Guide / Back:** Opens/closes the Field Diary (`GUIDE`) when in `BUILD`; returns to `BUILD` from `RUN`, `SUCCESS`, or `FAIL`; backs out of `LEVEL_SELECT` or `SETTINGS` |
+| **`BTNR`** | `btnR` (`right_press`) | **Rocket Boost Shortcut:** Fires the Rocket Booster / Engine Boost pulse during `RUN` mode |
+| **`BTNL`** | `btnL` (`left_press`) | *Reserved / Inactive* (`jump_press` is tied to `1'b0`) |
+| **`BTND`** | `btnD` (`reset`) | **Master Hardware Reset:** Synchronized active-high reset via `clock_control.v` |
 
-`left_renderer` uses the user's `square` helper to draw its grid/status areas and two `seven_seg_oled` instances for the surviving-part count, including frames and contents (up to 18). Editor cells are 16 by 16 pixels; gameplay cells remain eight by eight. Both renderers draw frame borders with contents in the centre. `right_renderer` also uses `square` for the goal region. Screen geometry passed to these seven-bit helpers stays within the fixed 96 by 64 world.
+---
 
-During BUILD the left renderer shows five inventory rows at x=56..91 and y=4..53 instead of the runtime count/status area. A third number helper displays the row's remaining stock. The adapter and renderer share the documented 16-pixel grid/10-pixel inventory-row layout. Source mouse pins `PS2Clk`/`PS2Data` connect through the existing C17/B17 XDC assignments, now uncommented with their original pull-ups. Supplied VHDL driver contents are unchanged; simulation and synthesis scripts now include them.
+## 4. Top-Level Module Interconnect (`My_Top_Module.v`)
 
-`custom_clk_divider` preserves the user's supplied logic. It toggles after `freq_count+1` input cycles, so its output frequency is `input_frequency / (2*(freq_count+1))`. Hold the count at seven for the OLEDs. `clock_control` retains the physics-enable counter and reset handling; physics continues to use 100 MHz with an enable pulse rather than a separate slow clock. Custom modules use ordinary registers without explicit FPGA clock-buffer instances or placement attributes. The two-register synchronisers remain. At the user's request, the constraints contain no separate generated-clock declaration for the OLED divider. Timing analysis of the divided clock remains incomplete; clock routing and board operation still need verification.
-
-## Boundaries reserved for the next stage
-
-| Boundary | Current starter behaviour | Next owner task |
-| --- | --- | --- |
-| Builder edit inputs | Connected to mouse selection/place/remove actions with inventory checks | Role 1 adds later input refinements |
-| Builder damage inputs | Content/frame masks combine accepted balloon pops and TNT; the pig cell/frame are protected | Verify damage, property changes and retry on the board |
-| Game guide requests | Tied inactive | Roles 1 and 4 agree navigation inputs and instruction screens |
-| Audio events | Launch, applied balloon pops, landing, success/failure, TNT explosion and collision events connected; priorities and duplicate suppression implemented | Verify hard-impact audio on the board |
-| Mouse | Supplied controller unchanged; construction and balloon clicks connected | Role 1 adds guide controls and verifies new gameplay input on the Basys3 |
-| Balloon popping | Fresh RUN clicks queue surviving balloons and clear their intact bits between updates | Verify queued clicks and pop sounds during TNT damage on the board |
-| Collision | Platform, wall and ceiling handling; floor edges do not block driving | Role 3 tunes collisions after hardware testing |
-| Levels and sprites | Two provisional maps, sprites, level selection, run timer and results; TNT damage and spike failures are active | Role 4 finishes instructions and balances final maps after Role 3 integration |
-
-Cell contents are row-major in 27 bits, with cell zero in bits 2:0. Frames are stored separately in nine-bit `build_frames`. Each layer has its own nine-bit intact and damage mask. `world_outcomes` still finds the pig through the content grid/mask; physics still receives counts and total mass without a port change. Review the placement rules in `interfaces.md` before adding features.
-
-## Validation status
-
-On 24 October 2026, Kaushal reported the drag preview, construction feedback, inventory and manual AMP2 test working on the Basys3 after selecting the current bitstream instead of the older OLED-test file. Unwanted speaker clicks during ordinary actions were subsequently reported; the new audio keeps those actions deliberately silent and adds note fades/carrier-frame duty updates. Their effect on physical clicks still needs verification. The automatic game sounds added afterwards require a new hardware build; the previous bitstream does not include them.
-
-
-On 22 October 2026, all ten simulation benches passed after adding the manual AMP2 beep, BTNR and SW1 mute. `audio_beep_tb` covers PWM duty/timing, duration, busy suppression, mute/reset, held-button behaviour and JC control polarity through the connected top. A fresh routed build/bitstream and physical speaker test remain pending; the 21 October resource/timing figures below predate audio.
-
-On 21 October 2026, all nine simulation benches passed after connecting `balloon_control`, RUN mouse clicks and cursor drawing. The new top-level bench delays world completion to verify queued pops and movement-boundary timing, then checks counts/mass, inventory, saved construction, retry/results/reset and pixels. The previous construction/mouse/OLED hardware checklist was reported passing by Kaushal. A requested build of the balloon version then completed with zero reported design-rule violations and passing constrained 100 MHz setup/hold timing. Its bitstream and reports are in `tmp/balloon_board_test/`; routed usage is 3,064 LUTs (14.73%) and 1,270 flip-flops (3.05%). Divided-OLED-clock and external-I/O timing remain incompletely constrained. Physical balloon-control testing remains pending. The older `tmp/oled_board_test/` outputs describe the version without popping.
-
-On 15 October 2026, the benches passed using Vivado Simulator 2025.2: `game_baseline_tb`, `module_contracts_tb`, `display_snapshot_tb`, `physics_engine_tb`, `clock_control_tb` and `button_debouncer_tb`. The game-loop bench was rerun after integrating the user's debouncer. The button bench checks press/release bounce, holding, rearming and reset using shorter timing counts. The clock bench checks counts zero, one and seven, physics-enable spacing and reset behaviour. The simulation runner checks each bench's PASS marker.
-
-On 16 October, `vehicle_builder_tb` passed placement, replacement, removal, invalid-edit rejection, pig validation and restoration of an edited build after damage. `game_baseline_tb` and `module_contracts_tb` also passed again after the builder changes.
-
-On 19 October, the two-layer builder, module-contract, game-loop and display-transfer checks passed. Coverage includes pig/engine inside frames, external attachments, removal order, unsupported-build rejection, independent frame/content damage, frame-border pixels, two-digit counts and restoring an edited build.
-
-After connecting inventory and mouse editing, all eight benches passed. `construction_controls_tb` drives completed packet inputs through the adapter, builder and left renderer, checking stock limits, refunds, same-kind and cross-kind replacements, held clicks, geometry bounds, no refund on damage/retry and concurrent edit/launch protection. The top-level game test binds the real mouse VHDL drivers but does not emulate a physical mouse exchange. Hardware mouse/OLED operation remains unverified.
-
-All eight benches passed again after adding drag-and-drop placement on left release. The mouse bench checks crossing cells without painting or charging stock, using the final release position exactly once, cancelling outside the grid/on right-click/reset/leaving BUILD, preserving the selected part while held, rejecting invalid or unavailable drops, and concurrent drop/launch protection.
-
-The initial synthesis attempt stopped during project initialisation because the local Vivado installation could not load `::tclapp::support::appinit 1.2` from its Tcl Store. Session-only package paths and an explicit source list later allowed the 19 October hardware build to run without changing the installation.
-
-The completed build exposed long movement, inventory-row decoding and reset paths. Movement now samples properties and calculates forces, velocity and position on separate clocks; inventory selection uses fixed Y-coordinate boundaries; reset is registered before distribution. All eight benches passed after these changes. Synthesis, placement, routing, design-rule checks and bitstream generation completed. The routed design uses 3,057 LUTs (14.70%) and 1,260 flip-flops (3.03%), with no block RAM or DSP use. Constrained 100 MHz setup/hold timing passes with 0.508 ns worst setup slack and 0.100 ns worst hold slack. The divided OLED clock and external I/O remain incompletely constrained under the current XDC, and physical OLED/mouse operation remains unverified. Local outputs are in `tmp/oled_board_test/` and are not tracked in Git.
-
-Background music connects `bgm_player.audio_sample` to `sound_generator.bgm_sample`, sharing its PWM output. BUILD/RUN enable the melody, RUN selects the faster tempo, effects pause it, and global mute stops both. `edit_source` connects mouse adapter to builder for atomic grid moves/returns; the original stock accounting derives the unchanged totals or refunds. New snapshot width is 170 bits, adding the eight drag-source/content bits.
-
-## TNT update sequence
-
-`movement_committed` starts `tnt_controller`. Every touched TNT is handled once, with content/frame masks held until the builder accepts them. Only after all damage is applied does `damage_complete` start `world_outcomes`; no-contact movements also complete. Physics holds the committed pose throughout. Valid balloon and TNT content masks are ORed; TNT also supplies frame damage. The builder protects both the pig and its frame, so the pig remains available for goal checks. TNT intact bits feed animation and the display snapshot; explosion pulses feed the existing audio priority controller. No explosion velocity impulse is connected.
+1. **`clock_control` (`u_clocks`):** Generates the 6.25 MHz SPI display clock (`clk_6p25m`), 1 kHz physics/UI tick (`physics_tick`), 10 Hz tenths tick (`timer_tick`), and synchronized system reset (`sys_reset`).
+2. **`input_controller` (`u_input`) & `mouse_adapter` (`u_mouse_adapter`):** Debounces physical buttons, synchronizes slide switches, and scales PS/2 mouse deltas (`SLOW / NORM / FAST`) into `[0..95, 0..63]` cursor coordinates plus click/drag/scroll events.
+3. **`ui_controller` (`u_ui_controller`):** Translates mouse clicks, drags, and button presses across all UI screens (`TITLE`, `BUILD`, `GUIDE`, `SETTINGS`, `SOUND`, `LEVEL_SELECT`, `RUN`, `SUCCESS`, `FAIL`) into builder edit commands and runtime action triggers.
+4. **`vehicle_builder` (`u_builder`):** Maintains the 3×3 vehicle grid (`build_grid`, `build_frames`, `build_facing_left`, `build_facing_down`), enforces stock limits and structural mounting rules, and produces `active_grid` / `active_frames` during `RUN` mode by masking out damaged cells (`damage_mask`, `damage_frame_mask`).
+5. **`game_controller` (`u_game`) & `level_data` (`u_level_data`):** Drives the master game FSM, star ratings (`star_goal`, `star_time`, `star_part`), and per-level spawn/goal/TNT/part-limit configurations for Maps 1, 2, and 3.
+6. **`physics_engine` (`u_physics`), `rotating_map_collision_engine` (`u_collision`), `tnt_controller` (`u_tnt`), & `world_outcomes` (`u_outcomes`):** Computes Q12.8 rigid-body kinematics, 16-cycle signed mass division, 32-step vehicle rotation, SAT raster terrain collision, swept-AABB TNT explosions, and win/loss outcomes.
+7. **`display_snapshot` (`u_snapshot`), `left_renderer`, `ui_renderer`, & `right_renderer`:** Transfers a 318-bit coherent game snapshot from the 100 MHz logic domain to the 6.25 MHz display domain on `frame_begin` and renders the Dual-OLED viewports.

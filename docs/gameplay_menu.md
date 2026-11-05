@@ -1,56 +1,85 @@
-# Gameplay menu and directional construction
+# Gameplay Menu, Vehicle Builder & Dual-OLED UI Guide
 
-Owner: Role 1 - Kaushal. Rendering uses Marcus's existing sprites.
+This document details the user interface layouts, PS/2 mouse drag-and-drop builder rules, directional part mounting, runtime action controls, and Dual-OLED Field Diary implemented in `ui_controller.v`, `vehicle_builder.v`, `ui_renderer.v`, `left_renderer.v`, and `right_renderer.v`.
 
-## Construction
+---
 
-The grid stays at x4..51, y4..51 with 16-pixel cells. Three numbered boxes at x20..33, x34..47 and x48..61, y55..63 select inventory pages directly. Page 1 keeps frame, pig, wheel, engine and balloon. Page 2 contains the rocket and page 3 the fan. Both start with one item; `ROCKET_LIMIT` and `FAN_LIMIT` are adjustable top/builder parameters.
+## 1. Screen Flow & Master Game States
 
-Pig and engine occupy a frame. Wheels require a frame directly above or below, balloons directly below, and rockets/fans directly to the left or right. Horizontal support never wraps across rows. A rocket or fan occupies its own unframed cell. Fan and rocket each add two provisional mass units while intact; Kyle should confirm these values with his thrust implementation.
+* **Title Screen (`LP_TITLE`):**
+  - **Left OLED (`JA`):** Animated scrolling cave background (using Port B of `level_map.v` at 0% extra BRAM cost), `"LAGGY PIGGIES"` banner, **`[PLAY]`** button, and **`[GEAR]`** Settings button.
+  - **Right OLED (`JB`):** Blanked (`16'h0000`).
+  - **Bypass:** Setting `SW0 = 1` bypasses the Title Screen directly into `BUILD`.
+* **Build Screen (`LP_BUILD`):**
+  - **Left OLED (`JA`):**
+    - **Left Strip (`x = 1..15`):** 3 stacked part slots (`15×15` px each) with live stock badges, plus a bottom page-cycle arrow (`[v]` on Page 1, `[^]` on Page 2).
+      - **Page 1:** Wood Frame, Pig Pilot, Wheel, Engine, Balloon (first 3 visible slots + page toggle).
+      - **Page 2:**Engine/Balloon/Rocket Booster/Propeller Fan slots depending on level stock.
+    - **Center 3×3 Build Grid (`x = 20..67, y = 8..55`):** Nine `16×16` px cells with cursor hover highlight, green/red placement validity outline, and ghost drag preview.
+    - **Right Action Column (`x = 71..94`):** Top **`[BOOK]`** (Field Diary) and **`[GEAR]`** (Settings) buttons, level indicator, and bottom **`[GO]`** launch button (green when `build_valid`, red/locked when invalid).
+  - **Right OLED (`JB`):** Live world preview with vehicle at spawn, zoomable via `SW14` or mouse scroll wheel (`1.5×`, `1.0×`, `0.5×`) and pannable via `SW13` Free Look.
 
-Left-click and release an existing engine or rocket in the same cell to flip it. Dragging to another cell preserves its direction. Flipping works at zero remaining stock and consumes no parts. Inventory icons keep one orientation, with a small direction arrow before the count; balloons always show an up arrow. The drag preview, editor and map use the saved facing by transforming the same sprite data. `build_facing_left[8:0]` stores one bit per cell: 0 right, 1 left. Removing/returning clears it, and damage never changes it.
+---
 
-Dragging a filled frame picks up its contents first and leaves the frame visible and stationary. Returning those contents refunds only the contents. Dragging an empty frame moves that frame. Occupied/unsupported/outside drops, right-click cancellation and same-cell drops leave the source unchanged. The builder also rejects a direct attempt to move a filled frame as a bundle.
+## 2. Vehicle Construction & Directional Mounting Rules (`vehicle_builder.v`)
 
-The bottom toolbar contains GO, three numbered inventory boxes, a book with a question mark and a settings gear. Placement/removal/error messages temporarily replace the toolbar for the existing one-second feedback duration, with the matching cell outline. The toolbar returns when feedback expires. The diary has three information pages with direct 1/2/3 navigation. Settings contains Audio and Map Selection; audio Back and map Back return to Settings, while choosing a map returns to BUILD. Audio volume and construction survive menu navigation. U closes these menus as a physical fallback.
+1. **Contents-First Drag & Removal:**
+   - **Left-Click / Drag from Inventory:** Places a part into a target 3×3 cell.
+   - **Left-Click / Drag Inside Grid:** Moves the top-most part (contents first; if empty, moves the underlying wood frame) to another cell.
+   - **Right-Click Inside Grid:** Refunds the top-most part in that cell back to inventory stock (removes contents first, then removes the underlying wood frame on a second right-click).
+2. **Part Mounting Requirements:**
+   - **`LP_PART_FRAME` (Wood Crate):** Can be placed in any cell within stock limits (`FRAME_LIMIT`).
+   - **`LP_PART_PIG` (Pig Pilot) & `LP_PART_ENGINE` (Engine):** Require a `FRAME` in the **same cell**. At least one Pig is required for `build_valid`.
+   - **`LP_PART_WHEEL` (Wheel):** Requires a supporting `FRAME` in the same cell, directly above, or directly below.
+   - **`LP_PART_BALLOON` (Balloon):** Requires a supporting `FRAME` in the same cell, below, left, or right.
+   - **`LP_PART_FAN` (Propeller Fan) & `LP_PART_BOOSTER` (Rocket):**
+     - Can be placed **inside a `FRAME` cell** or **attached externally** to an orthogonally adjacent `FRAME` (`wheel_support`: frame in cell, above, below, left, or right).
+     - Requires **at least one clear exhaust/propulsion face not blocked by an adjacent `FRAME`** (`~frame_right`, `~frame_left`, `~frame_above`, `~frame_below`).
+     - Non-frame neighbors (wheels, balloons, or another fan/rocket) **never block** fan or rocket placement and never invalidate `build_valid`.
+     - **Auto-Orientation & Click-to-Flip:** External fans/rockets automatically orient away from the supporting frame (`resolve_direction`). Left-clicking an already-placed fan or rocket cycles its facing across all valid frame-clear directions.
+3. **Propulsion & Reverse Rules:**
+   - **Wheel Engine:** Drives right (`+X`) when `SW2 = 0`, or reverses left (`-X`) when `SW2 = 1`. Requires `SW1 = 1` (Engine Master ON).
+   - **Propeller Fan:** Blows air in the direction it faces, pushing the vehicle in the **opposite** reaction direction:
+     - **Fan pointing RIGHT** (`facing_left = 0`) blows air right $\to$ **pushes vehicle LEFT (`-X`)**.
+     - **Fan pointing LEFT** (`facing_left = 1`) blows air left $\to$ **pushes vehicle RIGHT (`+X`)**.
+     - **Fan pointing DOWN** (`facing_down = 1`) blows air down $\to$ **pushes vehicle UP (`-Y` lift)**.
+     - Fan direction is fixed by its placement orientation and is **never inverted by `SW2`**, so players can combine or oppose engine and fan forces freely.
+   - **Rocket Booster:** Fires a high-impulse burst (`+X` when horizontal, `-Y` when vertical).
 
-## During RUN
+---
 
-The left OLED starts on DRIVE. Its bottom tabs are engine (x0..31), balloon (x32..63) and speaker (x64..95) icons, all at y55..63. The selected tab has a yellow mark. Navigation and controls require fresh left clicks; held/right clicks and the hidden JA builder view cannot replay actions.
+## 3. Interactive Run Screen (`LP_RUN`)
 
-* DRIVE: engine ON/OFF (x4..91, y12..21), fan (y23..32), boost (y34..43), rocket (y45..53). It contains no inventory or surviving-part count; normal engine control is on-screen.
-* POP: a compact 36 by 36 vehicle diagram at x4..39, y12..47; click the balloon itself to pop it. The other menu pages do not send balloon requests. Grid cells and runtime damage stay unchanged by page navigation.
-* SOUND: volume -/+, current volume and an on-screen MUTE button. RUN keeps moving while the menu is used; this is not a pause menu.
+* **Top Control Bar (`y = 1..10`):**
+  - **`[RETRY]` (`x = 2..31`):** Resets the vehicle to spawn with all parts restored (shortcut: `BTNC`).
+  - **`[GEAR]` (`x = 41..54`):** Opens Settings menu.
+  - **`[EDIT]` (`x = 64..93`):** Returns to `BUILD` mode with the saved blueprint intact (shortcut: `BTNU`).
+* **Centered 3×3 Interactive Vehicle Diagram (`x = 24..71, y = 11..50`):**
+  - Renders the 3×3 vehicle at **16×16 px per cell** with live damage masks (destroyed frames/parts disappear or show damage upon TNT/terrain impact).
+  - **Direct Cell Clicks:**
+    - Clicking an intact **Balloon cell** pops that specific balloon.
+    - Clicking an intact **Engine cell** toggles wheel drive (`ui_engine_on`), provided `SW1 = 1`.
+    - Clicking an intact **Fan cell** toggles **only that specific fan (`fan_manual_mask[cell]`)**, allowing individual fans to be turned on/off independently.
+    - Clicking an intact **Rocket cell** triggers a rocket boost pulse.
+* **Bottom Action Bar (`y = 52..62`):**
+  - **`[ENG]`** (or flashing **`SW1 OFF`** warning if `SW1 = 0`), **`[FAN]`** (toggles all intact fans together), **`[RCKT]` / `[BOOST]`** (fires rocket booster; shortcut: `BTNR`).
+* **7-Segment Countdown Timer:**
+  - The 20.0-second par countdown (`20.0` $\to$ `0.0` and negative overtime `-0.1`, `-0.2`, ...) is displayed exclusively on the Basys 3 4-digit 7-segment display (`seven_seg_timer.v`).
 
-The top-right RETRY button (x66..95, y0..9) retries the current level. It restores the saved construction/direction and runtime parts, resets time and controls, returns to DRIVE, and preserves volume. EDIT returns to BUILD on the same level and restores the construction. Its hitbox is x40..65, y0..9 on DRIVE/SOUND; on POP it is x56..83, y14..23 so it does not cover a balloon. Retry/edit can cancel a movement transaction through the existing INIT_RUN/BUILD reset paths.
+---
 
-Physical controls remain as lab/debug fallbacks: C launches/retries, U opens/closes the diary in BUILD or edits during RUN, D fully resets, SW1 mutes, SW2 reverses, SW3 sets normal zoom, SW4 enables free look, SW15 selects JA map view. Result-screen NEXT after success still advances a level. BTNL is reserved and silent: the spring/jump mechanic and its button action have been removed. Legacy jump ports remain inactive for module compatibility.
+## 4. Dual-OLED Field Diary (`LP_GUIDE`) & Settings `[ ? ]` Switch Guide
 
-The timer on the Basys3 displays M.SS and runs through 4:15. Mouse-wheel steps select close (1.5x / 12-pixel sprites), normal (1.0x / 8-pixel sprites), and overview (0.5x / 4-pixel sprites) views. Positive wheel deltas zoom out; negative deltas zoom in. Overview covers 192 by 128 world pixels and subsamples the existing sprites with zero extra ROM. The two zoom bits encode the three hardware scales: {overview, zoomed_out} = 2'b00 (close), 2'b01 (normal), 2'b10 (overview). SW3 selects close/normal. Zoom changes are latched at frame boundaries.
-
-## Physics integration
-
-`engine_balance` is the number of surviving right-facing engines minus surviving left-facing engines. The top supplies its absolute value as the effective engine count and XORs its sign with SW2 for reverse. Thus opposing engines cancel thrust, SW2 reverses the entire engine balance, and damage updates the next movement sample. Ground-only wheel drive, boost and friction remain; wheels produce no turning moment. SW0 must be on before the engine icon can enable drive.
-
-Fan and rocket controls are connected to physics and gated by surviving-part availability and rocket readiness. Engine and fan start off at launch/retry. Existing fans supply world-horizontal force `64`; rockets supply body-rotated force `1024`, with limited fuel. Both retain moments about the surviving vehicle COM.
-
-The future downward-blowing fan has physics only: world-up force `256` per enabled intact fan (`FAN_LIFT_FORCE_SHIFT=8`) and an off-centre lift moment. Its item, placement and sprite are not implemented. Future construction/status wiring must supply `live_lift_fan_count` and `fan_lift_mask`, and remove these cells from horizontal `fan_balance`; both inputs currently stay zero. No new on-screen control or stock entry is added.
-
-TNT still damages nearby non-pig contents and frames through the runtime damage masks. The pig and its frame are protected. Explosion audio/animation remain connected; explosions do not add a velocity kick. The global frame snapshot is 268 bits (SNAPSHOT_WIDTH = 251 + 4*(LP_COORD_BITS-16) + (LP_TILT_BITS-4)).
-
-## Validation
-
-`gameplay_menu_tb` drives the real mouse path and hardware top through directional placement, contents-only and empty-frame moves, side attachment rejection, stock, SW2, menu navigation, popping, volume, retry/edit and physical shortcuts. Existing move, balloon, audio and UI benches are updated for the new behaviour. `ui_visual_tb` exports real build, directional build, second inventory page, DRIVE, POP and SOUND pixels for review. Full-board timing, a fresh bitstream and physical OLED/mouse checks are still required before demonstration.
-
-The 26 October UI revision passes 11 targeted benches: gameplay menu, directional parts, zoom controls, level selector, construction feedback, UI controls, volume audio, air controls, visual output, grid moves and single-OLED switching. Visual checks include the balloon up arrow, visible error text over the toolbar and the wide camera's world-coordinate coverage. The older `vehicle_builder_tb` still fails its surviving-pig pixel assertion; the same assertion fails against the saved pre-change sources, which already use the compact RUN grid. No claim is made that the full historical suite passes.
-
-Same-device synthesis comparison (xc7a35tcpg236-1, Vivado 2025.2):
-
-| Resource | Before these UI edits | Final UI, including wide zoom |
-| --- | ---: | ---: |
-| LUTs | 16,526 (79.45%) | 16,421 (78.95%) |
-| Flip-flops | 2,924 | 2,940 |
-| Block RAM tiles | 36.5 | 36.5 |
-| DSPs | 33 | 33 |
-
-The net change is **105 fewer LUTs**, with 16 extra flip-flops and no extra RAM or DSPs. Sharing the sprite lookups for both overview scales avoids a separate wide-view drawing path. An intermediate version with duplicated lookups used 17,039 LUTs; that version was replaced. These are synthesis results, not routed utilization or timing. The exact final report is `tmp/ui_verified/utilization.rpt`; the saved pre-change report is `tmp/ui_before/utilization.rpt`. No new bitstream was generated for this revision.
+1. **Dual-OLED Field Diary (`[BOOK]` / `BTNU` from Build):**
+   - **Left OLED (`JA`):** Displays 3 concise pages (`1/3 GOAL`, `2/3 BUILD`, `3/3 RUN`) with `[BACK]`, `[<]`, and `[>]` navigation buttons.
+   - **Right OLED (`JB`):** Synchronized visual walkthrough diagrams:
+     - **Page 1 (`GOAL`):** Animated Pig Pilot $\to$ Goal Flag & 3-Star criteria diagram.
+     - **Page 2 (`BUILD`):** Left Inventory $\to$ 3×3 Build Grid $\to$ `[GO]` button diagram.
+     - **Page 3 (`RUN`):** Interactive 3×3 Click Diagram + Bottom Action Bar diagram.
+2. **Settings Menu & `[ ? ]` Switch Guide (`[GEAR]`):**
+   - **Main Settings View:**
+     - **`[SPD: SLOW / NORM / FAST]`** — Cycles PS/2 mouse cursor sensitivity.
+     - **`[SOUND: ALL / BGM / SFX / MUTE]`** — Opens the Sound mixer (or displays `SW15 MUTE` if muted by hardware switch).
+     - **`[LEVELS]`** — Opens the visual Map 1 / Map 2 / Map 3 selector (`LP_LEVEL_SELECT`).
+     - **`[TITLE]`** — Returns to the `"LAGGY PIGGIES"` Start Screen.
+     - **`[ ? ]` (Top-Right Button, `x = 80..93, y = 2..11`):** Toggles the built-in **Hardware Switch & Button Reference Page** right inside Settings (`SW0` Title, `SW1` Engine, `SW2` Reverse, `SW12` 1-OLED, `SW13` Pan, `SW14` Zoom, `SW15` Mute, `BTNC/U/R`).
