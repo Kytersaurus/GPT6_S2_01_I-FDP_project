@@ -45,6 +45,10 @@ module right_renderer #(
     input wire [2:0] tnt_count,
     input wire [`LP_TNT_BITS-1:0] tnt_positions,
     input wire [`LP_MAX_TNT-1:0] tnt_intact,
+    input tri0 tutorial_tnt_seen,
+    input tri0 tutorial_tnt_landed,
+    input tri0 tutorial_fan_tested,
+    input tri0 rocket_ready,
     input wire [1:0] hazard_count,
     input wire [`LP_HAZARD_BITS-1:0] hazard_rects,
     input wire [2*`LP_MAX_TNT-1:0] blast_phase,
@@ -59,6 +63,7 @@ module right_renderer #(
     input wire anim_phase,
     input wire map_level,
     input wire map_id,  // 0 Cave Arch (has the moon), 1 Cave Flight
+    input tri0 [`LP_LEVEL_BITS-1:0] level_index,
     input wire [9:0] world_width, world_height,
     input wire [9:0] flag_x, flag_y,
     input wire [9:0] star_box_x, star_box_y,
@@ -71,6 +76,46 @@ module right_renderer #(
     `include "part_sprites.vh"
     `include "ui_font.vh"
     `include "rotation_geometry.vh"
+
+    // Two-times version of the existing 5x7 font for the tutorial welcome.
+    // Eight characters fit exactly at a 12-pixel pitch (8*12 = 96), so this
+    // adds no image ROM and uses only shifts/comparisons.
+    function large_text_on;
+        input [63:0] text;
+        input integer left, top, pixel_x, pixel_y;
+        reg [6:0] relative_x, relative_y;
+        reg [2:0] column;
+        reg [6:0] pitch_x;
+        reg [2:0] glyph_x, glyph_y;
+        reg [7:0] character;
+        reg [34:0] bits;
+        begin
+            large_text_on = 1'b0;
+            relative_x = pixel_x - left;
+            relative_y = pixel_y - top;
+            column = 3'd0;
+            if (relative_x < 7'd96 && relative_y < 7'd14 &&
+                pixel_x >= left && pixel_y >= top) begin
+                if      (relative_x < 7'd12) column = 3'd0;
+                else if (relative_x < 7'd24) column = 3'd1;
+                else if (relative_x < 7'd36) column = 3'd2;
+                else if (relative_x < 7'd48) column = 3'd3;
+                else if (relative_x < 7'd60) column = 3'd4;
+                else if (relative_x < 7'd72) column = 3'd5;
+                else if (relative_x < 7'd84) column = 3'd6;
+                else                         column = 3'd7;
+                pitch_x = (column << 3) + (column << 2);
+                glyph_x = (relative_x - pitch_x) >> 1;
+                glyph_y = relative_y >> 1;
+                if (glyph_x < 3'd5 && glyph_y < 3'd7) begin
+                    character = text >> ((3'd7-column) << 3);
+                    bits = letter_pixels(character);
+                    large_text_on = bits[34-((glyph_y*5)+glyph_x)];
+                end
+            end
+        end
+    endfunction
+
     wire [5:0] raw_pi_y = ({12'd0, pixel_index} * 25'd2731) >> 18;
     wire [6:0] raw_pi_x = pixel_index - (raw_pi_y << 6) - (raw_pi_y << 5);
     wire [6:0] x = USE_PIXEL_INDEX ? raw_pi_x : in_x;
@@ -175,11 +220,54 @@ module right_renderer #(
     wire in_result_state = (game_state == `LP_SUCCESS || game_state == `LP_FAIL);
     reg [127:0] banner_text;
     reg [6:0] banner_left, banner_top;
+    wire tutorial_avoid_tnt = level_index == `LP_LEVEL_TUTORIAL &&
+                              game_state == `LP_RUN &&
+                              ((!tutorial_tnt_seen && tnt_intact[0] &&
+                                $signed(vehicle_x) >= 20'sd16384 &&
+                                $signed(vehicle_x) < 20'sd36864) ||
+                               (!tnt_intact[0] && !tutorial_tnt_landed));
     always @* begin
         if (game_state == `LP_SUCCESS) begin
             banner_text = "LEVEL CLEAR!    "; banner_left = 7'd12; banner_top = 7'd11;
         end else if (game_state == `LP_FAIL) begin
             banner_text = "GAME OVER       "; banner_left = 7'd21; banner_top = 7'd14;
+        end else if (level_index == `LP_LEVEL_TUTORIAL && game_state == `LP_BUILD) begin
+            // Keep the welcome card visible while the player is still in the
+            // build screen. The drive instruction appears after launch.
+            banner_text = "WELCOME TUTORIAL"; banner_left = 7'd0; banner_top = 7'd0;
+        end else if (level_index == `LP_LEVEL_TUTORIAL && game_state == `LP_RUN) begin
+            banner_left = 7'd0; banner_top = 7'd0;
+            if (!tnt_intact[0] && tutorial_tnt_landed)
+                // Only show the reset instruction after the normal TNT blast
+                // has completed and the vehicle has actually landed.
+                banner_text = "RESET TO RETRY  ";
+            else if (!tnt_intact[0] && !tutorial_tnt_landed)
+                // During the blast and fall, keep the same warning instead of
+                // prematurely announcing the retry.
+                banner_text = "AVOID TNT       ";
+            else if ($signed(vehicle_x) < 20'sd10240)
+                banner_text = "SW1 ON TO DRIVE ";
+            else if ($signed(vehicle_x) < 20'sd16384)
+                banner_text = "STAR: DRIVE OVER";
+            else if ($signed(vehicle_x) < 20'sd36864)
+                // Warn while TNT is approaching. On retry, the action appears
+                // only at the deliberate stop, not earlier in the warning.
+                banner_text = (tutorial_tnt_seen && $signed(vehicle_x) >= 20'sd22528) ?
+                              "BTNR ROCKET OVER" : "AVOID TNT       ";
+            else if ($signed(vehicle_x) < 20'sd49152)
+                // Rocket is taught only after the TNT has been shown and
+                // handled.  It is optional on the first pass and points up
+                // in the seeded tutorial vehicle.
+                banner_text = rocket_ready ? "BTNR FIRE ROCKET" : "ROCKET USED     ";
+            else if ($signed(vehicle_x) < 20'sd55296)
+                // The guided retry requires an on/off fan demonstration once.
+                // After the fan has been switched off, do not show the setup
+                // instruction again while the vehicle crosses this band.
+                banner_text = (|active_fans) ? "FAN OFF TO DROP " :
+                              (tutorial_fan_tested ? "REACH THE FLAG  " :
+                               "CLICK FAN ON/OFF");
+            else
+                banner_text = "REACH THE FLAG  ";
         end else begin
             banner_text = "GO!             "; banner_left = 7'd39; banner_top = 7'd1;
         end
@@ -380,6 +468,24 @@ module right_renderer #(
         .width_x(goal_rect[22:16]), .length_y(goal_rect[30:24]), .is_in_square(goal_pixel)
     );
 
+    // square is retained for the ROM maps, whose coordinates fit in 7 bits.
+    // The tutorial uses the rectangle path and can place its finish beyond
+    // that range, so calculate its goal pixel with the full 8-bit fields.
+    wire rectangle_goal_pixel = !map_level &&
+        wx >= $signed({1'b0, goal_rect[7:0]}) &&
+        wx <  $signed({1'b0, goal_rect[7:0]}) + $signed({1'b0, goal_rect[23:16]}) &&
+        wy >= $signed({1'b0, goal_rect[15:8]}) &&
+        wy <  $signed({1'b0, goal_rect[15:8]}) + $signed({1'b0, goal_rect[31:24]});
+    wire goal_draw_pixel = map_level ? goal_pixel : rectangle_goal_pixel;
+    // The tutorial is intentionally styled procedurally.  It reuses the
+    // existing rectangle renderer instead of adding another bitmap/BRAM.
+    wire tutorial_render = !map_level && (level_index == `LP_LEVEL_TUTORIAL);
+    // The welcome card stays up for the whole BUILD state. It therefore
+    // disappears only when the normal start/launch action moves the game into
+    // RUN; there is no timer that can dismiss it while the player is reading.
+    wire tutorial_welcome = (level_index == `LP_LEVEL_TUTORIAL) &&
+                            (game_state == `LP_BUILD);
+
     always @* begin
         rx = 0; ry = 0; rw = 0; rh = 0; part = 0; part_anim = 0; rectangle = 0;
         cell_col = 0; cell_row = 0; cell_index = 0; cell_x = 0; cell_y = 0;
@@ -389,12 +495,41 @@ module right_renderer #(
         card_star_x = 7'd0; card_star_earned = 1'b0;
         if (map_level) pixel_data = map_colour(map_class, tex_x, tex_y);
         else begin
-            pixel_data = 16'h0010;
+            if (tutorial_render) begin
+                // Three broad bands make the teaching course easier to read
+                // while keeping the background to a few comparators.
+                if (wy < 14'sd32) pixel_data = 16'h0a2b;
+                else if (wy < 14'sd72) pixel_data = 16'h1152;
+                else pixel_data = 16'h1d74;
+                // Two blocky clouds and a few small sky glints.  These are
+                // fixed geometry, so they do not need a sprite memory.
+                if ((wy >= 14'sd24 && wy < 14'sd28 &&
+                     ((wx >= 14'sd12 && wx < 14'sd32) ||
+                      (wx >= 14'sd144 && wx < 14'sd168))) ||
+                    (wy >= 14'sd20 && wy < 14'sd24 &&
+                     ((wx >= 14'sd16 && wx < 14'sd28) ||
+                      (wx >= 14'sd148 && wx < 14'sd164))))
+                    pixel_data = 16'h6dd8;
+                if ((wx >= 14'sd56 && wx < 14'sd58 && wy >= 14'sd16 && wy < 14'sd18) ||
+                    (wx >= 14'sd190 && wx < 14'sd192 && wy >= 14'sd34 && wy < 14'sd36))
+                    pixel_data = 16'hdfff;
+            end else pixel_data = 16'h0010;
             for (index = 0; index < 4; index = index + 1) begin
                 rectangle = terrain_rects >> (index*32);
                 rx = rectangle[7:0]; ry = rectangle[15:8];
                 rw = rectangle[23:16]; rh = rectangle[31:24];
-                if (index < terrain_count && wx >= rx && wx < rx+rw && wy >= ry && wy < ry+rh) pixel_data = 16'h8320;
+                if (index < terrain_count && wx >= rx && wx < rx+rw && wy >= ry && wy < ry+rh) begin
+                    if (tutorial_render) begin
+                        // Bright grass on top, a dark seam below it, and a
+                        // two-tone soil pattern make steps readable at every
+                        // zoom without adding a texture table.
+                        if (wy == ry || wy == ry+1) pixel_data = 16'h5ecb;
+                        else if (wy == ry+2) pixel_data = 16'h2d61;
+                        else if (((((wx-rx) >>> 2) ^ ((wy-ry) >>> 2)) & 1) != 0)
+                            pixel_data = 16'h7a40;
+                        else pixel_data = 16'h8a60;
+                    end else pixel_data = 16'h8320;
+                end
             end
         end
         // Spikes: four-pixel teeth, pointed in their outer columns.
@@ -405,7 +540,15 @@ module right_renderer #(
             if (index < hazard_count && wx >= rx && wx < rx+rw && wy >= ry && wy < ry+rh &&
                 (((wx-rx) & 3) == 1 || ((wx-rx) & 3) == 2 || wy-ry >= (rh >>> 1))) pixel_data = 16'hc618;
         end
-        if (goal_pixel && wx < 128 && wy < 128) pixel_data = 16'h0320;
+        if (goal_draw_pixel) begin
+            if (tutorial_render && wy < $signed({1'b0, goal_rect[15:8]}) + 8)
+                // A small checkered banner marks the finish island while the
+                // green base remains the actual solid goal area.
+                pixel_data = (((((wx - $signed({1'b0, goal_rect[7:0]})) >>> 2) ^
+                                ((wy - $signed({1'b0, goal_rect[15:8]})) >>> 2)) & 1) != 0)
+                              ? 16'hffff : 16'h07e0;
+            else pixel_data = tutorial_render ? 16'h07e0 : 16'h0320;
+        end
         // Finish flag on map levels, in half-world units from its top-left: a 3-wide orange
         // wooden pole 28 tall (lit left edge, dark right edge) and a 20 by 16 checkered cloth
         // with a dark border and 4-unit (2 world pixel) squares.
@@ -420,14 +563,15 @@ module right_renderer #(
                 if (flag_dx == 3 || flag_dx == 22 || flag_dy == 1 || flag_dy == 16) pixel_data = 16'h3186;
                 else pixel_data = ((((flag_dx-3) >>> 2) ^ ((flag_dy-1) >>> 2)) & 1) ? 16'h0000 : 16'hffff;
             end
-            // Star box: 12 by 12 close, 8 by 8 normal/overview, the same sizes as TNT.
-            star_local_x = tile_sample_x - tile_position(star_box_x, small_tiles);
-            star_local_y = tile_sample_y - tile_position(star_box_y, small_tiles);
-            if (`LP_STAR_BOX_ENABLED && !star_box_collected &&
-                tile_contains(star_local_x, tile_size) && tile_contains(star_local_y, tile_size)) begin
-                if (small_tiles) pixel_data = star_sprite(star_local_x[3:0], star_local_y[3:0], pixel_data);
-                else pixel_data = star_sprite12(star_local_x[3:0], star_local_y[3:0], pixel_data);
-            end
+        end
+        // Star box: draw on both ROM maps and rectangle courses. This keeps
+        // the tutorial objects visible without adding another map memory.
+        star_local_x = tile_sample_x - tile_position(star_box_x, small_tiles);
+        star_local_y = tile_sample_y - tile_position(star_box_y, small_tiles);
+        if (`LP_STAR_BOX_ENABLED && !star_box_collected &&
+            tile_contains(star_local_x, tile_size) && tile_contains(star_local_y, tile_size)) begin
+            if (small_tiles) pixel_data = star_sprite(star_local_x[3:0], star_local_y[3:0], pixel_data);
+            else pixel_data = star_sprite12(star_local_x[3:0], star_local_y[3:0], pixel_data);
         end
         // TNT: 12 by 12 close, 8 by 8 normal/overview (overview naturally samples it smaller).
         // TNT tiles are opaque, so the last crate covering this pixel is the only one to draw;
@@ -596,6 +740,39 @@ module right_renderer #(
                      (death_abs_x == 0 || death_abs_y == 0 || death_abs_x == death_abs_y)) pixel_data = 16'hf800;
             else if (death_phase == 3 && death_distance >= 5'd7 && death_distance <= 5'd9 &&
                      (death_abs_x == 14'd6 || death_abs_y == 14'd6)) pixel_data = 16'hb800;
+        end
+        // The tutorial is an in-map coach: one compact hint at the top of the
+        // world OLED changes as the vehicle reaches each short checkpoint.
+        // It reuses the existing 5x7 font and does not add map storage.
+        if (level_index == `LP_LEVEL_TUTORIAL &&
+            (game_state == `LP_BUILD || game_state == `LP_RUN) && py < 8) begin
+            pixel_data = 16'h0869;
+            if (banner_lit) pixel_data = tutorial_avoid_tnt ? 16'hf800 : 16'h07ff;
+        end
+        // Full-screen tutorial welcome. It intentionally sits after all map
+        // drawing, so the player sees a clear welcome card rather than a
+        // small banner over the construction map. The card is held by the
+        // BUILD state and disappears when the existing start action launches
+        // the run; it does not time out.
+        if (tutorial_welcome) begin
+            if (px == 0 || px == 95 || py == 0 || py == 63)
+                pixel_data = 16'h07e0;
+            else if (py < 8 || py >= 56)
+                pixel_data = 16'h0a2b;
+            else if (((px[3:0] == 0) || (px[3:0] == 15)) && py[2:0] == 0)
+                pixel_data = 16'h1152;
+            else
+                pixel_data = 16'h0869;
+            // Use the established 16-character renderer for the welcome card.
+            // Each line is exactly 96 pixels wide, so the explicit spaces keep
+            // the text centered without the enlarged-font path overflowing or
+            // repeating the final glyph.
+            if (text_on("    TUTORIAL    ", 0, 13, px, py))
+                pixel_data = 16'hffe0;
+            else if (text_on("  LEARN BASICS  ", 0, 31, px, py))
+                pixel_data = 16'h07ff;
+            else if (text_on("   PRESS START  ", 0, 49, px, py))
+                pixel_data = 16'hffff;
         end
         if (px == 0 || px == 95 || py == 0 || py == 63) begin
             if (game_state == `LP_SUCCESS) pixel_data = 16'h07e0;

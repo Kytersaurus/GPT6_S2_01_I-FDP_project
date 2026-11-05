@@ -16,6 +16,12 @@ module tnt_controller (
     input wire reset,
     input wire run_init,
     input wire [2:0] game_state,
+    // Tutorial-only safety corridor. Normal callers leave this low, so a
+    // real TNT contact always uses the ordinary explosion path.
+    input tri0 suppress_trigger,
+    // The tutorial uses a bounded upward demonstration arc. Normal maps keep
+    // the full Bad Piggies-style impulse below.
+    input tri0 tutorial_mode,
     output wire init_ready,
 
     input wire movement_committed,
@@ -63,6 +69,11 @@ module tnt_controller (
     // Q8.8 launch impulse: three pixels per physics update.  The earlier
     // 0.75-pixel pulse was easy to hide behind the OLED interpolation.
     localparam signed [15:0] TNT_KNOCKBACK_IMPULSE = 16'sd768;
+    // Keep the tutorial vehicle inside its small rectangle course while still
+    // making the TNT launch visibly rise and fall. The vertical impulse is
+    // high enough to exercise the normal high-fall damage/scatter path.
+    localparam signed [15:0] TUTORIAL_TNT_X_IMPULSE = 16'sd384;
+    localparam signed [15:0] TUTORIAL_TNT_Y_IMPULSE = 16'sd1024;
     reg [12:0] distance_x, distance_y;
     wire [8:0] distance_squared = {1'b0,small_square(distance_x[3:0])} +
                                          {1'b0,small_square(distance_y[3:0])};
@@ -221,7 +232,7 @@ module tnt_controller (
                         state<=CAPTURE_TRIGGERS;
                     end
                     CAPTURE_TRIGGERS: begin
-                        pending_triggers<=trigger_mask;
+                        pending_triggers<=suppress_trigger ? {`LP_MAX_TNT{1'b0}} : trigger_mask;
                         state<=SELECT_TNT;
                     end
                     SELECT_TNT: begin
@@ -304,8 +315,10 @@ module tnt_controller (
                         // Always launch upward, and sideways away from the crate.
                         // Pushing down into the floor would be cancelled at once,
                         // so a crate hit from above still throws the vehicle up.
-                        knockback_x <= (knockback_delta_x > 0) ? TNT_KNOCKBACK_IMPULSE : -TNT_KNOCKBACK_IMPULSE;
-                        knockback_y<=-TNT_KNOCKBACK_IMPULSE;
+                        knockback_x <= (knockback_delta_x > 0) ?
+                                       (tutorial_mode ? TUTORIAL_TNT_X_IMPULSE : TNT_KNOCKBACK_IMPULSE) :
+                                       (tutorial_mode ? -TUTORIAL_TNT_X_IMPULSE : -TNT_KNOCKBACK_IMPULSE);
+                        knockback_y <= tutorial_mode ? -TUTORIAL_TNT_Y_IMPULSE : -TNT_KNOCKBACK_IMPULSE;
                         knockback_valid<=1;
                         damage_valid<=1; explosion_event<=1; state<=WAIT_DAMAGE;
                     end

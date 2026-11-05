@@ -46,7 +46,7 @@ module level_selector_tb;
         // Opening must not cycle; held movement over a tile must not select it.
         packet(88,59,1,0);packet(60,42,1,0);clocks(10);
         if(dut.game_state!==`LP_SETTINGS || dut.level_index!==0) $fatal(1,"Held gear click selected a level");
-        packet(60,42,0,0);click(69,35);click(48,33);
+        packet(60,42,0,0);click(69,35);click(48,22);
         if(dut.game_state!==`LP_LEVEL_SELECT) $fatal(1,"Gap selected a level");
         packet(60,42,0,1);packet(60,42,0,0);
         if(dut.game_state!==`LP_LEVEL_SELECT) $fatal(1,"Right click selected a level");
@@ -54,7 +54,7 @@ module level_selector_tb;
         if(dut.game_state!==`LP_LEVEL_SELECT || dut.run_init) $fatal(1,"Launch started inside menu");
         click(10,59);if(dut.game_state!==`LP_SETTINGS) $fatal(1,"Map Back did not return to settings");click(48,59);if(dut.game_state!==`LP_BUILD || dut.level_index!==0) $fatal(1,"Back changed level");
         for(i=0;i<2;i=i+1) begin
-            open_menu();click(48,(i==1) ? 42 : 20);
+            open_menu();click(48,(i==1) ? 30 : 16);
             if(dut.game_state!==`LP_BUILD || dut.level_index!==i) $fatal(1,"Wrong selected level %0d",i);
             preserved();
             if(dut.u_mouse_adapter.inventory_armed || dut.drag_active) $fatal(1,"Menu release armed a construction edit");
