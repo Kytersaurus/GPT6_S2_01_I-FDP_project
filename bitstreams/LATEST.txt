@@ -1,7 +1,5 @@
-Latest bitstream: 2026-11-05/142200_My_Top_Module.bit
+﻿Latest bitstream: 2026-11-05/161745_My_Top_Module.bit
 Quick copy:       bitstreams/bad_piggies_top_latest.bit
-Built at:         2026-11-05 14:22:00 +08:00
-Source commit:    5081b2d (Optimize renderer LUT sharing (16,896 LUTs), update Diary contraptions, LED launch/outcome animations, and switch cleanup)
+Built at:         2026-11-05 16:17:45 +08:00
+Source commit:    089c399
 Top module:       My_Top_Module (XC7A35T-1CPG236C)
-Utilization:      16,896 / 20,800 Slice LUTs (81.23%), 48 / 50 RAMB36E1 (96.00%), 16 / 90 DSP48E1 (17.78%)
-Timing:           WNS -0.129 ns, WHS +0.052 ns, THS 0.000 ns (0 hold failing endpoints)

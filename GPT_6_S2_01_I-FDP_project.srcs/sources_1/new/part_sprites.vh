@@ -541,13 +541,23 @@ function [15:0] part_sprite_mounted;
             if (facing_down) begin
                 iy = size - 1 - x;
                 ix = y;
-                if (!has_above && (ix < stem_x - 1))
-                    ix = -8'sd1;
+                if (!has_above) begin
+                    if (ix < stem_x - 1) ix = -8'sd1;
+                    else if (y >= stem_x + 1 && y < size - 2 && ((has_left && x < 2) || (has_right && x >= size - 2))) begin
+                        ix = (x == 0 || x == size - 1) ? 8'sd0 : 8'sd1;
+                        iy = size >>> 1;
+                    end
+                end
             end else begin
                 ix = facing_left ? (size - 1 - x) : x;
                 iy = y;
-                if ((facing_left ? !has_right : !has_left) && (ix < stem_x - 1))
-                    ix = -8'sd1;
+                if (facing_left ? !has_right : !has_left) begin
+                    if (ix < stem_x - 1) ix = -8'sd1;
+                    else if (ix >= stem_x + 1 && ix < size - 2 && ((has_below && y >= size - 2) || (has_above && y < 2))) begin
+                        ix = (y == 0 || y == size - 1) ? 8'sd0 : 8'sd1;
+                        iy = size >>> 1;
+                    end
+                end
             end
         end else if (part == `LP_PART_ENGINE && facing_left) begin
             ix = size - 1 - x;

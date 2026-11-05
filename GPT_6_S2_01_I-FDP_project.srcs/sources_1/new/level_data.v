@@ -60,7 +60,7 @@ module level_data (
                 //  2: on the bump in the far-left pocket of the second arch, floor y=398, past
                 //     the drop at x~200, so a cart that goes too far left is caught.
                 tnt_count = 3'd3;
-                tnt_positions = {10'd390, 10'd156, 10'd260, 10'd588, 10'd92, 10'd194};
+                tnt_positions = {10'd390, 10'd116, 10'd260, 10'd588, 10'd92, 10'd194};
             end
             2'd1: begin
                 // Level 2, Cave Flight: a flying level. Start on the ground at the bottom left

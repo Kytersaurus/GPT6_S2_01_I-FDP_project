@@ -263,9 +263,9 @@ module tnt_controller (
                             // The pig and the frame directly supporting it are
                             // indestructible in this game.  Other parts still
                             // receive the same radius damage as before.
-                            if (build_frames[cell_index] && frame_intact_mask[cell_index] &&
-                                build_grid[cell_index*`LP_PART_BITS +: `LP_PART_BITS] != `LP_PART_PIG)
-                                damage_frame_mask[cell_index]<=1;
+                            if (build_frames[cell_index] && frame_intact_mask[cell_index]) damage_frame_mask[cell_index]<=1;
+                        // Pig frame can also break in blasts.
+                        // Only pig itself is protected.
                         end
                         // Record the nearest surviving non-pig item while the
                         // shared distance hardware is already evaluating this
@@ -275,13 +275,14 @@ module tnt_controller (
                         if (intact_mask[cell_index] &&
                             build_grid[cell_index*`LP_PART_BITS +: `LP_PART_BITS] != `LP_PART_EMPTY &&
                             build_grid[cell_index*`LP_PART_BITS +: `LP_PART_BITS] != `LP_PART_PIG &&
+                        // Fallback frame check includes pig frame.
                             (!nearest_content_valid || manhattan_distance < nearest_content_distance)) begin
                             nearest_content_valid<=1;
                             nearest_content_index<=cell_index;
                             nearest_content_distance<=manhattan_distance;
                         end
                         if (build_frames[cell_index] && frame_intact_mask[cell_index] &&
-                            build_grid[cell_index*`LP_PART_BITS +: `LP_PART_BITS] != `LP_PART_PIG &&
+                        // Fallback frame check includes pig frame.
                             (!nearest_frame_valid || manhattan_distance < nearest_frame_distance)) begin
                             nearest_frame_valid<=1;
                             nearest_frame_index<=cell_index;

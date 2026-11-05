@@ -106,7 +106,7 @@ module tnt_integration_tb;
         begin_step(); commit_pose(80*256); finish_step();
         release dut.goal_hit;
         if (explosions!=2 || dut.game_state!=`LP_SUCCESS || !dut.pig_alive ||
-            !dut.intact_mask[4] || !dut.frame_intact_mask[4])
+            !dut.intact_mask[4] || dut.frame_intact_mask[4])
             $fatal(1,"Goal did not succeed with protected TNT pig/frame");
         if (dut.active_sound!=`LP_SOUND_SUCCESS) $fatal(1,"Success sound was not selected");
 

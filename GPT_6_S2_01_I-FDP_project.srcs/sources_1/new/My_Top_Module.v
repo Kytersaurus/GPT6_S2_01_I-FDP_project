@@ -202,7 +202,7 @@ module My_Top_Module #(
     // 48-pixel ledge or balloon drop damages the contact row; a 96-pixel fall
     // tears off everything except the protected pig and its frame.
     localparam signed [19:0] ARCH_FALL_DISTANCE_Q8   = 20'sd16384; // 64 px (Map 1, 2x scale)
-    localparam signed [19:0] FLIGHT_FALL_DISTANCE_Q8 = 20'sd7168;  // 28 px (Map 2, 1x scale)
+    localparam signed [19:0] FLIGHT_FALL_DISTANCE_Q8 = 20'sd13312; // 52 px (Map 2, 1x scale)
 
     wire wall_crash_right = ($signed(proposed_vx) >= 16'sd448 && $signed(corrected_vx) <= 0);
     wire wall_crash_left  = ($signed(proposed_vx) <= -16'sd448 && $signed(corrected_vx) >= 0);
@@ -219,8 +219,8 @@ module My_Top_Module #(
     reg signed [`LP_COORD_BITS-1:0] fall_start_y;
     wire signed [`LP_COORD_BITS-1:0] fall_distance_q8 = $signed(corrected_y) - $signed(fall_start_y);
     wire high_fall_landing = response_valid && response_ready && grounded && !audio_was_grounded &&
-                              falling && (airborne_ticks >= (map_id ? 6'd8 : 6'd12)) &&
-                              ($signed(proposed_vy) >= (map_id ? 16'sd384 : 16'sd512)) &&
+                              falling && (airborne_ticks >= (map_id ? 6'd14 : 6'd12)) &&
+                              ($signed(proposed_vy) >= 16'sd512) &&
                               (fall_distance_q8 >= (map_id ? FLIGHT_FALL_DISTANCE_Q8 : ARCH_FALL_DISTANCE_Q8));
     always @(posedge clk) begin
         if (reset) begin
@@ -350,7 +350,7 @@ module My_Top_Module #(
     assign pop_cell = mouse_pop_cell;
 
     assign level_open_req = ui_level_open_req;
-    assign combined_boost_req = ui_boost_req || mouse_boost_req || (game_state == `LP_RUN && right_press);
+    assign combined_boost_req = ui_boost_req;
     assign boost_req = combined_boost_req;
 
     wire [11:0] effective_mouse_x = {5'd0, cursor_x};
@@ -364,7 +364,7 @@ module My_Top_Module #(
         .mouse_left(mouse_left), .mouse_right(mouse_right), .mouse_event(mouse_event),
         .next_press(start_press), .engine_switch_changed(engine_switch_changed),
         .engine_switch(sw[1]), .engine_toggle_req(mouse_engine_toggle_req),
-        .fan_toggle_req(mouse_fan_toggle_req), .fan_toggle_cell(mouse_fan_toggle_cell), .rocket_toggle_req(mouse_boost_req),
+        .fan_toggle_req(mouse_fan_toggle_req), .fan_toggle_cell(mouse_fan_toggle_cell), .rocket_toggle_req(mouse_boost_req || (game_state == `LP_RUN && right_press)),
         .fan_available(fan_available), .rocket_available(rocket_available),
         .rocket_ready(rocket_ready), .balloon_available(balloon_count != 4'd0),
         .home_req(ui_home_req), .launch_req(ui_launch), .edit_req(ui_edit), .end_try_req(ui_end_try),
@@ -626,7 +626,7 @@ module My_Top_Module #(
     localparam SNAPSHOT_WIDTH = 249 + 3*(`LP_MAX_TNT-4) +
                                 4*(`LP_COORD_BITS-16) + (`LP_TILT_BITS-4) +
                                 2*`LP_COORD_BITS + 9 + 6;
-    wire [SNAPSHOT_WIDTH-1:0] snapshot_in = {start_screen_active, fan_available, ui_fan_on, star_box_collected, rocket_available, rocket_ready, vehicle_tilt, audio_muted, run_page, selected_left, inventory_page, build_facing_left, rockets_left, fans_left, master_volume, diary_page, guide_return_state, death_phase, death_x, death_y, launch_flash, boost_active, drag_from_grid, drag_source, drag_contents,
+    wire [SNAPSHOT_WIDTH-1:0] snapshot_in = {start_screen_active, fan_available, ui_fan_on, star_box_collected, rocket_available, rocket_ready, vehicle_tilt, audio_muted, run_page, selected_left, inventory_page, build_facing_left, rockets_left, fans_left, master_volume, diary_page, guide_return_state, death_phase, death_x, death_y, launch_flash, (boost_active || rocket_active), drag_from_grid, drag_source, drag_contents,
                               game_state, build_grid, intact_mask, frame_intact_mask, build_valid, build_error,
                               display_x, display_y, engine_enabled, frames_left, pigs_left, wheels_left,
                               engines_left, balloons_left, cursor_x, cursor_y, selected_part, drag_active,
@@ -707,14 +707,23 @@ module My_Top_Module #(
     // Wheels use a faster independent phase so their spokes do not appear to
     // freeze while the vehicle is travelling between physics updates.
     reg [2:0] wheel_frames;
+    wire vehicle_moving = (proposed_vx != 16'sd0) || (proposed_vy != 16'sd0);
+    reg moving_meta, moving_sync;
     always @(posedge oled_clk) begin
         if (oled_reset) begin
             engine_frames <= 0;
             wheel_frames <= 0;
-        end else if (left_frame && (draw_state == `LP_RUN || in_diary_walkthrough)) begin
-            if (draw_engine || draw_fan_on || draw_boost_active || in_diary_walkthrough)
-                engine_frames <= engine_frames + (draw_boost_active ? 4'd2 : 4'd1);
-            wheel_frames <= wheel_frames + 1'b1;
+            moving_meta <= 0;
+            moving_sync <= 0;
+        end else begin
+            moving_meta <= vehicle_moving;
+            moving_sync <= moving_meta;
+            if (left_frame && (draw_state == `LP_RUN || in_diary_walkthrough)) begin
+                if (draw_engine || draw_fan_on || draw_boost_active || in_diary_walkthrough)
+                    engine_frames <= engine_frames + (draw_boost_active ? 4'd2 : 4'd1);
+                if (draw_engine || moving_sync || in_diary_walkthrough)
+                    wheel_frames <= wheel_frames + 1'b1;
+            end
         end
     end
     wire anim_phase = engine_frames[3];
@@ -867,28 +876,28 @@ module My_Top_Module #(
     // Dual-OLED Diary Walkthrough: pan the Right OLED camera to the selected checkpoint
     // and pose the recommended demo vehicle on the live cave terrain.
     wire signed [19:0] diary_pose_x = (draw_map_id == 1'b0) ?
-        ((draw_diary_page == 2'd0) ? {12'd240, 8'd0} : (draw_diary_page == 2'd1) ? {12'd186, 8'd0} : {12'd564, 8'd0}) :
+        ((draw_diary_page == 2'd0) ? {12'd240, 8'd0} : (draw_diary_page == 2'd1) ? {12'd196, 8'd0} : {12'd564, 8'd0}) :
         ((draw_diary_page == 2'd0) ? {12'd100, 8'd0} : (draw_diary_page == 2'd1) ? {12'd512, 8'd0} : {12'd732, 8'd0});
     wire signed [19:0] diary_pose_y = (draw_map_id == 1'b0) ?
-        ((draw_diary_page == 2'd0) ? {12'd72,  8'd0} : (draw_diary_page == 2'd1) ? {12'd375, 8'd0} : {12'd462, 8'd0}) :
+        ((draw_diary_page == 2'd0) ? {12'd72,  8'd0} : (draw_diary_page == 2'd1) ? {12'd366, 8'd0} : {12'd462, 8'd0}) :
         ((draw_diary_page == 2'd0) ? {12'd162, 8'd0} : (draw_diary_page == 2'd1) ? {12'd87,  8'd0} : {12'd40,  8'd0});
     wire [26:0] diary_grid = (draw_map_id == 1'b0) ?
         {`LP_PART_WHEEL, `LP_PART_EMPTY, `LP_PART_WHEEL, `LP_PART_EMPTY, `LP_PART_PIG, `LP_PART_ENGINE, `LP_PART_EMPTY,   `LP_PART_BOOSTER, `LP_PART_EMPTY} :
-        {`LP_PART_WHEEL, `LP_PART_FAN,   `LP_PART_WHEEL, `LP_PART_EMPTY, `LP_PART_PIG, `LP_PART_ENGINE, `LP_PART_BALLOON, `LP_PART_BOOSTER, `LP_PART_BALLOON};
-    wire [8:0] diary_frames = 9'b000_111_000;
+        {`LP_PART_WHEEL, `LP_PART_EMPTY, `LP_PART_WHEEL, `LP_PART_FAN,   `LP_PART_PIG, `LP_PART_ENGINE, `LP_PART_BALLOON, `LP_PART_BOOSTER, `LP_PART_BALLOON};
+    wire [8:0] diary_frames = (draw_map_id == 1'b0) ? 9'b000_111_000 : 9'b000_011_000;
     wire [8:0] diary_intact = (draw_map_id == 1'b0) ? 9'b101_011_010 :
-                              ((draw_diary_page == 2'd0) ? 9'b111_011_111 : 9'b111_011_110);
-    wire [8:0] diary_active_fans = (draw_map_id == 1'b1) ? 9'b010_000_000 : 9'd0;
+                              ((draw_diary_page == 2'd0) ? 9'b101_111_111 : 9'b101_111_110);
+    wire [8:0] diary_active_fans = (draw_map_id == 1'b1) ? 9'b000_100_000 : 9'd0;
 
     right_renderer #(
         .USE_PIXEL_INDEX(0)
     ) u_right_renderer (
-        .clk(oled_clk), .zoomed_out(in_diary_walkthrough ? !draw_zoomed_out : draw_zoomed_out), .overview(draw_overview),
+        .clk(oled_clk), .zoomed_out(draw_zoomed_out), .overview(draw_overview),
         .free_look(draw_free_look), .cursor_x(draw_cursor_x), .cursor_y(draw_cursor_y),
         .pixel_index(13'd0), .in_x(map_x), .in_y(map_y),
         .game_state(in_diary_walkthrough ? `LP_RUN : ((draw_state==`LP_LEVEL_SELECT || draw_state==`LP_SETTINGS) ? `LP_BUILD : (draw_state==`LP_GUIDE ? draw_guide_return : draw_state))),
         .build_grid(in_diary_walkthrough ? diary_grid : draw_grid),
-        .build_facing_left(in_diary_walkthrough ? 9'd0 : draw_facing_left),
+        .build_facing_left(in_diary_walkthrough ? ((draw_map_id == 1'b0) ? 9'b000_000_010 : 9'd0) : draw_facing_left),
         .build_facing_down(in_diary_walkthrough ? 9'd0 : draw_facing_down),
         .active_fans(in_diary_walkthrough ? diary_active_fans : draw_active_fans),
         .intact_mask(in_diary_walkthrough ? diary_intact : draw_intact),

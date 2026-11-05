@@ -64,7 +64,7 @@ module ui_controls_tb;
         if(dut.u_ui_control.fan_on || dut.u_ui_control.rocket_req) $fatal(1,"Unavailable air control activated");
         // Simulate result arrival; the diary must return to FAIL, not restart BUILD.
         force dut.u_game.game_state=`LP_FAIL;clocks(2);release dut.u_game.game_state;
-        click(78,59);
+        click(60,59);
         if(dut.game_state!=`LP_GUIDE || dut.guide_return_state!=`LP_FAIL) $fatal(1,"Result diary origin lost");
         click(10,59);
         if(dut.game_state!=`LP_FAIL) $fatal(1,"Diary did not restore result");

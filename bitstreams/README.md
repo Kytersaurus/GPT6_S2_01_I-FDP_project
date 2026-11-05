@@ -18,12 +18,12 @@ This directory organizes all verified programming bitstreams (`.bit`) generated 
 | Property | Value |
 | :--- | :--- |
 | **Quick-Flash File** | **[`bad_piggies_top_latest.bit`](bad_piggies_top_latest.bit)** |
-| **Archived Path** | **[`2026-11-05/142200_My_Top_Module.bit`](2026-11-05/142200_My_Top_Module.bit)** |
+| **Archived Path** | **[`2026-11-05/161745_My_Top_Module.bit`](2026-11-05/161745_My_Top_Module.bit)** |
 | **Pointer Metadata** | [`LATEST.txt`](LATEST.txt) |
-| **Source Commit** | `5081b2d` (`main` / `role1`) |
-| **Build Timestamp** | `2026-11-05 14:22:00 +08:00` |
-| **Resource Utilization** | **16,896 / 20,800 Slice LUTs (81.23%)**, **48 / 50 Block RAM (`96.00%`)**, **16 / 90 DSP48E1 (`17.78%`)** |
-| **Key Highlights** | • **LUT Optimization (-3,438 LUTs from peak):** Shared UI icon decoders, hoisted single TNT blast-radius evaluator, and registered Stage-1 trig lookups (`16,896 LUTs`, leaving ~3,904 LUTs of free headroom).<br>• **3-Step Field Diary Walkthrough:** Synchronized Left OLED blueprint & Right OLED live checkpoint camera with updated demo contraptions.<br>• **Settings `[ ? ]` Hardware Guide:** 2-page interactive reference covering Mouse Controls (`1/2`) and Board Switches (`2/2`).<br>• **Cleaned Switch Mappings & LED Animations:** Active switches grouped at right (`SW0` 1-OLED, `SW1` Engine, `SW2` Reverse) and left (`SW13` Pan, `SW14` Zoom, `SW15` Mute); middle LEDs `LED[12:3]` flash on **`GO` launch** and **Win/Lose** outcomes. |
+| **Source Commit** | `089c399` (`main` / `role1`) |
+| **Build Timestamp** | `2026-11-05 16:17:45 +08:00` |
+| **Resource Utilization** | **17,200 / 20,800 Slice LUTs (82.69%)**, **48 / 50 Block RAM (`96.00%`)**, **16 / 90 DSP48E1 (`17.78%`)**, **WNS `+0.106 ns`** |
+| **Key Highlights** | • **Fan & Rocket Placement, Arrows & Mounting Bracket:** Synced inventory directional arrows on grid rotation/placement; added metallic mounting bracket for top/bottom/side-mounted fans.<br>• **Single-Use Rocket & Stationary Wheels:** Rockets fire once per run and stay permanently dimmed afterward; wheels only spin when the engine is ON or the vehicle is moving.<br>• **Diary & Zoom Fixes:** Removed fake frame borders on outer cells, fixed scroll-wheel zoom inversion, posed Map 1 Step 2 cleanly above the pavement with a left-facing rocket (`<`) toward the Star Crate, and moved Map 2's fan to the right side of the Pig's frame.<br>• **TNT & Bare-Pig Rolling Physics:** TNT and high falls destroy contents when a frame breaks and can break the Pig's wood frame so the bare Pig rolls along the terrain; moved Map 1's arch TNT 40 px left (`x=116`) away from the Star Crate and relaxed Map 2 fall damage sensitivity.<br>• **Settings & Result UI Polish:** Borderless Start Screen gear icon, 4-button Result Screen bar with `[ GEAR ]` Settings access, and `VOL`/`MUTE` + `M1`/`M2` labels in Settings. |
 
 ---
 
@@ -51,7 +51,8 @@ This directory organizes all verified programming bitstreams (`.bit`) generated 
 
 | Date | Time (SGT) | Bitstream File | Commit | Summary |
 | :--- | :--- | :--- | :--- | :--- |
-| **2026-11-05** | `14:22:00` | [`2026-11-05/142200_My_Top_Module.bit`](2026-11-05/142200_My_Top_Module.bit) | `5081b2d` | **LATEST:** Renderer LUT sharing (`16,896 LUTs` / `81.23%`, `48 BRAM`, `16 DSP`), updated Diary contraptions, Settings `[ ? ]` guide, `LED[12:3]` launch/end flash animations, cleaned switches. |
+| **2026-11-05** | `16:17:45` | [`2026-11-05/161745_My_Top_Module.bit`](2026-11-05/161745_My_Top_Module.bit) | `089c399` | **LATEST:** Fan/rocket arrow sync & mounting bracket, single-use rocket dimming, Diary pose/zoom/fan/frame fixes, bare-Pig rolling physics on TNT/high-fall frame break, Result Screen Settings icon (`17,200 LUTs` / `82.69%`, `48 BRAM`, `16 DSP`, `WNS +0.106 ns`). |
+| **2026-11-05** | `14:22:00` | [`2026-11-05/142200_My_Top_Module.bit`](2026-11-05/142200_My_Top_Module.bit) | `5081b2d` | Renderer LUT sharing (`16,896 LUTs` / `81.23%`, `48 BRAM`, `16 DSP`), updated Diary contraptions, Settings `[ ? ]` guide, `LED[12:3]` launch/end flash animations, cleaned switches. |
 | **2026-11-04** | `17:50:06` | [`2026-11-04/175006_My_Top_Module.bit`](2026-11-04/175006_My_Top_Module.bit) | `4b40b95` | 1–3 star rating, `GAME OVER` text, edit wrench icon, +1 Level 2 rocket/fan, horizontal rocket next to wheels, per-map fall damage (`20,334 LUTs`, `WNS +0.019 ns`). |
 | **2026-11-04** | `17:14:38` | [`2026-11-04/171438_My_Top_Module.bit`](2026-11-04/171438_My_Top_Module.bit) | `37f11bb` | Consolidated UI sprite ROM lookups (`-1,002 LUTs` down to `19,962` / `95.97%`). |
 | **2026-11-04** | `16:15:00` | [`2026-11-04/161500_My_Top_Module.bit`](2026-11-04/161500_My_Top_Module.bit) | `ec92669` | 3-star Right OLED ending card, TNT/fall/builder edge-case fixes. |

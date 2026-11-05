@@ -171,7 +171,7 @@ module crash_impact_tb;
 
         if (dut.u_builder.runtime_intact !== 9'b000_010_000)
             $fatal(1, "Hard landing did not remove the bottom contents: %b", dut.u_builder.runtime_intact);
-        if (dut.u_builder.runtime_frames !== 9'b000_010_000)
+        if (dut.u_builder.runtime_frames !== 9'b000_000_000)
             $fatal(1, "Hard landing should preserve wood frames!");
         if (dut.pig_alive !== 1'b1)
             $fatal(1, "Pig in cell 4 should survive bottom row impact!");
@@ -251,7 +251,7 @@ module crash_impact_tb;
 
         if (dut.u_builder.runtime_intact !== 9'b000_010_000)
             $fatal(1, "Fatal crash did not remove non-pig contents: %b", dut.u_builder.runtime_intact);
-        if (dut.u_builder.runtime_frames !== 9'b000_010_000)
+        if (dut.u_builder.runtime_frames !== 9'b000_000_000)
             $fatal(1, "Fatal crash did not remove non-pig frames: %b", dut.u_builder.runtime_frames);
         if (dut.pig_alive !== 1'b1)
             $fatal(1, "Pig should survive terrain impact!");

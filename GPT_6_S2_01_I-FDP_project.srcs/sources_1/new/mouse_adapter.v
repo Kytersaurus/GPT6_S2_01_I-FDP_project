@@ -48,7 +48,7 @@ module mouse_adapter (
 
     reg [1:0] setup_state;
     reg left_was_down, right_was_down;
-    reg place_pending, inventory_armed, inv_cycle_pending;
+    reg place_pending, inventory_armed, inv_cycle_pending, sync_edit_dir;
     assign drag_active = place_pending && game_state == `LP_BUILD && input_enabled;
 
     wire [6:0] clamped_x = (mouse_x >= 12'd95) ? 7'd95 : mouse_x[6:0];
@@ -145,6 +145,7 @@ module mouse_adapter (
             place_pending <= 0;
             inventory_armed <= 0;
             inv_cycle_pending <= 0;
+            sync_edit_dir <= 0;
             drag_from_grid <= 0;
             drag_source <= 9;
             drag_contents <= 0;
@@ -176,6 +177,18 @@ module mouse_adapter (
             boost_req <= 0;
             engine_toggle_req <= 0;
             fan_toggle_req <= 0;
+            sync_edit_dir <= edit_valid && (edit_op == `LP_EDIT_PLACE || edit_op == `LP_EDIT_MOVE) && (edit_cell < 4'd9);
+
+            if (sync_edit_dir && (build_grid[edit_cell*3 +: 3] == edit_part)) begin
+                selected_left <= build_facing_left[edit_cell];
+                selected_down <= build_facing_down[edit_cell];
+                case (edit_part)
+                    `LP_PART_ENGINE:  begin engine_facing_left <= build_facing_left[edit_cell]; end
+                    `LP_PART_BOOSTER: begin rocket_facing_left <= build_facing_left[edit_cell]; rocket_facing_down <= build_facing_down[edit_cell]; end
+                    `LP_PART_FAN:     begin fan_facing_left    <= build_facing_left[edit_cell]; fan_facing_down    <= build_facing_down[edit_cell]; end
+                    default: begin end
+                endcase
+            end
 
             if (input_enabled && game_state == `LP_BUILD && mouse_event && mouse_z != 0) begin
                 if (!mouse_z[3]) begin
@@ -221,12 +234,12 @@ module mouse_adapter (
                             // Both pages use uniform 10-pixel rows (Row 0: y=4..13, Row 1: y=14..23, etc.).
                             if (inventory_page!=0) begin
                                 if (cur_y<14) begin
-                                    inv_cycle_pending <= (selected_part == `LP_PART_BOOSTER && cur_x >= 70);
+                                    inv_cycle_pending <= (selected_part == `LP_PART_BOOSTER);
                                     selected_part <= `LP_PART_BOOSTER;
                                     selected_left <= rocket_facing_left;
                                     selected_down <= rocket_facing_down;
                                 end else if (cur_y<24) begin
-                                    inv_cycle_pending <= (selected_part == `LP_PART_FAN && cur_x >= 70);
+                                    inv_cycle_pending <= (selected_part == `LP_PART_FAN);
                                     selected_part <= `LP_PART_FAN;
                                     selected_left <= fan_facing_left;
                                     selected_down <= fan_facing_down;
@@ -244,7 +257,7 @@ module mouse_adapter (
                                 selected_left <= 0;
                                 selected_down <= 0;
                             end else if (cur_y<44) begin
-                                inv_cycle_pending <= (selected_part == `LP_PART_ENGINE && cur_x >= 70);
+                                inv_cycle_pending <= (selected_part == `LP_PART_ENGINE);
                                 selected_part <= `LP_PART_ENGINE;
                                 selected_left <= engine_facing_left;
                                 selected_down <= 0;
@@ -302,8 +315,12 @@ module mouse_adapter (
                                 engine_facing_left <= !selected_left;
                             end else if (selected_part == `LP_PART_BOOSTER) begin
                                 {edit_facing_down, edit_facing_left} <= next_rocket_direction;
+                                {selected_down, selected_left} <= next_rocket_direction;
+                                {rocket_facing_down, rocket_facing_left} <= next_rocket_direction;
                             end else if (selected_part == `LP_PART_FAN) begin
                                 {edit_facing_down, edit_facing_left} <= next_fan_direction;
+                                {selected_down, selected_left} <= next_fan_direction;
+                                {fan_facing_down, fan_facing_left} <= next_fan_direction;
                             end
                         end else if (place_pending && in_grid && (!drag_from_grid || hovered_cell != drag_source)) begin
                             edit_valid <= 1; edit_op <= `LP_EDIT_PLACE;

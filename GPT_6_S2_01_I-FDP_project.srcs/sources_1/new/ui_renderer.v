@@ -393,11 +393,11 @@ module ui_renderer (
     wire gear_lit = (gear_shade != 2'd0);
     wire [15:0] gear_colour = gear_shade_colour(gear_shade);
 
-    wire [16:0] diary_icon = draw_diary_icon(on_build_screen ? 7'd71 : 7'd81, on_build_screen ? 7'd59 : 7'd58, x, y);
+    wire [16:0] diary_icon = draw_diary_icon(on_build_screen ? 7'd71 : 7'd60, on_build_screen ? 7'd59 : 7'd58, x, y);
     wire [16:0] wrench_icon = cartoon_wrench(on_run_screen ? 7'd60 : 7'd74, on_run_screen ? 7'd58 : 7'd16, x, y);
     wire retry_lit = is_retry_icon(on_run_screen ? 7'd12 : 7'd74, on_run_screen ? 7'd58 : 7'd40, x, y);
     wire back_arrow_lit = is_back_arrow((game_state == `LP_SETTINGS) ? 7'd48 : 7'd14, (game_state == `LP_SETTINGS) ? 6'd57 : 6'd58, x, y);
-    wire home_icon_lit  = is_home_icon((game_state == `LP_SETTINGS) ? 7'd82 : 7'd15, (game_state == `LP_SETTINGS) ? 6'd57 : 6'd58, x, y);
+    wire home_icon_lit  = is_home_icon((game_state == `LP_SETTINGS) ? 7'd82 : 7'd12, (game_state == `LP_SETTINGS) ? 6'd57 : 6'd58, x, y);
 
     // One text line per pixel: the screen and pixel row choose which string can be lit here.
     // Strings on the same screen never share a row band, or are told apart by a column.
@@ -431,6 +431,15 @@ module ui_renderer (
                         line_text = "BOARD SW    2/2 "; line_left = 7'd2;
                     end else begin
                         line_text = "SETTINGS        "; line_left = 7'd24;
+                    end
+                end else if (diary_page == 2'd0) begin
+                    if (y >= 6'd36 && y <= 6'd42) begin
+                        line_top = 6'd36;
+                        if (x < 7'd46 && audio_muted) begin
+                            line_text = "MUTE            "; line_left = 7'd16; line_colour = 16'hf800;
+                        end else if (x >= 7'd55) begin
+                            line_text = "1 2             "; line_left = 7'd61; line_colour = 16'hffff;
+                        end
                     end
                 end else if (diary_page == 2'd1) begin
                     line_left = 7'd56;
@@ -485,7 +494,7 @@ module ui_renderer (
                             line_text = "2 STAR      2/3 "; line_left = 7'd2; line_top = 6'd2; line_colour = 16'hffe0;
                         end else if (y >= 6'd34 && y <= 6'd42) begin
                             line_left = 7'd47; line_top = 6'd35;
-                            if (level_index == 0) begin line_text = "SW2 <-          "; line_colour = 16'h07ff; end
+                            if (level_index == 0) begin line_text = "ROCKET!         "; line_colour = 16'hfd20; end
                             else                  begin line_text = "POP 1!          "; line_colour = 16'hf800; end
                         end
                     end
@@ -493,7 +502,9 @@ module ui_renderer (
                         if (y < 6'd12) begin
                             line_text = "3 FINISH    3/3 "; line_left = 7'd2; line_top = 6'd2; line_colour = 16'h07e0;
                         end else if (y >= 6'd34 && y <= 6'd42) begin
-                            line_text = "ROCKET!         "; line_left = 7'd47; line_top = 6'd35; line_colour = 16'hfd20;
+                            line_left = 7'd47; line_top = 6'd35;
+                            if (level_index == 0) begin line_text = "ENG ->          "; line_colour = 16'h07e0; end
+                            else                  begin line_text = "ROCKET!         "; line_colour = 16'hfd20; end
                         end
                     end
                     default: begin
@@ -578,15 +589,9 @@ module ui_renderer (
                 end
             end
 
-            // 4. Settings Button in Bottom-Left (x: 4..20, y: 47..61, Center at 12, 54)
-            if (x >= 4 && x <= 20 && y >= 47 && y <= 61) begin
-                if (x == 4 || x == 20 || y == 47 || y == 61)
-                    pixel_data = (cursor_x >= 4 && cursor_x <= 20 && cursor_y >= 46 && cursor_y <= 62) ? 16'hffe0 : 16'h04b4;
-                else if (cursor_x >= 4 && cursor_x <= 20 && cursor_y >= 46 && cursor_y <= 62)
-                    pixel_data = 16'h0351;
-                else
-                    pixel_data = 16'h18e5;
-                if (gear_lit) pixel_data = gear_colour;
+            // 4. Frameless Settings Gear Icon in Bottom-Left (x: 4..20, y: 47..61, Center at 12, 54)
+            if (x >= 4 && x <= 20 && y >= 47 && y <= 61 && gear_lit) begin
+                pixel_data = (cursor_x >= 4 && cursor_x <= 20 && cursor_y >= 46 && cursor_y <= 62) ? 16'hffe0 : gear_colour;
             end
         end else if (game_state == `LP_LEVEL_SELECT) begin
             // -----------------------------------------------------------------
@@ -942,11 +947,11 @@ module ui_renderer (
                     else if (y < 36) begin example_row = 1; example_local_y = y - 24; end
                     else             begin example_row = 2; example_local_y = y - 36; end
                     example_draw = 1'b1;
-                    // Wood frames are placed across Row 1 (cells 3, 4, 5). Only Engine (col 0) and
-                    // Pig (col 1) sit inside frames; col 2 is a bare frame supporting top/bottom parts.
-                    // Rockets (row 0, col 1), Balloons (row 0, col 0/2), Wheels (row 2, col 0/2), and
-                    // Fans (row 2, col 1) mount above or below Row 1 frames, never inside a frame.
-                    example_has_frame = (example_row == 1);
+                    // Wood frames are placed across Row 1 (cells 3, 4, 5 in Map 1; cells 3, 4 in Map 2).
+                    // In Map 2, the Fan (row 1, col 2) mounts to the right side of the Pig's frame.
+                    // Rockets (row 0, col 1), Balloons (row 0, col 0/2), and Wheels (row 2, col 0/2)
+                    // mount above or below Row 1 frames, never inside a frame.
+                    example_has_frame = (example_row == 1) && (level_index == 0 || example_col != 2);
                     if (example_row == 0 && example_col == 1)
                         example_part = `LP_PART_BOOSTER;
                     else if (example_row == 0 && level_index != 0 &&
@@ -956,10 +961,10 @@ module ui_renderer (
                         example_part = `LP_PART_ENGINE;
                     else if (example_row == 1 && example_col == 1)
                         example_part = `LP_PART_PIG;
+                    else if (example_row == 1 && example_col == 2 && level_index != 0)
+                        example_part = `LP_PART_FAN;
                     else if (example_row == 2 && (example_col == 0 || example_col == 2))
                         example_part = `LP_PART_WHEEL;
-                    else if (example_row == 2 && example_col == 1 && level_index != 0)
-                        example_part = `LP_PART_FAN;
                     else
                         example_part = `LP_PART_EMPTY;
                 end
@@ -981,10 +986,10 @@ module ui_renderer (
                         example_part = (level_index == 0) ? `LP_PART_ENGINE : `LP_PART_FAN;
                     end else if (diary_page == 2'd1) begin
                         example_has_frame = 1'b0;
-                        example_part = (level_index == 0) ? `LP_PART_WHEEL : `LP_PART_BALLOON;
+                        example_part = (level_index == 0) ? `LP_PART_BOOSTER : `LP_PART_BALLOON;
                     end else begin
-                        example_has_frame = 1'b0; // Rocket mounts on top of a frame, never inside a frame
-                        example_part = `LP_PART_BOOSTER;
+                        example_has_frame = (level_index == 0);
+                        example_part = (level_index == 0) ? `LP_PART_ENGINE : `LP_PART_BOOSTER;
                     end
                 end
 
@@ -1218,29 +1223,37 @@ module ui_renderer (
             end
             if (y >= 53) begin
                 pixel_data = 16'h0841;
-                // Button 1: [ HOME ] (x: 2..28, center 15, 58)
-                if (x >= 2 && x <= 28) begin
-                    if (x == 2 || x == 28 || y == 53 || y == 63)
-                        pixel_data = (cursor_x >= 2 && cursor_x <= 28 && cursor_y >= 53 && cursor_y <= 63) ? 16'hffe0 : 16'h04b4;
-                    else if (cursor_x >= 2 && cursor_x <= 28 && cursor_y >= 53 && cursor_y <= 63) pixel_data = 16'h0351;
+                // Button 1: [ HOME ] (x: 2..22, center 12, 58)
+                if (x >= 2 && x <= 22) begin
+                    if (x == 2 || x == 22 || y == 53 || y == 63)
+                        pixel_data = (cursor_x >= 2 && cursor_x <= 22 && cursor_y >= 53 && cursor_y <= 63) ? 16'hffe0 : 16'h04b4;
+                    else if (cursor_x >= 2 && cursor_x <= 22 && cursor_y >= 53 && cursor_y <= 63) pixel_data = 16'h0351;
                     else pixel_data = 16'h18e5;
                     if (home_icon_lit) pixel_data = 16'hffff;
                 end
-                // Button 2: [ MAP SELECT ] (x: 35..61, center 48, 58)
-                else if (x >= 35 && x <= 61) begin
-                    if (x == 35 || x == 61 || y == 53 || y == 63)
-                        pixel_data = (cursor_x >= 35 && cursor_x <= 61 && cursor_y >= 53 && cursor_y <= 63) ? 16'hffe0 : 16'h04b4;
-                    else if (cursor_x >= 35 && cursor_x <= 61 && cursor_y >= 53 && cursor_y <= 63) pixel_data = 16'h0351;
+                // Button 2: [ MAP SELECT ] (x: 26..46, center 36, 58)
+                else if (x >= 26 && x <= 46) begin
+                    if (x == 26 || x == 46 || y == 53 || y == 63)
+                        pixel_data = (cursor_x >= 26 && cursor_x <= 46 && cursor_y >= 53 && cursor_y <= 63) ? 16'hffe0 : 16'h04b4;
+                    else if (cursor_x >= 26 && cursor_x <= 46 && cursor_y >= 53 && cursor_y <= 63) pixel_data = 16'h0351;
                     else pixel_data = 16'h18e5;
-                    pixel_data = draw_map_icon(7'd48, 6'd58, x, y, pixel_data);
+                    pixel_data = draw_map_icon(7'd36, 6'd58, x, y, pixel_data);
                 end
-                // Button 3: [ GUIDE ] (x: 68..94, center 81, 58)
-                else if (x >= 68 && x <= 94) begin
-                    if (x == 68 || x == 94 || y == 53 || y == 63)
-                        pixel_data = (cursor_x >= 68 && cursor_x <= 94 && cursor_y >= 53 && cursor_y <= 63) ? 16'hffe0 : 16'h04b4;
-                    else if (cursor_x >= 68 && cursor_x <= 94 && cursor_y >= 53 && cursor_y <= 63) pixel_data = 16'h0351;
+                // Button 3: [ GUIDE ] (x: 50..70, center 60, 58)
+                else if (x >= 50 && x <= 70) begin
+                    if (x == 50 || x == 70 || y == 53 || y == 63)
+                        pixel_data = (cursor_x >= 50 && cursor_x <= 70 && cursor_y >= 53 && cursor_y <= 63) ? 16'hffe0 : 16'h04b4;
+                    else if (cursor_x >= 50 && cursor_x <= 70 && cursor_y >= 53 && cursor_y <= 63) pixel_data = 16'h0351;
                     else pixel_data = 16'h18e5;
                     if (diary_icon[16]) pixel_data = diary_icon[15:0];
+                end
+                // Button 4: [ SETTINGS GEAR ] (x: 74..94, center 84, 58)
+                else if (x >= 74 && x <= 94) begin
+                    if (x == 74 || x == 94 || y == 53 || y == 63)
+                        pixel_data = (cursor_x >= 74 && cursor_x <= 94 && cursor_y >= 53 && cursor_y <= 63) ? 16'hffe0 : 16'h04b4;
+                    else if (cursor_x >= 74 && cursor_x <= 94 && cursor_y >= 53 && cursor_y <= 63) pixel_data = 16'h0351;
+                    else pixel_data = 16'h18e5;
+                    if (gear_lit) pixel_data = gear_colour;
                 end
             end
         end
@@ -1248,15 +1261,14 @@ module ui_renderer (
         // Shared single part_sprite12 evaluator for Guide Grid, Action Card, and Mouse Tutorial Screen
         if (example_draw) begin
             pixel_data = 16'h0841;
-            if (example_local_x == 0 || example_local_y == 0 ||
-                example_local_x == 11 || example_local_y == 11) begin
-                pixel_data = ((example_row == 0 && level_index == 0 && example_col != 1) ||
-                              (example_row == 2 && level_index == 0 && example_col == 1)) ? 16'h2945 : 16'h7bef;
+            if (!example_has_frame && (example_local_x == 0 || example_local_y == 0 ||
+                example_local_x == 11 || example_local_y == 11)) begin
+                pixel_data = 16'h2945;
             end
             if (example_has_frame)
                 pixel_data = part_sprite12(`LP_PART_FRAME, example_local_x, example_local_y, 1'b0, pixel_data);
             if (example_part != `LP_PART_EMPTY)
-                pixel_data = part_sprite12(example_part, example_local_x, example_local_y, 1'b0, pixel_data);
+                pixel_data = part_sprite12(example_part, (example_part == `LP_PART_BOOSTER && level_index == 0) ? (4'd11 - example_local_x) : example_local_x, example_local_y, 1'b0, pixel_data);
             // Drawn AFTER part_sprite12 so gold/red/green active border highlights wood-framed parts too!
             if (example_local_x == 0 || example_local_y == 0 ||
                 example_local_x == 11 || example_local_y == 11) begin
@@ -1265,9 +1277,10 @@ module ui_renderer (
                 end else if (example_row == 2'd3) begin
                     pixel_data = (diary_page == 2'd1 && level_index != 0) ? 16'hf800 : 16'hffe0;
                 end else if ((diary_page == 2'd0 && level_index == 0 && ((example_row == 1 && example_col == 0) || (example_row == 2 && example_col != 1))) ||
-                             (diary_page == 2'd0 && level_index != 0 && ((example_row == 0 && example_col != 1) || (example_row == 2 && example_col == 1))) ||
-                             (diary_page == 2'd1 && level_index == 0 && (example_row == 2 && example_col != 1)) ||
-                             (diary_page == 2'd2 && (example_row == 0 && example_col == 1))) begin
+                             (diary_page == 2'd0 && level_index != 0 && ((example_row == 0 && example_col != 1) || (example_row == 1 && example_col == 2))) ||
+                             (diary_page == 2'd1 && level_index == 0 && (example_row == 0 && example_col == 1)) ||
+                             (diary_page == 2'd2 && level_index == 0 && ((example_row == 1 && example_col == 0) || (example_row == 2 && example_col != 1))) ||
+                             (diary_page == 2'd2 && level_index != 0 && (example_row == 0 && example_col == 1))) begin
                     pixel_data = 16'hffe0; // Active part gold border
                 end else if (diary_page == 2'd1 && level_index != 0 && example_row == 0 && example_col == 0) begin
                     pixel_data = 16'hf800; // Red border around popped top-left balloon in Step 2

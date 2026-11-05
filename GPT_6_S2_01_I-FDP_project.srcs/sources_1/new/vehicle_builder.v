@@ -64,14 +64,14 @@ module vehicle_builder #(
 
     // All runtime damage sources share this final safety gate.  Protecting the
     // pig here prevents a future damage source from accidentally bypassing the
-    // TNT rule, and also keeps its supporting frame intact.
+    // TNT rule, while allowing its wooden frame and any non-pig part in a
+    // destroyed frame cell to break away.
     always @* begin
-        safe_damage_mask = damage_mask;
+        safe_damage_mask = damage_mask | damage_frame_mask;
         safe_damage_frame_mask = damage_frame_mask;
         for (damage_index=0; damage_index<9; damage_index=damage_index+1) begin
             if (build_grid[damage_index*`LP_PART_BITS +: `LP_PART_BITS] == `LP_PART_PIG) begin
                 safe_damage_mask[damage_index] = 1'b0;
-                safe_damage_frame_mask[damage_index] = 1'b0;
             end
         end
     end

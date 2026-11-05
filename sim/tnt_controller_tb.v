@@ -107,9 +107,9 @@ module tnt_controller_tb;
             $fatal(1, "TNT triggered before the vehicle touched it");
 
         // The vehicle touches the TNT through its empty lower corner, while
-        // the only occupied cell is 16 pixels from the TNT centre. The
-        // contact fallback must damage that nearest non-pig cell without
-        // widening the normal blast radius.
+        // the nearest occupied frame is the Pig's frame at cell 4 (or cell 2).
+        // With Pig frame destruction enabled, TNT destroys the Pig's wood frame
+        // (cell 4) on contact when cell 4 is closer to the TNT than cell 2!
         build_grid[5*3 +: 3]=`LP_PART_EMPTY;
         build_grid[2*3 +: 3]=`LP_PART_ENGINE;
         build_frames=9'b000010100;
@@ -125,8 +125,8 @@ module tnt_controller_tb;
         movement_committed=0;
         wait_damage();
         if (!explosion_event || !knockback_valid || knockback_y >= 0 ||
-            tnt_intact[0] || !damage_mask[2] || !damage_frame_mask[2])
-            $fatal(1, "Contact TNT did not damage the nearest non-pig cell");
+            tnt_intact[0] || !damage_frame_mask[4] || damage_mask[4])
+            $fatal(1, "Contact TNT did not damage the nearest frame (Pig frame at cell 4)");
         damage_ready=1;
         clocks(1);
         damage_ready=0;
@@ -171,13 +171,13 @@ module tnt_controller_tb;
         wait_damage();
 
         if (!explosion_event || tnt_intact[0] ||
-            !damage_valid || damage_mask[4] || damage_frame_mask[4] ||
+            !damage_valid || damage_mask[4] || !damage_frame_mask[4] ||
             !damage_mask[5] || !damage_frame_mask[5])
             $fatal(1, "TNT did not trigger, protect the pig, or damage the engine");
 
         // The request must remain stable until Role 1 accepts it.
         clocks(2);
-        if (!damage_valid || damage_mask[4] || damage_frame_mask[4] ||
+        if (!damage_valid || damage_mask[4] || !damage_frame_mask[4] ||
             !damage_mask[5] || !damage_frame_mask[5])
             $fatal(1, "Damage request was not held under backpressure");
 

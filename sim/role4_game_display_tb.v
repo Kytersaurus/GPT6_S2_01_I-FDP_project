@@ -191,7 +191,7 @@ module role4_game_display_tb;
             $fatal(1,"Level 1 spawn or flag moved");
         if (hazard_count != 0 || map_id) $fatal(1,"Level 1 has unexpected objects or map");
         // Three TNT: behind the spawn and one in each arch; unused entries stay zero.
-        if (tnt_count != 3 || tnt_positions !== {10'd390, 10'd156, 10'd260, 10'd588, 10'd92, 10'd194})
+        if (tnt_count != 3 || tnt_positions !== {10'd390, 10'd116, 10'd260, 10'd588, 10'd92, 10'd194})
             $fatal(1,"Level 1 TNT moved");
         if (star_box_x != 170 || star_box_y != 391) $fatal(1,"Level 1 star box moved");
         level=1; #1;

@@ -93,7 +93,7 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
     // A wheeled body resting on its side without wheels scrapes instead of rolling.
     // Bodies with no wheel sides reported (no wheels, or legacy inputs) keep the
     // original zero-wheel behaviour.
-    localparam signed [15:0] scrape_drag = 16'sd128;
+    localparam signed [15:0] scrape_drag = 16'sd256;
     // Spin is in 1/16 tilt steps per update: 16 turns 11.25 degrees each update.
     // Tipping over an edge adds TIP_ACCEL per update, up to MAX_SPIN.
     localparam signed [5:0] TIP_ACCEL = 6'sd3, MAX_SPIN = 6'sd16;
@@ -290,6 +290,7 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
     wire [3:0] wheel_side=tilt_flipped(vehicle_tilt) ? wheels_up : wheels_down;
     wire [3:0] legacy_contact_wheels=(wheels_down|wheels_up)==0 ? wheel_count : wheel_side;
     wire [3:0] contact_wheels=last_support_span_valid ? last_support_wheel_count : legacy_contact_wheels;
+    wire bare_pig_only = moments_enabled && (intact_mask != 9'd0) && (frame_intact_mask == 9'd0) && (wheel_count == 4'd0);
     reg [23:0] step_slope_product;
     reg signed [15:0] step_slope_force;
     reg [27:0] boost_timer; // 1.5 seconds at 100MHz is 150_000_000 cycles
@@ -526,7 +527,7 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
                     step_vx <= velocity_x; step_mass <= mass_units;
                     step_remainder <= remainder_x;
                     pending_remainder_x <= 0; pending_remainder_y <= 0;
-                    sampled_wheels <= contact_wheels; sampled_engines <= engine_count;
+                    sampled_wheels <= (contact_wheels == 4'd0 && bare_pig_only) ? 4'd1 : contact_wheels; sampled_engines <= engine_count;
                     sampled_sided <= last_support_span_valid || (wheels_down|wheels_up)!=0;
                     sampled_balloons <= balloon_count;
 
@@ -769,7 +770,9 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
                     if (was_grounded && step_vy>=0 && !step_support_unstable && active_tip==0 && supported_moment_accel==0 &&
                         (last_support_span_valid || (clamped_angular_velocity<14'sd256 && clamped_angular_velocity> -14'sd256))) begin
                         angular_velocity_q8<=0; moment_angle_remainder<=0; spin<=0; spin_frac<=0;
-                        if (slope_target_ready && settle_error>0) proposed_tilt<=vehicle_tilt+1'b1;
+                        if (bare_pig_only && step_result_vx > 16'sd8) proposed_tilt<=vehicle_tilt+1'b1;
+                        else if (bare_pig_only && step_result_vx < -16'sd8) proposed_tilt<=vehicle_tilt-1'b1;
+                        else if (slope_target_ready && settle_error>0) proposed_tilt<=vehicle_tilt+1'b1;
                         else if (slope_target_ready && settle_error<0) proposed_tilt<=vehicle_tilt-1'b1;
                         else proposed_tilt<=vehicle_tilt;
                     end else if (!was_grounded && clamped_angular_velocity==0) begin

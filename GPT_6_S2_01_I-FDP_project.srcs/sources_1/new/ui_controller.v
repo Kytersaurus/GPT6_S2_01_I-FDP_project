@@ -141,11 +141,12 @@ module ui_controller (
                         // Bottom button: [ RETRY ] (y: 30..50)
                         end else if (mx >= 56 && mx <= 92 && my >= 30 && my <= 50) begin
                             launch_req <= 1;
-                        // Bottom action bar (y: 53..63): [ HOME ] [ MAP SELECT ] [ GUIDE ]
+                        // Bottom action bar (y: 53..63): [ HOME ] [ MAP SELECT ] [ GUIDE ] [ SETTINGS ]
                         end else if (my >= 53 && my <= 63) begin
-                            if (mx >= 2 && mx <= 28) home_req <= 1;
-                            else if (mx >= 35 && mx <= 61) level_open_req <= 1;
-                            else if (mx >= 68 && mx <= 94) begin guide_open_req <= 1; diary_page <= 0; end
+                            if (mx >= 2 && mx <= 22) home_req <= 1;
+                            else if (mx >= 26 && mx <= 46) level_select_req <= 1;
+                            else if (mx >= 50 && mx <= 70) begin guide_open_req <= 1; diary_page <= 0; end
+                            else if (mx >= 74 && mx <= 94) level_open_req <= 1;
                         end
                     end else if (game_state==`LP_RUN) begin
                         // Bottom Navigation Bar in run mode (y: 53..63): [TRY] [END] [EDIT] [GEAR]
