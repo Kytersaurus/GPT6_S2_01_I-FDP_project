@@ -282,6 +282,7 @@ signal haswheel: std_logic := '0';
 -- from the mouse (if it was positive it becomes negative
 -- and vice versa)
 signal x_pos,y_pos: std_logic_vector(11 downto 0) := (others => '0');
+signal x_sub,y_sub: std_logic := '0';
 
 -- active when an overflow occurred on the x and y axis
 -- bits 6 and 7 from the first byte received from the mouse
@@ -436,58 +437,53 @@ timeout  <= '1' when timeout_cnt = (TIMEOUT_PERIOD_CLOCKS - 1) else '0';
    -- movement detected by adding the delta movement in x_inc, or by
    -- adding 256 or -256 when overflow occurs.
    set_x: process(clk)
-   variable x_inter: std_logic_vector(11 downto 0);
-   variable inc: std_logic_vector(11 downto 0);
+   variable x_inter: std_logic_vector(12 downto 0);
+   variable inc: std_logic_vector(12 downto 0);
    begin
       if(rising_edge(clk)) then
          -- if setx active, set new x_pos value
          if(setx = '1') then
             x_pos <= value;
+            x_sub <= '0';
          -- if delta movement received from mouse
          elsif(x_new = '1') then
             -- if negative movement on x axis
             if(x_sign = '1') then
                -- if overflow occurred
                if(x_overflow = '1') then
-                  -- inc is -256
-                  inc := "111000000000";
+                  -- inc is -256 half-pixels
+                  inc := "1111000000000";
                else
                   -- inc is sign extended x_inc
-                  inc := "1111" & x_inc;
+                  inc := "11111" & x_inc;
                end if;
-               -- intermediary horizontal position
-               x_inter := x_pos + inc;
-               -- if first bit of x_inter is 1
-               -- then negative overflow occurred and
-               -- new x position is 0.
-               -- Note: x_pos and x_inter have 11 bits,
-               -- and because xpos has only 10, when
-               -- first bit becomes 1, this is considered
-               -- a negative number when moving left
-               if(x_inter(11) = '1') then
+               -- intermediary horizontal position (12.1 fixed-point)
+               x_inter := (x_pos & x_sub) + inc;
+               if(x_inter(12) = '1') then
                   x_pos <= (others => '0');
+                  x_sub <= '0';
                else
-                  x_pos <= x_inter;
+                  x_pos <= x_inter(12 downto 1);
+                  x_sub <= x_inter(0);
                end if;
             -- if positive movement on x axis
             else
                -- if overflow occurred
                if(x_overflow = '1') then
-                  -- inc is 256
-                  inc := "000100000000";
+                  -- inc is 256 half-pixels
+                  inc := "0000100000000";
                else
                   -- inc is sign extended x_inc
-                  inc := "0000" & x_inc;
+                  inc := "00000" & x_inc;
                end if;
-               -- intermediary horizontal position
-               x_inter := x_pos + inc;
-               -- if x_inter is greater than x_max
-               -- then positive overflow occurred and
-               -- new x position is x_max.
-               if(x_inter > ('0' & x_max)) then
+               -- intermediary horizontal position (12.1 fixed-point)
+               x_inter := (x_pos & x_sub) + inc;
+               if(x_inter(12 downto 1) >= x_max) then
                   x_pos <= x_max;
+                  x_sub <= '0';
                else
-                  x_pos <= x_inter;
+                  x_pos <= x_inter(12 downto 1);
+                  x_sub <= x_inter(0);
                end if;
             end if;
          end if;
@@ -499,13 +495,14 @@ timeout  <= '1' when timeout_cnt = (TIMEOUT_PERIOD_CLOCKS - 1) else '0';
    -- movement detected by adding the delta movement in y_inc, or by
    -- adding 256 or -256 when overflow occurs.
    set_y: process(clk)
-   variable y_inter: std_logic_vector(11 downto 0);
-   variable inc: std_logic_vector(11 downto 0);
+   variable y_inter: std_logic_vector(12 downto 0);
+   variable inc: std_logic_vector(12 downto 0);
    begin
       if(rising_edge(clk)) then
          -- if sety active, set new y_pos value
          if(sety = '1') then
             y_pos <= value;
+            y_sub <= '0';
          -- if delta movement received from mouse
          elsif(y_new = '1') then
             -- if negative movement on y axis
@@ -513,45 +510,39 @@ timeout  <= '1' when timeout_cnt = (TIMEOUT_PERIOD_CLOCKS - 1) else '0';
             if(y_sign = '1') then
                -- if overflow occurred
                if(y_overflow = '1') then
-                  -- inc is -256
-                  inc := "111100000000";
+                  -- inc is -256 half-pixels
+                  inc := "1111000000000";
                else
                   -- inc is sign extended y_inc
-                  inc := "1111" & y_inc;
+                  inc := "11111" & y_inc;
                end if;
-               -- intermediary vertical position
-               y_inter := y_pos + inc;
-               -- if first bit of y_inter is 1
-               -- then negative overflow occurred and
-               -- new y position is 0.
-               -- Note: y_pos and y_inter have 11 bits,
-               -- and because ypos has only 10, when
-               -- first bit becomes 1, this is considered
-               -- a negative number when moving upward
-               if(y_inter(11) = '1') then
+               -- intermediary vertical position (12.1 fixed-point)
+               y_inter := (y_pos & y_sub) + inc;
+               if(y_inter(12) = '1') then
                   y_pos <= (others => '0');
+                  y_sub <= '0';
                else
-                  y_pos <= y_inter;
+                  y_pos <= y_inter(12 downto 1);
+                  y_sub <= y_inter(0);
                end if;
             -- if positive movement on y axis
             else
                -- if overflow occurred
                if(y_overflow = '1') then
-                  -- inc is 256
-                  inc := "000100000000";
+                  -- inc is 256 half-pixels
+                  inc := "0000100000000";
                else
                   -- inc is sign extended y_inc
-                  inc := "0000" & y_inc;
+                  inc := "00000" & y_inc;
                end if;
-               -- intermediary vertical position
-               y_inter := y_pos + inc;
-               -- if y_inter is greater than y_max
-               -- then positive overflow occurred and
-               -- new y position is y_max.
-               if(y_inter > (y_max)) then
+               -- intermediary vertical position (12.1 fixed-point)
+               y_inter := (y_pos & y_sub) + inc;
+               if(y_inter(12 downto 1) >= y_max) then
                   y_pos <= y_max;
+                  y_sub <= '0';
                else
-                  y_pos <= y_inter;
+                  y_pos <= y_inter(12 downto 1);
+                  y_sub <= y_inter(0);
                end if;
             end if;
          end if;
