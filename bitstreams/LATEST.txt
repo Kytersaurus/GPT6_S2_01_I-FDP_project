@@ -1,1 +1,5 @@
-2026-11-05/210523_My_Top_Module.bit
+﻿Latest bitstream: 2026-11-05/205136_My_Top_Module.bit
+Quick copy:       bitstreams/bad_piggies_top_latest.bit
+Built at:         2026-11-05 20:51:36 +08:00
+Source commit:    4486179
+Top module:       My_Top_Module (XC7A35T-1CPG236C)
