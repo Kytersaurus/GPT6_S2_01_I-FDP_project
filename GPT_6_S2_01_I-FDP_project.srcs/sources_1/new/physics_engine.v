@@ -191,10 +191,10 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
     wire single_wheel_grounded = was_grounded && last_support_span_valid &&
                                  (legacy_contact_wheels == 4'd1) && has_intact_frames;
     wire single_wheel_scraping = single_wheel_grounded &&
-                                 (last_support_wheel_count == 4'd1) && (support_span_width_q2 > 11'sd52);
-    wire frame_tip_only = was_grounded && last_support_span_valid && has_intact_frames &&
-                          (last_support_wheel_count == 4'd0) && (support_span_width_q2 <= 11'sd52) &&
-                          (settle_error[2:0] != 3'd0);
+                                 ((last_support_wheel_count == 4'd0) ||
+                                  ((last_support_wheel_count == 4'd1) && (support_span_width_q2 > 11'sd52)));
+    wire frame_tip_only = single_wheel_grounded && (last_support_wheel_count == 4'd0) &&
+                          (support_span_width_q2 <= 11'sd52) && (settle_error[2:0] != 3'd0);
     wire single_wheel_only = (single_wheel_grounded && (last_support_wheel_count == 4'd1) &&
                               (support_span_width_q2 <= 11'sd52)) || frame_tip_only;
     wire effective_support_unstable = contact_support_unstable;
@@ -349,7 +349,7 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
     wire unpowered_run = step_moments_enabled && !(sampled_engine_enabled && sampled_engines != 0) &&
                          sampled_fans == 0 && sampled_lift_fans == 0 &&
                          sampled_rockets == 0 && sampled_vertical_rockets == 0;
-    wire unpowered_uphill = unpowered_run && was_grounded &&
+    wire unpowered_uphill = unpowered_run && was_grounded && (bowl_osc_count != 2'd0) &&
                             ((step_vx > 0 && sampled_slope < 0) || (step_vx < 0 && sampled_slope > 0));
     wire bowl_settled = unpowered_run && was_grounded && (bowl_osc_count >= 2'd2) &&
                         (step_vx < 16'sd96) && (step_vx > -16'sd96);
