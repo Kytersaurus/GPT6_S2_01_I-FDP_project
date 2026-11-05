@@ -30,14 +30,13 @@ This document specifies the shared constants (`game_defs.vh`) and module port co
 
 ## 2. Core Subsystem Interfaces
 
-### 2.1 `input_controller.v`
+### 2.1 `input_controller.v` & Top-Level Switch Signals
 * **Inputs:** `clk`, `reset`, `btnU`, `btnD`, `btnL`, `btnR`, `btnC`, `sw[15:0]`, mouse coordinates & button signals.
-* **Key Switch Outputs:**
-  - `title_enable_sw = ~sw[0]` (`SW0 = 0` enables Title Screen; `SW0 = 1` bypasses to Build)
-  - `engine_switch = sw[1]` (`SW1` Engine Master Switch)
+* **Active Switch Signals (`SW3`–`SW12` are unused/disconnected):**
+  - `show_map = sw[0]` (`SW0` 1-Screen / 2-Screen Mode toggle on PMOD JA)
+  - `engine_switch = sw[1]` (`SW1` Engine Switch)
   - `reverse_switch = sw[2]` (`SW2` Wheel Engine Reverse)
-  - `show_map = sw[12]` (`SW12` Single-OLED Mode on PMOD JA)
-  - `free_look = sw[13]` (`SW13` Mouse Free Look Camera)
+  - `free_look = sw[13]` (`SW13` Mouse Free-Look Camera Pan)
   - `zoom_switch = sw[14]` (`SW14` Camera Zoom `1.5×` / `1.0×`)
   - `mute_switch = sw[15]` (`SW15` Hardware Audio Mute)
 

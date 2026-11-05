@@ -932,7 +932,26 @@ module My_Top_Module #(
     assign JXADC[1] = 1'b1; // High selects the lower, 6 dB gain.
     assign JXADC[2] = 1'b0; // AMP2 pin 3 is not connected.
     assign JXADC[3] = !reset && !audio_muted;
-    assign led = sw;
+
+    // Flash unused middle LEDs (led[12:3]) when GO is called (launch_flash)
+    // and when the game ends (LP_SUCCESS alternating marquee, LP_FAIL alert blink).
+    // Unused switches sw[12:3] are intentionally disconnected.
+    reg [3:0] led_anim_tick;
+    wire led_anim_active = launch_flash || (game_state == `LP_SUCCESS) || (game_state == `LP_FAIL);
+    always @(posedge clk) begin
+        if (reset || !led_anim_active)
+            led_anim_tick <= 4'd0;
+        else if (physics_tick)
+            led_anim_tick <= led_anim_tick + 4'd1;
+    end
+
+    wire [9:0] unused_leds_flash =
+        launch_flash               ? {10{led_anim_tick[1]}} :
+        (game_state == `LP_SUCCESS) ? (led_anim_tick[3] ? 10'b1010101010 : 10'b0101010101) :
+        (game_state == `LP_FAIL)    ? {10{led_anim_tick[3]}} :
+                                     10'd0;
+
+    assign led = {sw[15:13], unused_leds_flash, sw[2:0]};
 endmodule
 
 

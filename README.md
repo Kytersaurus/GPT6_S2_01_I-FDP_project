@@ -84,19 +84,17 @@ flowchart TD
 | **Audio Amplifier (AMP2)** | **JXADC** | `JXADC[0]` = Audio PWM (`AIN`), `JXADC[1]` = Gain, `JXADC[3]` = Active-Low Shutdown (`~SHDN`) |
 | **PS/2 Mouse** | **USB Host (HID) / JC** | Cursor navigation, drag-and-drop building, scroll-wheel zoom, and interactive part activation |
 
-### 3.2 Basys 3 Switch Mapping (`SW15`–`SW0`)
-Switches are grouped into two ergonomic clusters: **Right-hand Gameplay Switches (`SW0`–`SW2`)** and **Left-hand Camera, Display & Audio Switches (`SW12`–`SW15`)**.
+### 3.2 Basys 3 Active Switch Mapping
+Only the active switches on the **Right Cluster (`SW0`–`SW2`)** and **Left Cluster (`SW13`–`SW15`)** are connected (unused middle switches `SW3`–`SW12` are disconnected):
 
 | Switch | Signal / Role | `0` (Down / OFF) | `1` (Up / ON) |
 | :--- | :--- | :--- | :--- |
-| **`SW0`** | **Title Screen Bypass** (`title_enable_sw`) | Normal boot into animated `"LAGGY PIGGIES"` Title Screen | Bypasses Title Screen directly into `BUILD` mode |
-| **`SW1`** | **Engine Master Switch** (`engine_switch`) | **Disables wheel engine drive** (`SW1 OFF` warning on Left OLED) | **Enables wheel engine drive** (allows on-screen `[ENG]` & click toggling; flipping `SW1` during `RUN` also syncs engine state) |
-| **`SW2`** | **Engine Reverse** (`reverse_switch`) | Forward wheel engine drive (rightward thrust) | **Reverse wheel engine drive** (leftward thrust; affects wheel engines only, never fans or rockets) |
-| **`SW3`–`SW11`** | *Unused in game logic* | `LED[11:3]` OFF | `LED[11:3]` ON (`assign led = sw;`) |
-| **`SW12`** | **Single-OLED Mode** (`show_map`) | **Dual-OLED Mode:** Left OLED (`JA`) shows UI/Builder, Right OLED (`JB`) shows World Map | **Single-OLED Mode:** Left OLED (`JA`) displays the World Map directly; Right OLED (`JB`) is blanked |
-| **`SW13`** | **Free Look Camera** (`free_look`) | Camera automatically follows the vehicle with alpha-beta vertical smoothing | **Mouse Free Look:** Moving the mouse pans the viewport across the entire cave map |
-| **`SW14`** | **Camera Zoom Toggle** (`zoom_switch`) | **Close View (1.5×)** — 64×42 world viewport (12×12 part sprites) | **Normal View (1.0×)** — 96×64 world viewport (8×8 part sprites). *Mouse scroll wheel also steps across 1.5×, 1.0×, and 0.5× Overview* |
-| **`SW15`** | **Hardware Audio Mute** (`mute_switch`) | Audio enabled (controlled by on-screen Sound menu) | **Hardware Mute:** Immediately mutes all BGM & SFX, shows `SW15 MUTE` in Sound menu, and pulls `JXADC[3]` low |
+| **`SW0`** | **1-Screen / 2-Screen Mode** (`show_map`) | **2-Screen Dual-OLED Mode:** Left OLED (`JA`) shows UI/Builder/Run Grid; Right OLED (`JB`) shows World Map | **1-Screen Mode:** Left OLED (`JA`) displays the World Map directly; Right OLED (`JB`) is blanked |
+| **`SW1`** | **Engine Switch** (`engine_switch`) | Engine controlled via on-screen 3×3 grid click | Turns wheel engine drive ON during `RUN` (syncs with on-screen engine state) |
+| **`SW2`** | **Engine Reverse** (`reverse_switch`) | **Forward Engine Drive:** Wheel engines push right (`+X`) | **Reverse Engine Drive:** Wheel engines push left (`-X`). *(Affects wheel engines only, never fans or rockets)* |
+| **`SW13`** | **Free-Look Camera Pan** (`free_look`) | **Follow Camera:** Viewport automatically tracks the vehicle with alpha-beta vertical smoothing | **Mouse Free Look:** Moving the mouse pans the viewport across the entire cave map |
+| **`SW14`** | **Camera Zoom Toggle** (`zoom_switch`) | **Close View (`1.5×`):** 64×42 world viewport (12×12 part sprites) | **Normal View (`1.0×`):** 96×64 world viewport (8×8 part sprites). *(Mouse scroll wheel also steps across `1.5×`, `1.0×`, and `0.5×` Overview)* |
+| **`SW15`** | **Hardware Audio Mute** (`mute_switch`) | **Audio Enabled:** Controlled by on-screen Sound menu | **Hardware Mute:** Immediately mutes all BGM & SFX, shows `MUTED BY SW15` in Sound menu, and pulls `JXADC[3]` low |
 
 ### 3.3 Basys 3 Pushbutton & Onboard Indicator Mapping
 
@@ -104,10 +102,10 @@ Switches are grouped into two ergonomic clusters: **Right-hand Gameplay Switches
 | :--- | :--- | :--- |
 | **`BTNC`** | **Launch / Retry** | Launches the vehicle from `BUILD` (when build is valid); retries the current level from `RUN`, `SUCCESS`, or `FAIL` |
 | **`BTNU`** | **Edit / Guide / Back** | Opens/closes the Diary (`GUIDE`) in `BUILD`; returns to `BUILD` from `RUN`, `SUCCESS`, or `FAIL`; backs out of `LEVEL_SELECT` or `SETTINGS` |
-| **`BTNR`** | **Rocket Boost Shortcut** | Fires the Rocket Booster / Engine Boost pulse during `RUN` mode (parallel to `[RCKT]` / `[BOOST]` and direct rocket clicks) |
-| **`BTNL`** | *Reserved* | Tied inactive (`1'b0`) |
+| **`BTNR`** | **Rocket Boost Shortcut** | Fires the Rocket Booster / Engine Boost pulse during `RUN` mode |
 | **`BTND`** | **Master Hardware Reset** | Synchronized active-high system reset; resets FSM, inventory, and displays |
-| **`LED[15:0]`** | **Switch Indicators** | Directly mirrors `SW[15:0]` (`assign led = sw;`) |
+| **`LED[15:13]`, `LED[2:0]`** | **Active Switch Indicators** | Mirrors the active switches `SW[15:13]` and `SW[2:0]` |
+| **`LED[12:3]`** | **GO & Game-End Flash LEDs** | Flashes a rapid launch strobe when **`GO`** is pressed (`launch_flash`), an alternating celebration marquee on **`SUCCESS`**, and an alert blink on **`FAIL`** |
 | **7-Segment Display** | **20s Par Countdown Timer** | Displays active-low `SS.T` 20.0-second par countdown (`20.0` $\to$ `0.0`), then counts negative overtime (`-0.1`, `-0.2`, ...) if par expires. Exclusively rendered on the 4-digit 7-segment display |
 
 ---

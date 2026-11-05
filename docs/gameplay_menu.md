@@ -7,9 +7,9 @@ This document details the user interface layouts, PS/2 mouse drag-and-drop build
 ## 1. Screen Flow & Master Game States
 
 * **Title Screen (`LP_TITLE`):**
-  - **Left OLED (`JA`):** Animated scrolling cave background (using Port B of `level_map.v` at 0% extra BRAM cost), `"LAGGY PIGGIES"` banner, **`[PLAY]`** button, and **`[GEAR]`** Settings button.
+  - **Left OLED (`JA`):** Animated scrolling clouds over Piggy Island meadow, `"LAGGY PIGGIES"` banner, centered **`[PLAY]`** button, and bottom-left **`[GEAR]`** Settings button.
   - **Right OLED (`JB`):** Blanked (`16'h0000`).
-  - **Bypass:** Setting `SW0 = 1` bypasses the Title Screen directly into `BUILD`.
+  - **1-Screen Mode (`SW0`):** Toggling `SW0 = 1` routes the Right OLED World Map directly onto Left OLED (`JA`) and blanks Right OLED (`JB`).
 * **Build Screen (`LP_BUILD`):**
   - **Left OLED (`JA`):**
     - **Left Strip (`x = 1..15`):** 3 stacked part slots (`15×15` px each) with live stock badges, plus a bottom page-cycle arrow (`[v]` on Page 1, `[^]` on Page 2).
@@ -76,10 +76,10 @@ This document details the user interface layouts, PS/2 mouse drag-and-drop build
      - **Page 1 (`GOAL`):** Animated Pig Pilot $\to$ Goal Flag & 3-Star criteria diagram.
      - **Page 2 (`BUILD`):** Left Inventory $\to$ 3×3 Build Grid $\to$ `[GO]` button diagram.
      - **Page 3 (`RUN`):** Interactive 3×3 Click Diagram + Bottom Action Bar diagram.
-2. **Settings Menu & `[ ? ]` Switch Guide (`[GEAR]`):**
-   - **Main Settings View:**
-     - **`[SPD: SLOW / NORM / FAST]`** — Cycles PS/2 mouse cursor sensitivity.
-     - **`[SOUND: ALL / BGM / SFX / MUTE]`** — Opens the Sound mixer (or displays `SW15 MUTE` if muted by hardware switch).
-     - **`[LEVELS]`** — Opens the visual Map 1 / Map 2 / Map 3 selector (`LP_LEVEL_SELECT`).
-     - **`[TITLE]`** — Returns to the `"LAGGY PIGGIES"` Start Screen.
-     - **`[ ? ]` (Top-Right Button, `x = 80..93, y = 2..11`):** Toggles the built-in **Hardware Switch & Button Reference Page** right inside Settings (`SW0` Title, `SW1` Engine, `SW2` Reverse, `SW12` 1-OLED, `SW13` Pan, `SW14` Zoom, `SW15` Mute, `BTNC/U/R`).
+2. **Settings Menu & `[ ? ]` Controls / Switch Guide (`[GEAR]`):**
+   - **Main Settings View (`diary_page == 0`):**
+     - **Sound Settings Card (`x = 8..44, y = 12..48`):** Opens Master Volume (`[-]` / `[+]` with 4 stepped bars and `MUTED BY SW15` banner).
+     - **Map Select Card (`x = 51..87, y = 12..48`):** Opens the Map 1 / Map 2 selector (`LP_LEVEL_SELECT`).
+     - **`[ ? ]` (Bottom-Left Button, `x = 2..25, y = 52..62`):** Cycles through **Mouse Controls (`1/2`: Left-Click Drag & Right-Click Remove)** and **Board Switches (`2/2`: visual icons over `SW15` Mute, `SW14` Zoom, `SW13` Free-Look Pan, `SW2` Reverse, and `SW0` 1-OLED Mode)**.
+     - **`[BACK]` (`x = 28..68, y = 52..62`):** Returns to the previous screen.
+     - **`[HOME]` (`x = 70..95, y = 52..62`):** Returns to the `"LAGGY PIGGIES"` Start Screen.

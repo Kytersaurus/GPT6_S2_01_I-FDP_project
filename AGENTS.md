@@ -15,8 +15,9 @@ This document serves as the single source of truth for **all human teammates (Ka
   - PS/2 Mouse: Standard PS/2 streaming interface (`USB Host / PMOD JC`).
   - Basys 3 onboard I/O:
     - **4-digit active-low 7-segment display:** 20.0-second par countdown timer (`20.0` $\to$ `0.0`, then negative overtime `-0.1`, `-0.2`, ...). All timer rendering is exclusively on the 7-segment display.
-    - **Right-Cluster Switches (`SW0`–`SW2`):** `SW0` Title Screen bypass (`0` = Title enabled, `1` = bypass to Build), `SW1` Engine Master Switch (`0` = engine disabled / `SW1 OFF`, `1` = engine enabled), `SW2` Engine Reverse (`0` = forward, `1` = reverse wheel engine drive only).
-    - **Left-Cluster Switches (`SW12`–`SW15`):** `SW12` Single-OLED Mode (`1` = display World Map on Left OLED `JA` and blank `JB`), `SW13` Free Look camera (`1` = mouse pans camera), `SW14` Camera Zoom toggle (`0` = 1.5× Close, `1` = 1.0× Normal), `SW15` Hardware Audio Mute (`1` = mute all audio).
+    - **Right-Cluster Switches (`SW0`–`SW2`):** `SW0` 1-Screen / 2-Screen Mode toggle (`0` = 2-Screen Dual-OLED mode, `1` = 1-Screen mode showing World Map on Left OLED `JA` and blanking `JB`), `SW1` Engine switch (`1` = engine ON in `RUN`), `SW2` Engine Reverse (`0` = forward, `1` = reverse wheel engine drive only).
+    - **Left-Cluster Switches (`SW13`–`SW15`):** `SW13` Free-Look camera pan (`1` = mouse pans camera), `SW14` Camera Zoom toggle (`0` = 1.5× Close, `1` = 1.0× Normal), `SW15` Hardware Audio Mute (`1` = mute all audio). Unused middle switches `SW3`–`SW12` are disconnected.
+    - **Onboard LEDs (`LED[15:0]`):** `LED[15:13]` and `LED[2:0]` mirror the active switches; `LED[12:3]` flash on **`GO` / Launch** (`launch_flash`) and when the **game ends** (`LP_SUCCESS` marquee / `LP_FAIL` alert blink).
     - **Pushbuttons:** `BTNC` Launch/Retry, `BTNU` Edit/Diary/Back, `BTNR` Rocket Boost shortcut, `BTND` Master Reset.
 * **Team Roles & Responsibilities:**
   - **Role 1 (Kaushal):** Vehicle Builder, Inventory/Stock Validation, Mouse Input & Drag-and-Drop, Audio Pipeline (BGM + SFX), 7-Segment Countdown Timer, Left OLED UI Layouts, Dual-OLED Diary Walkthrough & Settings `[ ? ]` Switch Guide.
@@ -175,14 +176,14 @@ flowchart TD
 * Outputs 8-bit PWM on `JXADC[0]` with hardware gain on `JXADC[1]` and active shutdown on `JXADC[3]`.
 
 ### 4.8 Dual OLED Rendering & Hardware Orientation
-* **JA (Left OLED):** Rotated 180° in hardware (`95 - x`, `63 - y`) because PMOD JA is mounted upside down on the Basys 3 board. (When `SW12` is ON, Left OLED displays the World Map directly for Single-OLED play).
-  - *Title Screen:* Scrolling cave background with `"LAGGY PIGGIES"` logo, Play button, and Settings button.
+* **JA (Left OLED):** Rotated 180° in hardware (`95 - x`, `63 - y`) because PMOD JA is mounted upside down on the Basys 3 board. (When `SW0` is ON, Left OLED displays the World Map directly for 1-Screen play).
+  - *Title Screen:* Animated Piggy Island sky & scrolling clouds with `"LAGGY PIGGIES"` logo, Play button, and Settings button.
   - *Build Screen:* 16px 3×3 grid, inventory pages 1 & 2, drag preview, Go button, Book/Diary & Settings icons.
-  - *Run Screen:* Centered 16px 3×3 interactive damage diagram, direct cell clicking (balloons, engine, individual fans, rockets), top buttons (`[RETRY]`, `[GEAR]`, `[EDIT]`), bottom buttons (`ENG` / `SW1 OFF`, `FAN`, `RCKT`, `BOOST`).
-  - *Settings & `[ ? ]` Guide:* Mouse speed, Sound mixer, Level Select, `[TITLE]`, and top-right `[ ? ]` toggle for the hardware switch guide.
+  - *Run Screen:* Centered 16px 3×3 interactive damage diagram, direct cell clicking (balloons, engine, individual fans, rockets), bottom action bar (`[TRY]`, `[END]`, `[EDIT]`, `[GEAR]`).
+  - *Settings & `[ ? ]` Guide:* Sound Settings, Map Select, Home, and bottom-left `[ ? ]` toggle cycling Mouse Controls (`1/2`) and Board Switches (`2/2`: `SW15` Mute, `SW14` Zoom, `SW13` Pan, `SW2` Reverse, `SW0` 1-OLED).
 * **JB (Right OLED):**
-  - Completely blanked (`16'h0000`) on Title Screen, Level Select screen, and when `SW12` Single-OLED mode is active.
-  - *Field Diary (`GUIDE`):* Displays live visual walkthrough diagrams on Right OLED synchronized with the 3-page Diary text on Left OLED.
+  - Completely blanked (`16'h0000`) on Title Screen, Level Select screen, and when `SW0` 1-Screen mode is active.
+  - *Field Diary (`GUIDE`):* Pans the Right OLED camera to the live level checkpoint and poses the recommended demo contraption synchronized with the 3-step Diary walkthrough on Left OLED.
   - *Build & Run Modes:* World follow-camera with 3 zoom levels (1.5×, 1.0×, 0.5× via `SW14` or scroll wheel) or mouse Free Look (`SW13`).
 * **Port B BRAM Multiplexing:** During the Title Screen, because Right OLED is turned off, Port B of the terrain BRAM (`level_map.v`) is routed to the Left OLED pipeline with an offset scroll counter. This produces a live moving cave background at **0% extra BRAM cost**.
 

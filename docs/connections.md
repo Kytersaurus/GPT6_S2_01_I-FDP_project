@@ -16,20 +16,26 @@ This document summarizes the hardware pinouts, switch/button assignments, and to
 
 ---
 
-## 2. Basys 3 Slide Switches (`SW15`–`SW0`)
+## 2. Basys 3 Slide Switches & LEDs
 
-Slide switches are organized into **Right-hand Gameplay Controls (`SW0`–`SW2`)** and **Left-hand Display, Camera & Audio Controls (`SW12`–`SW15`)**. All 16 switches are mirrored directly onto `LED[15:0]` (`assign led = sw;`).
+Only the active switches on the **Right Cluster (`SW0`–`SW2`)** and **Left Cluster (`SW13`–`SW15`)** are connected in RTL (middle switches `SW3`–`SW12` are disconnected).
 
 | Switch | RTL Signal | `0` (Down / OFF) | `1` (Up / ON) |
 | :--- | :--- | :--- | :--- |
-| **`SW0`** | `title_enable_sw` | **Normal Boot:** Starts on the animated `"LAGGY PIGGIES"` Title Screen (`LP_TITLE`) | **Title Screen Bypass:** Skips Title Screen and boots directly into `LP_BUILD` |
-| **`SW1`** | `engine_switch` | **Engine Master OFF:** Permanently inhibits wheel engine thrust and displays `SW1 OFF` warning on Left OLED | **Engine Master ON:** Enables wheel engine drive (`[ENG]` button and direct engine clicking active; flipping `SW1` during `RUN` also syncs engine state) |
-| **`SW2`** | `reverse_switch` | **Forward Engine Drive:** Wheel engines push right (`+X`) | **Reverse Engine Drive:** Wheel engines push left (`-X`). *Only affects wheel engines, never fans or rockets* |
-| **`SW3`–`SW11`** | *Unassigned* | `LED[11:3]` OFF | `LED[11:3]` ON |
-| **`SW12`** | `show_map` | **Dual-OLED Mode:** Left OLED (`JA`) shows UI/Builder/Run Grid; Right OLED (`JB`) shows World Map | **Single-OLED Mode:** Left OLED (`JA`) renders the World Map directly; Right OLED (`JB`) is blanked (`16'h0000`) |
-| **`SW13`** | `free_look` | **Follow Camera:** Viewport automatically tracks the vehicle with alpha-beta vertical smoothing | **Free Look Camera:** Mouse cursor `X/Y` pans the viewport across the entire cave map |
-| **`SW14`** | `zoom_switch` | **Close Zoom (`1.5×`):** 64×42 world viewport with 12×12 part sprites | **Normal Zoom (`1.0×`):** 96×64 world viewport with 8×8 part sprites. *(Mouse scroll wheel also steps across `1.5×`, `1.0×`, and `0.5×` Overview)* |
-| **`SW15`** | `mute_switch` | **Audio Enabled:** Follows the on-screen Sound menu (`ALL / BGM / SFX / MUTE`) | **Hardware Audio Mute:** Mutes all BGM and SFX immediately, displays `SW15 MUTE` in the Sound menu, and pulls `JXADC[3]` low |
+| **`SW0`** | `show_map` (`sw[0]`) | **2-Screen Dual-OLED Mode:** Left OLED (`JA`) shows UI/Builder/Run Grid; Right OLED (`JB`) shows World Map | **1-Screen Mode:** Left OLED (`JA`) renders the World Map directly; Right OLED (`JB`) is blanked (`16'h0000`) |
+| **`SW1`** | `engine_switch` (`sw[1]`) | Engine controlled by clicking the Engine cell on the 3×3 grid | **Engine ON:** Enables wheel engine drive during `RUN` and syncs `ui_engine_on` |
+| **`SW2`** | `reverse_switch` (`sw[2]`) | **Forward Engine Drive:** Wheel engines push right (`+X`) | **Reverse Engine Drive:** Wheel engines push left (`-X`). *Only affects wheel engines, never fans or rockets* |
+| **`SW13`** | `free_look` (`sw[13]`) | **Follow Camera:** Viewport automatically tracks the vehicle with alpha-beta vertical smoothing | **Free-Look Camera:** Mouse cursor `X/Y` pans the viewport across the entire cave map |
+| **`SW14`** | `zoom_switch` (`sw[14]`) | **Close Zoom (`1.5×`):** 64×42 world viewport with 12×12 part sprites | **Normal Zoom (`1.0×`):** 96×64 world viewport with 8×8 part sprites. *(Mouse scroll wheel also steps across `1.5×`, `1.0×`, and `0.5×` Overview)* |
+| **`SW15`** | `mute_switch` (`sw[15]`) | **Audio Enabled:** Follows the on-screen Sound menu | **Hardware Audio Mute:** Mutes all BGM and SFX immediately, displays `MUTED BY SW15` in the Sound menu, and pulls `JXADC[3]` low |
+
+### Onboard LED Indicators (`LED[15:0]`)
+* **`LED[15:13]` & `LED[2:0]`:** Mirror the active slide switches `SW[15:13]` and `SW[2:0]`.
+* **`LED[12:3]` (Middle 10 LEDs):** Flash dynamically during gameplay events:
+  - **When `GO` / Launch is called (`launch_flash`):** Rapid strobe across `LED[12:3]`.
+  - **On Level Victory (`LP_SUCCESS`):** Alternating odd/even celebration marquee across `LED[12:3]`.
+  - **On Crash / Game Over (`LP_FAIL`):** Synchronized alert blink across `LED[12:3]`.
+  - **Idle (`BUILD` / normal `RUN`):** `LED[12:3]` remain OFF (`10'd0`).
 
 ---
 
