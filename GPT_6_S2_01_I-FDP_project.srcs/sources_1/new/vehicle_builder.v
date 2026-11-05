@@ -49,6 +49,7 @@ module vehicle_builder #(
     output reg [7:0] mass_units
 );
     reg [8:0] content_mask;
+    reg [8:0] pig_cell_mask;
     reg [8:0] runtime_intact, runtime_frames;
     integer mask_index;
     integer damage_index;
@@ -58,21 +59,41 @@ module vehicle_builder #(
     assign frame_intact_mask = game_state == `LP_BUILD ? build_frames : runtime_frames;
     always @* begin
         content_mask = 0;
-        for (mask_index = 0; mask_index < 9; mask_index = mask_index + 1)
+        pig_cell_mask = 0;
+        for (mask_index = 0; mask_index < 9; mask_index = mask_index + 1) begin
             content_mask[mask_index] = (build_grid[mask_index*3 +: 3] != `LP_PART_EMPTY);
+            pig_cell_mask[mask_index] = (build_grid[mask_index*3 +: 3] == `LP_PART_PIG);
+        end
     end
+
+    // If the pig's own wood frame breaks during a blast/fall, detach the rest
+    // of the chassis so the bare pig pops out cleanly. Also auto-detach any
+    // wheel, balloon, fan or rocket whose supporting frame was destroyed.
+    wire pig_frame_broken = ((damage_frame_mask & pig_cell_mask) != 9'd0);
+    wire [8:0] next_frames = pig_frame_broken ? 9'd0 : (runtime_frames & ~damage_frame_mask);
+    wire [8:0] next_frame_left  = (next_frames & 9'b011011011) << 1;
+    wire [8:0] next_frame_right = (next_frames & 9'b110110110) >> 1;
+    wire [8:0] next_frame_above = (next_frames << 3) & 9'h1ff;
+    wire [8:0] next_frame_below = next_frames >> 3;
+    wire [8:0] next_wheel_support = next_frame_above | next_frame_below | next_frame_left | next_frame_right;
 
     // All runtime damage sources share this final safety gate.  Protecting the
     // pig here prevents a future damage source from accidentally bypassing the
     // TNT rule, while allowing its wooden frame and any non-pig part in a
     // destroyed frame cell to break away.
     always @* begin
-        safe_damage_mask = damage_mask | damage_frame_mask;
-        safe_damage_frame_mask = damage_frame_mask;
+        safe_damage_frame_mask = pig_frame_broken ? 9'h1ff : damage_frame_mask;
+        safe_damage_mask = damage_mask | safe_damage_frame_mask;
         for (damage_index=0; damage_index<9; damage_index=damage_index+1) begin
-            if (build_grid[damage_index*`LP_PART_BITS +: `LP_PART_BITS] == `LP_PART_PIG) begin
-                safe_damage_mask[damage_index] = 1'b0;
-            end
+            case (build_grid[damage_index*`LP_PART_BITS +: `LP_PART_BITS])
+                `LP_PART_PIG:
+                    safe_damage_mask[damage_index] = 1'b0;
+                `LP_PART_BALLOON:
+                    if (!next_frame_below[damage_index]) safe_damage_mask[damage_index] = 1'b1;
+                `LP_PART_WHEEL, `LP_PART_BOOSTER, `LP_PART_FAN:
+                    if (!next_wheel_support[damage_index]) safe_damage_mask[damage_index] = 1'b1;
+                default: begin end
+            endcase
         end
     end
     reg placement_valid, stock_valid;
@@ -406,8 +427,8 @@ module vehicle_builder #(
                 `LP_PART_PIG: begin pig_alive = 1; mass_units = mass_units + 2; end
                 `LP_PART_WHEEL: begin
                     wheel_count = wheel_count + 1; mass_units = mass_units + 1;
-                    if (index >= 3 && build_frames[index-3]) wheels_down = wheels_down + 1;
-                    if (index < 6 && build_frames[index+3]) wheels_up = wheels_up + 1;
+                    if (index >= 3 && frame_intact_mask[index-3]) wheels_down = wheels_down + 1;
+                    if (index < 6 && frame_intact_mask[index+3]) wheels_up = wheels_up + 1;
                 end
                 `LP_PART_ENGINE: begin
                     engine_count = engine_count + 1; mass_units = mass_units + 3;

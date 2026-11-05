@@ -202,6 +202,7 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
         step_angular_sum< -18'sd4096 ? -14'sd4096 : step_angular_sum[13:0];
     wire pivot_about_contact = was_grounded && step_vy>=0 && last_support_span_valid &&
                                (step_support_unstable || supported_moment_accel!=0);
+    reg step_pivot_about_contact;
     wire signed [`LP_TILT_BITS-1:0] pivot_turn=proposed_tilt-vehicle_tilt;
     wire signed [1:0] pivot_direction = pivot_turn>0 ? 2'sd1 : pivot_turn<0 ? -2'sd1 : last_tip;
     // Take drag from the magnitude, then restore its sign. Arithmetic shifts
@@ -227,7 +228,7 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
         .grounded(was_grounded),.tilt(vehicle_tilt),.wheel_force_valid(wheel_force_valid),
         .contact_span_valid(last_support_span_valid),.single_wheel_only(single_wheel_only),
         .contact_left_q2(last_support_left_q2),.contact_right_q2(last_support_right_q2),
-        .contact_y_q2(last_support_y_q2),.pivot_about_contact(pivot_about_contact),.pivot_direction(pivot_direction),
+        .contact_y_q2(last_support_y_q2),.pivot_about_contact(step_pivot_about_contact),.pivot_direction(pivot_direction),
         .contact_endpoint_y_valid(last_support_endpoint_y_valid),
         .contact_left_y_q2(last_support_left_y_q2),.contact_right_y_q2(last_support_right_y_q2),
         .ground_slope(last_ground_slope),.ground_slope_valid(last_ground_slope_valid),
@@ -345,7 +346,7 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
     wire signed [15:0] engine_magnitude, lift;
     wire [15:0] wheel_resistance;
     wire signed [16:0] vertical_sum;
-    wire unpowered_run = !(sampled_engine_enabled && sampled_engines != 0) &&
+    wire unpowered_run = step_moments_enabled && !(sampled_engine_enabled && sampled_engines != 0) &&
                          sampled_fans == 0 && sampled_lift_fans == 0 &&
                          sampled_rockets == 0 && sampled_vertical_rockets == 0;
     wire unpowered_uphill = unpowered_run && was_grounded &&
@@ -413,7 +414,7 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
             sampled_rocket_cos<=0; sampled_rocket_sin<=0; rocket_terms<=0; rocket_force_x<=0; rocket_force_y<=0;
             step_moments_enabled<=0; wheel_force_valid<=0;
             angular_velocity_q8<=0; moment_angle_remainder<=0; step_angular_sum<=0;
-            step_pivot_x<=0; step_pivot_y<=0;
+            step_pivot_x<=0; step_pivot_y<=0; step_pivot_about_contact<=0;
             phase <= IDLE; init_ready <= 0; was_grounded <= 0; boost_timer <= 0; tnt_blast_steps <= 0;
             sampled_lift_fans <= 0; sampled_vertical_rockets <= 0; step_vertical_force <= 0;
             remainder_y <= 0; pending_remainder_y <= 0; step_vertical_base <= 0; step_vy_sum <= 0; step_down_accel <= 0;
@@ -528,7 +529,7 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
                     // Airborne angular drag brings unpowered spin to rest.
                     step_moments_enabled<=moments_enabled; wheel_force_valid<=0;
                     step_support_unstable<=was_grounded && last_support_unstable;
-                    step_pivot_x<=0; step_pivot_y<=0;
+                    step_pivot_x<=0; step_pivot_y<=0; step_pivot_about_contact<=0;
                     if (moments_enabled) begin
                         proposed_tilt<=vehicle_tilt;
                         // Confirm support after the common solver has projected
@@ -798,14 +799,18 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
                     end
                 end
                 ROTATE_FORCE: begin
+                    step_pivot_about_contact <= pivot_about_contact;
                     // Ground contact can settle a quiet body; otherwise integrate
                     // signed fractional angle symmetrically in both directions.
-                    if (was_grounded && step_vy>=0 && !step_support_unstable && active_tip==0 && supported_moment_accel==0 &&
+                    if (bare_pig_only && was_grounded && step_vy>=0) begin
+                        angular_velocity_q8<=0; moment_angle_remainder<=0; spin<=0; spin_frac<=0;
+                        if (step_result_vx > 16'sd8) proposed_tilt<=vehicle_tilt+1'b1;
+                        else if (step_result_vx < -16'sd8) proposed_tilt<=vehicle_tilt-1'b1;
+                        else proposed_tilt<=vehicle_tilt;
+                    end else if (was_grounded && step_vy>=0 && !step_support_unstable && active_tip==0 && supported_moment_accel==0 &&
                         (last_support_span_valid || (clamped_angular_velocity<14'sd256 && clamped_angular_velocity> -14'sd256))) begin
                         angular_velocity_q8<=0; moment_angle_remainder<=0; spin<=0; spin_frac<=0;
-                        if (bare_pig_only && step_result_vx > 16'sd8) proposed_tilt<=vehicle_tilt+1'b1;
-                        else if (bare_pig_only && step_result_vx < -16'sd8) proposed_tilt<=vehicle_tilt-1'b1;
-                        else if (!single_wheel_scraping && slope_target_ready && settle_error>0) proposed_tilt<=vehicle_tilt+1'b1;
+                        if (!single_wheel_scraping && slope_target_ready && settle_error>0) proposed_tilt<=vehicle_tilt+1'b1;
                         else if (!single_wheel_scraping && slope_target_ready && settle_error<0) proposed_tilt<=vehicle_tilt-1'b1;
                         else proposed_tilt<=vehicle_tilt;
                     end else if (!was_grounded && clamped_angular_velocity==0) begin

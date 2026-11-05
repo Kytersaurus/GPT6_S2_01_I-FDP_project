@@ -172,20 +172,20 @@ module vehicle_builder_tb;
         if (!build_valid || !pig_alive || mass != 13) $fatal(1, "Moved pig not recognised");
         save_build(); game_state = `LP_RUN;
         edit(`LP_EDIT_REMOVE, 3, `LP_PART_EMPTY); check_unchanged();
-        damage_frame_mask = 9'b000001000; damage_valid = 1; clocks(1); damage_valid = 0; clocks(1);
-        if (frame_intact_mask[3] ||
-            intact_mask !== saved_intact || !pig_alive || mass != 11 || build_frames !== saved_frames)
-            $fatal(1, "Pig frame damage did not break wood frame while protecting pig");
+        damage_frame_mask = 0; damage_mask = 9'b000101000;
+        damage_valid = 1; clocks(1); damage_valid = 0; clocks(1);
+        if (build_grid !== saved_grid || !pig_alive || engines != 0 || mass != 10 || !intact_mask[3])
+            $fatal(1, "Content damage destroyed the protected pig or wrong live properties");
+        if (!frame_intact_mask[5]) $fatal(1, "Engine damage incorrectly destroyed frame");
+        damage_mask = 0; damage_frame_mask = 9'b000001000; damage_valid = 1; clocks(1); damage_valid = 0; clocks(1);
+        if (frame_intact_mask != 9'd0 ||
+            intact_mask !== 9'b000001000 || !pig_alive || mass != 2 || build_frames !== saved_frames)
+            $fatal(1, "Pig frame damage did not pop out bare pig while protecting pig");
         // RUN uses 12px cells at (4,12): cell3 begins at (4,24).
         // The surviving bare pig remains visible after its frame breaks.
         pixel = 27*96+9; #1;
         if (colour != 16'h07e0) $fatal(1, "Surviving pig disappeared with its frame");
         if (frame_intact_mask[3]) $fatal(1, "Damaged pig frame remained intact");
-        damage_frame_mask = 0; damage_mask = 9'b000101000;
-        damage_valid = 1; clocks(1); damage_valid = 0; clocks(1);
-        if (build_grid !== saved_grid || !pig_alive || engines != 0 || mass != 8 || !intact_mask[3])
-            $fatal(1, "Content damage destroyed the protected pig or wrong live properties");
-        if (!frame_intact_mask[5]) $fatal(1, "Engine damage incorrectly destroyed frame");
         game_state = `LP_INIT_RUN; run_init = 1; clocks(2);
         if (!init_ready || intact_mask !== saved_intact || frame_intact_mask !== saved_frame_intact ||
             build_grid !== saved_grid || !pig_alive || engines != 1 || mass != 13)
