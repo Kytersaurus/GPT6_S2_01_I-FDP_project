@@ -154,7 +154,7 @@ flowchart TD
   - Wheel Engine (`ENGINE_FORCE`) pushes right (`+X`) normally, or left (`-X`) when `SW2` (`reverse_switch`) is ON.
   - Propeller Fan (`FAN_FORCE`) pushes left (`-X`) when facing right (exhaust blows right), and pushes right (`+X`) when facing left (exhaust blows left). Independent of `SW2`.
   - Rocket Booster (`ROCKET_FORCE`) pushes right (`+X`) when horizontal or upward (`-Y`) when vertical.
-* Ground friction: Rolling drag = 10 units; scraping drag (bare frames on rock) = 128 units.
+* Ground friction: Rolling drag = 6 units per wheel; scraping drag (bare frames on rock) = 256 units.
 * Camera smoothing: `display_y` uses an alpha-beta filter to eliminate 2-pixel terrain step jitter.
 
 ### 4.5 Terrain Collision & SAT ([`rotating_map_collision_engine.v`](file:///c:/Users/kaush/EE2026Labs/GPT6_S2_01_I-FDP_project/GPT_6_S2_01_I-FDP_project.srcs/sources_1/new/rotating_map_collision_engine.v))

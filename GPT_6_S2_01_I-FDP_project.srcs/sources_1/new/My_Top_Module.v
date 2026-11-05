@@ -350,7 +350,7 @@ module My_Top_Module #(
     assign pop_cell = mouse_pop_cell;
 
     assign level_open_req = ui_level_open_req;
-    assign combined_boost_req = ui_boost_req;
+    assign combined_boost_req = rocket_ready && (ui_boost_req || mouse_boost_req || (game_state == `LP_RUN && right_press));
     assign boost_req = combined_boost_req;
 
     wire [11:0] effective_mouse_x = {5'd0, cursor_x};

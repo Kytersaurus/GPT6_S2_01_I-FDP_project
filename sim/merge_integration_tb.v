@@ -30,18 +30,20 @@ module merge_integration_tb;
         if(dut.draw_start_screen_active!==1'b1 || dut.draw_fan_available!==1'b1 ||
            dut.draw_fan_on!==1'b1 || dut.draw_star_box_collected!==1'b1)
             $fatal(1,"Merged high snapshot fields were truncated or misordered");
-        if(dut.u_ui_control.rocket_ready!==1'b0 || dut.u_ui_renderer.rocket_ready!==1'b0)
+        if(dut.u_ui_control.rocket_ready!==1'b0 || dut.u_left_renderer.rocket_ready!==1'b0)
             $fatal(1,"UI did not use physics rocket readiness");
         title=0;fan_on=0;star=0;ready=1;boost_active=1;clocks(500);
         if(dut.draw_start_screen_active!==1'b0 || dut.draw_fan_available!==1'b1 ||
            dut.draw_fan_on!==1'b0 || dut.draw_star_box_collected!==1'b0)
             $fatal(1,"Merged display flags failed to update coherently");
-        if(dut.u_ui_control.rocket_ready!==1'b1 || dut.u_ui_renderer.rocket_ready!==1'b1)
+        if(dut.u_ui_control.rocket_ready!==1'b1 || dut.u_left_renderer.rocket_ready!==1'b1)
             $fatal(1,"Engine boost incorrectly gated independent rocket fuel readiness");
         ready=0;boost_active=0;clocks(500);
-        if(dut.u_ui_control.rocket_ready!==1'b0 || dut.u_ui_renderer.rocket_ready!==1'b0)
+        if(dut.u_ui_control.rocket_ready!==1'b0 || dut.u_left_renderer.rocket_ready!==1'b0)
             $fatal(1,"Expended rocket became ready merely because boost ended");
         if(dut.boost_req!==1'b0) $fatal(1,"Idle boost net has multiple drivers");
+        ui_boost=1;clocks(2);if(dut.boost_req!==1'b0) $fatal(1,"Expended rocket allowed second boost");
+        ui_boost=0;ready=1;clocks(2);
         ui_boost=1;clocks(2);if(dut.boost_req!==1'b1) $fatal(1,"UI boost disconnected");
         ui_boost=0;mouse_boost=1;clocks(2);if(dut.boost_req!==1'b1) $fatal(1,"Mouse boost disconnected");
         mouse_boost=0;button_boost=1;clocks(2);if(dut.boost_req!==1'b1) $fatal(1,"Button boost disconnected");
