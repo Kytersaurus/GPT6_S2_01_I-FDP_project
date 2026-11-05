@@ -155,14 +155,18 @@ module right_renderer #(
     end
 
     // Stage 1: registered beside the map read.
+    wire signed [`LP_TILT_BITS-1:0] next_tilt = before_launch ? 0 : sanitize_tilt(vehicle_tilt);
     reg [6:0] px, py;
     reg signed [11:0] fx, fy, wx, wy, tex_x, tex_y;
     reg zoomed_out_q, overview_q;
     reg signed [`LP_TILT_BITS-1:0] tilt_q;
+    reg signed [9:0] rotation_c_q, rotation_s_q;
     always @(posedge clk) begin
         px <= sx; py <= sy; zoomed_out_q <= zoomed_out; overview_q <= overview;
         fx <= next_fx; fy <= next_fy; wx <= next_wx; wy <= next_wy; tex_x <= next_tx; tex_y <= next_ty;
-        tilt_q <= before_launch ? 0 : sanitize_tilt(vehicle_tilt);
+        tilt_q <= next_tilt;
+        rotation_c_q <= rotation_cos(next_tilt);
+        rotation_s_q <= rotation_sin(next_tilt);
     end
 
     // One text line is shared by the launch "GO!" and the ending card titles:
@@ -356,6 +360,8 @@ module right_renderer #(
 
     reg signed [13:0] blast_dx, blast_dy;
     reg [13:0] blast_abs_x, blast_abs_y;
+    reg [4:0] drawn_blast_x, drawn_blast_y;
+    reg [1:0] drawn_blast_phase;
     reg [9:0] blast_distance_sq;
     reg [1:0] blast_now;
 
@@ -459,7 +465,7 @@ module right_renderer #(
                 rel_y >= -cell_px && rel_y < 4*cell_px) begin
                 rotation_dx2=2*rel_x+1-3*cell_px;
                 rotation_dy2=2*rel_y+1-3*cell_px;
-                rotation_c=rotation_cos(tilt_q); rotation_s=rotation_sin(tilt_q);
+                rotation_c=rotation_c_q; rotation_s=rotation_s_q;
                 rotation_x_sum=rotation_c*rotation_dx2+rotation_s*rotation_dy2;
                 rotation_y_sum=-rotation_s*rotation_dx2+rotation_c*rotation_dy2;
                 // Half the three-cell span in Q9: 3 * cell_px * 256.
@@ -524,20 +530,26 @@ module right_renderer #(
         // Explosions grow over three phases: yellow flash, orange fireball, grey smoke.
         // The largest radius is 22 half-world units, so only pixels that close use the squares.
         blast_dx = 0; blast_dy = 0; blast_abs_x = 0; blast_abs_y = 0; blast_distance_sq = 0; blast_now = 0;
+        drawn_blast_x = 5'd0; drawn_blast_y = 5'd0; drawn_blast_phase = 2'd0;
         for (index = 0; index < `LP_MAX_TNT; index = index + 1) begin
             blast_dx = tex_x - $signed({3'd0, tnt_positions[index*`LP_TNT_ENTRY_BITS +: `LP_TNT_COORD_BITS], 1'b0}) - 14'sd`LP_TNT_PIXELS;
             blast_dy = tex_y - $signed({3'd0, tnt_positions[index*`LP_TNT_ENTRY_BITS+`LP_TNT_COORD_BITS +: `LP_TNT_COORD_BITS], 1'b0}) - 14'sd`LP_TNT_PIXELS;
             blast_abs_x = magnitude(blast_dx);
             blast_abs_y = magnitude(blast_dy);
-            blast_distance_sq = blast_abs_x[4:0] * blast_abs_x[4:0] + blast_abs_y[4:0] * blast_abs_y[4:0];
             blast_now = blast_phase[index*2 +: 2];
-            if (index < tnt_count && blast_abs_x <= 14'd22 && blast_abs_y <= 14'd22) case (blast_now)
-                2'd1: if (blast_distance_sq <= 10'd100) pixel_data = 16'hffe0;
-                2'd2: if (blast_distance_sq <= 10'd256) pixel_data = (blast_distance_sq <= 10'd36) ? 16'hffe0 : 16'hfd20;
-                2'd3: if (blast_distance_sq <= 10'd484) pixel_data = 16'h8410;
-                default: ;
-            endcase
+            if (index < tnt_count && blast_now != 2'd0 && blast_abs_x <= 14'd22 && blast_abs_y <= 14'd22) begin
+                drawn_blast_x = blast_abs_x[4:0];
+                drawn_blast_y = blast_abs_y[4:0];
+                drawn_blast_phase = blast_now;
+            end
         end
+        blast_distance_sq = drawn_blast_x * drawn_blast_x + drawn_blast_y * drawn_blast_y;
+        case (drawn_blast_phase)
+            2'd1: if (blast_distance_sq <= 10'd100) pixel_data = 16'hffe0;
+            2'd2: if (blast_distance_sq <= 10'd256) pixel_data = (blast_distance_sq <= 10'd36) ? 16'hffe0 : 16'hfd20;
+            2'd3: if (blast_distance_sq <= 10'd484) pixel_data = 16'h8410;
+            default: ;
+        endcase
         if (launch_flash && game_state==`LP_RUN && px>=34 && px<62 && py<10) begin
             pixel_data=16'h04b4;
             if (banner_lit) pixel_data=16'hffff;

@@ -873,12 +873,12 @@ module My_Top_Module #(
         ((draw_diary_page == 2'd0) ? {12'd72,  8'd0} : (draw_diary_page == 2'd1) ? {12'd375, 8'd0} : {12'd462, 8'd0}) :
         ((draw_diary_page == 2'd0) ? {12'd162, 8'd0} : (draw_diary_page == 2'd1) ? {12'd87,  8'd0} : {12'd40,  8'd0});
     wire [26:0] diary_grid = (draw_map_id == 1'b0) ?
-        {`LP_PART_WHEEL, `LP_PART_EMPTY,  `LP_PART_WHEEL,   `LP_PART_BOOSTER, `LP_PART_PIG, `LP_PART_ENGINE, `LP_PART_EMPTY,   `LP_PART_EMPTY, `LP_PART_EMPTY} :
-        {`LP_PART_WHEEL, `LP_PART_ENGINE, `LP_PART_WHEEL,   `LP_PART_BOOSTER, `LP_PART_PIG, `LP_PART_FAN,    `LP_PART_BALLOON, `LP_PART_EMPTY, `LP_PART_BALLOON};
-    wire [8:0] diary_frames = (draw_map_id == 1'b0) ? 9'b000_111_000 : 9'b010_111_000;
-    wire [8:0] diary_intact = (draw_map_id == 1'b0) ? 9'b101_111_000 :
-                              ((draw_diary_page == 2'd1) ? 9'b111_111_100 : 9'b111_111_101);
-    wire [8:0] diary_active_fans = (draw_map_id == 1'b1) ? 9'b000_001_000 : 9'd0;
+        {`LP_PART_WHEEL, `LP_PART_EMPTY, `LP_PART_WHEEL, `LP_PART_EMPTY, `LP_PART_PIG, `LP_PART_ENGINE, `LP_PART_EMPTY,   `LP_PART_BOOSTER, `LP_PART_EMPTY} :
+        {`LP_PART_WHEEL, `LP_PART_FAN,   `LP_PART_WHEEL, `LP_PART_EMPTY, `LP_PART_PIG, `LP_PART_ENGINE, `LP_PART_BALLOON, `LP_PART_BOOSTER, `LP_PART_BALLOON};
+    wire [8:0] diary_frames = 9'b000_111_000;
+    wire [8:0] diary_intact = (draw_map_id == 1'b0) ? 9'b101_011_010 :
+                              ((draw_diary_page == 2'd0) ? 9'b111_011_111 : 9'b111_011_110);
+    wire [8:0] diary_active_fans = (draw_map_id == 1'b1) ? 9'b010_000_000 : 9'd0;
 
     right_renderer #(
         .USE_PIXEL_INDEX(0)
