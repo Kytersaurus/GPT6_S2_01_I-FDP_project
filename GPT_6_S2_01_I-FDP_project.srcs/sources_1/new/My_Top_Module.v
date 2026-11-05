@@ -377,7 +377,7 @@ module My_Top_Module #(
         .launch_flash(launch_flash)
     );
     wire [7:0] par_time;
-    seven_seg_timer #(.COUNTDOWN(1), .TIME_LIMIT(20)) u_board_timer (.clk(clk), .reset(reset || (game_state!=`LP_RUN && game_state!=`LP_SUCCESS && game_state!=`LP_FAIL)), .seconds(run_seconds), .seg(seg), .an(an), .dp(dp));
+    seven_seg_timer #(.COUNTDOWN(1), .TIME_LIMIT(20)) u_board_timer (.clk(clk), .reset(reset || (game_state!=`LP_RUN && game_state!=`LP_SUCCESS && game_state!=`LP_FAIL)), .seconds(run_seconds), .time_limit(par_time), .seg(seg), .an(an), .dp(dp));
     pig_death_effect u_pig_death (
         .clk(clk), .reset(reset), .run_init(run_init), .physics_tick(physics_tick), .pig_alive(pig_alive),
         .game_state(game_state), .build_grid(build_grid), .vehicle_x(vehicle_x), .vehicle_y(vehicle_y), .vehicle_tilt(vehicle_tilt),
@@ -707,7 +707,7 @@ module My_Top_Module #(
     // Wheels use a faster independent phase so their spokes do not appear to
     // freeze while the vehicle is travelling between physics updates.
     reg [2:0] wheel_frames;
-    wire vehicle_moving = (proposed_vx != 16'sd0) || (proposed_vy != 16'sd0);
+    wire vehicle_moving = (corrected_x[19:8] != previous_x[19:8]) || (!grounded && (corrected_y[19:8] != previous_y[19:8]));
     reg moving_meta, moving_sync;
     always @(posedge oled_clk) begin
         if (oled_reset) begin
@@ -721,7 +721,7 @@ module My_Top_Module #(
             if (left_frame && (draw_state == `LP_RUN || in_diary_walkthrough)) begin
                 if (draw_engine || draw_fan_on || draw_boost_active || in_diary_walkthrough)
                     engine_frames <= engine_frames + (draw_boost_active ? 4'd2 : 4'd1);
-                if (draw_engine || moving_sync || in_diary_walkthrough)
+                if (moving_sync || in_diary_walkthrough)
                     wheel_frames <= wheel_frames + 1'b1;
             end
         end
@@ -848,7 +848,7 @@ module My_Top_Module #(
         .inv_fan_down(draw_inv_fan_down), .inv_rocket_left(draw_inv_rocket_left), .inv_rocket_down(draw_inv_rocket_down),
         .inventory_page(draw_inventory_page),
         .rockets_left(draw_rockets_left), .fans_left(draw_fans_left), .intact_mask(draw_intact), .frame_intact_mask(draw_frames),
-        .build_valid(draw_valid), .build_error(draw_error), .engine_enabled(draw_engine), .boost_active(draw_boost_active),
+        .build_valid(draw_valid), .build_error(draw_error), .engine_enabled(draw_engine), .wheel_moving(moving_sync), .boost_active(draw_boost_active),
         .active_fans(draw_active_fans), .rocket_ready(draw_rocket_ready),
         .feedback_code(draw_feedback_code), .feedback_cell(draw_feedback_cell),
         .frames_left(draw_frames_left), .pigs_left(draw_pigs_left), .wheels_left(draw_wheels_left),
@@ -897,8 +897,9 @@ module My_Top_Module #(
         .pixel_index(13'd0), .in_x(map_x), .in_y(map_y),
         .game_state(in_diary_walkthrough ? `LP_RUN : ((draw_state==`LP_LEVEL_SELECT || draw_state==`LP_SETTINGS) ? `LP_BUILD : (draw_state==`LP_GUIDE ? draw_guide_return : draw_state))),
         .build_grid(in_diary_walkthrough ? diary_grid : draw_grid),
-        .build_facing_left(in_diary_walkthrough ? ((draw_map_id == 1'b0) ? 9'b000_000_010 : 9'd0) : draw_facing_left),
-        .build_facing_down(in_diary_walkthrough ? 9'd0 : draw_facing_down),
+        .build_facing_left(in_diary_walkthrough ? 9'd0 : draw_facing_left),
+        .build_facing_down(in_diary_walkthrough ? ((draw_map_id == 1'b0) ? 9'b000_000_010 : 9'd0) : draw_facing_down),
+        .engine_enabled(in_diary_walkthrough ? 1'b1 : draw_engine),
         .active_fans(in_diary_walkthrough ? diary_active_fans : draw_active_fans),
         .intact_mask(in_diary_walkthrough ? diary_intact : draw_intact),
         .frame_intact_mask(in_diary_walkthrough ? diary_frames : draw_frames),

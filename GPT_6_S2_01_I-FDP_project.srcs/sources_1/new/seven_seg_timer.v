@@ -7,6 +7,7 @@ module seven_seg_timer #(
 ) (
     input wire clk, reset,
     input wire [7:0] seconds,
+    input tri0 [7:0] time_limit,
     output reg [6:0] seg,
     output reg [3:0] an,
     output reg dp
@@ -15,8 +16,9 @@ module seven_seg_timer #(
     reg [1:0] digit;
     reg [3:0] number;
 
-    wire is_negative = COUNTDOWN ? (seconds > TIME_LIMIT) : 1'b0;
-    wire [7:0] abs_seconds = COUNTDOWN ? (is_negative ? (seconds - TIME_LIMIT) : (TIME_LIMIT - seconds)) : seconds;
+    wire [7:0] limit = (time_limit != 8'd0) ? time_limit : TIME_LIMIT[7:0];
+    wire is_negative = COUNTDOWN ? (seconds > limit) : 1'b0;
+    wire [7:0] abs_seconds = COUNTDOWN ? (is_negative ? (seconds - limit) : (limit - seconds)) : seconds;
 
     reg [3:0] minutes;
     reg [3:0] sec_tens;

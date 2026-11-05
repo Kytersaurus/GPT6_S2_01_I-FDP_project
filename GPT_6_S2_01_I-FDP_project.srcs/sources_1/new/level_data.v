@@ -44,7 +44,7 @@ module level_data (
                 spawn_x = 20'sd53248;   // x=208
                 spawn_y = 20'sd19456;   // y=76: the 24-pixel vehicle rests on y=100
                 map_id = 1'b0;
-                par_time = 8'd30;
+                par_time = 8'd25;
                 world_width = `LP_MAP_WORLD_WIDTH;
                 world_height = `LP_MAP_WORLD_HEIGHT;
                 flag_x = 10'd600;

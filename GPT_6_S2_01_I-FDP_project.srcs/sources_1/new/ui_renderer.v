@@ -1023,10 +1023,9 @@ module ui_renderer (
                         else pixel_data = 16'h7261;
                     end
                     if (level_index == 0) begin
-                        // Map 1 Step 2: Cyan Reverse Left Arrow <- (x: 62..74, y: 18..24)
-                        if ((y == 21 && x >= 62 && x <= 74) ||
-                            ((x == 64 || x == 65) && y >= 19 && y <= 23) ||
-                            (x == 66 && (y == 18 || y == 24)))
+                        // Map 1 Step 2: Cyan Reverse + Rocket Up Arrow <^ (x: 62..74, y: 16..24)
+                        if ((x >= 63 && x <= 73 && (x - 7'd63 == y - 6'd16 || x - 7'd64 == y - 6'd16)) ||
+                            (y == 16 && x >= 63 && x <= 68) || (x == 63 && y >= 16 && y <= 21))
                             pixel_data = 16'h07ff;
                     end else begin
                         // Map 2 Step 2: Red Drop Down Arrow v (x: 65..71, y: 16..25)
@@ -1268,7 +1267,10 @@ module ui_renderer (
             if (example_has_frame)
                 pixel_data = part_sprite12(`LP_PART_FRAME, example_local_x, example_local_y, 1'b0, pixel_data);
             if (example_part != `LP_PART_EMPTY)
-                pixel_data = part_sprite12(example_part, (example_part == `LP_PART_BOOSTER && level_index == 0) ? (4'd11 - example_local_x) : example_local_x, example_local_y, 1'b0, pixel_data);
+                pixel_data = part_sprite12(example_part,
+                    (example_part == `LP_PART_BOOSTER && level_index == 0) ? ((example_local_x >= 4'd9) ? 4'd15 : (4'd11 - example_local_y)) : example_local_x,
+                    (example_part == `LP_PART_BOOSTER && level_index == 0) ? example_local_x : example_local_y,
+                    1'b0, pixel_data);
             // Drawn AFTER part_sprite12 so gold/red/green active border highlights wood-framed parts too!
             if (example_local_x == 0 || example_local_y == 0 ||
                 example_local_x == 11 || example_local_y == 11) begin

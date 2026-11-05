@@ -28,6 +28,7 @@ module right_renderer #(
     input wire [26:0] build_grid,
     input wire [8:0] build_facing_left,
     input tri0 [8:0] build_facing_down,
+    input tri0 engine_enabled,
     input tri0 [8:0] active_fans,
     input wire [8:0] intact_mask,
     input wire [8:0] frame_intact_mask,
@@ -186,7 +187,7 @@ module right_renderer #(
     wire banner_lit = text_on(banner_text, banner_left, banner_top, px, py);
     // Ending card layout: the clear card keeps its pig below the row of stars.
     wire [6:0] card_pig_top = (game_state == `LP_SUCCESS) ? 7'd36 : 7'd28;
-    wire [1:0] stars_earned = 2'd1 + (star_box_collected ? 2'd1 : 2'd0) + ((run_seconds < 8'd20) ? 2'd1 : 2'd0);
+    wire [1:0] stars_earned = 2'd1 + (star_box_collected ? 2'd1 : 2'd0) + ((run_seconds < (map_id ? 8'd20 : 8'd25)) ? 2'd1 : 2'd0);
     reg [6:0] card_star_x;
     reg card_star_earned;
 
@@ -348,6 +349,7 @@ module right_renderer #(
     reg [1:0] cell_col, cell_row;
     reg [3:0] cell_index, cell_x, cell_y;
     reg [2:0] part;
+    reg part_anim;
 
     // Debris and the pig burst are compared against one shared offset from the moving origin.
     wire signed [13:0] scatter_offset_x = wx - $signed(scatter_x[19:8]);
@@ -379,7 +381,7 @@ module right_renderer #(
     );
 
     always @* begin
-        rx = 0; ry = 0; rw = 0; rh = 0; part = 0; rectangle = 0;
+        rx = 0; ry = 0; rw = 0; rh = 0; part = 0; part_anim = 0; rectangle = 0;
         cell_col = 0; cell_row = 0; cell_index = 0; cell_x = 0; cell_y = 0;
         rotation_dx2=0; rotation_dy2=0; rotation_c=0; rotation_s=0;
         rotation_x_sum=0; rotation_y_sum=0; rotated_x=0; rotated_y=0;
@@ -488,12 +490,17 @@ module right_renderer #(
                 cell_x = cell_x << 1;
                 cell_y = cell_y << 1;
             end
+            part_anim = anim_phase;
+            if (game_state == `LP_RUN) begin
+                if (part == `LP_PART_FAN)         part_anim = active_fans[cell_index] ? anim_phase : 1'b0;
+                else if (part == `LP_PART_ENGINE) part_anim = engine_enabled ? anim_phase : 1'b0;
+            end
             if (small_tiles) begin
                 if (frame_intact_mask[cell_index]) pixel_data = part_sprite(`LP_PART_FRAME, cell_x, cell_y, 1'b0, pixel_data);
-                if (intact_mask[cell_index]) pixel_data = part_sprite_mounted(part, cell_x, cell_y, 8, build_facing_left[cell_index], build_facing_down[cell_index], frame_intact_mask, cell_index, anim_phase, pixel_data);
+                if (intact_mask[cell_index]) pixel_data = part_sprite_mounted(part, cell_x, cell_y, 8, build_facing_left[cell_index], build_facing_down[cell_index], frame_intact_mask, cell_index, part_anim, pixel_data);
             end else begin
                 if (frame_intact_mask[cell_index]) pixel_data = part_sprite12(`LP_PART_FRAME, cell_x, cell_y, 1'b0, pixel_data);
-                if (intact_mask[cell_index]) pixel_data = part_sprite_mounted(part, cell_x, cell_y, 12, build_facing_left[cell_index], build_facing_down[cell_index], frame_intact_mask, cell_index, anim_phase, pixel_data);
+                if (intact_mask[cell_index]) pixel_data = part_sprite_mounted(part, cell_x, cell_y, 12, build_facing_left[cell_index], build_facing_down[cell_index], frame_intact_mask, cell_index, part_anim, pixel_data);
             end
         end
         // High-fall debris: show a compact three-piece scatter burst while the
