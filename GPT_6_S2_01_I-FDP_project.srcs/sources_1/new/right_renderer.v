@@ -491,7 +491,7 @@ module right_renderer #(
                 cell_y = cell_y << 1;
             end
             part_anim = anim_phase;
-            if (game_state == `LP_RUN) begin
+            if (!USE_PIXEL_INDEX && game_state == `LP_RUN) begin
                 if (part == `LP_PART_FAN)         part_anim = active_fans[cell_index] ? anim_phase : 1'b0;
                 else if (part == `LP_PART_ENGINE) part_anim = engine_enabled ? anim_phase : 1'b0;
             end
