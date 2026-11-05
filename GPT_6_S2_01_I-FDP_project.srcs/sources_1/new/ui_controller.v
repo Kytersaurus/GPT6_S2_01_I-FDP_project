@@ -9,6 +9,7 @@ module ui_controller (
     input wire mouse_left, mouse_right, mouse_event,
     input wire next_press,
     input wire engine_switch_changed,
+    input tri0 tutorial_mode,
     input wire engine_switch, engine_toggle_req, fan_toggle_req,
     input tri0 [3:0] fan_toggle_cell,
     input tri0 rocket_toggle_req,
@@ -48,7 +49,10 @@ module ui_controller (
             level_open_req<=0; level_close_req<=0; level_select_req<=0;
             boost_req<=0;
             if (run_init) begin
-                engine_on<=0;
+                // If SW1 is already on when the run starts, honour it.  Once
+                // RUN begins, engine_switch_changed and the UI toggle both
+                // update this same state, so either control can turn it off.
+                engine_on<=tutorial_mode ? engine_switch : 1'b0;
                 active_fans<=9'd0;
                 run_page<=0;
             end else if (game_state==`LP_RUN) begin
@@ -63,7 +67,8 @@ module ui_controller (
             end
             if (!fan_available || (game_state!=`LP_RUN && game_state!=`LP_SETTINGS && game_state!=`LP_GUIDE))
                 active_fans<=9'd0;
-            if (game_state!=`LP_RUN && game_state!=`LP_SETTINGS && game_state!=`LP_GUIDE)
+            if (game_state!=`LP_RUN && game_state!=`LP_INIT_RUN &&
+                game_state!=`LP_SETTINGS && game_state!=`LP_GUIDE)
                 engine_on<=0;
             if (game_state!=`LP_RUN) launch_ticks<=0;
             else if (launch_event) launch_ticks<=30;
@@ -105,10 +110,15 @@ module ui_controller (
                         // Back button: (x: 0..27, y: 52..63)
                         if (mx<=27 && my>=52 && my<=63)
                             level_close_req <= 1;
-                        // Map 1: (x: 4..91, y: 12..30), Map 2: (x: 4..91, y: 34..50)
+                        // Map 1, Map 2, and the separate tutorial course.
+                        // The compact rows leave the bottom toolbar clear.
                         else if (mx>=4 && mx<=91 &&
-                                 ((my>=12 && my<=30) || (my>=34 && my<=50))) begin
-                            selected_level <= (my>=34) ? 2'd1 : 2'd0;
+                                 ((my>=10 && my<=21) ||
+                                  (my>=24 && my<=35) ||
+                                  (my>=38 && my<=49))) begin
+                            if (my>=38) selected_level <= `LP_LEVEL_TUTORIAL;
+                            else if (my>=24) selected_level <= `LP_LEVEL_FLIGHT;
+                            else selected_level <= `LP_LEVEL_ARCH;
                             level_select_req <= 1;
                         end
                     end else if (game_state==`LP_BUILD && my>=55 && my<=63) begin

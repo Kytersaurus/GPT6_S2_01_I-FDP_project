@@ -411,14 +411,12 @@ module ui_renderer (
             if (game_state == `LP_LEVEL_SELECT) begin
                 if (y < 6'd12) begin
                     line_text = "SELECT MAP      "; line_left = 7'd18; line_top = 6'd2; line_colour = 16'h07ff;
-                end else if (y < 6'd22) begin
-                    line_text = "CAVE ARCH       "; line_left = 7'd10; line_top = 6'd14;
-                end else if (y < 6'd34) begin
-                    line_text = "MAP 1           "; line_left = 7'd10; line_top = 6'd22; line_colour = 16'h07ff;
-                end else if (y < 6'd43) begin
-                    line_text = "CAVE FLIGHT     "; line_left = 7'd10; line_top = 6'd36;
+                end else if (y < 6'd24) begin
+                    line_text = "MAP 1: ARCH     "; line_left = 7'd10; line_top = 6'd12; line_colour = 16'h07ff;
+                end else if (y < 6'd38) begin
+                    line_text = "MAP 2: FLIGHT   "; line_left = 7'd10; line_top = 6'd26; line_colour = 16'h07ff;
                 end else if (y < 6'd52) begin
-                    line_text = "MAP 2           "; line_left = 7'd10; line_top = 6'd43; line_colour = 16'h07ff;
+                    line_text = "TUTORIAL        "; line_left = 7'd10; line_top = 6'd40; line_colour = 16'hffe0;
                 end else begin
                     line_text = "PICK A MAP      "; line_left = 7'd32; line_top = 6'd56; line_colour = 16'h7bef;
                 end
@@ -595,25 +593,35 @@ module ui_renderer (
             end
         end else if (game_state == `LP_LEVEL_SELECT) begin
             // -----------------------------------------------------------------
-            // LEVEL SELECT SCREEN (Maps 1 and 2)
+            // LEVEL SELECT SCREEN (Maps 1 and 2, plus the tutorial)
             // -----------------------------------------------------------------
             pixel_data = 16'h0841;
 
             // Map 1: Cave Arch
-            if (x >= 4 && x <= 91 && y >= 12 && y <= 30) begin
-                if (x == 4 || x == 91 || y == 12 || y == 30)
-                    pixel_data = (cursor_x >= 4 && cursor_x <= 91 && cursor_y >= 12 && cursor_y <= 30) ? 16'hffe0 : ((level_index == 0) ? 16'h07e0 : 16'h04b4);
-                else if (cursor_x >= 4 && cursor_x <= 91 && cursor_y >= 12 && cursor_y <= 30)
+            if (x >= 4 && x <= 91 && y >= 10 && y <= 21) begin
+                if (x == 4 || x == 91 || y == 10 || y == 21)
+                    pixel_data = (cursor_x >= 4 && cursor_x <= 91 && cursor_y >= 10 && cursor_y <= 21) ? 16'hffe0 : ((level_index == `LP_LEVEL_ARCH) ? 16'h07e0 : 16'h04b4);
+                else if (cursor_x >= 4 && cursor_x <= 91 && cursor_y >= 10 && cursor_y <= 21)
                     pixel_data = 16'h0351;
                 else
                     pixel_data = 16'h18e5;
             end
 
-            // Map 2: Cave Flight (x: 4..91, y: 34..50)
-            if (x >= 4 && x <= 91 && y >= 34 && y <= 50) begin
-                if (x == 4 || x == 91 || y == 34 || y == 50)
-                    pixel_data = (cursor_x >= 4 && cursor_x <= 91 && cursor_y >= 34 && cursor_y <= 50) ? 16'hffe0 : ((level_index == 1) ? 16'h07e0 : 16'h04b4);
-                else if (cursor_x >= 4 && cursor_x <= 91 && cursor_y >= 34 && cursor_y <= 50)
+            // Map 2: Cave Flight (x: 4..91, y: 24..35)
+            if (x >= 4 && x <= 91 && y >= 24 && y <= 35) begin
+                if (x == 4 || x == 91 || y == 24 || y == 35)
+                    pixel_data = (cursor_x >= 4 && cursor_x <= 91 && cursor_y >= 24 && cursor_y <= 35) ? 16'hffe0 : ((level_index == `LP_LEVEL_FLIGHT) ? 16'h07e0 : 16'h04b4);
+                else if (cursor_x >= 4 && cursor_x <= 91 && cursor_y >= 24 && cursor_y <= 35)
+                    pixel_data = 16'h0351;
+                else
+                    pixel_data = 16'h18e5;
+            end
+
+            // Tutorial: guided rectangle course (x: 4..91, y: 38..49)
+            if (x >= 4 && x <= 91 && y >= 38 && y <= 49) begin
+                if (x == 4 || x == 91 || y == 38 || y == 49)
+                    pixel_data = (cursor_x >= 4 && cursor_x <= 91 && cursor_y >= 38 && cursor_y <= 49) ? 16'hffe0 : ((level_index == `LP_LEVEL_TUTORIAL) ? 16'h07e0 : 16'h04b4);
+                else if (cursor_x >= 4 && cursor_x <= 91 && cursor_y >= 38 && cursor_y <= 49)
                     pixel_data = 16'h0351;
                 else
                     pixel_data = 16'h18e5;

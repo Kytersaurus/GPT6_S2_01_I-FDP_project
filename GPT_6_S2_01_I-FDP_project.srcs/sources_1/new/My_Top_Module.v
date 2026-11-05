@@ -91,12 +91,10 @@ module My_Top_Module #(
     wire [2:0] guide_return_state;
     wire signed [`LP_COORD_BITS-1:0] death_x, death_y;
     wire launch_flash; wire [2:0] game_state, init_ready; wire run_init, step_start, update_release;
-    // SW1 changes the shared engine state; in hardware SW1 enables directly during RUN.
-`ifdef SYNTHESIS
-    assign engine_enabled = (game_state == `LP_RUN && !run_init) ? (ui_engine_on || sw[1]) : 1'b0;
-`else
+    // SW1 changes the same engine state as the UI control.  Do not OR SW1
+    // directly into the physics enable: doing so makes the UI unable to turn
+    // the engine off while SW1 remains high.
     assign engine_enabled = (game_state == `LP_RUN && !run_init) ? ui_engine_on : 1'b0;
-`endif
 
 
     wire [26:0] build_grid;
@@ -148,6 +146,7 @@ module My_Top_Module #(
     wire [127:0] terrain_rects;
     wire [31:0] goal_rect;
     wire map_level, map_id;
+    wire [`LP_LEVEL_BITS-1:0] level_index;
     wire signed [10:0] collision_query_x, collision_query_y;
     // The live collision path only needs the registered solid/open result.
     // Map colour classes remain available on level_map's draw and simulation
@@ -155,11 +154,199 @@ module My_Top_Module #(
     wire collision_query_solid;
     // Collision only needs the solid/open result. Keeping this one-bit path
     // separate lets Vivado discard the query-side colour ROM copy.
-    wire [2:0] collision_query_class = collision_query_solid ? `LP_MAP_ROCK : `LP_MAP_SKY;
+    // The tutorial is a BRAM-free rectangle course.  Its collision query is
+    // decoded here so the active rotating collision engine sees the same
+    // floor, step, practice pad and finish island that the renderer draws.
+    wire tutorial_floor = collision_query_y >= 11'sd120 && collision_query_y < 11'sd152;
+    // No physical platform is placed in the engine lesson; it stays flat.
+    wire tutorial_platform = 1'b0;
+    // The propulsion teaching pad is deliberately a low step.  Its purpose
+    // is to demonstrate rocket/fan controls, not to become a mandatory wall.
+    wire tutorial_propulsion_pad = collision_query_x >= 11'sd144 && collision_query_x < 11'sd192 &&
+                                   collision_query_y >= 11'sd116 && collision_query_y < 11'sd120;
+    wire tutorial_finish = collision_query_x >= 11'sd216 && collision_query_x < 11'sd248 &&
+                           collision_query_y >= 11'sd112 && collision_query_y < 11'sd120;
+    wire tutorial_solid = tutorial_floor || tutorial_platform || tutorial_propulsion_pad || tutorial_finish;
+    wire [2:0] collision_query_class = (level_index == `LP_LEVEL_TUTORIAL) ?
+                                       (tutorial_solid ? `LP_MAP_ROCK : `LP_MAP_SKY) :
+                                       (collision_query_solid ? `LP_MAP_ROCK : `LP_MAP_SKY);
     wire [9:0] world_width, world_height, flag_x, flag_y;
+    wire [`LP_MAX_TNT-1:0] tnt_intact;
+    wire right_press;
+    localparam integer TUTORIAL_PAUSE_FRAMES = 120;
+    // The close-up run view is 64 world pixels wide.  Stop at x=88 so the
+    // TNT at x=128 is visible near the right edge, with 16 pixels of vehicle
+    // clearance before the normal contact boundary at approximately x=104.
+    // The extra margin prevents a physics update from carrying the vehicle
+    // into the crate before the pause state is sampled.
+    localparam integer TUTORIAL_TNT_RETRY_X_Q8 = 22528; // 88 pixels
+    localparam integer TUTORIAL_TNT_GRACE_FRAMES = 90;
+    // These are declared before the tutorial controller because the landing
+    // transition also selects the post-TNT instruction.
+    wire response_valid, response_ready, grounded;
+    reg audio_was_grounded;
+    reg falling;
+    reg tutorial_pause_active;
+    reg [7:0] tutorial_pause_count;
+    reg [2:0] tutorial_next_prompt;
+    reg tutorial_tnt_seen;
+    reg tutorial_tnt_was_intact;
+    reg [7:0] tutorial_tnt_grace_frames;
+    reg tutorial_retry_pending;
+    reg tutorial_retry_waiting;
+    reg tutorial_guided_run;
+    reg tutorial_tnt_avoid_active;
+    reg tutorial_fan_tested;
+    reg tutorial_tnt_landed;
+    wire [2:0] tutorial_prompt_index =
+        ($signed(vehicle_x) < 20'sd10240) ? 3'd0 :
+        ($signed(vehicle_x) < 20'sd20480) ? 3'd1 :
+        ($signed(vehicle_x) < 20'sd36864) ? 3'd2 :
+        ($signed(vehicle_x) < 20'sd49152) ? 3'd3 :
+        ($signed(vehicle_x) < 20'sd55296) ? 3'd4 : 3'd5;
+    // The real physics tick remains available for the pause timer, while the
+    // gameplay tick is withheld so the vehicle, timer and world handshakes
+    // genuinely stop when a new teaching prompt appears.
+    wire tutorial_physics_tick = physics_tick && !tutorial_pause_active;
+    wire tutorial_bounds_grace = (level_index == `LP_LEVEL_TUTORIAL) &&
+                                 // The TNT mask can fall on the same clock as
+                                 // the first out-of-bounds result. Include the
+                                 // spent bit directly so the demo gets time
+                                 // to rise and land instead of failing early.
+                                 (tutorial_tnt_grace_frames != 0 || !tnt_intact[0]);
+    // After the instructed retry action, ignore only TNT contact until the
+    // whole vehicle is past the crate. This corridor is tutorial-only and
+    // guarantees that the guided route cannot suffer a second blast.
+    wire tutorial_tnt_suppress = (level_index == `LP_LEVEL_TUTORIAL) &&
+                                 tutorial_tnt_avoid_active;
+    // BTNR is intentionally accepted during the retry pause: it is the
+    // instructed action that fires the short tutorial rocket and clears the
+    // visible TNT.  Other tutorial pauses still hold BTNR so an accidental
+    // press cannot launch the vehicle before the TNT lesson.
+    wire tutorial_rocket_lesson_pause = tutorial_pause_active &&
+                                        (tutorial_prompt_index == 3'd3);
+    wire tutorial_rocket_button = (game_state == `LP_RUN) && right_press &&
+                                  (!tutorial_pause_active || tutorial_retry_waiting ||
+                                   tutorial_rocket_lesson_pause);
+    always @(posedge clk) begin
+        if (reset || level_index != `LP_LEVEL_TUTORIAL) begin
+            tutorial_pause_active <= 1'b0;
+            tutorial_pause_count <= 8'd0;
+            tutorial_next_prompt <= 3'd0;
+            tutorial_tnt_seen <= 1'b0;
+            tutorial_tnt_was_intact <= 1'b1;
+            tutorial_tnt_grace_frames <= 8'd0;
+            tutorial_retry_pending <= 1'b0;
+            tutorial_retry_waiting <= 1'b0;
+            tutorial_guided_run <= 1'b0;
+            tutorial_tnt_avoid_active <= 1'b0;
+            tutorial_fan_tested <= 1'b0;
+            tutorial_tnt_landed <= 1'b0;
+        end else if (game_state != `LP_RUN) begin
+            // A retry after the TNT demonstration skips the earlier lessons
+            // and prepares one manual stop before the TNT.
+            tutorial_pause_active <= 1'b0;
+            tutorial_pause_count <= 8'd0;
+            // During a retry, tnt_controller may restore tnt_intact in the
+            // same INIT_RUN window.  Therefore use either the remembered
+            // tutorial flag or the still-spent TNT bit to arm the guided run.
+            // This keeps the pre-TNT pause reliable across both retry paths.
+            tutorial_next_prompt <= (tutorial_tnt_seen || !tnt_intact[0]) ? 3'd2 : 3'd0;
+            tutorial_retry_pending <= tutorial_tnt_seen || !tnt_intact[0];
+            // Preserve the display-side lesson state even if the TNT mask is
+            // restored on the next INIT_RUN edge.
+            if (!tnt_intact[0]) tutorial_tnt_seen <= 1'b1;
+            tutorial_retry_waiting <= 1'b0;
+            tutorial_tnt_was_intact <= 1'b1;
+            tutorial_tnt_grace_frames <= 8'd0;
+            tutorial_guided_run <= 1'b0;
+            tutorial_tnt_avoid_active <= 1'b0;
+            tutorial_fan_tested <= 1'b0;
+            // The first TNT demonstration starts again after retry, so the
+            // reset message must not carry into the guided attempt.
+            tutorial_tnt_landed <= 1'b0;
+        end else if (tutorial_pause_active) begin
+            if (tutorial_retry_waiting) begin
+                // The TNT is visible before this pause.  BTNR fires the
+                // instructed tutorial rocket and releases the vehicle.
+                if (right_press) begin
+                    tutorial_pause_active <= 1'b0;
+                    tutorial_retry_waiting <= 1'b0;
+                    tutorial_pause_count <= 8'd0;
+                    // Count this as the rocket lesson.  The short tutorial
+                    // rocket may lift the body briefly, so keep the same
+                    // tutorial-only recovery grace used after a TNT blast.
+                    // This prevents an otherwise valid hop from becoming an
+                    // immediate game-over while the vehicle settles.
+                    tutorial_next_prompt <= 3'd4;
+                    tutorial_tnt_grace_frames <= TUTORIAL_TNT_GRACE_FRAMES;
+                    tutorial_guided_run <= 1'b1;
+                    tutorial_tnt_avoid_active <= 1'b1;
+                end
+            end else if (tutorial_guided_run && tutorial_next_prompt == 3'd5) begin
+                // The guided retry must demonstrate the fan, but the fan must
+                // be off before the final straight so the course stays easy.
+                if (!tutorial_fan_tested && (|ui_active_fans))
+                    tutorial_fan_tested <= 1'b1;
+                else if (tutorial_fan_tested && !(|ui_active_fans)) begin
+                    tutorial_pause_active <= 1'b0;
+                    tutorial_pause_count <= 8'd0;
+                    tutorial_next_prompt <= 3'd6;
+                end
+            end else if (physics_tick) begin
+                if (tutorial_pause_count >= TUTORIAL_PAUSE_FRAMES-1) begin
+                    tutorial_pause_active <= 1'b0;
+                    tutorial_pause_count <= 8'd0;
+                end else tutorial_pause_count <= tutorial_pause_count + 1'b1;
+            end
+        end else begin
+            // The assisted corridor ends once the whole vehicle is beyond the
+            // TNT. From this point onward the tutorial is ordinary gameplay.
+            if (tutorial_tnt_avoid_active && $signed(vehicle_x) >= 20'sd36864)
+                tutorial_tnt_avoid_active <= 1'b0;
+
+            // Detect the armed-to-spent edge.  This starts a short recovery
+            // grace period for the tutorial demonstration only; normal maps
+            // retain their ordinary out-of-bounds failure behavior.
+            if (tnt_intact[0]) begin
+                tutorial_tnt_was_intact <= 1'b1;
+            end else if (tutorial_tnt_was_intact) begin
+                tutorial_tnt_was_intact <= 1'b0;
+                tutorial_tnt_seen <= 1'b1;
+                tutorial_tnt_grace_frames <= TUTORIAL_TNT_GRACE_FRAMES;
+            end else if (tutorial_tnt_grace_frames != 0 && physics_tick) begin
+                tutorial_tnt_grace_frames <= tutorial_tnt_grace_frames - 1'b1;
+            end
+
+            // Do not announce retry as soon as TNT detonates. Wait for the
+            // actual air-to-ground response, so the player sees the ordinary
+            // TNT blast and fall first.
+            if (tutorial_tnt_seen && !tutorial_guided_run &&
+                response_valid && response_ready && grounded &&
+                !audio_was_grounded && falling)
+                tutorial_tnt_landed <= 1'b1;
+
+            if (tutorial_retry_pending && $signed(vehicle_x) >= TUTORIAL_TNT_RETRY_X_Q8) begin
+            // On retry, stop at x=104 so the TNT at x=128 is visible.
+            tutorial_retry_pending <= 1'b0;
+            tutorial_retry_waiting <= 1'b1;
+            tutorial_pause_active <= 1'b1;
+            tutorial_pause_count <= 8'd0;
+            end else if (!tutorial_tnt_seen && tutorial_next_prompt == 3'd2 &&
+                         tutorial_prompt_index == 3'd2) begin
+            // Do not pause in front of the TNT on the first attempt.
+            tutorial_next_prompt <= 3'd3;
+            end else if ((!tutorial_tnt_seen || tutorial_guided_run) &&
+                         tutorial_next_prompt < 3'd6 &&
+                         tutorial_prompt_index == tutorial_next_prompt) begin
+            tutorial_pause_active <= 1'b1;
+            tutorial_pause_count <= 8'd0;
+            tutorial_next_prompt <= tutorial_next_prompt + 1'b1;
+            end
+        end
+    end
     wire level_open_req, level_close_req, level_select_req;
     wire [`LP_LEVEL_BITS-1:0] selected_level;
-    wire [`LP_LEVEL_BITS-1:0] level_index;
     wire [3:0] mouse_z;
     wire zoomed_out, overview;
     wire [1:0] fail_reason;
@@ -170,14 +357,13 @@ module My_Top_Module #(
     wire [`LP_TNT_BITS-1:0] tnt_positions;
     wire [1:0] hazard_count;
     wire [`LP_HAZARD_BITS-1:0] hazard_rects;
-    wire [`LP_MAX_TNT-1:0] tnt_intact;
     wire tnt_damage_valid, tnt_complete;
     wire [8:0] tnt_damage_mask, tnt_frame_mask;
     wire tnt_knockback_valid;
     wire signed [15:0] tnt_knockback_x, tnt_knockback_y;
     wire collision_impact_valid;
     wire [3:0] collision_impact_flags;
-    wire move_valid, move_ready, response_valid, response_ready, grounded;
+    wire move_valid, move_ready;
     wire signed [7:0] ground_slope;
     wire signed [`LP_TILT_BITS-1:0] previous_tilt, proposed_tilt, corrected_tilt, vehicle_tilt;
     wire signed [`LP_COORD_BITS-1:0] previous_x, previous_y, proposed_x, proposed_y;
@@ -193,7 +379,6 @@ module My_Top_Module #(
     wire sound_start;
     wire signed [3:0] bgm_sample;
     wire [2:0] sound_id, active_sound;
-    reg audio_was_grounded;
     reg [2:0] previous_game_state;
     wire audio_cancel = run_init || (game_state == `LP_BUILD && previous_game_state != `LP_BUILD);
     wire pop_sound_event = pop_valid && damage_ready && (|pop_mask);
@@ -215,9 +400,14 @@ module My_Top_Module #(
                                   wall_crash_event);
     wire explosion_sound_event;
     reg [5:0] airborne_ticks;
-    reg falling;
-    reg signed [`LP_COORD_BITS-1:0] fall_start_y;
-    wire signed [`LP_COORD_BITS-1:0] fall_distance_q8 = $signed(corrected_y) - $signed(fall_start_y);
+    reg signed [`LP_COORD_BITS-1:0] fall_peak_y;
+    // Q12.8 y increases down the screen. Track the highest point reached,
+    // then measure the landing distance from that peak rather than from the
+    // take-off floor. This lets a TNT/rocket arc use the normal fall damage
+    // and scatter path when it is genuinely high enough.
+    wire signed [`LP_COORD_BITS-1:0] landing_peak_y =
+        ($signed(proposed_y) < $signed(fall_peak_y)) ? proposed_y : fall_peak_y;
+    wire signed [`LP_COORD_BITS-1:0] fall_distance_q8 = $signed(corrected_y) - $signed(landing_peak_y);
     wire high_fall_landing = response_valid && response_ready && grounded && !audio_was_grounded &&
                               falling && (airborne_ticks >= (map_id ? 6'd14 : 6'd12)) &&
                               ($signed(proposed_vy) >= 16'sd512) &&
@@ -228,7 +418,7 @@ module My_Top_Module #(
             previous_game_state <= `LP_BUILD;
             airborne_ticks <= 6'd0;
             falling <= 1'b0;
-            fall_start_y <= 0;
+            fall_peak_y <= 0;
         end
         else begin
             previous_game_state <= game_state;
@@ -236,15 +426,18 @@ module My_Top_Module #(
                 audio_was_grounded <= 0;
                 airborne_ticks <= 6'd0;
                 falling <= 1'b0;
-                fall_start_y <= 0;
+                fall_peak_y <= 0;
             end
             else if (response_valid && response_ready) begin
                 audio_was_grounded <= grounded;
                 if (!grounded) begin
                     if (airborne_ticks < 6'd63) airborne_ticks <= airborne_ticks + 1'b1;
-                    // Record the last grounded pose when leaving it. If the
-                    // vehicle starts in the air, use its first airborne pose.
-                    if (audio_was_grounded || !falling || ($signed(previous_y) < $signed(fall_start_y)) || ($signed(proposed_vy) <= 16'sd160)) fall_start_y <= previous_y;
+                    // Start a new arc at the first airborne sample, then keep
+                    // the smallest y (the highest point) reached by the arc.
+                    if (audio_was_grounded || !falling)
+                        fall_peak_y <= ($signed(proposed_y) < $signed(previous_y)) ? proposed_y : previous_y;
+                    else if ($signed(proposed_y) < $signed(fall_peak_y))
+                        fall_peak_y <= proposed_y;
                     falling <= 1'b1;
                 end else begin
                     airborne_ticks <= 6'd0;
@@ -301,7 +494,7 @@ module My_Top_Module #(
             scatter_phase <= 6'd0;
         end else begin
             impact_damage_valid <= 1'b0;
-            if (scatter_phase != 0 && physics_tick) begin
+            if (scatter_phase != 0 && tutorial_physics_tick) begin
                 if (scatter_phase >= 6'd24) scatter_phase <= 6'd0;
                 else scatter_phase <= scatter_phase + 1'b1;
             end
@@ -328,7 +521,6 @@ module My_Top_Module #(
     );
 
 
-    wire right_press;
     input_controller #(
         .DEBOUNCE_CYCLES(BUTTON_DEBOUNCE_CYCLES), .RELEASE_CYCLES(BUTTON_RELEASE_CYCLES)
     ) u_input (
@@ -350,7 +542,7 @@ module My_Top_Module #(
     assign pop_cell = mouse_pop_cell;
 
     assign level_open_req = ui_level_open_req;
-    assign combined_boost_req = rocket_ready && (ui_boost_req || mouse_boost_req || (game_state == `LP_RUN && right_press));
+    assign combined_boost_req = rocket_ready && (ui_boost_req || mouse_boost_req || tutorial_rocket_button);
     assign boost_req = combined_boost_req;
 
     wire [11:0] effective_mouse_x = {5'd0, cursor_x};
@@ -363,8 +555,9 @@ module My_Top_Module #(
         .mouse_x(effective_mouse_x), .mouse_y(effective_mouse_y),
         .mouse_left(mouse_left), .mouse_right(mouse_right), .mouse_event(mouse_event),
         .next_press(start_press), .engine_switch_changed(engine_switch_changed),
+        .tutorial_mode(level_index == `LP_LEVEL_TUTORIAL),
         .engine_switch(sw[1]), .engine_toggle_req(mouse_engine_toggle_req),
-        .fan_toggle_req(mouse_fan_toggle_req), .fan_toggle_cell(mouse_fan_toggle_cell), .rocket_toggle_req(mouse_boost_req || (game_state == `LP_RUN && right_press)),
+        .fan_toggle_req(mouse_fan_toggle_req), .fan_toggle_cell(mouse_fan_toggle_cell), .rocket_toggle_req(mouse_boost_req || tutorial_rocket_button),
         .fan_available(fan_available), .rocket_available(rocket_available),
         .rocket_ready(rocket_ready), .balloon_available(balloon_count != 4'd0),
         .home_req(ui_home_req), .launch_req(ui_launch), .edit_req(ui_edit), .end_try_req(ui_end_try),
@@ -379,7 +572,7 @@ module My_Top_Module #(
     wire [7:0] par_time;
     seven_seg_timer #(.COUNTDOWN(1), .TIME_LIMIT(20)) u_board_timer (.clk(clk), .reset(reset || (game_state!=`LP_RUN && game_state!=`LP_SUCCESS && game_state!=`LP_FAIL)), .seconds(run_seconds), .time_limit(par_time), .seg(seg), .an(an), .dp(dp));
     pig_death_effect u_pig_death (
-        .clk(clk), .reset(reset), .run_init(run_init), .physics_tick(physics_tick), .pig_alive(pig_alive),
+        .clk(clk), .reset(reset), .run_init(run_init), .physics_tick(tutorial_physics_tick), .pig_alive(pig_alive),
         .game_state(game_state), .build_grid(build_grid), .vehicle_x(vehicle_x), .vehicle_y(vehicle_y), .vehicle_tilt(vehicle_tilt),
         .death_phase(death_phase), .death_x(death_x), .death_y(death_y)
     );
@@ -478,9 +671,10 @@ module My_Top_Module #(
         .level_close_req(level_close_req), .level_select_req(level_select_req), .selected_level(selected_level),
         .level_index(level_index), .fail_reason(fail_reason), .run_seconds(run_seconds),
         .build_valid(build_valid && !edit_valid), .pig_alive(pig_alive),
-        .init_ready(init_ready), .physics_tick(physics_tick), .world_valid(world_valid), .world_ready(world_ready),
+        .init_ready(init_ready), .physics_tick(tutorial_physics_tick), .world_valid(world_valid), .world_ready(world_ready),
         .gameplay_pending(pop_pending), .gameplay_ready(gameplay_ready),
         .goal_hit(goal_hit), .hazard_hit(hazard_hit), .out_of_bounds(out_of_bounds), .star_box_hit(star_box_hit), .star_box_collected(star_box_collected),
+        .tutorial_bounds_grace(tutorial_bounds_grace),
         .enable_start_screen(enable_start_screen),
         .start_screen_active(start_screen_active),
         .par_time(par_time), .game_state(game_state),
@@ -488,7 +682,7 @@ module My_Top_Module #(
         .launch_event(launch_event), .success_event(success_event), .failure_event(failure_event)
     );
     explosion_fx u_explosions (
-        .clk(clk), .reset(reset), .run_init(run_init), .physics_tick(physics_tick),
+        .clk(clk), .reset(reset), .run_init(run_init), .physics_tick(tutorial_physics_tick),
         .tnt_intact(tnt_intact), .blast_phase(blast_phase)
     );
     wire [3:0] active_down_fans =
@@ -561,7 +755,9 @@ module My_Top_Module #(
         .build_facing_left(build_facing_left),.rocket_vertical_mask(rocket_vertical_mask),
         .fan_balance(active_fan_balance), .rocket_balance(rocket_balance), .rocket_vertical_balance(rocket_vertical_balance), .rocket_count(rocket_count),
 
-        .fan_enabled(ui_fan_on), .rocket_req(ui_rocket_req), .rocket_ready(rocket_ready), .rocket_active(rocket_active),
+        .fan_enabled(ui_fan_on), .rocket_req(ui_rocket_req),
+        .tutorial_mode(level_index == `LP_LEVEL_TUTORIAL),
+        .rocket_ready(rocket_ready), .rocket_active(rocket_active),
         .clk(clk), .reset(reset), .game_state(game_state), .run_init(run_init), .init_ready(init_ready[1]),
         .spawn_x(spawn_x), .spawn_y(spawn_y), .step_start(step_start), .update_release(update_release),
         .wheel_count(wheel_count), .wheels_down(wheels_down), .wheels_up(wheels_up), .tip_dir(tip_dir), .support_unstable(support_unstable),
@@ -601,7 +797,8 @@ module My_Top_Module #(
     // Finish TNT damage before checking the pig and goal for this movement.
     // Physics holds its committed pose until the world result is accepted.
     tnt_controller u_tnt (
-        .clk(clk), .reset(reset), .run_init(run_init), .game_state(game_state), .init_ready(),
+        .clk(clk), .reset(reset), .run_init(run_init), .game_state(game_state),
+        .suppress_trigger(tutorial_tnt_suppress), .tutorial_mode(level_index == `LP_LEVEL_TUTORIAL), .init_ready(),
         .movement_committed(movement_committed), .previous_x(previous_x), .previous_y(previous_y), .previous_tilt(previous_tilt),
         .vehicle_x(vehicle_x), .vehicle_y(vehicle_y), .vehicle_tilt(vehicle_tilt), .tnt_count(tnt_count), .tnt_positions(tnt_positions),
         .build_grid(build_grid), .build_frames(build_frames), .intact_mask(intact_mask),
@@ -623,14 +820,14 @@ module My_Top_Module #(
 
     // Base snapshot width is adjusted for the current three TNT slots and
     // carries the filtered display pose for both the vehicle and follow-camera.
-    localparam SNAPSHOT_WIDTH = 249 + 3*(`LP_MAX_TNT-4) +
+    localparam SNAPSHOT_WIDTH = 252 + 3*(`LP_MAX_TNT-4) +
                                 4*(`LP_COORD_BITS-16) + (`LP_TILT_BITS-4) +
                                 2*`LP_COORD_BITS + 9 + 6;
     wire [SNAPSHOT_WIDTH-1:0] snapshot_in = {start_screen_active, fan_available, ui_fan_on, star_box_collected, rocket_available, rocket_ready, vehicle_tilt, audio_muted, run_page, selected_left, inventory_page, build_facing_left, rockets_left, fans_left, master_volume, diary_page, guide_return_state, death_phase, death_x, death_y, launch_flash, (boost_active || rocket_active), drag_from_grid, drag_source, drag_contents,
                               game_state, build_grid, intact_mask, frame_intact_mask, build_valid, build_error,
                               display_x, display_y, engine_enabled, frames_left, pigs_left, wheels_left,
                               engines_left, balloons_left, cursor_x, cursor_y, selected_part, drag_active,
-                              feedback_code, feedback_cell, level_index, fail_reason, tnt_intact,
+                              feedback_code, feedback_cell, level_index, fail_reason, tnt_intact, tutorial_tnt_seen, tutorial_tnt_landed, tutorial_fan_tested,
                               build_frames, run_seconds, blast_phase, scatter_mask, scatter_x, scatter_y, scatter_phase};
     wire [SNAPSHOT_WIDTH-1:0] snapshot_out;
     wire draw_audio_muted;
@@ -667,6 +864,7 @@ module My_Top_Module #(
     wire [5:0] draw_scatter_phase;
     wire [1:0] draw_fail_reason;
     wire [`LP_MAX_TNT-1:0] draw_tnt_intact;
+    wire draw_tutorial_tnt_seen, draw_tutorial_tnt_landed, draw_tutorial_fan_tested;
     wire signed [19:0] draw_spawn_x, draw_spawn_y;
     wire [2:0] draw_terrain_count, draw_tnt_count;
     wire [127:0] draw_terrain_rects;
@@ -694,7 +892,7 @@ module My_Top_Module #(
             draw_state, draw_grid, draw_intact, draw_frames, draw_valid, draw_error, draw_x, draw_y, draw_engine,
             draw_frames_left, draw_pigs_left, draw_wheels_left, draw_engines_left, draw_balloons_left,
             draw_cursor_x, draw_cursor_y, draw_selected_part, draw_drag_active,
-            draw_feedback_code, draw_feedback_cell, draw_level, draw_fail_reason, draw_tnt_intact,
+            draw_feedback_code, draw_feedback_cell, draw_level, draw_fail_reason, draw_tnt_intact, draw_tutorial_tnt_seen, draw_tutorial_tnt_landed, draw_tutorial_fan_tested,
             draw_saved_frames, draw_seconds, draw_blast, draw_scatter_mask, draw_scatter_x, draw_scatter_y, draw_scatter_phase} = snapshot_out;
 
     display_snapshot #(.WIDTH(SNAPSHOT_WIDTH)) u_snapshot (
@@ -914,6 +1112,8 @@ module My_Top_Module #(
         .spawn_x(draw_spawn_x), .spawn_y(draw_spawn_y),
         .terrain_count(draw_terrain_count), .terrain_rects(draw_terrain_rects), .goal_rect(draw_goal_rect),
         .tnt_count(draw_tnt_count), .tnt_positions(draw_tnt_positions), .tnt_intact(draw_tnt_intact),
+        .tutorial_tnt_seen(draw_tutorial_tnt_seen), .tutorial_tnt_landed(draw_tutorial_tnt_landed), .tutorial_fan_tested(draw_tutorial_fan_tested),
+        .rocket_ready(draw_rocket_ready),
         .hazard_count(draw_hazard_count), .hazard_rects(draw_hazard_rects), .blast_phase(draw_blast),
         .death_phase(in_diary_walkthrough ? 2'd0 : draw_death_phase), .death_x(draw_death_x), .death_y(draw_death_y),
         .launch_flash(in_diary_walkthrough ? 1'b0 : draw_launch_flash),
@@ -921,6 +1121,7 @@ module My_Top_Module #(
         .anim_phase(wheel_anim_phase), .map_level(draw_map_level), .map_id(draw_map_id), .world_width(draw_world_width),
         .world_height(draw_world_height), .flag_x(draw_flag_x), .flag_y(draw_flag_y), .star_box_x(draw_star_box_x), .star_box_y(draw_star_box_y),
         .star_box_collected(in_diary_walkthrough ? 1'b0 : draw_star_box_collected), .run_seconds(draw_seconds),
+        .level_index(draw_level),
         .map_x(right_map_x), .map_y(right_map_y), .map_class(map_draw_class),
         .pixel_data(right_pixel_data)
     );

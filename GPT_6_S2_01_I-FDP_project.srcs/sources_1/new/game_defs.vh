@@ -78,6 +78,9 @@
 `define LP_LEVEL_COUNT   2
 `define LP_LEVEL_ARCH    2'd0
 `define LP_LEVEL_FLIGHT  2'd1
+// Play from the title enters this short guided course.  It reuses the
+// Cave Arch map ROM, so it is not counted as an additional BRAM map.
+`define LP_LEVEL_TUTORIAL 2'd2
 `define LP_LEVEL_BITS    2
 
 // Block-RAM maps in level_map: one 3-bit class per world pixel. Sky and cave background are

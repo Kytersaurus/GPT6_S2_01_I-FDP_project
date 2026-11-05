@@ -168,6 +168,7 @@ module vehicle_builder #(
     // An edit is resolved immediately. Otherwise one cell per clock is re-checked,
     // so a frame being added or removed turns the part to a usable direction.
     reg [3:0] mount_scan_cell;
+    reg tutorial_seeded;
     wire resolving_edit = edit_valid && edit_cell < 9;
     wire [2:0] scan_part = build_grid[mount_scan_cell*3 +: 3];
     // The edit and the scan each have their own lookup: this is the design's tightest 100 MHz
@@ -292,6 +293,7 @@ module vehicle_builder #(
             has_balloon_stock <= (BALLOON_LIMIT > 0);
             has_rocket_stock  <= (ROCKET_LIMIT > 0);
             has_fan_stock     <= (FAN_LIMIT > 0);
+            tutorial_seeded <= 0;
             feedback_code <= `LP_FEEDBACK_NONE; feedback_cell <= 0; feedback_count <= 0;
         end
         else begin
@@ -312,11 +314,34 @@ module vehicle_builder #(
                 end else feedback_count <= feedback_count + 1'b1;
             end
             if (!run_init) init_ready <= 0;
+            if (level_index != `LP_LEVEL_TUTORIAL) tutorial_seeded <= 0;
             if (run_init && !init_ready) begin
                 // Retry restores both layers of the saved build.
                 runtime_intact <= content_mask;
                 runtime_frames <= build_frames;
                 init_ready <= 1;
+            end
+            else if (game_state == `LP_BUILD && level_index == `LP_LEVEL_TUTORIAL &&
+                     !tutorial_seeded && !edit_valid) begin
+                // Give Play a usable vehicle immediately.  The normal builder
+                // and run controls are still used, so the player can inspect
+                // and edit it after learning each control.
+                // Cells: balloon, rocket, empty / engine, pig, empty /
+                //        wheel, fan, wheel.  Frames support the middle row.
+                // The rocket points up for the TNT-clearing lesson and the
+                // fan points down.  Physics gives this tutorial rocket a
+                // short burn, so it hops over the crate instead of leaving
+                // through the top bound.
+                build_grid <= {`LP_PART_WHEEL, `LP_PART_FAN, `LP_PART_WHEEL,
+                               `LP_PART_EMPTY, `LP_PART_PIG, `LP_PART_ENGINE,
+                               `LP_PART_EMPTY, `LP_PART_BOOSTER, `LP_PART_BALLOON};
+                build_frames <= 9'b000111000;
+                // Rocket is cell 1: facing_down=1, facing_left=0 means up.
+                // Fan is cell 7: facing_down=1 means downward lift.
+                build_facing_left <= 9'b000000000;
+                // Bits 7 and 1 are the fan and upward rocket respectively.
+                build_facing_down <= 9'b010000010;
+                tutorial_seeded <= 1'b1;
             end
             else if (game_state == `LP_BUILD) begin
                 // The BUILD outputs follow the saved layers directly.

@@ -35,7 +35,7 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
     // Future placement logic supplies body-vertical rockets: down minus up.
     input tri0 signed [4:0] rocket_vertical_balance,
     input tri0 [3:0] rocket_count,
-    input tri0 fan_enabled, rocket_req,
+    input tri0 fan_enabled, rocket_req, tutorial_mode,
     output wire rocket_ready, rocket_active,
     // Read-only geometry for force application and the mass centre. Disabled
     // by default for legacy arithmetic benches; the game enables it explicitly.
@@ -109,6 +109,7 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
     // Power-of-two per-part forces use wiring shifts, not multipliers.
     localparam FAN_FORCE_SHIFT = 6; // Fan force 64; rocket force is a power-of-two parameter.
     localparam [6:0] ROCKET_TICKS = 7'd90; // 1.5 s at the default 60 Hz
+    localparam [6:0] TUTORIAL_ROCKET_TICKS = 7'd16; // one short TNT-clearing hop
     reg [4:0] phase;
     reg signed [15:0] velocity_x, velocity_y;
     reg [4:0] tnt_blast_steps;
@@ -249,7 +250,8 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
         if (reset || run_init || (game_state != `LP_RUN && !menu_paused)) begin
             rocket_fuel <= 0; rocket_spent <= 0;
         end else if (rocket_req && rocket_ready) begin
-            rocket_fuel <= ROCKET_TICKS; rocket_spent <= 1;
+            rocket_fuel <= tutorial_mode ? TUTORIAL_ROCKET_TICKS : ROCKET_TICKS;
+            rocket_spent <= 1;
         end else if (game_state==`LP_RUN && phase == IDLE && step_start && rocket_fuel != 0)
             rocket_fuel <= rocket_fuel - 1'b1;
     end
@@ -279,7 +281,11 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
     wire slope_target_ready=last_ground_slope_valid &&
         ((!small_slope_step) || (desired_tilt==held_target && held_count==2'd2));
     reg signed [15:0] display_vx, display_vy;
-    wire signed [`LP_COORD_BITS+1:0] display_x_guess=$signed(display_x)+$signed(display_vx);
+    // Do not predict from the previous display velocity.  A full-velocity
+    // predictor can move the sprite past a newly accepted pose when an engine
+    // is switched off or a wheel meets a slope.  The position filter below is
+    // monotonic instead, so x and grounded y stay on the same terrain sample.
+    wire signed [`LP_COORD_BITS+1:0] display_x_guess=$signed(display_x);
     wire signed [`LP_COORD_BITS+1:0] display_x_error=$signed(corrected_x)-display_x_guess;
     wire signed [`LP_COORD_BITS+1:0] display_guess=$signed(display_y)+$signed(display_vy);
     wire signed [`LP_COORD_BITS+1:0] display_error=$signed(corrected_y)-display_guess;
@@ -871,15 +877,24 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
                 WAIT_RESPONSE: if (response_valid) begin
                     vehicle_x <= corrected_x; vehicle_y <= corrected_y;
                     // An error of more than 12 pixels (teleport, retry or a large
-                    // collision correction) is not smoothed.
-                    if (display_x_error > 22'sd3072 || display_x_error < -22'sd3072) begin
+                    // collision correction) is not smoothed.  A corrected x
+                    // also snaps immediately when a wall changes the accepted
+                    // contact position; otherwise the display pose would drag
+                    // through the wall for several frames.
+                    if (display_x_error > 22'sd3072 || display_x_error < -22'sd3072 ||
+                        corrected_x != proposed_x) begin
                         display_x <= corrected_x; display_vx <= 0;
                     end else begin
-                        // Correct three quarters of the remaining horizontal
-                        // error. One quarter remains for interpolation, while
-                        // the smaller lag keeps the sprite close to a slope.
-                        display_x <= display_x_guess + (display_x_error >>> 1) + (display_x_error >>> 2);
-                        display_vx <= display_vx + (display_x_error >>> 3);
+                        // Correct fifteen sixteenths of the remaining
+                        // horizontal error.  The old three-quarter correction
+                        // made grounded y lead displayed x on slopes, so the
+                        // wheels appeared to follow the terrain late.  This
+                        // still leaves a sub-pixel interpolation step while
+                        // keeping the sprite nearly on the accepted pose.
+                        display_x <= display_x_guess + (display_x_error >>> 1) +
+                                     (display_x_error >>> 2) + (display_x_error >>> 3) +
+                                     (display_x_error >>> 4);
+                        display_vx <= 0;
                     end
                     // Collision has already found the exact supported pose.
                     // Do not filter vertical contact: filtering y makes the

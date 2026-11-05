@@ -19,6 +19,7 @@ module game_controller #(
     input wire gameplay_pending,
     output wire gameplay_ready,
     input wire goal_hit, hazard_hit, out_of_bounds, star_box_hit,
+    input tri0 tutorial_bounds_grace,
     output reg star_box_collected,
     input wire enable_start_screen,
     output reg start_screen_active,
@@ -38,7 +39,10 @@ module game_controller #(
     reg [2:0] settings_return_state;
     reg [2:0] map_return_state;
     reg map_from_start;
-    wire [`LP_LEVEL_BITS-1:0] next_level = (level_index == `LP_LEVEL_COUNT-1) ? 0 : level_index + 1'b1;
+    // The tutorial is reached only from the title screen and is not part of
+    // the normal two-map cycle.  Completing it starts the first real map.
+    wire [`LP_LEVEL_BITS-1:0] next_level =
+        (level_index == `LP_LEVEL_ARCH) ? `LP_LEVEL_FLIGHT : `LP_LEVEL_ARCH;
     assign run_init = (game_state == `LP_INIT_RUN);
     assign world_ready = (game_state == `LP_RUN) && step_busy;
     assign gameplay_ready = (game_state == `LP_RUN) && !step_busy;
@@ -65,9 +69,12 @@ module game_controller #(
                 step_busy <= 0;
                 if (launch_req) begin
                     start_screen_active <= 1'b0;
-                    map_from_start <= 1'b1;
-                    map_return_state <= `LP_BUILD;
-                    game_state <= `LP_LEVEL_SELECT;
+                    map_from_start <= 1'b0;
+                    // Play starts the separate guided rectangle course and
+                    // normal BUILD/RUN states; the guide pages remain
+                    // available from the menu.
+                    level_index <= `LP_LEVEL_TUTORIAL;
+                    game_state <= `LP_BUILD;
                 end else if (level_open_req) begin
                     start_screen_active <= 1'b0;
                     settings_from_start <= 1'b1;
@@ -108,7 +115,13 @@ module game_controller #(
                             end else begin
                                 game_state <= map_return_state;
                             end
-                        end else if (level_select_req && selected_level < `LP_LEVEL_COUNT) begin
+                        // Map Select exposes the two normal maps plus the
+                        // separate tutorial course.  LP_LEVEL_COUNT remains
+                        // the count used by the normal level cycle, so the
+                        // tutorial must be allowed explicitly here.
+                        end else if (level_select_req &&
+                                     (selected_level < `LP_LEVEL_COUNT ||
+                                      selected_level == `LP_LEVEL_TUTORIAL)) begin
                             level_index <= selected_level;
                             start_screen_active <= 1'b0;
                             game_state <= `LP_BUILD;
@@ -141,7 +154,7 @@ module game_controller #(
                         // The pig is protected from runtime damage in this
                         // Bad Piggies implementation.  Hazards and leaving the
                         // world still fail; reaching the goal then succeeds.
-                        if (hazard_hit || out_of_bounds) begin
+                        if (hazard_hit || (out_of_bounds && !tutorial_bounds_grace)) begin
                             game_state <= `LP_FAIL; failure_event <= 1;
                             if (hazard_hit) fail_reason <= `LP_FAIL_HAZARD;
                             else fail_reason <= `LP_FAIL_BOUNDS;

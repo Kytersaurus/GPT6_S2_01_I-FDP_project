@@ -56,8 +56,19 @@ module menu_fixes_tb;
         clocks(20);reset_button=0;clocks(300);
         if(dut.master_volume!=2) $fatal(1,"Volume must start at 2/4");
         if(an!=15 || seg!=127 || !dp) $fatal(1,"Timer lit on title");
-        click(48,40);click(12,18); // Play, choose first map.
-        if(dut.game_state!=`LP_BUILD || dut.start_screen_active) $fatal(1,"Play/map flow broken");
+        click(48,40); // Play starts the short playable tutorial course.
+        if(dut.game_state!=`LP_BUILD || dut.level_index!=`LP_LEVEL_TUTORIAL)
+            $fatal(1,"Play did not start tutorial course");
+        click(88,59); // Leave the tutorial build screen through Settings.
+        click(69,35); // Open map selection.
+        click(12,44); // The third row selects the separate tutorial course.
+        if(dut.game_state!=`LP_BUILD || dut.level_index!=`LP_LEVEL_TUTORIAL)
+            $fatal(1,"Tutorial map option did not select the tutorial course");
+        click(88,59); // Re-open Settings from Build.
+        click(69,35); // Return to map selection.
+        click(12,18); // Choose first real map.
+        if(dut.game_state!=`LP_BUILD || dut.level_index!=`LP_LEVEL_ARCH || dut.start_screen_active)
+            $fatal(1,"Play/map flow broken");
         click(88,59);settings_checks();click(40,59);
         if(dut.game_state!=`LP_BUILD || dut.start_screen_active) $fatal(1,"Build settings Back broken");
         dut.u_builder.build_grid={`LP_PART_WHEEL,`LP_PART_EMPTY,`LP_PART_WHEEL,
@@ -87,7 +98,7 @@ module menu_fixes_tb;
         click(84,59);click(82,59);
         if(!dut.start_screen_active || dut.game_state!=`LP_BUILD) $fatal(1,"Settings Home failed");
         if(an!=15 || !dp) $fatal(1,"Timer lit at Home");
-        click(48,40);click(12,18);click(8,59);clocks(20);
+        click(48,40);click(88,59);click(69,35);click(12,18);click(8,59);clocks(20);
         click(34,59);clocks(4);
         if(dut.game_state!=`LP_FAIL) $fatal(1,"End try did not reach result");
         click(12,59);
