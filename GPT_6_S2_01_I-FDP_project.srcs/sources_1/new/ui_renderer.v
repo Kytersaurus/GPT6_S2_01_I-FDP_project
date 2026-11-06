@@ -408,7 +408,13 @@ module ui_renderer (
     always @* begin
         line_text = "                "; line_left = 7'd0; line_top = 6'd0; line_colour = 16'hffff;
         if (!start_screen_active) begin
-            if (game_state == `LP_LEVEL_SELECT) begin
+            if (game_state == `LP_BUILD && level_index == `LP_LEVEL_TUTORIAL &&
+                feedback_code == `LP_FEEDBACK_NONE) begin
+                // The tutorial build screen has a read-only status line. The
+                // controller still accepts the GO hitbox, but no diary/book
+                // control is shown for this level.
+                line_text = "CLICK GO TO PLAY"; line_left = 7'd0; line_top = 6'd56; line_colour = 16'hffe0;
+            end else if (game_state == `LP_LEVEL_SELECT) begin
                 if (y < 6'd12) begin
                     line_text = "SELECT MAP      "; line_left = 7'd18; line_top = 6'd2; line_colour = 16'h07ff;
                 end else if (y < 6'd24) begin
@@ -1117,7 +1123,8 @@ module ui_renderer (
             // -----------------------------------------------------------------
             // BUILD SCREEN: Centralized GO and Authentic Icons
             // -----------------------------------------------------------------
-            if (y >= 55 && feedback_code == `LP_FEEDBACK_NONE) begin
+            if (y >= 55 && feedback_code == `LP_FEEDBACK_NONE &&
+                level_index != `LP_LEVEL_TUTORIAL) begin
                 pixel_data = 16'h0841;
                 // GO Button (x: 0..17, centered text at x=4)
                 if (x < 18) begin

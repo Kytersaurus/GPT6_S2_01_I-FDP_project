@@ -123,7 +123,7 @@ module ui_controller (
                         end
                     end else if (game_state==`LP_BUILD && my>=55 && my<=63) begin
                         if (mx<=17) launch_req <= 1;
-                        else if (mx>=64 && mx<=79) begin guide_open_req <= 1; diary_page <= 0; end
+                        else if (mx>=64 && mx<=79 && !tutorial_mode) begin guide_open_req <= 1; diary_page <= 0; end
                         else if (mx>=80 && mx<=95) level_open_req <= 1;
                     end else if (game_state==`LP_GUIDE) begin
                         // Volume [-] (x: 8..28, y: 24..37) and [+] (x: 64..84, y: 24..37)
@@ -155,7 +155,7 @@ module ui_controller (
                         end else if (my >= 53 && my <= 63) begin
                             if (mx >= 2 && mx <= 22) home_req <= 1;
                             else if (mx >= 26 && mx <= 46) level_select_req <= 1;
-                            else if (mx >= 50 && mx <= 70) begin guide_open_req <= 1; diary_page <= 0; end
+                            else if (mx >= 50 && mx <= 70 && !tutorial_mode) begin guide_open_req <= 1; diary_page <= 0; end
                             else if (mx >= 74 && mx <= 94) level_open_req <= 1;
                         end
                     end else if (game_state==`LP_RUN) begin

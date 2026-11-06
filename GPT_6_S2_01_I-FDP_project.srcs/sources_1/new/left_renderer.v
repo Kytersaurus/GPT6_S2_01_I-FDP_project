@@ -48,6 +48,13 @@ module left_renderer #(
     input wire [1:0] fail_reason,
     input wire [7:0] run_seconds,
     input wire star_box_collected,
+    // Tutorial-only display state. These inputs are optional for standalone
+    // renderer benches (tri0 defaults keep ordinary maps unchanged).
+    input wire signed [19:0] vehicle_x,
+    input tri0 tutorial_tnt_seen,
+    input tri0 tutorial_tnt_landed,
+    input tri0 tutorial_fan_tested,
+    input tri0 tutorial_tnt_intact,
     input wire anim_phase,
     output reg [15:0] pixel_data
 );
@@ -103,6 +110,20 @@ module left_renderer #(
     wire [6:0] arrow_row = y - inventory_content_top - 7'd1;
     wire [5:0] message_row = y - 6'd56;
     wire text_lit = (text_column < 3'd5) && letter_bits[34 - (text_row * 5 + text_column)];
+    // Blink the exact tile needed for each tutorial action:
+    // engine = cell 3, rocket = cell 1, fan = cell 7.
+    wire [3:0] tutorial_target_cell =
+        (level_index != `LP_LEVEL_TUTORIAL || !full_run) ? 4'd15 :
+        (!engine_enabled && $signed(vehicle_x) < 20'sd10240) ? 4'd3 :
+        (tutorial_tnt_seen && tutorial_tnt_intact && !tutorial_tnt_landed &&
+         rocket_ready && $signed(vehicle_x) >= 20'sd22528 &&
+         $signed(vehicle_x) < 20'sd36864) ? 4'd1 :
+        // After the guided rocket has fired, rocket_ready is low. That is a
+        // more reliable phase marker than the TNT mask because the tutorial's
+        // safety corridor may deliberately leave the crate intact.
+        (tutorial_tnt_seen && !tutorial_fan_tested && !rocket_ready &&
+         $signed(vehicle_x) >= 20'sd49152 && $signed(vehicle_x) < 20'sd55296) ? 4'd7 :
+        4'd15;
 
     // Inventory and drag preview use the same sprites as the grid and the right OLED.
     function [15:0] draw_part_icon;
@@ -132,6 +153,9 @@ module left_renderer #(
                     `LP_FAIL_HAZARD: message = "HAZARD HIT      ";
                     default: message = "OUT OF BOUNDS   ";
                 endcase
+                else if (game_state == `LP_BUILD && level_index == `LP_LEVEL_TUTORIAL) begin
+                    message = "CLICK GO TO PLAY"; message_colour = 16'hffe0;
+                end
                 else if (build_valid) begin message = "READY           "; message_colour = 16'h07e0; end
                 else case (build_error)
                     `LP_BUILD_ERR_PIG: message = "ADD PIG         ";
@@ -233,7 +257,9 @@ module left_renderer #(
                 if (in_build && cell_hovered)
                     pixel_data = 16'h07ff;
                 else if (full_run) begin
-                    if (intact_mask[cell_index] &&
+                    if (tutorial_target_cell < 4'd9 && cell_index == tutorial_target_cell && anim_phase)
+                        pixel_data = 16'hffe0;
+                    else if (intact_mask[cell_index] &&
                         ((part == `LP_PART_ENGINE && engine_enabled) ||
                          (part == `LP_PART_FAN && active_fans[cell_index]) ||
                          (part == `LP_PART_BOOSTER && boost_active)))

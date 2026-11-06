@@ -42,6 +42,8 @@ module tutorial_map_tb;
             $fatal(1, "Tutorial TNT teaching prop changed");
         if (hazard_count != 0 || hazard_rects != 0)
             $fatal(1, "Tutorial unexpectedly contains hazards");
+        if (world_height != 10'd126)
+            $fatal(1, "Tutorial camera height is not anchored to the visible floor");
         if (goal_rect !== {8'd40, 8'd32, 8'd80, 8'd216})
             $fatal(1, "Tutorial goal rectangle changed");
         if (star_box_x != 10'd80 || star_box_y != 10'd112)

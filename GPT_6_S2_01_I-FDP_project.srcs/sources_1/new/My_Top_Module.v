@@ -187,6 +187,9 @@ module My_Top_Module #(
     // Declared before the tutorial controller because a rocket-tile click
     // must be able to release the guided pause as well as fire the rocket.
     wire mouse_boost_req;
+    // A fresh click on the engine tile is also the tutorial's first
+    // unpause action. Keep this separate from the board switch.
+    wire mouse_engine_toggle_req;
     reg audio_was_grounded;
     reg falling;
     reg tutorial_pause_active;
@@ -269,7 +272,12 @@ module My_Top_Module #(
             // reset message must not carry into the guided attempt.
             tutorial_tnt_landed <= 1'b0;
         end else if (tutorial_pause_active) begin
-            if (tutorial_retry_waiting) begin
+            if (tutorial_prompt_index == 3'd0 && mouse_engine_toggle_req) begin
+                // Release the first lesson immediately after the engine tile
+                // is clicked instead of waiting for the pause timeout.
+                tutorial_pause_active <= 1'b0;
+                tutorial_pause_count <= 8'd0;
+            end else if (tutorial_retry_waiting) begin
                 // The TNT is visible before this pause.  Either BTNR or a
                 // click on the intact rocket tile fires the instructed
                 // tutorial rocket and releases the vehicle.
@@ -336,6 +344,10 @@ module My_Top_Module #(
             tutorial_retry_waiting <= 1'b1;
             tutorial_pause_active <= 1'b1;
             tutorial_pause_count <= 8'd0;
+            end else if (!tutorial_tnt_seen && tutorial_next_prompt == 3'd1 &&
+                         tutorial_prompt_index == 3'd1) begin
+            // The star is a drive-over checkpoint, not a second pause.
+            tutorial_next_prompt <= 3'd2;
             end else if (!tutorial_tnt_seen && tutorial_next_prompt == 3'd2 &&
                          tutorial_prompt_index == 3'd2) begin
             // Do not pause in front of the TNT on the first attempt.
@@ -540,7 +552,7 @@ module My_Top_Module #(
     wire mouse_pop_req;
     wire [3:0] mouse_pop_cell;
     wire ui_boost_req, combined_boost_req;
-    wire mouse_engine_toggle_req, mouse_fan_toggle_req, ui_end_try;
+    wire mouse_fan_toggle_req, ui_end_try;
 
     assign pop_req = mouse_pop_req;
     assign pop_cell = mouse_pop_cell;
@@ -1059,6 +1071,9 @@ module My_Top_Module #(
         .drag_from_grid(draw_drag_from_grid), .drag_source(draw_drag_source), .drag_contents(draw_drag_contents),
         .cursor_x(draw_cursor_x), .cursor_y(draw_cursor_y), .cursor_visible(1'b1),
         .level_index(draw_level), .fail_reason(draw_fail_reason), .run_seconds(draw_seconds), .star_box_collected(draw_star_box_collected),
+        .vehicle_x(draw_x), .tutorial_tnt_seen(draw_tutorial_tnt_seen),
+        .tutorial_tnt_landed(draw_tutorial_tnt_landed), .tutorial_fan_tested(draw_tutorial_fan_tested),
+        .tutorial_tnt_intact(draw_tnt_intact[0]),
         .anim_phase(anim_phase), .pixel_data(base_left_pixel_data)
     );
     ui_renderer u_ui_renderer (

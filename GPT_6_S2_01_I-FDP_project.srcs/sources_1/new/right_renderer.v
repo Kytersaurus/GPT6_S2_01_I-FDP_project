@@ -116,6 +116,42 @@ module right_renderer #(
         end
     endfunction
 
+    // Small procedural drawing of the Basys3 centre button (BTNC).  The
+    // raised rectangle, shadow, and C label make the requested board action
+    // recognizable without storing a bitmap or adding BRAM.
+    function [15:0] board_button_pixel;
+        input [6:0] pixel_x, left;
+        input [5:0] pixel_y, top;
+        reg [6:0] bx;
+        reg [5:0] by;
+        reg label_pixel;
+        begin
+            board_button_pixel = 16'h0000;
+            label_pixel = 1'b0;
+            bx = 0;
+            by = 0;
+            if (pixel_x >= left && pixel_x < left + 7'd20 &&
+                pixel_y >= top && pixel_y < top + 6'd10) begin
+                bx = pixel_x - left;
+                by = pixel_y - top;
+                // A compact 5x6 C is centered on the button face.
+                label_pixel = ((bx == 7'd7 || bx == 7'd8) && by >= 6'd2 && by <= 6'd7) ||
+                              ((by == 6'd2 || by == 6'd7) && bx >= 7'd7 && bx <= 7'd13) ||
+                              (bx == 7'd13 && (by == 6'd3 || by == 6'd4));
+                if (by == 6'd9)
+                    board_button_pixel = 16'h0351; // lower edge/shadow
+                else if (bx == 7'd0 || bx == 7'd19 || by == 6'd0)
+                    board_button_pixel = 16'hffff; // raised outline
+                else if (bx == 7'd1 || bx == 7'd18)
+                    board_button_pixel = 16'h04b4; // side bevel
+                else if (label_pixel)
+                    board_button_pixel = 16'h0000; // BTNC label
+                else
+                    board_button_pixel = 16'h18e5; // button face
+            end
+        end
+    endfunction
+
     wire [5:0] raw_pi_y = ({12'd0, pixel_index} * 25'd2731) >> 18;
     wire [6:0] raw_pi_x = pixel_index - (raw_pi_y << 6) - (raw_pi_y << 5);
     wire [6:0] x = USE_PIXEL_INDEX ? raw_pi_x : in_x;
@@ -220,12 +256,27 @@ module right_renderer #(
     wire in_result_state = (game_state == `LP_SUCCESS || game_state == `LP_FAIL);
     reg [127:0] banner_text;
     reg [6:0] banner_left, banner_top;
+    wire tutorial_welcome = (level_index == `LP_LEVEL_TUTORIAL) &&
+                            (game_state == `LP_BUILD);
     wire tutorial_avoid_tnt = level_index == `LP_LEVEL_TUTORIAL &&
                               game_state == `LP_RUN &&
                               ((!tutorial_tnt_seen && tnt_intact[0] &&
                                 $signed(vehicle_x) >= 20'sd16384 &&
                                 $signed(vehicle_x) < 20'sd36864) ||
                                (!tnt_intact[0] && !tutorial_tnt_landed));
+    wire tutorial_retry_prompt = (level_index == `LP_LEVEL_TUTORIAL) &&
+                                 (game_state == `LP_RUN) &&
+                                 !tnt_intact[0] && tutorial_tnt_landed;
+    wire tutorial_button_visible = tutorial_welcome || tutorial_retry_prompt;
+    wire [6:0] tutorial_button_left = 7'd38;
+    wire [5:0] tutorial_button_top = tutorial_welcome ? 6'd48 : 6'd0;
+    wire tutorial_button_in_bounds = tutorial_button_visible &&
+                                     px >= tutorial_button_left &&
+                                     px < tutorial_button_left + 7'd20 &&
+                                     py >= tutorial_button_top &&
+                                     py < tutorial_button_top + 6'd10;
+    wire [15:0] tutorial_button_pixel = board_button_pixel(px, tutorial_button_left,
+                                                           py, tutorial_button_top);
     always @* begin
         if (game_state == `LP_SUCCESS) begin
             banner_text = "LEVEL CLEAR!    "; banner_left = 7'd12; banner_top = 7'd11;
@@ -240,7 +291,8 @@ module right_renderer #(
             if (!tnt_intact[0] && tutorial_tnt_landed)
                 // Only show the reset instruction after the normal TNT blast
                 // has completed and the vehicle has actually landed.
-                banner_text = "RESET TO RETRY  ";
+                // The actual BTNC graphic is drawn over the top hint below.
+                banner_text = "                ";
             else if (!tnt_intact[0] && !tutorial_tnt_landed)
                 // During the blast and fall, keep the same warning instead of
                 // prematurely announcing the retry.
@@ -486,9 +538,6 @@ module right_renderer #(
     // The welcome card stays up for the whole BUILD state. It therefore
     // disappears only when the normal start/launch action moves the game into
     // RUN; there is no timer that can dismiss it while the player is reading.
-    wire tutorial_welcome = (level_index == `LP_LEVEL_TUTORIAL) &&
-                            (game_state == `LP_BUILD);
-
     always @* begin
         rx = 0; ry = 0; rw = 0; rh = 0; part = 0; part_anim = 0; rectangle = 0;
         cell_col = 0; cell_row = 0; cell_index = 0; cell_x = 0; cell_y = 0;
@@ -774,9 +823,13 @@ module right_renderer #(
                 pixel_data = 16'hffe0;
             else if (text_on("  LEARN BASICS  ", 0, 31, px, py))
                 pixel_data = 16'h07ff;
-            else if (text_on("   PRESS START  ", 0, 49, px, py))
-                pixel_data = 16'hffff;
+            else if (tutorial_button_in_bounds)
+                pixel_data = tutorial_button_pixel;
         end
+        // After the first TNT demonstration, show the same physical BTNC icon
+        // as the retry action rather than another text-only instruction.
+        if (tutorial_retry_prompt && tutorial_button_in_bounds)
+            pixel_data = tutorial_button_pixel;
         if (px == 0 || px == 95 || py == 0 || py == 63) begin
             if (game_state == `LP_SUCCESS) pixel_data = 16'h07e0;
             else if (game_state == `LP_FAIL) pixel_data = 16'hf800;

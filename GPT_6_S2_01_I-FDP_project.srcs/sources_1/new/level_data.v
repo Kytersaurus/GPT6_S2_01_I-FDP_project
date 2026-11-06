@@ -97,7 +97,9 @@ module level_data (
                 map_id = 1'b0;          // unused in rectangle mode
                 par_time = 8'd30;
                 world_width = 10'd248;
-                world_height = 10'd160;
+                // Keep the tutorial camera anchored to the visible course:
+                // floor rows 120..125 remain at the bottom of the OLED.
+                world_height = 10'd126;
                 terrain_count = 3'd4;
                 terrain_rects = {
                     8'd8,  8'd32, 8'd112, 8'd216,
