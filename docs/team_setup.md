@@ -1,6 +1,12 @@
-# Team module setup
+# Team module setup — Lab Group S2-01 (GPT 6)
 
-Owner: Shared - all roles. See [file owners](file_owners.md) for individual responsibilities.
+Owner: Shared - all roles:
+- **Student A (Role 1):** Kaushal Rajesh (`A0315560L`)
+- **Student B (Role 2):** Kyle Lee Yao Yu (`A0322756B`)
+- **Student C (Role 3):** Lam Yap Ting (`A0320434U`)
+- **Student D (Role 4):** Marcus Lim (`A0271977L`)
+
+See [file owners](file_owners.md) for individual responsibilities.
 
 Each person implements and tests their own modules against shared ports. The top module connects those ports; it should not accumulate everyone's game logic. Keep one owner for each state register so that movement, damage and retry cannot disagree.
 

@@ -47,10 +47,10 @@ The engine breaks down forces into horizontal and vertical components, ensuring 
 
 1. **Vertical Base:** Gravity adds downward acceleration `32`; each intact balloon subtracts acceleration `24`. The former spring/jump impulse is removed. BTNL is reserved, and legacy `jump_press` ports are inert.
 2. **Propulsion:** 
-   - **Engines** apply force to wheels touching the ground.
-   - **Horizontal fans** keep their existing world-horizontal force of `64` per enabled intact fan, with the corrected facing sign.
-   - **Future downward-blowing fans** supply world-up force `256` each (`FAN_LIFT_FORCE_SHIFT=8`). `live_lift_fan_count` supplies the surviving count, gated by `fan_enabled`; these fans must be excluded from horizontal `fan_balance`. The nine-bit `fan_lift_mask` identifies their cells for moments. Both inputs default to zero, and the hardware top ties them low until the item and sprite are implemented.
-   - **Rockets** rotate their body-fixed thrust using `rotation_sin` and `rotation_cos`; the production top uses force `1024`. Their X/Y force components are accumulated sequentially.
+   - **Engines** apply force (`ENGINE_FORCE = 320`) to wheels touching the ground (`+X` forward, or `-X` reverse when `SW15` is ON). The engine starts OFF on every run and is toggled by clicking its cell on the 3×3 run diagram.
+   - **Horizontal fans** supply world-horizontal force of `64` per enabled intact fan (`fan_manual_mask[cell]`), pushing left (`-X`) when facing right and right (`+X`) when facing left.
+   - **Downward-blowing lift fans** supply world-up force `256` each (`FAN_LIFT_FORCE_SHIFT = 8`). `live_lift_fan_count` supplies the active intact count from `fan_manual_mask`, and the 9-bit `fan_lift_mask` identifies their cells for moments while excluding them from horizontal `fan_balance`.
+   - **Rockets** rotate their body-fixed thrust using `rotation_sin` and `rotation_cos` (`ROCKET_FORCE_SHIFT = 10`, force `1024`). Rockets fire once per run when clicked on the 3×3 run diagram or via `BTNR`, accumulating X/Y force components sequentially alongside visual exhaust flames.
 3. **Slope Gravity:** Grounded ramp acceleration uses the measured slope and remaining downward acceleration. Fan lift is divided by mass and reduces both slope gravity and the support reaction; net upward lift releases ground support.
 4. **Mass Division:** Acceleration is $a = F / m$. Because division (`/`) consumes massive FPGA resources, the engine routes total force and total mass through a custom restoring divider (`signed_divider16.v`), which takes 16 clock cycles to produce the acceleration.
 5. **Momentum & Friction:** The vehicle's momentum is checked against rolling drag (`wheel_drag`) or scraping drag (`scrape_drag`). Friction can stop the vehicle but will never push it backward.
@@ -91,11 +91,13 @@ The terrain is not perfectly smooth; it is a rasterized bitmap. The physics engi
 
 1. **Terrain Probing:** The collision engine uses left and right probes to measure the ground beneath the vehicle.
 2. **Gradient Feedback:** It reports the slope back to the physics engine as a `dy/dx` ratio (e.g., Q4.4 format).
-3. **Settling & Snapping:**
-   - **Alpha-Beta Filter:** To prevent the camera/graphics from jittering vertically as the vehicle moves over 2-pixel staircase terrain, the visual output (`display_y`) is smoothed over time.
-   - **Alignment:** When grounded, the physics FSM gently rotates the proposed vehicle tilt towards the measured slope angle (1 step per frame) until it aligns flush with the hill. 
+3. **Settling, Anti-Shake & Display Smoothing:**
+   - **Sub-Pixel Display Smoothing (`display_x`, `display_y`):** To prevent the camera and vehicle sprites from jittering over 1–2 pixel staircase terrain, `display_x` and `display_y` filter slope stair-steps (`grounded_stair_step`), add a 0.5 px wheel landing bounce (`wheel_landing_bounce`), and render with `Q12.1` half-pixel interpolation in `right_renderer.v`.
+   - **Alignment & Stationary Anti-Reversal Lock:** When grounded, the physics FSM steps the proposed vehicle tilt toward the measured slope angle (`11.25°` per step) with 2-sample stationary hysteresis (`held_count == 2'd2`) and an anti-reversal lock (`last_turn_valid`, `unstable_settled_dir`, `stationary_anchor_x_px`) to eliminate 2-state `T <-> T+1` oscillation on slopes.
    - **Slope Acceleration:** The measured slope directly drives the "Slope Gravity" horizontal force calculation, causing unpowered vehicles to coast downhill.
 
-## 5. TNT damage
+## 5. TNT Explosions, On-Board TNT & Tiered Fall Damage
 
-TNT damage is separate from the force solver. `tnt_controller` holds content/frame damage masks until the builder accepts them, then allows world checks after the updated masks settle. The builder protects the pig and its supporting frame; other nearby parts and frames can be destroyed without changing the saved build or stock. The current explosion has animation and sound but no velocity kick.
+* **World TNT Crates (`tnt_controller.v`):** Swept-AABB detection between the previous and committed vehicle poses triggers radial distance-squared cell and frame blast masks (`tnt_damage_mask`, `tnt_damage_frame_mask`), applies directional velocity knockback impulses (`tnt_kick_vx`, `tnt_kick_vy`), and launches visual fireball/smoke and debris particles (`scatter_mask`).
+* **On-Board TNT Crate:** Placed inside a wood frame from Inventory Page 2 (`LP_PART_FRAME` in `build_grid`). Clicking the TNT cell during `LP_RUN` detonates it in-flight (`onboard_tnt_detonate`), destroying orthogonal neighbor cells/frames (`onboard_tnt_blast_mask`) and applying a directional velocity kick.
+* **Tiered Fall-Distance Crash Damage:** Tracks peak airborne height (`fall_peak_y`) to measure landing drop (`fall_distance_q8`). Normal drops are harmless; a **medium fall** (`>= 58 px` on Map 1, `>= 48 px` on Map 2) breaks only the contact row's non-pig contents while preserving wooden frames; a **high fall** (`>= 64 px` on Map 1, `>= 52 px` on Map 2) breaks all non-pig parts and frames while protecting the Pig Pilot.

@@ -18,12 +18,12 @@ This directory organizes all verified programming bitstreams (`.bit`) generated 
 | Property | Value |
 | :--- | :--- |
 | **Quick-Flash File** | **[`bad_piggies_top_latest.bit`](bad_piggies_top_latest.bit)** |
-| **Archived Path** | **[`2026-11-05/161745_My_Top_Module.bit`](2026-11-05/161745_My_Top_Module.bit)** |
+| **Archived Path** | **[`2026-11-06/172639_My_Top_Module.bit`](2026-11-06/172639_My_Top_Module.bit)** |
 | **Pointer Metadata** | [`LATEST.txt`](LATEST.txt) |
-| **Source Commit** | `089c399` (`main` / `role1`) |
-| **Build Timestamp** | `2026-11-05 16:17:45 +08:00` |
-| **Resource Utilization** | **17,200 / 20,800 Slice LUTs (82.69%)**, **48 / 50 Block RAM (`96.00%`)**, **16 / 90 DSP48E1 (`17.78%`)**, **WNS `+0.106 ns`** |
-| **Key Highlights** | • **Fan & Rocket Placement, Arrows & Mounting Bracket:** Synced inventory directional arrows on grid rotation/placement; added metallic mounting bracket for top/bottom/side-mounted fans.<br>• **Single-Use Rocket & Stationary Wheels:** Rockets fire once per run and stay permanently dimmed afterward; wheels only spin when the engine is ON or the vehicle is moving.<br>• **Diary & Zoom Fixes:** Removed fake frame borders on outer cells, fixed scroll-wheel zoom inversion, posed Map 1 Step 2 cleanly above the pavement with a left-facing rocket (`<`) toward the Star Crate, and moved Map 2's fan to the right side of the Pig's frame.<br>• **TNT & Bare-Pig Rolling Physics:** TNT and high falls destroy contents when a frame breaks and can break the Pig's wood frame so the bare Pig rolls along the terrain; moved Map 1's arch TNT 40 px left (`x=116`) away from the Star Crate and relaxed Map 2 fall damage sensitivity.<br>• **Settings & Result UI Polish:** Borderless Start Screen gear icon, 4-button Result Screen bar with `[ GEAR ]` Settings access, and `VOL`/`MUTE` + `M1`/`M2` labels in Settings. |
+| **Source Commit** | `38d8512` / `b7f4f27` (`main`) |
+| **Build Timestamp** | `2026-11-06 17:26:39 +08:00` |
+| **Resource Utilization** | **17,199 / 20,800 Slice LUTs (82.69%)**, **48 / 50 Block RAM (`96.00%`)**, **16 / 90 DSP48E1 (`17.78%`)**, **WNS > `0.000 ns`** |
+| **Key Highlights** | • **Interactive Guided Tutorial (`LP_LEVEL_TUTORIAL`):** Prebuilt tutorial contraption with `"CLICK GO TO PLAY"` prompt in `BUILD`, blinking target cell borders (`tutorial_target_cell`) in `RUN`, procedural `[ C ]` (`BTNC`) button prompt on Welcome/Retry screens, and floor-anchored tutorial camera (`world_height = 126`).<br>• **Ergonomic Switch Layout:** Left cluster for gameplay (`SW15` Engine Reverse, `SW14` Camera Zoom, `SW13` Free-Look Pan); right cluster for settings (`SW1` 1-OLED JA Map View, `SW0` Hardware Audio Mute); wheel engine is mouse-only on the 3×3 run diagram.<br>• **Tiered Fall Damage & On-Board TNT:** Medium falls break only the contact row's non-pig parts while preserving wood frames; high falls break all non-pig parts/frames; clickable on-board TNT crate detonates in-flight with radial blast masks and debris scatter.<br>• **Sub-Pixel Q12.1 Display Smoothing & Rotation Stability:** Half-pixel (`0.5 px`) sprite rendering with rocket exhaust flames, fan wind particles, wheel landing bounce, and 2-sample stationary hysteresis + anti-reversal lock preventing slope oscillation. |
 
 ---
 
@@ -31,8 +31,8 @@ This directory organizes all verified programming bitstreams (`.bit`) generated 
 
 1. **Power & USB:** Connect the **Basys 3** via USB (`PROG` port) and turn the power switch ON.
 2. **Dual OLED Displays:**
-   - **Left OLED (`PMOD JA`):** UI / Builder / Run Control Panel (or World Map when `SW0 = 1`).
-   - **Right OLED (`PMOD JB`):** Follow-Camera World View (blanked on Title/Level Select and when `SW0 = 1`).
+   - **Left OLED (`PMOD JA`):** UI / Builder / Run Control Panel (or World Map when `SW1 = 1`).
+   - **Right OLED (`PMOD JB`):** Follow-Camera World View (blanked on Title/Level Select and when `SW1 = 1`).
 3. **PS/2 Mouse:** Connect to the **USB-HID Host** port (or `PMOD JC`).
 4. **Audio (`Pmod AMP2` on `JXADC`):**
    > [!CAUTION]
@@ -51,7 +51,9 @@ This directory organizes all verified programming bitstreams (`.bit`) generated 
 
 | Date | Time (SGT) | Bitstream File | Commit | Summary |
 | :--- | :--- | :--- | :--- | :--- |
-| **2026-11-05** | `16:17:45` | [`2026-11-05/161745_My_Top_Module.bit`](2026-11-05/161745_My_Top_Module.bit) | `089c399` | **LATEST:** Fan/rocket arrow sync & mounting bracket, single-use rocket dimming, Diary pose/zoom/fan/frame fixes, bare-Pig rolling physics on TNT/high-fall frame break, Result Screen Settings icon (`17,200 LUTs` / `82.69%`, `48 BRAM`, `16 DSP`, `WNS +0.106 ns`). |
+| **2026-11-06** | `17:26:39` | [`2026-11-06/172639_My_Top_Module.bit`](2026-11-06/172639_My_Top_Module.bit) | `38d8512` | **LATEST:** Guided Tutorial prompts & blinking target cells, remapped `SW15`–`SW13` / `SW1`–`SW0` switches, mouse-only engine, tiered fall damage, on-board TNT crate, Q12.1 half-pixel rendering & stationary slope anti-reversal lock. |
+| **2026-11-06** | `07:14:29` | [`2026-11-06/071429_My_Top_Module.bit`](2026-11-06/071429_My_Top_Module.bit) | `08df53a` | Interactive Tutorial level integration, per-level par countdown timer (`25 s` / `45 s`), and updated Diary walkthrough. |
+| **2026-11-05** | `16:17:45` | [`2026-11-05/161745_My_Top_Module.bit`](2026-11-05/161745_My_Top_Module.bit) | `089c399` | Fan/rocket arrow sync & mounting bracket, single-use rocket dimming, Diary pose/zoom/fan/frame fixes, bare-Pig rolling physics on TNT/high-fall frame break, Result Screen Settings icon (`17,200 LUTs` / `82.69%`, `48 BRAM`, `16 DSP`, `WNS +0.106 ns`). |
 | **2026-11-05** | `14:22:00` | [`2026-11-05/142200_My_Top_Module.bit`](2026-11-05/142200_My_Top_Module.bit) | `5081b2d` | Renderer LUT sharing (`16,896 LUTs` / `81.23%`, `48 BRAM`, `16 DSP`), updated Diary contraptions, Settings `[ ? ]` guide, `LED[12:3]` launch/end flash animations, cleaned switches. |
 | **2026-11-04** | `17:50:06` | [`2026-11-04/175006_My_Top_Module.bit`](2026-11-04/175006_My_Top_Module.bit) | `4b40b95` | 1–3 star rating, `GAME OVER` text, edit wrench icon, +1 Level 2 rocket/fan, horizontal rocket next to wheels, per-map fall damage (`20,334 LUTs`, `WNS +0.019 ns`). |
 | **2026-11-04** | `17:14:38` | [`2026-11-04/171438_My_Top_Module.bit`](2026-11-04/171438_My_Top_Module.bit) | `37f11bb` | Consolidated UI sprite ROM lookups (`-1,002 LUTs` down to `19,962` / `95.97%`). |
