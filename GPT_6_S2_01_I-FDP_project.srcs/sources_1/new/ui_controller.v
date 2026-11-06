@@ -1,3 +1,4 @@
+// Owner: Role 1 - Kaushal. Left-OLED UI hitboxes, diary/guide navigation, and runtime part toggles.
 `timescale 1ns / 1ps
 `include "game_defs.vh"
 

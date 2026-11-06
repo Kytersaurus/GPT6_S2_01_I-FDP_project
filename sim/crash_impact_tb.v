@@ -368,7 +368,76 @@ module crash_impact_tb;
         if (dut.pig_alive !== 1'b1)
             $fatal(1, "Pig should survive terrain impact!");
 
-        $display("PASS crash_impact_tb: small falls and wall impacts survive; high falls damage non-pig contents");
+        // Test 8: Medium fall landing upright (60 px drop: >= 58 px medium threshold, < 64 px high threshold).
+        // Breaks only the bottom contact row (9'b111_000_000) while preserving all wood frames.
+        force dut.u_builder.runtime_intact = 9'b111_010_101;
+        force dut.u_builder.runtime_frames = 9'b111_111_111;
+        clocks(1);
+        release dut.u_builder.runtime_intact;
+        release dut.u_builder.runtime_frames;
+
+        force dut.airborne_ticks = 6'd15;
+        force dut.audio_was_grounded = 1'b0;
+        force dut.response_valid = 1'b1;
+        force dut.response_ready = 1'b1;
+        force dut.grounded = 1'b1;
+        force dut.proposed_vy = 16'sd800;
+        force dut.vehicle_tilt = 5'sd0;
+        force dut.falling = 1'b1;
+        force dut.fall_peak_y = 20'sd0;
+        force dut.corrected_y = 20'sd15360; // 60 px in Q12.8
+        clocks(1);
+
+        if (dut.impact_damage_valid !== 1'b1)
+            $fatal(1, "Medium fall landing failed to trigger impact damage!");
+        if (dut.impact_damage_mask !== 9'b111_000_000 || dut.impact_damage_frame_mask !== 9'd0)
+            $fatal(1, "Medium upright fall mask expected bottom row only (9'b111_000_000, frames 0), got %b / %b",
+                   dut.impact_damage_mask, dut.impact_damage_frame_mask);
+
+        release dut.airborne_ticks;
+        release dut.response_valid;
+        release dut.response_ready;
+        release dut.grounded;
+        release dut.proposed_vy;
+        release dut.vehicle_tilt;
+        release dut.falling;
+        release dut.fall_peak_y;
+        release dut.corrected_y;
+        clocks(1);
+
+        if (dut.u_builder.runtime_intact !== 9'b000_010_101)
+            $fatal(1, "Medium upright fall should remove only bottom row contents: %b", dut.u_builder.runtime_intact);
+        if (dut.u_builder.runtime_frames !== 9'b111_111_111)
+            $fatal(1, "Medium fall should preserve all wooden frames: %b", dut.u_builder.runtime_frames);
+
+        // Test 9: On-board TNT crate detonation via run-diagram click.
+        // Place an on-board TNT crate (LP_PART_FRAME in build_grid) at cell 0, Pig at cell 4, Wheel at cell 1.
+        force dut.u_builder.build_grid = {`LP_PART_EMPTY, `LP_PART_EMPTY, `LP_PART_EMPTY,
+                                          `LP_PART_EMPTY, `LP_PART_PIG,   `LP_PART_EMPTY,
+                                          `LP_PART_EMPTY, `LP_PART_WHEEL, `LP_PART_FRAME};
+        force dut.u_builder.build_frames = 9'b111_111_111;
+        force dut.u_builder.runtime_intact = 9'b000_010_011;
+        force dut.u_builder.runtime_frames = 9'b111_111_111;
+        clocks(1);
+        release dut.u_builder.runtime_intact;
+        release dut.u_builder.runtime_frames;
+
+        force dut.pop_valid = 1'b1;
+        force dut.pop_mask = 9'b000_000_001; // detonate TNT in cell 0
+        clocks(1);
+        if (dut.onboard_tnt_detonate !== 1'b1 || dut.onboard_tnt_blast_mask !== 9'b000_001_011)
+            $fatal(1, "On-board TNT detonation mask mismatch: det=%b mask=%b",
+                   dut.onboard_tnt_detonate, dut.onboard_tnt_blast_mask);
+        release dut.pop_valid;
+        release dut.pop_mask;
+        clocks(1);
+
+        if (dut.u_builder.runtime_intact !== 9'b000_010_000)
+            $fatal(1, "On-board TNT blast did not knock out adjacent wheel in cell 1: %b", dut.u_builder.runtime_intact);
+        if (dut.scatter_phase == 6'd0)
+            $fatal(1, "On-board TNT detonation did not trigger debris scatter!");
+
+        $display("PASS crash_impact_tb: small falls and wall impacts survive; medium/high falls and on-board TNT damage non-pig contents");
         $finish;
     end
 endmodule

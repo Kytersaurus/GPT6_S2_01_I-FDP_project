@@ -108,7 +108,49 @@ module tutorial_retry_tb;
             dut.u_physics.rocket_fuel != 7'd16)
             $fatal(1, "BTNR released the pause without firing the tutorial rocket");
 
-        $display("PASS tutorial_retry_tb: retry pauses before TNT and BTNR fires the tutorial rocket");
+        // Verify initial lesson engine-tile click immediately releases tutorial_pause_active,
+        // and left_renderer highlights the expected target cells (Engine=3, Rocket=1, Fan=7).
+        force dut.game_state = `LP_BUILD;
+        force dut.tnt_intact = {`LP_MAX_TNT{1'b1}};
+        force dut.tutorial_tnt_seen = 1'b0;
+        force dut.vehicle_x = 20'sd4096; // start pose (< 40 px) -> prompt 0
+        clock_n(2);
+        release dut.tutorial_tnt_seen;
+        force dut.game_state = `LP_RUN;
+        clock_n(2);
+        if (dut.tutorial_pause_active !== 1'b1 || dut.tutorial_prompt_index !== 3'd0)
+            $fatal(1, "Tutorial start did not enter initial prompt 0 pause");
+
+        force dut.draw_state = `LP_RUN;
+        force dut.draw_level = `LP_LEVEL_TUTORIAL;
+        force dut.draw_engine = 1'b0;
+        force dut.draw_x = 20'sd4096;
+        clock_n(1);
+        if (dut.u_left_renderer.tutorial_target_cell !== 4'd3)
+            $fatal(1, "Tutorial start did not highlight Engine cell 3 (got %0d)", dut.u_left_renderer.tutorial_target_cell);
+
+        force dut.mouse_engine_toggle_req = 1'b1;
+        clock_n(1);
+        force dut.mouse_engine_toggle_req = 1'b0;
+        clock_n(1);
+        if (dut.tutorial_pause_active !== 1'b0)
+            $fatal(1, "Clicking the Engine tile did not immediately unpause the initial tutorial lesson");
+
+        // Check Rocket cell 1 target highlight before TNT on guided retry, and Fan cell 7 highlight at x=168..191 px.
+        force dut.draw_engine = 1'b1;
+        force dut.draw_tutorial_tnt_seen = 1'b1;
+        force dut.draw_x = 20'sd22528; // x=88 px
+        clock_n(1);
+        if (dut.u_left_renderer.tutorial_target_cell !== 4'd1)
+            $fatal(1, "Tutorial retry before TNT did not highlight Rocket cell 1 (got %0d)", dut.u_left_renderer.tutorial_target_cell);
+
+        force dut.draw_x = 20'sd45056; // x=176 px (fan lesson)
+        force dut.draw_tutorial_fan_tested = 1'b0;
+        clock_n(1);
+        if (dut.u_left_renderer.tutorial_target_cell !== 4'd7)
+            $fatal(1, "Tutorial fan lesson did not highlight Fan cell 7 (got %0d)", dut.u_left_renderer.tutorial_target_cell);
+
+        $display("PASS tutorial_retry_tb: retry pauses before TNT, BTNR fires rocket, and target tiles blink/unpause");
         $finish;
     end
 endmodule

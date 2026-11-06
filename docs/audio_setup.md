@@ -11,23 +11,21 @@ Plug the **Digilent Pmod AMP2** into the **top row of the `JXADC` PMOD header** 
 | `JXADC` Pin | FPGA Package Pin | Signal Name | Function |
 | :--- | :---: | :--- | :--- |
 | **`JXADC[0]`** | `J3` | `JXADC[0]` (`AIN`) | **8-bit PWM Audio Stream** (~390.6 kHz carrier from `sound_generator.v` & `bgm_player.v`) |
-| **`JXADC[1]`** | `L3` | `JXADC[1]` (`GAIN`) | **Digital Gain Select** (driven low `1'b0` for clean 6 dB gain) |
+| **`JXADC[1]`** | `L3` | `JXADC[1]` (`GAIN`) | **Digital Gain Select** (driven high `1'b1` for clean 6 dB gain) |
 | **`JXADC[2]`** | `M2` | `JXADC[2]` (`NC`) | Unused (`1'b0`) |
 | **`JXADC[3]`** | `N2` | `JXADC[3]` (`~SHUTDOWN`) | **Active-Low Shutdown:** Driven high (`1'b1`) when audio is enabled; pulled low (`1'b0`) during reset or when muted |
 
 ---
 
-## 2. Hardware Mute Switch (`SW0`) & On-Screen Sound Mixer
+## 2. Hardware Mute Switch (`SW0`) & On-Screen Master Volume Mixer
 
-Audio output is controlled by both the **hardware mute switch (`SW0`)** and the **on-screen Sound Menu (`LP_SOUND`)**:
+Audio output is controlled by both the **hardware mute switch (`SW0`)** and the **on-screen Sound Settings view (`LP_GUIDE`, `diary_page == 3`)**:
 
 * **`SW0` (`mute_switch`):**
-  - `SW0 = 0` (Down): Audio follows the on-screen Sound Mixer setting.
+  - `SW0 = 0` (Down): Audio follows the on-screen Master Volume setting.
   - `SW0 = 1` (Up): **Hardware Master Mute** — immediately silences all BGM and SFX, pulls `JXADC[3]` (`~SHUTDOWN`) low to power down the amplifier, and displays **`MUTED BY SW0`** on the Sound Settings screen.
-* **On-Screen Sound Mixer (`[GEAR]` $\to$ `[SOUND]`):**
-  - **`[BGM: ON / OFF]`:** Toggles background music (`bgm_enable`).
-  - **`[SFX: ON / OFF]`:** Toggles gameplay sound effects (`sfx_enable`).
-  - **`[TEST SFX]`:** Plays a test chime (`sfx_test_pulse`) to verify speaker output.
+* **On-Screen Sound Settings (`[GEAR]` $\to$ `[SOUND]` card):**
+  - **`[-]` (`x = 8..28, y = 24..37`) & `[+]` (`x = 64..84, y = 24..37`):** Steps `master_volume` across 5 levels (`0` = Muted $\to$ `4` = Max Volume), rendered as a 4-bar volume meter (`x = 32..60`).
 
 ---
 

@@ -3,10 +3,11 @@
 
 //////////////////////////////////////////////////////////////////////////////////
 //  FILL IN THE FOLLOWING INFORMATION:
-//  STUDENT A NAME: 
-//  STUDENT B NAME:
-//  STUDENT C NAME: 
-//  STUDENT D NAME:  
+//  LAB GROUP: S2-01 (GPT 6)
+//  STUDENT A NAME: Kaushal Rajesh (A0315560L)
+//  STUDENT B NAME: Kyle Lee Yao Yu (A0322756B)
+//  STUDENT C NAME: Lam Yap Ting (A0320434U)
+//  STUDENT D NAME: Marcus Lim (A0271977L)
 //////////////////////////////////////////////////////////////////////////////////
 
 `include "game_defs.vh"

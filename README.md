@@ -11,14 +11,14 @@ A complete hardware-accelerated clone of **Bad Piggies** built from scratch in V
 
 ---
 
-## 1. Team Roles & Ownership
+## 1. Team Roles & Ownership — Lab Group S2-01 (GPT 6)
 
-| Role | Member | Subsystems & Responsibilities |
-| :--- | :--- | :--- |
-| **Role 1** | **Kaushal** | Vehicle Builder (`vehicle_builder.v`), Inventory/Stock & Mounting Rules, PS/2 Mouse Drag-and-Drop (`mouse_adapter.v`, `ui_controller.v`), Audio Pipeline (`bgm_player.v`, `sound_generator.v`, `sound_controller.v`), 7-Segment Countdown Timer (`seven_seg_timer.v`), Left OLED UI Layouts (`ui_renderer.v`, `left_renderer.v`), Dual-OLED Diary Walkthrough & Settings `[ ? ]` Switch Guide |
-| **Role 2** | **Kyle** | Rigid-Body Physics Engine (`physics_engine.v`), Newtonian Kinematics in Q12.8 Fixed-Point, 16-Cycle Restoring Signed Divider (`signed_divider16.v`), Rotational Moment Calculation & 32-Step Tilt Dynamics (`rotation_geometry.vh`) |
-| **Role 3** | **Yap Ting** | Terrain Collision Engine (`rotating_map_collision_engine.v`, `collision_engine.v`), Swept-AABB TNT Explosions & Radial Damage Masks (`tnt_controller.v`, `explosion_fx.v`), World Outcomes (`world_outcomes.v`, `pig_death_effect.v`) |
-| **Role 4** | **Marcus** | Master Game Controller FSM (`game_controller.v`), Level Data & BRAM Terrain Maps (`level_data.v`, `level_map.v`), Dual-OLED Follow-Camera & Zoom Renderers (`right_renderer.v`, `zoom_control.v`), Clock Domain Crossing Snapshot (`display_snapshot.v`) |
+| Role | Student Name | Matriculation No. | Subsystems & Responsibilities |
+| :--- | :--- | :--- | :--- |
+| **Student A (Role 1)** | **Kaushal Rajesh** | `A0315560L` | Vehicle Builder (`vehicle_builder.v`), Inventory/Stock & Mounting Rules, PS/2 Mouse Drag-and-Drop (`mouse_adapter.v`, `ui_controller.v`), Audio Pipeline (`bgm_player.v`, `sound_generator.v`, `sound_controller.v`), 7-Segment Countdown Timer (`seven_seg_timer.v`), Left OLED UI Layouts (`ui_renderer.v`, `left_renderer.v`), Dual-OLED Diary Walkthrough & Settings `[ ? ]` Switch Guide |
+| **Student B (Role 2)** | **Kyle Lee Yao Yu** | `A0322756B` | Rigid-Body Physics Engine (`physics_engine.v`), Newtonian Kinematics in Q12.8 Fixed-Point, 16-Cycle Restoring Signed Divider (`signed_divider16.v`), Rotational Moment Calculation & 32-Step Tilt Dynamics (`rotation_geometry.vh`) |
+| **Student C (Role 3)** | **Lam Yap Ting** | `A0320434U` | Terrain Collision Engine (`rotating_map_collision_engine.v`, `collision_engine.v`), Swept-AABB TNT Explosions & Radial Damage Masks (`tnt_controller.v`, `explosion_fx.v`), World Outcomes (`world_outcomes.v`, `pig_death_effect.v`) |
+| **Student D (Role 4)** | **Marcus Lim** | `A0271977L` | Master Game Controller FSM (`game_controller.v`), Level Data & BRAM Terrain Maps (`level_data.v`, `level_map.v`), Dual-OLED Follow-Camera & Zoom Renderers (`right_renderer.v`, `zoom_control.v`), Clock Domain Crossing Snapshot (`display_snapshot.v`) |
 
 ---
 
@@ -107,7 +107,7 @@ The wheel engine has **no switch**. It starts OFF on every run and is toggled on
 | **`BTND`** | **Master Hardware Reset** | Synchronized active-high system reset; resets FSM, inventory, and displays |
 | **`LED[15:13]`, `LED[1:0]`** | **Active Switch Indicators** | Mirrors the active switches `SW[15:13]` and `SW[1:0]` (`LED[2]` stays off) |
 | **`LED[12:3]`** | **GO & Game-End Flash LEDs** | Flashes a rapid launch strobe when **`GO`** is pressed (`launch_flash`), an alternating celebration marquee on **`SUCCESS`**, and an alert blink on **`FAIL`** |
-| **7-Segment Display** | **20s Par Countdown Timer** | Displays active-low `SS.T` 20.0-second par countdown (`20.0` $\to$ `0.0`), then counts negative overtime (`-0.1`, `-0.2`, ...) if par expires. Blanked (`an = 4'b1111`) during the interactive Tutorial level (`LP_LEVEL_TUTORIAL`) |
+| **7-Segment Display** | **Par Countdown Timer** | Displays active-low `M.SS` / `SS` par countdown (`25 s` on Cave Arch, `45 s` on Cave Flight $\to$ `00`), then counts negative overtime (`-01`, `-02`, ...) if par expires. Blanked (`an = 4'b1111`) during the interactive Tutorial level (`LP_LEVEL_TUTORIAL`) |
 
 ---
 
@@ -132,24 +132,26 @@ The wheel engine has **no switch**. It starts OFF on every run and is toggled on
   - **Read-Only Build Preview & Clean Reset:** In `LP_BUILD`, the tutorial contraption is visible on the Left OLED 3×3 grid with a `"CLICK GO TO PLAY"` status banner (`y = 56`), editing and the Map 1/2 Diary (`[BOOK]`) are locked/hidden (`tutorial_mode = 1`), and Right OLED displays a full-screen Welcome card with a procedural `[ C ]` (`BTNC`) launch button icon. Returning to Map 1 or Map 2 automatically resets `stored_build_grid` to an empty blueprint.
   - **Blinking Target-Tile Prompts & On-Land Finish Line:** Blanks the 7-segment timer during tutorial practice, anchors the camera to the floor (`world_height = 126`), blinks (`16'hffe0`) the exact 3×3 cell border required at each step (Cell 3 Engine $\to$ Cell 1 Rocket $\to$ Cell 7 Fan), immediately unpauses when the Engine or Rocket tile is clicked, shows a `[ C ]` (`BTNC`) retry prompt after the first TNT demonstration, and ends on a flush on-land checkerboard finish line (`x = 216..248, y = 120..125`) with a Finish Flag (`x = 228, y = 106..120`).
 * **Interactive Run Screen (Left OLED):**
-  - Displays a large centered **3×3 interactive vehicle diagram (16×16 px per cell)** matching the Build screen's proportions, with live structural damage overlays.
-  - **Direct Cell Clicking:** Left-clicking directly on an intact **Balloon** pops that specific balloon; clicking an **on-board TNT crate** detonates it in-flight (destroying adjacent cells and kicking the remaining vehicle); clicking an **Engine** toggles wheel drive; clicking an **intact Fan** toggles **only that specific fan cell (`fan_manual_mask[cell]`)** so multiple fans can be controlled independently; clicking a **Rocket** fires a boost pulse.
-  - **Action Bar & Top Bar:** Top bar provides `[RETRY]`, `[GEAR]`, and `[EDIT]`; bottom bar provides `[ENG]`, `[FAN]`, `[RCKT]`, and `[BOOST]`.
+  - Displays a large centered **3×3 interactive vehicle diagram (`x = 24..71, y = 2..49`, 16×16 px per cell)** matching the Build screen's proportions, with live structural damage overlays.
+  - **Direct Cell Clicking:** Left-clicking directly on an intact **Balloon** pops that specific balloon; clicking an **on-board TNT crate** detonates it in-flight (destroying adjacent cells and kicking the remaining vehicle); clicking an **Engine** toggles wheel drive; clicking an **intact Fan** toggles **only that specific fan cell (`ui_active_fans[cell]`)** so multiple fans can be controlled independently; clicking a **Rocket** fires a boost pulse.
+  - **Bottom Navigation Bar (`y = 53..63`):** Provides `[TRY]` (`x = 2..22`), `[END]` (`x = 26..46`), `[EDIT]` (`x = 50..70`), and `[GEAR]` (`x = 74..94`).
 * **Dual-OLED Field Diary (`GUIDE` Mode):**
   - Clicking the Book icon (`[BOOK]`) or pressing `BTNU` in `BUILD` opens a **3-page interactive Field Diary across both OLEDs**:
-    - **Left OLED (`JA`):** Concise page instructions (`1/3 GOAL`, `2/3 BUILD`, `3/3 RUN`) with `[BACK]`, `[<]`, and `[>]` buttons.
-    - **Right OLED (`JB`):** Synchronized **live visual diagrams** — Page 1 renders a **Pig $\to$ Goal Flag** diagram, Page 2 renders an **Inventory $\to$ 3×3 Grid + `[GO]`** assembly diagram, and Page 3 renders a **3×3 Interactive Click Grid + Action Bar** diagram.
+    - **Left OLED (`JA`):** Concise page instructions (`1/3`, `2/3`, `3/3`) with `[BACK]` (`x = 0..27`) and page buttons `[1]`, `[2]`, `[3]`.
+    - **Right OLED (`JB`):** Synchronized **live checkpoint camera & demo contraption** — pans the camera across 3 level checkpoints (`diary_pose_x`, `diary_pose_y`) while posing the recommended demo vehicle (`diary_grid`) on the live cave terrain.
 * **Settings Menu & `[ ? ]` Hardware Switch Guide:**
-  - Accessible from the Title Screen, Build Screen, or Run Screen via the Gear icon (`[GEAR]`), providing **Mouse Speed (`SLOW / NORM / FAST`)**, **Sound Mixer (`ALL / BGM / SFX / MUTE`)**, **Level Select (`MAP 1 / 2 / 3`)**, **`[TITLE]`**, and a top-right **`[ ? ]` How to Play / Switch Guide** toggle that displays all hardware switch mappings (`SW0`, `SW1`, `SW13–SW15`, `BTNC/U/R`).
+  - Accessible from the Title Screen, Build Screen, or Run Screen via the Gear icon (`[GEAR]`), providing **Sound Settings (`[-]` / `[+]` 4-step Master Volume & `MUTED BY SW0` banner)**, **Map Select (`Map 1: Cave Arch`, `Map 2: Cave Flight`, `Tutorial`)**, **`[BACK]`**, **`[HOME]`**, and a bottom-left **`[ ? ]` Controls & Switch Guide** toggle that cycles through **Mouse Controls (`1/2`)** and **Board Switches (`2/2`: `SW15` Reverse, `SW14` Zoom, `SW13` Free-Look Pan, `SW1` 1-OLED Mode, `SW0` Mute)**.
 
-### 4.3 Q12.8 Rigid-Body Physics & 32-Step Rotation (`physics_engine.v`)
+### 4.3 Q12.8 Rigid-Body Physics, 32-Step Rotation & Sub-Pixel Smoothing (`physics_engine.v`)
 * **Newtonian Kinematics:** Position and velocity are integrated in signed Q12.8 fixed-point arithmetic (`1/256` pixel sub-step precision).
 * **Sequential Mass Division:** Acceleration $a = F / m$ is computed via a 16-cycle restoring divider (`signed_divider16.v`), avoiding combinational `/` LUT explosion.
 * **32-Step Angular Quantization & Stationary Anti-Shake Hysteresis:** Vehicle tilt spans 32 discrete angles ($11.25^\circ$ per step) using lookup tables in `rotation_geometry.vh`, accounting for center-of-mass torque, balloon buoyancy moments, fan/rocket thrust vectors, and terrain slope gradients. Stationary 2-sample hysteresis (`held_count == 2'd2`) and an anti-reversal settle lock (`last_turn_valid`, `unstable_settled_dir`, `stationary_anchor_x_px`) prevent 2-state `T <-> T+1` oscillation when resting on slopes or 1-wheel/frame corners.
+* **Camera & Sub-Pixel Visual Smoothing:** `display_x` and `display_y` filter 1–2 px slope stair-steps (`grounded_stair_step`), add a 0.5 px wheel landing bounce (`wheel_landing_bounce`), and render with `Q12.1` half-pixel (`0.5 px`) interpolation plus Rocket exhaust flames and Fan wind particles in `right_renderer.v`.
 
-### 4.4 SAT Raster Collision & Swept-AABB TNT (`rotating_map_collision_engine.v`, `tnt_controller.v`)
+### 4.4 SAT Raster Collision, Tiered Fall Damage & TNT (`rotating_map_collision_engine.v`, `tnt_controller.v`, `My_Top_Module.v`)
 * **Rotated Terrain Scanner:** Evaluates the rotated 24×24 vehicle footprint against the 1-bit solidity BRAM, computing floor step-up snapping (up to 3 px, or 6 px while turning), wall blocking, $dy/dx$ slope gradients, and overhang tipping (`tip_dir`).
-* **Swept-AABB TNT Detection:** Interpolates between previous and current vehicle coordinates so fast-moving vehicles never tunnel through TNT crates. Detonation computes radial squared distance to each of the 9 vehicle cells, knocking out nearby parts/frames and applying an impulse velocity kick.
+* **Tiered Fall-Distance Crash Damage:** Tracks peak airborne height (`fall_peak_y`) to measure landing drop (`fall_distance_q8`). Gentle drops are harmless; a **medium fall** (`>= 58 px` on Map 1, `>= 48 px` on Map 2) breaks only the contact row's non-pig parts while preserving wooden frames; a **high fall** (`>= 64 px` on Map 1, `>= 52 px` on Map 2) breaks all non-pig parts and frames while protecting the Pig Pilot.
+* **Swept-AABB World TNT & On-Board TNT Crates:** `tnt_controller.v` interpolates between previous and current vehicle coordinates so fast-moving vehicles never tunnel through world TNT crates. In addition, players can mount an **On-Board TNT Crate** (`LP_PART_FRAME` in `build_grid`) and click its cell on the 3×3 run diagram to detonate it in-flight (`onboard_tnt_detonate`), destroying orthogonal neighbor cells/frames, scattering debris (`scatter_mask`), and applying an impulse velocity kick.
 
 ### 4.5 Dual-Voice Audio Synthesis (`bgm_player.v`, `sound_generator.v`)
 * **3 Distinct BGM Tracks:**

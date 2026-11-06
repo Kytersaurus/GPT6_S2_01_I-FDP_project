@@ -14,17 +14,17 @@ This document serves as the single source of truth for **all human teammates (Ka
   - Audio: 8-bit PWM sound effects and dual-voice music driving Pmod AMP2 on JXADC (`JXADC[0]` = PWM, `JXADC[1]` = Gain, `JXADC[3]` = Active-Low Shutdown).
   - PS/2 Mouse: Standard PS/2 streaming interface (`USB Host / PMOD JC`).
   - Basys 3 onboard I/O:
-    - **4-digit active-low 7-segment display:** 20.0-second par countdown timer (`20.0` $\to$ `0.0`, then negative overtime `-0.1`, `-0.2`, ...). All timer rendering is exclusively on the 7-segment display.
+    - **4-digit active-low 7-segment display:** Per-level par countdown timer (`par_time`: 25 s on Cave Arch, 45 s on Cave Flight; formatted as `M.SS` / `SS` down to `00`, then negative overtime `-01`, `-02`, ...). Blanked during Tutorial (`LP_LEVEL_TUTORIAL`). All timer rendering is exclusively on the 7-segment display.
     - **Left-Cluster Gameplay Switches (`SW13`–`SW15`):** `SW15` Engine Reverse (`0` = forward, `1` = reverse wheel engine drive only), `SW14` Camera Zoom toggle (`0` = 1.5× Close, `1` = 1.0× Normal), `SW13` Free-Look camera pan (`1` = mouse pans camera).
     - **Right-Cluster Settings Switches (`SW0`–`SW1`):** `SW1` 1-Screen / 2-Screen Mode toggle (`0` = 2-Screen Dual-OLED mode, `1` = 1-Screen mode showing World Map on Left OLED `JA` and blanking `JB`), `SW0` Hardware Audio Mute (`1` = mute all audio). Unused middle switches `SW2`–`SW12` are disconnected.
     - **Engine:** There is no engine switch. The wheel engine starts OFF on every run and is toggled only by clicking its cell on the run diagram.
     - **Onboard LEDs (`LED[15:0]`):** `LED[15:13]` and `LED[1:0]` mirror the active switches (`LED[2]` stays off); `LED[12:3]` flash on **`GO` / Launch** (`launch_flash`) and when the **game ends** (`LP_SUCCESS` marquee / `LP_FAIL` alert blink).
     - **Pushbuttons:** `BTNC` Launch/Retry, `BTNU` Edit/Diary/Back, `BTNR` Rocket Boost shortcut (fires the rocket during `RUN` on every level, same as clicking the Rocket cell), `BTND` Master Reset, `BTNL` reserved.
-* **Team Roles & Responsibilities:**
-  - **Role 1 (Kaushal):** Vehicle Builder, Inventory/Stock Validation, Mouse Input & Drag-and-Drop, Audio Pipeline (BGM + SFX), 7-Segment Countdown Timer, Left OLED UI Layouts, Dual-OLED Diary Walkthrough & Settings `[ ? ]` Switch Guide.
-  - **Role 2 (Kyle):** Physics Engine, Newtonian Kinematics, Fixed-Point Arithmetic (Q12.8), 16-Cycle Signed Divider, Tilt Dynamics & Settling.
-  - **Role 3 (Yap Ting):** Terrain Collision Engine (SAT Raster Scanner), TNT Explosions & Damage Masks, World Outcomes (Goal, Hazards, Death).
-  - **Role 4 (Marcus):** Master Game Controller FSM, Level Data, Dual-OLED Renderers (Follow-Camera, Viewports), CDC Display Snapshot.
+* **Team Roles & Responsibilities (Lab Group S2-01 / GPT 6):**
+  - **Student A — Role 1 (Kaushal Rajesh, `A0315560L`):** Vehicle Builder, Inventory/Stock Validation, Mouse Input & Drag-and-Drop, Audio Pipeline (BGM + SFX), 7-Segment Countdown Timer, Left OLED UI Layouts, Dual-OLED Diary Walkthrough & Settings `[ ? ]` Switch Guide.
+  - **Student B — Role 2 (Kyle Lee Yao Yu, `A0322756B`):** Physics Engine, Newtonian Kinematics, Fixed-Point Arithmetic (Q12.8), 16-Cycle Signed Divider, Tilt Dynamics & Settling.
+  - **Student C — Role 3 (Lam Yap Ting, `A0320434U`):** Terrain Collision Engine (SAT Raster Scanner), TNT Explosions & Damage Masks, World Outcomes (Goal, Hazards, Death).
+  - **Student D — Role 4 (Marcus Lim, `A0271977L`):** Master Game Controller FSM, Level Data, Dual-OLED Renderers (Follow-Camera, Viewports), CDC Display Snapshot.
 
 ---
 
@@ -165,9 +165,10 @@ flowchart TD
 * Terrain gradient $dy/dx$ is sampled using left/right terrain probes and reported in Q4.4 format for downhill slope acceleration.
 * Unsupported overhanging edges report `tip_dir` (+1 / -1) to torque the vehicle into a roll.
 
-### 4.6 Explosions & TNT ([`tnt_controller.v`](file:///c:/Users/kaush/EE2026Labs/GPT6_S2_01_I-FDP_project/GPT_6_S2_01_I-FDP_project.srcs/sources_1/new/tnt_controller.v))
-* Swept-AABB detection between previous and current vehicle poses guarantees high-speed movements never tunnel through TNT.
-* Explosions calculate radial squared distance to each 8×8 cell, knocking out contents and wood frames, kicking up vehicle velocity, and triggering visual smoke particles and explosion audio.
+### 4.6 Explosions, On-Board TNT & Tiered Fall Damage ([`tnt_controller.v`](file:///c:/Users/kaush/EE2026Labs/GPT6_S2_01_I-FDP_project/GPT_6_S2_01_I-FDP_project.srcs/sources_1/new/tnt_controller.v), [`My_Top_Module.v`](file:///c:/Users/kaush/EE2026Labs/GPT6_S2_01_I-FDP_project/GPT_6_S2_01_I-FDP_project.srcs/sources_1/new/My_Top_Module.v))
+* **World TNT Crates:** Swept-AABB detection between previous and current vehicle poses guarantees high-speed movements never tunnel through TNT. Explosions calculate radial squared distance to each 8×8 cell, knocking out contents and wood frames, kicking up vehicle velocity, and triggering visual smoke particles and explosion audio.
+* **On-Board TNT Crate:** Placed inside a wood frame from Inventory Page 2 (`LP_PART_FRAME` in `build_grid`). Clicking the TNT cell on the 3×3 run diagram detonates it in-flight (`onboard_tnt_detonate`), destroying orthogonal neighbor cells/frames (`onboard_tnt_blast_mask`), launching debris (`scatter_mask`), and applying a directional velocity kick.
+* **Tiered Fall-Distance Crash Damage:** Tracks peak airborne height (`fall_peak_y`) to measure landing drop (`fall_distance_q8`). Normal spawn drops are harmless; a **medium fall** (`>= 58 px` on Map 1, `>= 48 px` on Map 2) breaks only the contact row's non-pig parts while preserving wooden frames; a **high fall** (`>= 64 px` on Map 1, `>= 52 px` on Map 2) breaks all non-pig parts and frames while protecting the Pig Pilot.
 
 ### 4.7 Audio & BGM Synthesis ([`bgm_player.v`](file:///c:/Users/kaush/EE2026Labs/GPT6_S2_01_I-FDP_project/GPT_6_S2_01_I-FDP_project.srcs/sources_1/new/bgm_player.v), [`sound_generator.v`](file:///c:/Users/kaush/EE2026Labs/GPT6_S2_01_I-FDP_project/GPT_6_S2_01_I-FDP_project.srcs/sources_1/new/sound_generator.v))
 * BGM Modes:
@@ -190,7 +191,7 @@ flowchart TD
 * **Port B BRAM Multiplexing:** During the Title Screen, because Right OLED is turned off, Port B of the terrain BRAM (`level_map.v`) is routed to the Left OLED pipeline with an offset scroll counter. This produces a live moving cave background at **0% extra BRAM cost**.
 
 ### 4.9 7-Segment Countdown Run Timer ([`seven_seg_timer.v`](file:///c:/Users/kaush/EE2026Labs/GPT6_S2_01_I-FDP_project/GPT_6_S2_01_I-FDP_project.srcs/sources_1/new/seven_seg_timer.v))
-* Counts down from `20.0` seconds (`SS.T` format) during `RUN` mode and continues into negative overtime (`-0.1`, `-0.2`, ...) after par time expires so players can see how close they were to the time star. The time star is earned by finishing before the level's own par time reaches zero (`par_time` in `level_data.v`: Cave Arch 25 s, Cave Flight 45 s, Tutorial 30 s), the same value the countdown starts from.
+* Counts down from the active level's `par_time` (`level_data.v`: Cave Arch 25 s, Cave Flight 45 s, Tutorial 30 s) in `M.SS` / `SS` seconds format down to `00` during `RUN` mode and continues into negative overtime (`-01`, `-02`, ...) after par time expires so players can see how close they were to the time star. The time star is earned by finishing before the level's par time reaches zero.
 * Blanked (`an = 4'b1111`) during the interactive Tutorial level (`LP_LEVEL_TUTORIAL`).
 * Exclusively rendered on the Basys 3 4-digit 7-segment display (no duplicate timer on the OLED screens).
 
@@ -235,7 +236,7 @@ Before committing or opening a PR:
 2. [ ] **LUT minimized?** Did you avoid single-cycle `/` and `%`? Are register bit-widths minimal?
 3. [ ] **0 Extra BRAM?** Are all UI elements and icons in distributed LUT logic?
 4. [ ] **Map files untouched?** Are `cave_*.mem` and `level_map.v` completely unmodified?
-5. [ ] **All 51 testbenches passing?** Did you run regression tests without errors?
+5. [ ] **All 55 testbenches passing?** Did you run regression tests without errors?
 6. [ ] **Timing closed?** Are WNS and WHS positive with 0 failing endpoints?
 7. [ ] **Clean UI & Modern Test Contracts?** Are dead/phantom hitboxes removed, buttons strictly confined to their visible bounds, and outdated testbenches updated?
 8. [ ] **Clean git status?** No temporary files, logs, or clutter left behind?

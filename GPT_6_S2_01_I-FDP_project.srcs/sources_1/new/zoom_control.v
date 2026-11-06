@@ -1,6 +1,6 @@
-// Owner: Role 4 - Marcus. Map zoom from SW3 and the mouse wheel.
+// Owner: Role 4 - Marcus. Map zoom from SW14 and the mouse wheel.
 `timescale 1ns / 1ps
-// SW3 is a debug shortcut for the normal zoom. The wheel steps through close (1.5x),
+// SW14 toggles between close (1.5x) and normal (1.0x) zoom. The wheel steps through close (1.5x),
 // normal (1.0x), and overview (0.5x) views, saturating at either end.
 // Positive PS/2 deltas step out; negative deltas step in (board wheel orientation).
 module zoom_control (
