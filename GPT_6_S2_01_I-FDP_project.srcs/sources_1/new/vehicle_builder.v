@@ -99,8 +99,9 @@ module vehicle_builder #(
     reg placement_valid, stock_valid;
     reg [3:0] cell_usable_directions;
     integer index;
-    reg [3:0] saved_frames, saved_pigs, saved_wheels, saved_engines, saved_balloons, saved_rockets, saved_fans;
-    reg has_frame_stock, has_pig_stock, has_wheel_stock, has_engine_stock, has_balloon_stock, has_rocket_stock, has_fan_stock;
+    reg [3:0] saved_frames, saved_pigs, saved_wheels, saved_engines, saved_balloons, saved_rockets, saved_fans, saved_tnts;
+    reg [3:0] tnts_left;
+    reg has_frame_stock, has_pig_stock, has_wheel_stock, has_engine_stock, has_balloon_stock, has_rocket_stock, has_fan_stock, has_tnt_stock;
     reg [2:0] part;
     reg [2:0] edit_result;
     reg [2:0] source_part;
@@ -195,11 +196,24 @@ module vehicle_builder #(
             case (edit_op)
                 `LP_EDIT_PLACE: case (edit_part)
                     `LP_PART_FRAME: begin
-                        if (build_frames[edit_cell]) edit_result = `LP_FEEDBACK_NONE;
-                        else if (build_grid[edit_cell*3 +: 3] != `LP_PART_EMPTY)
-                            edit_result = `LP_FEEDBACK_OCCUPIED;
-                        else if (!has_frame_stock) edit_result = `LP_FEEDBACK_NO_STOCK;
-                        else edit_result = `LP_FEEDBACK_PLACED;
+                        if (clean_facing_down) begin
+                            if (build_grid[edit_cell*3 +: 3] == `LP_PART_FRAME)
+                                edit_result = `LP_FEEDBACK_NONE;
+                            else if (!build_frames[edit_cell])
+                                edit_result = `LP_FEEDBACK_NEED_FRAME;
+                            else if (build_grid[edit_cell*3 +: 3] != `LP_PART_EMPTY)
+                                edit_result = `LP_FEEDBACK_OCCUPIED;
+                            else if (!has_tnt_stock)
+                                edit_result = `LP_FEEDBACK_NO_STOCK;
+                            else
+                                edit_result = `LP_FEEDBACK_PLACED;
+                        end else begin
+                            if (build_frames[edit_cell]) edit_result = `LP_FEEDBACK_NONE;
+                            else if (build_grid[edit_cell*3 +: 3] != `LP_PART_EMPTY)
+                                edit_result = `LP_FEEDBACK_OCCUPIED;
+                            else if (!has_frame_stock) edit_result = `LP_FEEDBACK_NO_STOCK;
+                            else edit_result = `LP_FEEDBACK_PLACED;
+                        end
                     end
                     `LP_PART_PIG, `LP_PART_ENGINE: begin
                         if (build_grid[edit_cell*3 +: 3] == edit_part)
@@ -251,7 +265,7 @@ module vehicle_builder #(
                     end else if (source_part == edit_part && source_part != `LP_PART_EMPTY) begin
                         if (build_grid[edit_cell*3 +: 3] != `LP_PART_EMPTY) edit_result = `LP_FEEDBACK_OCCUPIED;
                         else case (edit_part)
-                            `LP_PART_PIG, `LP_PART_ENGINE:
+                            `LP_PART_FRAME, `LP_PART_PIG, `LP_PART_ENGINE:
                                 edit_result = build_frames[edit_cell] ? `LP_FEEDBACK_PLACED : `LP_FEEDBACK_NEED_FRAME;
                             `LP_PART_WHEEL:
                                 if (build_frames[edit_cell]) edit_result = `LP_FEEDBACK_OCCUPIED;
@@ -294,6 +308,7 @@ module vehicle_builder #(
             has_balloon_stock <= (BALLOON_LIMIT > 0);
             has_rocket_stock  <= (ROCKET_LIMIT > 0);
             has_fan_stock     <= (FAN_LIMIT > 0);
+            has_tnt_stock     <= 1'b1;
             tutorial_seeded <= 0;
             feedback_code <= `LP_FEEDBACK_NONE; feedback_cell <= 0; feedback_count <= 0;
         end
@@ -305,6 +320,7 @@ module vehicle_builder #(
             has_balloon_stock <= (balloons_left != 4'd0);
             has_rocket_stock  <= (rockets_left != 4'd0);
             has_fan_stock     <= (fans_left != 4'd0);
+            has_tnt_stock     <= (tnts_left != 4'd0);
             if (game_state != `LP_BUILD || run_init) begin
                 feedback_code <= `LP_FEEDBACK_NONE; feedback_count <= 0;
             end else if (edit_result != `LP_FEEDBACK_NONE) begin
@@ -382,10 +398,10 @@ module vehicle_builder #(
                         build_facing_left[edit_cell] <= build_facing_left[edit_source];
                         build_facing_down[edit_cell] <= build_facing_down[edit_source];
                         mount_scan_cell <= edit_cell;
-                        if (edit_part == `LP_PART_FRAME) begin
+                        if (edit_part == `LP_PART_FRAME && source_part == `LP_PART_EMPTY) begin
                             build_frames[edit_source] <= 0; build_frames[edit_cell] <= 1;
                         end
-                    end else if (edit_part == `LP_PART_FRAME) begin
+                    end else if (edit_part == `LP_PART_FRAME && !clean_facing_down) begin
                         build_frames[edit_cell] <= 1'b1;
                     end else begin
                         // [start +: 3] selects one cell's three content bits.
@@ -403,7 +419,7 @@ module vehicle_builder #(
                         build_grid[edit_source*3 +: 3] <= `LP_PART_EMPTY;
                         build_facing_left[edit_source] <= 0;
                         build_facing_down[edit_source] <= 0;
-                        if (edit_part == `LP_PART_FRAME) begin
+                        if (edit_part == `LP_PART_FRAME && source_part == `LP_PART_EMPTY) begin
                             build_frames[edit_source] <= 0;
                         end
                     // Right click removes contents first, then the empty frame.
@@ -426,12 +442,13 @@ module vehicle_builder #(
         wheel_count = 0; engine_count = 0; balloon_count = 0; wheels_down = 0; wheels_up = 0;
         rocket_count=0; fan_count=0; engine_balance=0; fan_balance=0; rocket_balance=0;
         mass_units = 0; pig_alive = 0; part = 0;
-        saved_frames = 0; saved_pigs = 0; saved_wheels = 0; saved_engines = 0; saved_balloons = 0; saved_rockets=0; saved_fans=0;
+        saved_frames = 0; saved_pigs = 0; saved_wheels = 0; saved_engines = 0; saved_balloons = 0; saved_rockets=0; saved_fans=0; saved_tnts=0;
         placement_valid = 1;
         for (index = 0; index < 9; index = index + 1) begin
             part = build_grid[index*3 +: 3];
             if (part == `LP_PART_PIG) saved_pigs = saved_pigs + 4'd1;
             if (build_frames[index]) saved_frames = saved_frames + 4'd1;
+            if (part == `LP_PART_FRAME) saved_tnts = saved_tnts + 4'd1;
             if (part == `LP_PART_WHEEL) saved_wheels = saved_wheels + 4'd1;
             if (part == `LP_PART_ENGINE) saved_engines = saved_engines + 4'd1;
             if (part == `LP_PART_BALLOON) saved_balloons = saved_balloons + 4'd1;
@@ -440,7 +457,7 @@ module vehicle_builder #(
             // Construction validity uses the saved build, even after runtime damage.
             case (part)
                 `LP_PART_EMPTY: begin end
-                `LP_PART_PIG, `LP_PART_ENGINE:
+                `LP_PART_FRAME, `LP_PART_PIG, `LP_PART_ENGINE:
                     if (!build_frames[index]) placement_valid = 0;
                 `LP_PART_WHEEL: begin
                     if (build_frames[index] || !wheel_support[index]) placement_valid = 0;
@@ -480,6 +497,7 @@ module vehicle_builder #(
                     if (!build_facing_down[index])
                         fan_balance=fan_balance+(build_facing_left[index] ? -5'sd1 : 5'sd1);
                 end
+                `LP_PART_FRAME: begin mass_units = mass_units + 2; end
                 `LP_PART_BALLOON: begin balloon_count = balloon_count + 1; mass_units = mass_units + 1; end
                 default: begin end
             endcase
@@ -491,10 +509,11 @@ module vehicle_builder #(
         balloons_left = (saved_balloons < BALLOON_LIMIT[3:0]) ? (BALLOON_LIMIT[3:0] - saved_balloons) : 4'd0;
         rockets_left = (saved_rockets < active_rocket_limit) ? (active_rocket_limit - saved_rockets) : 4'd0;
         fans_left = (saved_fans < active_fan_limit) ? (active_fan_limit - saved_fans) : 4'd0;
+        tnts_left = (saved_tnts < 4'd1) ? 4'd1 : 4'd0;
         stock_valid = (saved_rockets <= active_rocket_limit) && (saved_fans <= active_fan_limit) &&
                       (saved_frames <= FRAME_LIMIT[3:0]) && (saved_pigs <= PIG_LIMIT[3:0]) &&
                       (saved_wheels <= WHEEL_LIMIT[3:0]) && (saved_engines <= ENGINE_LIMIT[3:0]) &&
-                      (saved_balloons <= BALLOON_LIMIT[3:0]);
+                      (saved_balloons <= BALLOON_LIMIT[3:0]) && (saved_tnts <= 4'd1);
         build_valid = (saved_pigs == 4'd1) && placement_valid && stock_valid;
         if (saved_pigs != 4'd1) build_error = `LP_BUILD_ERR_PIG;
         else if (!placement_valid) build_error = `LP_BUILD_ERR_ATTACHMENT;

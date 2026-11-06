@@ -80,6 +80,10 @@ module left_renderer #(
                         (inventory_part == `LP_PART_BOOSTER) ? row_rocket_down : 1'b0;
 
     wire in_build = (game_state == `LP_BUILD);
+    wire has_placed_tnt = (build_grid[2:0] == `LP_PART_FRAME) || (build_grid[5:3] == `LP_PART_FRAME) || (build_grid[8:6] == `LP_PART_FRAME) ||
+                          (build_grid[11:9] == `LP_PART_FRAME) || (build_grid[14:12] == `LP_PART_FRAME) || (build_grid[17:15] == `LP_PART_FRAME) ||
+                          (build_grid[20:18] == `LP_PART_FRAME) || (build_grid[23:21] == `LP_PART_FRAME) || (build_grid[26:24] == `LP_PART_FRAME);
+    wire [3:0] tnts_left = has_placed_tnt ? 4'd0 : 4'd1;
     reg [6:0] inventory_top, inventory_content_top, inventory_bottom;
     // Centre the 8 by 8 preview on the same cursor position, clamped to the OLED.
     wire [6:0] drag_left = (cursor_x < 4) ? 7'd0 : (cursor_x > 92) ? 7'd88 : cursor_x - 7'd4;
@@ -188,8 +192,8 @@ module left_renderer #(
             inventory_part   = (inventory_page == 1) ? `LP_PART_FAN : `LP_PART_PIG;
         end else if (y >= 24 && y < 34) begin
             inventory_top = 24; inventory_content_top = 25; inventory_bottom = 33;
-            inventory_number = wheels_left;
-            inventory_part   = (inventory_page == 1) ? `LP_PART_EMPTY : `LP_PART_WHEEL;
+            inventory_number = (inventory_page == 1) ? tnts_left : wheels_left;
+            inventory_part   = (inventory_page == 1) ? `LP_PART_FRAME : `LP_PART_WHEEL;
         end else if (y >= 34 && y < 44) begin
             inventory_top = 34; inventory_content_top = 35; inventory_bottom = 43;
             inventory_number = engines_left;
@@ -256,7 +260,7 @@ module left_renderer #(
                     ((part != `LP_PART_EMPTY && !intact_mask[cell_index]) ||
                      (build_frames[cell_index] && !frame_intact_mask[cell_index]))) pixel_data = 16'h8000;
                 // Full-resolution 16-pixel sprites (or compact 12-pixel sprites when ENABLE_COMPACT_RUN_SPRITES=1).
-                if (frame_intact_mask[cell_index] && !(in_build && drag_active && drag_from_grid && selected_part==`LP_PART_FRAME && drag_source == cell_index))
+                if (frame_intact_mask[cell_index] && !(in_build && drag_active && drag_from_grid && selected_part==`LP_PART_FRAME && !selected_down && drag_source == cell_index))
                     pixel_data = compact_run ? part_sprite12(`LP_PART_FRAME, cell_x, cell_y, 1'b0, pixel_data) : part_sprite16(`LP_PART_FRAME, cell_x, cell_y, 1'b0, pixel_data);
                 if (intact_mask[cell_index] && !(in_build && drag_active && drag_from_grid && drag_source == cell_index)) begin
                     if (full_run) begin
@@ -273,7 +277,10 @@ module left_renderer #(
                             part_anim = wheel_moving ? anim_phase : 1'b0;
                         end
                     end
-                    spr_pixel = part_sprite_mounted(part, cell_x, cell_y, compact_run ? 12 : 16, build_facing_left[cell_index], build_facing_down[cell_index], frame_intact_mask, cell_index, part_anim, pixel_data);
+                    if (part == `LP_PART_FRAME)
+                        spr_pixel = compact_run ? tnt_sprite(cell_x - 2, cell_y - 2, pixel_data) : tnt_sprite12(cell_x - 2, cell_y - 2, pixel_data);
+                    else
+                        spr_pixel = part_sprite_mounted(part, cell_x, cell_y, compact_run ? 12 : 16, build_facing_left[cell_index], build_facing_down[cell_index], frame_intact_mask, cell_index, part_anim, pixel_data);
                     pixel_data = (part_dim && spr_pixel != pixel_data) ? ((spr_pixel & 16'hf7de) >> 1) : spr_pixel;
                 end
             end
@@ -282,18 +289,21 @@ module left_renderer #(
                 (cell_x == 0 || cell_y == 0 || cell_x == cell_pixels-1 || cell_y == cell_pixels-1) &&
                 in_build) pixel_data = message_colour;
         end
-        if (in_build && x >= 56 && x < 92 && y >= 4 && (inventory_page == 1 ? y < 24 : y < 54)) begin
+        if (in_build && x >= 56 && x < 92 && y >= 4 && (inventory_page == 1 ? y < 34 : y < 54)) begin
             if (cursor_visible && cursor_x >= 56 && cursor_x < 92 && cursor_y >= inventory_top && cursor_y <= inventory_bottom)
                 pixel_data = 16'h0351;
             else
                 pixel_data = 16'h18c3;
             if ((x == 56 || x == 91 || y == inventory_top || y == inventory_bottom)) begin
-                if (selected_part == inventory_part) pixel_data = 16'hffe0;
+                if (selected_part == inventory_part && (inventory_part != `LP_PART_FRAME || selected_down == (inventory_page == 1))) pixel_data = 16'hffe0;
                 else if (cursor_visible && cursor_x >= 56 && cursor_x < 92 && cursor_y >= inventory_top && cursor_y <= inventory_bottom)
                     pixel_data = 16'h07ff;
             end
-            pixel_data = draw_part_icon(inventory_part, x-60, y-inventory_content_top,
-                                        inv_row_left, inv_row_down, pixel_data);
+            if (inventory_page == 1 && y >= 24)
+                pixel_data = tnt_sprite(x-60, y-inventory_content_top, pixel_data);
+            else
+                pixel_data = draw_part_icon(inventory_part, x-60, y-inventory_content_top,
+                                            inv_row_left, inv_row_down, pixel_data);
             if (inventory_number_pixel) pixel_data = (inventory_number == 0) ? 16'hf800 : 16'hffff;
         end
         if (in_build && x>=72 && x<79 && y>=inventory_content_top+1 && y<inventory_content_top+8 &&
@@ -314,8 +324,10 @@ module left_renderer #(
         end
         // Draw a temporary copy above the interface; the builder changes only on release.
         if (in_build && cursor_visible && drag_active) begin
-            pixel_data = part_sprite_facing_dir(selected_part,x-drag_left,y-drag_top,8,selected_left,selected_down,1'b0,pixel_data);
-
+            if (selected_part == `LP_PART_FRAME && selected_down)
+                pixel_data = tnt_sprite(x-drag_left, y-drag_top, pixel_data);
+            else
+                pixel_data = part_sprite_facing_dir(selected_part,x-drag_left,y-drag_top,8,selected_left,selected_down,1'b0,pixel_data);
         end
         if (cursor_visible && (in_build || compact_run) &&
             ((x == cursor_x && y+2 >= cursor_y && y <= cursor_y+2) ||

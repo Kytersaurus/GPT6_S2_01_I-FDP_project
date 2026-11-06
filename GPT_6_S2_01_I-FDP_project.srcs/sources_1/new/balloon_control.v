@@ -27,7 +27,8 @@ module balloon_control (
             for (index = 0; index < 9; index = index + 1) begin
                 if (pop_valid) pending_mask[index] <= 0;
                 if (pop_req && pop_cell == index && intact_mask[index] &&
-                    build_grid[index*3 +: 3] == `LP_PART_BALLOON &&
+                    (build_grid[index*3 +: 3] == `LP_PART_BALLOON ||
+                     build_grid[index*3 +: 3] == `LP_PART_FRAME) &&
                     !(pop_valid && pending_mask[index])) begin
                     // Repeated clicks on a queued balloon use the same bit.
                     // A different click arriving during application is kept.

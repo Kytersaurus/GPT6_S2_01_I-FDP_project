@@ -403,7 +403,19 @@ module My_Top_Module #(
     wire [2:0] sound_id, active_sound;
     reg [2:0] previous_game_state;
     wire audio_cancel = run_init || (game_state == `LP_BUILD && previous_game_state != `LP_BUILD);
-    wire pop_sound_event = pop_valid && damage_ready && (|pop_mask);
+    wire [8:0] onboard_tnt_mask = {
+        (build_grid[26:24] == `LP_PART_FRAME), (build_grid[23:21] == `LP_PART_FRAME), (build_grid[20:18] == `LP_PART_FRAME),
+        (build_grid[17:15] == `LP_PART_FRAME), (build_grid[14:12] == `LP_PART_FRAME), (build_grid[11:9]  == `LP_PART_FRAME),
+        (build_grid[8:6]   == `LP_PART_FRAME), (build_grid[5:3]   == `LP_PART_FRAME), (build_grid[2:0]   == `LP_PART_FRAME)
+    };
+    wire [8:0] onboard_tnt_pop = pop_valid ? (pop_mask & onboard_tnt_mask) : 9'd0;
+    wire onboard_tnt_detonate = damage_ready && (|onboard_tnt_pop);
+    wire [8:0] onboard_tnt_blast_mask = onboard_tnt_pop
+        | ((onboard_tnt_pop & 9'b011011011) << 1)
+        | ((onboard_tnt_pop & 9'b110110110) >> 1)
+        | ((onboard_tnt_pop << 3) & 9'h1ff)
+        | (onboard_tnt_pop >> 3);
+    wire pop_sound_event = pop_valid && damage_ready && (|(pop_mask & ~onboard_tnt_mask));
     // Crash damage is based on fall distance, not ordinary rolling speed.
     // Coordinates are Q12.8. The normal 24-pixel spawn drop stays harmless. A
     // 48-pixel ledge or balloon drop damages the contact row; a 96-pixel fall
@@ -434,6 +446,10 @@ module My_Top_Module #(
                               falling && (airborne_ticks >= (map_id ? 6'd14 : 6'd12)) &&
                               ($signed(proposed_vy) >= 16'sd512) &&
                               (fall_distance_q8 >= (map_id ? FLIGHT_FALL_DISTANCE_Q8 : ARCH_FALL_DISTANCE_Q8));
+    wire medium_fall_landing = response_valid && response_ready && grounded && !audio_was_grounded &&
+                               falling && !high_fall_landing && (airborne_ticks >= (map_id ? 6'd14 : 6'd12)) &&
+                               ($signed(proposed_vy) >= 16'sd512) &&
+                               (fall_distance_q8 >= (map_id ? 20'sd12288 : 20'sd14848));
     always @(posedge clk) begin
         if (reset) begin
             audio_was_grounded <= 0;
@@ -469,9 +485,10 @@ module My_Top_Module #(
         end
     end
 
-    // Only a high fall landing can remove non-pig parts. Collision correction
+    // Only a medium or high fall landing can remove non-pig parts. Collision correction
     // still handles walls and ceilings, but those contacts are harmless here.
-    wire vert_crash_event = high_fall_landing;
+    wire vert_crash_event = high_fall_landing || medium_fall_landing;
+    wire inverted_landing = ($signed(vehicle_tilt) < -5'sd8) || ($signed(vehicle_tilt) > 5'sd8);
 
     reg [8:0] next_impact_mask;
     reg [8:0] next_frame_mask;
@@ -479,11 +496,16 @@ module My_Top_Module #(
     always @* begin
         next_impact_mask = 9'd0;
         next_frame_mask = 9'd0;
-        if (vert_crash_event) begin
+        if (high_fall_landing) begin
             // A terminal high fall requests all cells/frames. vehicle_builder
             // still protects the pig through its final safety gate.
             next_impact_mask = 9'b111_111_111;
             next_frame_mask  = 9'b111_111_111;
+        end else if (medium_fall_landing) begin
+            // A medium fall breaks only the landing contact row's non-pig parts
+            // while preserving the wooden frame chassis.
+            next_impact_mask = inverted_landing ? 9'b000_000_111 : 9'b111_000_000;
+            next_frame_mask  = 9'd0;
         end
     end
 
@@ -520,7 +542,12 @@ module My_Top_Module #(
                 if (scatter_phase >= 6'd24) scatter_phase <= 6'd0;
                 else scatter_phase <= scatter_phase + 1'b1;
             end
-            if (response_valid && response_ready && damage_ready && vert_crash_event) begin
+            if (onboard_tnt_detonate) begin
+                scatter_mask <= ((onboard_tnt_blast_mask & (intact_mask | frame_intact_mask)) & ~pig_mask);
+                scatter_x <= vehicle_x;
+                scatter_y <= vehicle_y;
+                scatter_phase <= 6'd1;
+            end else if (response_valid && response_ready && damage_ready && vert_crash_event) begin
                 impact_damage_valid <= 1'b1;
                 impact_damage_mask <= next_impact_mask;
                 impact_damage_frame_mask <= next_frame_mask;
@@ -599,7 +626,7 @@ module My_Top_Module #(
     sound_controller u_sound_control (
         .clk(clk), .reset(reset), .mute(audio_muted), .cancel(audio_cancel),
         .launch_event(launch_event), .pop_event(pop_sound_event),
-        .collision_event(collision_sound_event), .explosion_event(explosion_sound_event),
+        .collision_event(collision_sound_event), .explosion_event(explosion_sound_event || onboard_tnt_detonate),
         .success_event(success_event), .failure_event(failure_event),
         .busy(audio_busy), .active_sound(active_sound), .sound_start(sound_start), .sound_id(sound_id)
     );
@@ -660,13 +687,14 @@ module My_Top_Module #(
         .build_facing_left(build_facing_left), .build_facing_down(build_facing_down), .engine_balance(engine_balance),
         .fan_balance(fan_balance), .rocket_balance(rocket_balance),
         .rocket_count(rocket_count), .fan_count(fan_count), .rockets_left(rockets_left), .fans_left(fans_left),
-        // Balloon pops, TNT and hard terrain impacts share the one damage
-        // handshake. vehicle_builder protects the pig cell and its frame.
+        // Balloon pops, on-board TNT, world TNT and hard terrain impacts share the
+        // one damage handshake. vehicle_builder protects the pig cell and its frame.
         .damage_valid(pop_valid || tnt_damage_valid || impact_damage_valid), .damage_ready(damage_ready),
-        .damage_mask((pop_valid ? pop_mask : 9'd0) |
+        .damage_mask((pop_valid ? (pop_mask | onboard_tnt_blast_mask) : 9'd0) |
                      (tnt_damage_valid ? tnt_damage_mask : 9'd0) |
                      (impact_damage_valid ? impact_damage_mask : 9'd0)),
-        .damage_frame_mask((tnt_damage_valid ? tnt_frame_mask : 9'd0) |
+        .damage_frame_mask((onboard_tnt_detonate ? onboard_tnt_blast_mask : 9'd0) |
+                           (tnt_damage_valid ? tnt_frame_mask : 9'd0) |
                            (impact_damage_valid ? impact_damage_frame_mask : 9'd0)),
         .build_grid(build_grid), .build_frames(build_frames),
         .intact_mask(intact_mask), .frame_intact_mask(frame_intact_mask), .build_valid(build_valid),
@@ -801,7 +829,9 @@ module My_Top_Module #(
         .wheel_count(wheel_count), .wheels_down(wheels_down), .wheels_up(wheels_up), .tip_dir(tip_dir), .support_unstable(support_unstable),
         .engine_count(drive_engines), .balloon_count(balloon_count),
         .mass_units(mass_units), .engine_enabled(engine_enabled), .engine_reverse(engine_reverse), .jump_press(1'b0), .boost_req(boost_req), .boost_active(boost_active),
-        .tnt_knockback_valid(tnt_knockback_valid), .tnt_knockback_x(tnt_knockback_x), .tnt_knockback_y(tnt_knockback_y),
+        .tnt_knockback_valid(tnt_knockback_valid || onboard_tnt_detonate),
+        .tnt_knockback_x(onboard_tnt_detonate ? ((|(onboard_tnt_pop & 9'b001001001)) ? 16'sd512 : (|(onboard_tnt_pop & 9'b100100100)) ? -16'sd512 : 16'sd384) : tnt_knockback_x),
+        .tnt_knockback_y(onboard_tnt_detonate ? -16'sd768 : tnt_knockback_y),
         // Future lift-fan placement supplies these; no item/sprite exists yet.
         .live_lift_fan_count(active_down_fans), .fan_lift_mask(fan_lift_mask), .fan_active_mask(ui_active_fans),
         .move_valid(move_valid), .move_ready(move_ready),
@@ -1147,6 +1177,7 @@ module My_Top_Module #(
         .build_facing_left(in_diary_walkthrough ? 9'd0 : draw_facing_left),
         .build_facing_down(in_diary_walkthrough ? ((draw_map_id == 1'b0) ? 9'b000_000_010 : 9'd0) : draw_facing_down),
         .engine_enabled(in_diary_walkthrough ? 1'b1 : draw_engine),
+        .boost_active(in_diary_walkthrough ? 1'b0 : draw_boost_active),
         .active_fans(in_diary_walkthrough ? diary_active_fans : draw_active_fans),
         .intact_mask(in_diary_walkthrough ? diary_intact : draw_intact),
         .frame_intact_mask(in_diary_walkthrough ? diary_frames : draw_frames),
