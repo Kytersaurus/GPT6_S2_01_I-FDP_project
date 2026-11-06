@@ -274,7 +274,7 @@ module left_renderer #(
                             part_anim = boost_active ? anim_phase : 1'b0;
                             part_dim  = !(boost_active || rocket_ready);
                         end else if (part == `LP_PART_WHEEL) begin
-                            part_anim = (engine_enabled || wheel_moving) ? anim_phase : 1'b0;
+                            part_anim = wheel_moving ? anim_phase : 1'b0;
                         end
                     end
                     if (part == `LP_PART_FRAME)

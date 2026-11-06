@@ -143,7 +143,7 @@ module game_controller #(
                         else if ((level_open_req || settings_pending) && !step_busy && !gameplay_pending) begin settings_from_start <= 1'b0; settings_return_state <= `LP_RUN; game_state <= `LP_SETTINGS; end
                         else begin
                     // Whole seconds of RUN, held at 4:15; results freeze the final time.
-                    if (physics_tick) begin
+                    if (physics_tick && level_index != `LP_LEVEL_TUTORIAL) begin
                         if (second_ticks == TICKS_PER_SECOND-1) begin
                             second_ticks <= 0;
                             if (run_seconds != 8'hff) run_seconds <= run_seconds + 1'b1;

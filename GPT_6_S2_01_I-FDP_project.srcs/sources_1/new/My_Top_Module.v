@@ -11,8 +11,11 @@
 
 `include "game_defs.vh"
 
-// SW0 1-OLED JA map view, SW1 engine debug, SW2 reverse, SW13 free-look pan, SW14 zoom, SW15 mute;
-// BTNL reserved, BTNC launch/retry, BTNU edit/next level after success, BTNR reserved and BTND reset.
+// Switches: gameplay controls on the left cluster, settings on the right.
+//   SW15 engine reverse, SW14 zoom, SW13 free-look pan, SW1 1-OLED JA map view, SW0 mute.
+//   The wheel engine has no switch; it is toggled only by clicking its run-diagram cell.
+// Buttons: BTNC launch/retry, BTNU edit/next level after success, BTNR rocket boost,
+//   BTND reset, BTNL reserved.  SW2..SW12 are unused.
 module My_Top_Module #(
     parameter integer PHYSICS_CYCLES = 1666667,
     parameter integer BUTTON_DEBOUNCE_CYCLES = 20000000,
@@ -85,15 +88,14 @@ module My_Top_Module #(
     wire rocket_available = rocket_count != 0;
     wire ui_fan_on, ui_rocket_req, ui_sound_muted; wire [8:0] ui_active_fans; wire [3:0] mouse_fan_toggle_cell;
     assign engine_reverse = reverse_switch_enabled ^ (engine_balance<0);
-    wire engine_switch_changed, ui_engine_on, ui_launch, ui_edit, ui_guide_open, ui_guide_close;
+    wire ui_engine_on, ui_launch, ui_edit, ui_guide_open, ui_guide_close;
     wire [1:0] diary_page, death_phase;
     wire [2:0] master_volume, draw_master_volume;
     wire [2:0] guide_return_state;
     wire signed [`LP_COORD_BITS-1:0] death_x, death_y;
     wire launch_flash; wire [2:0] game_state, init_ready; wire run_init, step_start, update_release;
-    // SW1 changes the same engine state as the UI control.  Do not OR SW1
-    // directly into the physics enable: doing so makes the UI unable to turn
-    // the engine off while SW1 remains high.
+    // The engine is on only while RUN is active and the player has clicked
+    // the engine cell on the run diagram to turn it on.
     assign engine_enabled = (game_state == `LP_RUN && !run_init) ? ui_engine_on : 1'b0;
 
 
@@ -117,12 +119,12 @@ module My_Top_Module #(
     reg view_meta_game, view_sync_game, view_ack_meta, view_ack_game;
     reg view_meta_display, view_sync_display, show_map;
     wire builder_input_enabled = !view_sync_game && !view_ack_game;
-    // SW0 chooses the 1-OLED JA map view; publish the change only between complete frames.
+    // SW1 chooses the 1-OLED JA map view; publish the change only between complete frames.
     always @(posedge clk) begin
         if (reset) begin
             view_meta_game <= 0; view_sync_game <= 0; view_ack_meta <= 0; view_ack_game <= 0;
         end else begin
-            view_meta_game <= sw[0]; view_sync_game <= view_meta_game;
+            view_meta_game <= sw[1]; view_sync_game <= view_meta_game;
             view_ack_meta <= show_map; view_ack_game <= view_ack_meta;
         end
     end
@@ -155,21 +157,25 @@ module My_Top_Module #(
     // Collision only needs the solid/open result. Keeping this one-bit path
     // separate lets Vivado discard the query-side colour ROM copy.
     // The tutorial is a BRAM-free rectangle course.  Its collision query is
-    // decoded here so the active rotating collision engine sees the same
-    // floor, step, practice pad and finish island that the renderer draws.
-    wire tutorial_floor = collision_query_y >= 11'sd120 && collision_query_y < 11'sd152;
-    // No physical platform is placed in the engine lesson; it stays flat.
-    wire tutorial_platform = 1'b0;
-    // The propulsion teaching pad is deliberately a low step.  Its purpose
-    // is to demonstrate rocket/fan controls, not to become a mandatory wall.
-    wire tutorial_propulsion_pad = collision_query_x >= 11'sd144 && collision_query_x < 11'sd192 &&
-                                   collision_query_y >= 11'sd116 && collision_query_y < 11'sd120;
-    wire tutorial_finish = collision_query_x >= 11'sd216 && collision_query_x < 11'sd248 &&
-                           collision_query_y >= 11'sd112 && collision_query_y < 11'sd120;
-    wire tutorial_solid = tutorial_floor || tutorial_platform || tutorial_propulsion_pad || tutorial_finish;
-    wire [2:0] collision_query_class = (level_index == `LP_LEVEL_TUTORIAL) ?
-                                       (tutorial_solid ? `LP_MAP_ROCK : `LP_MAP_SKY) :
-                                       (collision_query_solid ? `LP_MAP_ROCK : `LP_MAP_SKY);
+    // decoded here from the same LP_TUT_* constants that level_data packs into
+    // terrain_rects for drawing, so the solid course always matches the drawn one.
+    // The floor has no x limit so the cart never drops off its side edges.
+    wire tutorial_floor = collision_query_y >= 11'sd`LP_TUT_FLOOR_Y &&
+                          collision_query_y <  11'sd`LP_TUT_FLOOR_Y + 11'sd`LP_TUT_FLOOR_H;
+    // The propulsion teaching pad is a 2-pixel ground pad (within the 3-pixel
+    // floor-snap limit) and the finish line sits directly on the land at y=120.
+    wire tutorial_propulsion_pad = collision_query_x >= 11'sd`LP_TUT_PAD_X &&
+                                   collision_query_x <  11'sd`LP_TUT_PAD_X + 11'sd`LP_TUT_PAD_W &&
+                                   collision_query_y >= 11'sd`LP_TUT_PAD_Y &&
+                                   collision_query_y <  11'sd`LP_TUT_PAD_Y + 11'sd`LP_TUT_PAD_H;
+    wire tutorial_finish = collision_query_x >= 11'sd`LP_TUT_FINISH_X &&
+                           collision_query_x <  11'sd`LP_TUT_FINISH_X + 11'sd`LP_TUT_FINISH_W &&
+                           collision_query_y >= 11'sd`LP_TUT_FINISH_Y &&
+                           collision_query_y <  11'sd`LP_TUT_FINISH_Y + 11'sd`LP_TUT_FINISH_H;
+    wire tutorial_solid = tutorial_floor || tutorial_propulsion_pad || tutorial_finish;
+    // The tutorial uses the rectangle course; the cave maps use the map ROM.
+    wire query_is_solid = (level_index == `LP_LEVEL_TUTORIAL) ? tutorial_solid : collision_query_solid;
+    wire [2:0] collision_query_class = query_is_solid ? `LP_MAP_ROCK : `LP_MAP_SKY;
     wire [9:0] world_width, world_height, flag_x, flag_y;
     wire [`LP_MAX_TNT-1:0] tnt_intact;
     wire right_press;
@@ -201,22 +207,29 @@ module My_Top_Module #(
     reg tutorial_tnt_avoid_active;
     reg tutorial_fan_tested;
     reg tutorial_tnt_landed;
-    wire [2:0] tutorial_prompt_index =
-        ($signed(vehicle_x) < 20'sd10240) ? 3'd0 :
-        ($signed(vehicle_x) < 20'sd20480) ? 3'd1 :
-        ($signed(vehicle_x) < 20'sd36864) ? 3'd2 :
-        ($signed(vehicle_x) < 20'sd49152) ? 3'd3 :
-        ($signed(vehicle_x) < 20'sd55296) ? 3'd4 : 3'd5;
+    // Which tutorial lesson the cart has reached, from its x position (Q12.8):
+    // 0 start (<40 px), 1 star (<80 px), 2 TNT (<144 px), 3 rocket (<168 px),
+    // 4 fan (<192 px), 5 final drop & straight.
+    reg [2:0] tutorial_prompt_index;
+    always @* begin
+        if ($signed(vehicle_x) < 20'sd10240)      tutorial_prompt_index = 3'd0;
+        else if ($signed(vehicle_x) < 20'sd20480) tutorial_prompt_index = 3'd1;
+        else if ($signed(vehicle_x) < 20'sd36864) tutorial_prompt_index = 3'd2;
+        else if ($signed(vehicle_x) < 20'sd43008) tutorial_prompt_index = 3'd3;
+        else if ($signed(vehicle_x) < 20'sd49152) tutorial_prompt_index = 3'd4;
+        else                                      tutorial_prompt_index = 3'd5;
+    end
     // The real physics tick remains available for the pause timer, while the
     // gameplay tick is withheld so the vehicle, timer and world handshakes
     // genuinely stop when a new teaching prompt appears.
     wire tutorial_physics_tick = physics_tick && !tutorial_pause_active;
+    // The TNT mask can fall on the same clock as the first out-of-bounds
+    // result, before the grace counter is loaded.  Cover that one edge clock
+    // (TNT just spent, previous sample still intact) and then the 90-frame
+    // counter.  Once the counter expires, leaving the world fails as normal.
+    wire tutorial_tnt_just_spent = !tnt_intact[0] && tutorial_tnt_was_intact;
     wire tutorial_bounds_grace = (level_index == `LP_LEVEL_TUTORIAL) &&
-                                 // The TNT mask can fall on the same clock as
-                                 // the first out-of-bounds result. Include the
-                                 // spent bit directly so the demo gets time
-                                 // to rise and land instead of failing early.
-                                 (tutorial_tnt_grace_frames != 0 || !tnt_intact[0]);
+                                 (tutorial_tnt_grace_frames != 0 || tutorial_tnt_just_spent);
     // After the instructed retry action, ignore only TNT contact until the
     // whole vehicle is past the crate. This corridor is tutorial-only and
     // guarantees that the guided route cannot suffer a second blast.
@@ -288,14 +301,19 @@ module My_Top_Module #(
                     tutorial_tnt_avoid_active <= 1'b1;
                 end
             end else if (tutorial_guided_run && tutorial_next_prompt == 3'd5) begin
-                // The guided retry must demonstrate the fan, but the fan must
-                // be off before the final straight so the course stays easy.
-                if (!tutorial_fan_tested && (|ui_active_fans))
+                // Release as soon as the player turns the fan on so they see
+                // the vehicle lift into the air before the drop checkpoint.
+                if (|ui_active_fans) begin
                     tutorial_fan_tested <= 1'b1;
-                else if (tutorial_fan_tested && !(|ui_active_fans)) begin
                     tutorial_pause_active <= 1'b0;
                     tutorial_pause_count <= 8'd0;
-                    tutorial_next_prompt <= 3'd6;
+                end
+            end else if (tutorial_guided_run && tutorial_next_prompt == 3'd6) begin
+                // Hold before the finish until the fan is switched off so the
+                // vehicle drops and lands on the finish line.
+                if (!(|ui_active_fans)) begin
+                    tutorial_pause_active <= 1'b0;
+                    tutorial_pause_count <= 8'd0;
                 end
             end else if (physics_tick) begin
                 if (tutorial_pause_count >= TUTORIAL_PAUSE_FRAMES-1) begin
@@ -331,7 +349,7 @@ module My_Top_Module #(
                 tutorial_tnt_landed <= 1'b1;
 
             if (tutorial_retry_pending && $signed(vehicle_x) >= TUTORIAL_TNT_RETRY_X_Q8) begin
-            // On retry, stop at x=104 so the TNT at x=128 is visible.
+            // On retry, stop at x=88 so the TNT at x=128 is visible.
             tutorial_retry_pending <= 1'b0;
             tutorial_retry_waiting <= 1'b1;
             tutorial_pause_active <= 1'b1;
@@ -556,9 +574,8 @@ module My_Top_Module #(
         .DEBOUNCE_CYCLES(BUTTON_DEBOUNCE_CYCLES), .RELEASE_CYCLES(BUTTON_RELEASE_CYCLES)
     ) u_input (
         .clk(clk), .reset(reset), .btnC(btnC), .btnU(btnU), .btnL(btnL), .btnR(btnR),
-        .engine_switch(sw[1]), .mute_switch(sw[15]), .reverse_switch(sw[2]), .start_press(start_press), .edit_press(edit_press),
+        .mute_switch(sw[0]), .reverse_switch(sw[15]), .start_press(start_press), .edit_press(edit_press),
         .right_press(right_press),
-        .engine_switch_changed(engine_switch_changed),
         .audio_muted(switch_audio_muted), .engine_reverse(reverse_switch_enabled), .jump_press(jump_press)
     );
     wire start_screen_active;
@@ -585,9 +602,8 @@ module My_Top_Module #(
         .start_screen_active(start_screen_active), .game_state(game_state),
         .mouse_x(effective_mouse_x), .mouse_y(effective_mouse_y),
         .mouse_left(mouse_left), .mouse_right(mouse_right), .mouse_event(mouse_event),
-        .next_press(start_press), .engine_switch_changed(engine_switch_changed),
-        .tutorial_mode(level_index == `LP_LEVEL_TUTORIAL),
-        .engine_switch(sw[1]), .engine_toggle_req(mouse_engine_toggle_req),
+        .next_press(start_press),
+        .engine_toggle_req(mouse_engine_toggle_req),
         .fan_toggle_req(mouse_fan_toggle_req), .fan_toggle_cell(mouse_fan_toggle_cell), .rocket_toggle_req(mouse_boost_req || tutorial_rocket_button),
         .fan_available(fan_available), .rocket_available(rocket_available),
         .rocket_ready(rocket_ready), .balloon_available(balloon_count != 4'd0),
@@ -601,7 +617,7 @@ module My_Top_Module #(
         .launch_flash(launch_flash)
     );
     wire [7:0] par_time;
-    seven_seg_timer #(.COUNTDOWN(1), .TIME_LIMIT(20)) u_board_timer (.clk(clk), .reset(reset || (game_state!=`LP_RUN && game_state!=`LP_SUCCESS && game_state!=`LP_FAIL)), .seconds(run_seconds), .time_limit(par_time), .seg(seg), .an(an), .dp(dp));
+    seven_seg_timer #(.COUNTDOWN(1), .TIME_LIMIT(20)) u_board_timer (.clk(clk), .reset(reset || (level_index == `LP_LEVEL_TUTORIAL) || (game_state!=`LP_RUN && game_state!=`LP_SUCCESS && game_state!=`LP_FAIL)), .seconds(run_seconds), .time_limit(par_time), .seg(seg), .an(an), .dp(dp));
     pig_death_effect u_pig_death (
         .clk(clk), .reset(reset), .run_init(run_init), .physics_tick(tutorial_physics_tick), .pig_alive(pig_alive),
         .game_state(game_state), .build_grid(build_grid), .vehicle_x(vehicle_x), .vehicle_y(vehicle_y), .vehicle_tilt(vehicle_tilt),
@@ -637,7 +653,8 @@ module My_Top_Module #(
         .ps2_clk(PS2Clk), .ps2_data(PS2Data)
     );
     mouse_adapter u_mouse_adapter (
-        .clk(clk), .reset(reset), .input_enabled(builder_input_enabled && !start_screen_active), .game_state(game_state),
+        .clk(clk), .reset(reset), .input_enabled(builder_input_enabled && !start_screen_active),
+        .game_state((level_index == `LP_LEVEL_TUTORIAL && game_state == `LP_BUILD) ? `LP_GUIDE : game_state),
         .build_grid(build_grid), .build_frames(build_frames), .build_facing_left(build_facing_left), .build_facing_down(build_facing_down),
         .run_page(run_page), .selected_left(selected_left), .selected_down(selected_down), .inventory_page(inventory_page),
         .engine_facing_left(engine_facing_left), .fan_facing_left(fan_facing_left), .fan_facing_down(fan_facing_down), .rocket_facing_left(rocket_facing_left), .rocket_facing_down(rocket_facing_down),
@@ -774,7 +791,24 @@ module My_Top_Module #(
         rocket_down_mask[3] + rocket_down_mask[4] + rocket_down_mask[5] +
         rocket_down_mask[6] + rocket_down_mask[7] + rocket_down_mask[8];
     wire signed [4:0] rocket_vertical_balance =
-        $signed({1'b0, active_down_rockets}) - $signed({1'b0, active_up_rockets}); wire [8:0] active_horiz_fans = intact_mask & fan_horiz_mask & ui_active_fans; wire [8:0] active_right_fans = active_horiz_fans & ~build_facing_left; wire [8:0] active_left_fans = active_horiz_fans & build_facing_left; wire [3:0] active_right_fan_count = active_right_fans[0]+active_right_fans[1]+active_right_fans[2]+active_right_fans[3]+active_right_fans[4]+active_right_fans[5]+active_right_fans[6]+active_right_fans[7]+active_right_fans[8]; wire [3:0] active_left_fan_count = active_left_fans[0]+active_left_fans[1]+active_left_fans[2]+active_left_fans[3]+active_left_fans[4]+active_left_fans[5]+active_left_fans[6]+active_left_fans[7]+active_left_fans[8]; wire signed [4:0] active_fan_balance = $signed({1'b0, active_right_fan_count}) - $signed({1'b0, active_left_fan_count});
+        $signed({1'b0, active_down_rockets}) - $signed({1'b0, active_up_rockets});
+
+    // Horizontal fans that are intact and switched on by their run-diagram cell.
+    // A fan facing right blows its exhaust right; one facing left blows left.
+    wire [8:0] active_horiz_fans = intact_mask & fan_horiz_mask & ui_active_fans;
+    wire [8:0] active_right_fans = active_horiz_fans & ~build_facing_left;
+    wire [8:0] active_left_fans  = active_horiz_fans &  build_facing_left;
+    wire [3:0] active_right_fan_count =
+        active_right_fans[0] + active_right_fans[1] + active_right_fans[2] +
+        active_right_fans[3] + active_right_fans[4] + active_right_fans[5] +
+        active_right_fans[6] + active_right_fans[7] + active_right_fans[8];
+    wire [3:0] active_left_fan_count =
+        active_left_fans[0] + active_left_fans[1] + active_left_fans[2] +
+        active_left_fans[3] + active_left_fans[4] + active_left_fans[5] +
+        active_left_fans[6] + active_left_fans[7] + active_left_fans[8];
+    // Signed fan count for physics: positive = more right-facing fans.
+    wire signed [4:0] active_fan_balance =
+        $signed({1'b0, active_right_fan_count}) - $signed({1'b0, active_left_fan_count});
     physics_engine #(.ENGINE_FORCE(ENGINE_FORCE), .ROCKET_FORCE_SHIFT(ROCKET_FORCE_SHIFT), .WHEEL_TORQUE_SHIFT(WHEEL_TORQUE_SHIFT)) u_physics (
         .support_endpoint_y_valid(support_span_valid),
         .support_left_y_q2(support_left_y_q2),.support_right_y_q2(support_right_y_q2),
@@ -934,12 +968,13 @@ module My_Top_Module #(
         .frame_begin(left_frame), .game_data(snapshot_in), .display_data(snapshot_out)
     );
     wire in_diary_walkthrough = (draw_state == `LP_GUIDE) && (draw_diary_page != 2'd3);
-    // Engine pistons step once every eight frames while running with SW0 on; boost doubles the rate.
+    // Engine pistons step once every eight frames while the engine is on; boost doubles the rate.
     reg [3:0] engine_frames;
     // Wheels use a faster independent phase so their spokes do not appear to
     // freeze while the vehicle is travelling between physics updates.
     reg [2:0] wheel_frames;
-    wire vehicle_moving = (corrected_x[19:8] != previous_x[19:8]) || (!grounded && (corrected_y[19:8] != previous_y[19:8]));
+    wire vehicle_moving = (game_state == `LP_RUN) && !tutorial_pause_active &&
+                          ((corrected_x[19:8] != previous_x[19:8]) || (!grounded && (corrected_y[19:8] != previous_y[19:8])));
     reg moving_meta, moving_sync;
     always @(posedge oled_clk) begin
         if (oled_reset) begin
@@ -950,17 +985,26 @@ module My_Top_Module #(
         end else begin
             moving_meta <= vehicle_moving;
             moving_sync <= moving_meta;
-            if (left_frame && (draw_state == `LP_RUN || in_diary_walkthrough)) begin
-                if (draw_engine || draw_fan_on || draw_boost_active || in_diary_walkthrough)
-                    engine_frames <= engine_frames + (draw_boost_active ? 4'd2 : 4'd1);
-                if (moving_sync || in_diary_walkthrough)
-                    wheel_frames <= wheel_frames + 1'b1;
+            if (left_frame) begin
+                if (draw_state == `LP_RUN || in_diary_walkthrough) begin
+                    if (draw_engine || draw_fan_on || draw_boost_active || in_diary_walkthrough)
+                        engine_frames <= engine_frames + (draw_boost_active ? 4'd2 : 4'd1);
+                    else
+                        engine_frames <= 4'd0;
+                    if (moving_sync || in_diary_walkthrough)
+                        wheel_frames <= wheel_frames + 1'b1;
+                    else
+                        wheel_frames <= 3'd0;
+                end else begin
+                    engine_frames <= 4'd0;
+                    wheel_frames <= 3'd0;
+                end
             end
         end
     end
     wire anim_phase = engine_frames[3];
     wire wheel_anim_phase = wheel_frames[1];
-    // The map zoom and SW12 free look also change only between complete frames.
+    // The SW14 map zoom and SW13 free look also change only between complete frames.
     reg zoom_meta_display, zoom_sync_display, draw_zoomed_out;
     reg overview_meta_display, overview_sync_display, draw_overview;
     reg look_meta_display, look_sync_display, draw_free_look;
@@ -1012,8 +1056,9 @@ module My_Top_Module #(
     // A second copy of the level table, indexed by the snapshot, keeps the map in step with the drawn state.
     wire draw_map_level, draw_map_id;
     wire [9:0] draw_world_width, draw_world_height, draw_flag_x, draw_flag_y;
+    wire [7:0] draw_par_time;
     level_data u_draw_level (
-        .level_index(draw_level), .spawn_x(draw_spawn_x), .spawn_y(draw_spawn_y),
+        .level_index(draw_level), .par_time(draw_par_time), .spawn_x(draw_spawn_x), .spawn_y(draw_spawn_y),
         .terrain_count(draw_terrain_count), .terrain_rects(draw_terrain_rects), .goal_rect(draw_goal_rect),
         .tnt_count(draw_tnt_count), .tnt_positions(draw_tnt_positions),
         .hazard_count(draw_hazard_count), .hazard_rects(draw_hazard_rects),
@@ -1156,7 +1201,7 @@ module My_Top_Module #(
         .anim_phase(wheel_anim_phase), .map_level(draw_map_level), .map_id(draw_map_id), .world_width(draw_world_width),
         .world_height(draw_world_height), .flag_x(draw_flag_x), .flag_y(draw_flag_y), .star_box_x(draw_star_box_x), .star_box_y(draw_star_box_y),
         .star_box_collected(in_diary_walkthrough ? 1'b0 : draw_star_box_collected), .run_seconds(draw_seconds),
-        .level_index(draw_level),
+        .par_time(draw_par_time), .level_index(draw_level),
         .map_x(right_map_x), .map_y(right_map_y), .map_class(map_draw_class),
         .pixel_data(right_pixel_data)
     );
@@ -1181,7 +1226,7 @@ module My_Top_Module #(
 
     // Flash unused middle LEDs (led[12:3]) when GO is called (launch_flash)
     // and when the game ends (LP_SUCCESS alternating marquee, LP_FAIL alert blink).
-    // Unused switches sw[12:3] are intentionally disconnected.
+    // Unused switches sw[12:2] are intentionally disconnected.
     reg [3:0] led_anim_tick;
     wire led_anim_active = launch_flash || (game_state == `LP_SUCCESS) || (game_state == `LP_FAIL);
     always @(posedge clk) begin
@@ -1197,7 +1242,8 @@ module My_Top_Module #(
         (game_state == `LP_FAIL)    ? {10{led_anim_tick[3]}} :
                                      10'd0;
 
-    assign led = {sw[15:13], unused_leds_flash, sw[2:0]};
+    // LED[15:13] and LED[1:0] mirror the active switches; LED[2] stays off with unused SW2.
+    assign led = {sw[15:13], unused_leds_flash, 1'b0, sw[1:0]};
 endmodule
 
 

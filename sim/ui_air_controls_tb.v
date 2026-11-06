@@ -13,7 +13,7 @@ module ui_air_controls_tb;
     always @(posedge clk) if(rocket) fires=fires+1;
     ui_controller dut(.clk(clk),.reset(reset),.input_enabled(enabled),.run_init(init),.physics_tick(tick),
         .launch_event(launch),.game_state(state),.mouse_x(x),.mouse_y(y),.mouse_left(left),.mouse_right(right),
-        .mouse_event(event_in),.next_press(1'b0),.engine_switch(1'b1),
+        .mouse_event(event_in),.next_press(1'b0),
         .fan_toggle_req(fan_toggle_req),.rocket_toggle_req(rocket_toggle_req),
         .fan_available(fan_available),.rocket_available(rocket_available),
         .rocket_ready(ready),.launch_req(),.edit_req(),.guide_open_req(),.guide_close_req(),.diary_page(),

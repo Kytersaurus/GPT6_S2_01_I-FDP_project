@@ -456,7 +456,7 @@ module ui_renderer (
                         if (x < 7'd22)                  begin line_text = "15              "; line_left = 7'd8;  end
                         else if (x < 7'd38)             begin line_text = "14              "; line_left = 7'd24; end
                         else if (x < 7'd54)             begin line_text = "13              "; line_left = 7'd40; end
-                        else if (x >= 7'd59 && x < 7'd74) begin line_text = "2               "; line_left = 7'd64; end
+                        else if (x >= 7'd59 && x < 7'd74) begin line_text = "1               "; line_left = 7'd64; end
                         else if (x >= 7'd75)            begin line_text = "0               "; line_left = 7'd80; end
                     end
                 end
@@ -515,8 +515,8 @@ module ui_renderer (
                             if (x < 7'd60) begin line_text = " -              "; line_left = 7'd12; end
                             else begin line_text = " +              "; line_left = 7'd68; end
                         end else if (audio_muted) begin
-                            // Switch 15 (Mute) status banner: only shown when muted.
-                            line_text = "MUTED BY SW15   "; line_left = 7'd10; line_top = 6'd43; line_colour = 16'hf800;
+                            // Switch 0 (Mute) status banner: only shown when muted.
+                            line_text = "MUTED BY SW0    "; line_left = 7'd10; line_top = 6'd43; line_colour = 16'hf800;
                         end
                     end
                 endcase
@@ -748,15 +748,13 @@ module ui_renderer (
                     end
 
                     // Spacious Visual Icons directly above each switch (y: 14..26):
-                    // 1) Above SW15 (x: 7..20, center 13): Gold Speaker + Red Mute 'X'
-                    if ((x >= 8 && x <= 9 && y >= 19 && y <= 21) ||
-                        (x == 10 && y >= 18 && y <= 22) ||
-                        (x == 11 && y >= 17 && y <= 23) ||
-                        (x == 12 && y >= 16 && y <= 24))
-                        pixel_data = 16'hffe0;
-                    if (x >= 14 && x <= 18 && y >= 18 && y <= 22 &&
-                        (x - 14 == y - 18 || 18 - x == y - 18))
-                        pixel_data = 16'hf800; // Red mute 'X' next to speaker
+                    // Gameplay switches sit on the left cluster and settings
+                    // switches on the right cluster of the Basys 3 board.
+                    // 1) Above SW15 (x: 7..20, center 13): Cyan Reverse Double-Arrow <->
+                    if ((y == 20 && x >= 8 && x <= 19) ||
+                        ((x == 9 || x == 18) && (y == 19 || y == 21)) ||
+                        ((x == 10 || x == 17) && (y == 18 || y == 22)))
+                        pixel_data = 16'h07ff;
 
                     // 2) Above SW14 (x: 23..36, center 29): Green Zoom Magnifier with '+'
                     if ((x >= 26 && x <= 30 && (y == 15 || y == 21)) ||
@@ -775,26 +773,30 @@ module ui_renderer (
                         (x == 49 && y >= 19 && y <= 21))
                         pixel_data = 16'hffe0;
 
-                    // 4) Above SW2 (x: 60..73, center 66): Cyan Reverse Double-Arrow <->
-                    if ((y == 20 && x >= 61 && x <= 72) ||
-                        ((x == 62 || x == 71) && (y == 19 || y == 21)) ||
-                        ((x == 63 || x == 70) && (y == 18 || y == 22)))
-                        pixel_data = 16'h07ff;
-
-                    // 5) Above SW0 (x: 76..89, center 82): 1-OLED Screen Monitor Icon
-                    if (x >= 77 && x <= 88 && y >= 15 && y <= 23) begin
-                        if (x == 77 || x == 88 || y == 15 || y == 23)
+                    // 4) Above SW1 (x: 60..73, center 66): 1-OLED Screen Monitor Icon
+                    if (x >= 61 && x <= 72 && y >= 15 && y <= 23) begin
+                        if (x == 61 || x == 72 || y == 15 || y == 23)
                             pixel_data = 16'h07ff; // Cyan OLED screen bezel
-                        else if ((x == 83 && y >= 17 && y <= 21) || (x == 82 && y == 18) || (x >= 82 && x <= 84 && y == 21))
+                        else if ((x == 67 && y >= 17 && y <= 21) || (x == 66 && y == 18) || (x >= 66 && x <= 68 && y == 21))
                             pixel_data = 16'hffff; // White '1' inside screen
                         else
                             pixel_data = 16'h0210; // Dark screen fill
-                    end else if (y == 24 && x >= 81 && x <= 84) begin
+                    end else if (y == 24 && x >= 65 && x <= 68) begin
                         pixel_data = 16'h07ff; // Monitor stand base
                     end
 
+                    // 5) Above SW0 (x: 76..89, center 82): Gold Speaker + Red Mute 'X'
+                    if ((x >= 77 && x <= 78 && y >= 19 && y <= 21) ||
+                        (x == 79 && y >= 18 && y <= 22) ||
+                        (x == 80 && y >= 17 && y <= 23) ||
+                        (x == 81 && y >= 16 && y <= 24))
+                        pixel_data = 16'hffe0;
+                    if (x >= 83 && x <= 87 && y >= 18 && y <= 22 &&
+                        (x - 83 == y - 18 || 87 - x == y - 18))
+                        pixel_data = 16'hf800; // Red mute 'X' next to speaker
+
                     // 5 Highlighted Slide Switches on the Basys 3 bottom edge:
-                    // SW15 (x:7..20), SW14 (x:23..36), SW13 (x:39..52), SW2 (x:60..73), SW0 (x:76..89)
+                    // SW15 (x:7..20), SW14 (x:23..36), SW13 (x:39..52), SW1 (x:60..73), SW0 (x:76..89)
                     if (y >= 32 && y <= 47) begin
                         if ((x >= 7  && x <= 20) || (x >= 23 && x <= 36) ||
                             (x >= 39 && x <= 52) || (x >= 60 && x <= 73) ||

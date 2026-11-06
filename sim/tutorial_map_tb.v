@@ -32,8 +32,8 @@ module tutorial_map_tb;
         if (spawn_x !== 20'sd4096 || spawn_y !== 20'sd24576)
             $fatal(1, "Tutorial spawn changed");
         if (terrain_count != 3'd4 || terrain_rects !== {
-                8'd8,  8'd32, 8'd112, 8'd216,
-                8'd4,  8'd48, 8'd116, 8'd144,
+                8'd8,  8'd32, 8'd120, 8'd216,
+                8'd2,  8'd48, 8'd118, 8'd144,
                 8'd0,  8'd48, 8'd120, 8'd40,
                 8'd32, 8'd248,8'd120, 8'd0
             })
@@ -42,8 +42,10 @@ module tutorial_map_tb;
             $fatal(1, "Tutorial TNT teaching prop changed");
         if (hazard_count != 0 || hazard_rects != 0)
             $fatal(1, "Tutorial unexpectedly contains hazards");
-        if (goal_rect !== {8'd40, 8'd32, 8'd80, 8'd216})
+        if (goal_rect !== {8'd16, 8'd32, 8'd104, 8'd216})
             $fatal(1, "Tutorial goal rectangle changed");
+        if (flag_x != 10'd228 || flag_y != 10'd106)
+            $fatal(1, "Tutorial finish flag changed");
         if (star_box_x != 10'd80 || star_box_y != 10'd112)
             $fatal(1, "Tutorial star checkpoint changed");
         $display("PASS tutorial_map_tb: expanded tutorial has visible star/TNT and no hazards");
