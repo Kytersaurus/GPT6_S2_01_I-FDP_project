@@ -36,7 +36,9 @@ module level_data (
         map_level = 1'b1;
         par_time = 8'd25;
         case (level_index)
-            2'd0: begin
+            // Only levels 0..2 exist; any other index falls back to Cave Arch
+            // so every output is driven without a separate unused level.
+            default: begin
                 // Level 1, Cave Arch, in world pixels: level_map shows the map twice as
                 // large (map pixel = world/2). Start on the flat plateau (map top y=50,
                 // x=98..128; world top y=100, x=196..257); the finish flag stands on the cave
@@ -99,12 +101,14 @@ module level_data (
                 world_width = 10'd248;
                 world_height = 10'd160;
                 terrain_count = 3'd4;
+                // Each rect is {height, width, y, x}; the values are shared
+                // with the top-level collision decode through game_defs.vh.
                 terrain_rects = {
-                    8'd8,  8'd32, 8'd112, 8'd216,
-                    8'd4,  8'd48, 8'd116, 8'd144,
+                    8'd`LP_TUT_FINISH_H, 8'd`LP_TUT_FINISH_W, 8'd`LP_TUT_FINISH_Y, 8'd`LP_TUT_FINISH_X,
+                    8'd`LP_TUT_PAD_H,    8'd`LP_TUT_PAD_W,    8'd`LP_TUT_PAD_Y,    8'd`LP_TUT_PAD_X,
                     // Reserved empty slot: the engine lesson stays flat.
-                    8'd0,  8'd48, 8'd120, 8'd40,
-                    8'd32, 8'd248,8'd120, 8'd0
+                    8'd0,                8'd48,               8'd120,              8'd40,
+                    8'd`LP_TUT_FLOOR_H,  8'd248,              8'd`LP_TUT_FLOOR_Y,  8'd0
                 };
                 goal_rect = {8'd40, 8'd32, 8'd80, 8'd216};
                 flag_x = 10'd0;
@@ -116,25 +120,10 @@ module level_data (
                 // lets the player deliberately touch it once. After retry,
                 // the course pauses at a visible TNT warning; the player can
                 // then avoid it and continue to the later rocket lesson.
-                // The retry stop is x=104, with TNT beginning at x=128.
+                // The retry stop is x=88, with TNT beginning at x=128.
                 tnt_positions = {40'd0, 10'd112, 10'd128};
                 hazard_count = 2'd0;
                 hazard_rects = 0;
-            end
-            default: begin
-                // Level 4, Cave Flight (TNT Hazard Challenge): Two explosive TNT crates
-                // at (x=120, y=140) and (x=180, y=100).
-                spawn_x = 20'sd17408;   // x=68
-                spawn_y = 20'sd45568;   // y=178
-                map_id = 1'b1;
-                par_time = 8'd45;
-                world_width = `LP_FLIGHT_WIDTH;
-                world_height = `LP_FLIGHT_HEIGHT;
-                flag_x = 10'd769;
-                star_box_x = 10'd400; star_box_y = 10'd150;
-                flag_y = 10'd50;
-                tnt_count = 3'd2;
-                tnt_positions = {20'd0, 10'd100, 10'd180, 10'd140, 10'd120};
             end
         endcase
     end

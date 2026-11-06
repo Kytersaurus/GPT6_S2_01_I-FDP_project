@@ -3,7 +3,7 @@
 `include "game_defs.vh"
 module ui_controls_tb;
     reg clk=0,btnD=1,btnC=0,btnU=0;
-    reg [15:0] sw=2;
+    reg [15:0] sw=0;
     reg [11:0] mx=24,my=24;
     reg ml=0,mr=0,me=0;
     tri1 PS2Clk,PS2Data;
@@ -54,12 +54,11 @@ module ui_controls_tb;
         if(dut.engine_enabled) $fatal(1,"Engine sprite OFF failed");
         packet(32,24,1,0);clocks(15);
         if(dut.engine_enabled) $fatal(1,"Held engine press repeated");
+        // The engine has no board switch: only the engine cell toggles it.
         packet(32,24,0,0);click(32,24);
-        sw=0;clocks(5);
-        if(dut.engine_enabled) $fatal(1,"SW0 failed to inhibit engine");
-        click(32,24);if(!dut.engine_enabled) $fatal(1,"Icon did not enable with SW0 OFF");
-        click(32,24);sw=2;clocks(5);
-        if(!dut.engine_enabled) $fatal(1,"Engine icon did not enable after SW1");
+        if(!dut.engine_enabled) $fatal(1,"Engine icon did not turn back ON");
+        sw=16'hffff;clocks(5);sw=0;clocks(5);
+        if(!dut.engine_enabled) $fatal(1,"A board switch changed the mouse-only engine");
         click(20,24);click(20,48);
         if(dut.u_ui_control.fan_on || dut.u_ui_control.rocket_req) $fatal(1,"Unavailable air control activated");
         // Simulate result arrival; the diary must return to FAIL, not restart BUILD.

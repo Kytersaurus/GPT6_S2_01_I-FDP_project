@@ -82,6 +82,20 @@
 // Cave Arch map ROM, so it is not counted as an additional BRAM map.
 `define LP_LEVEL_TUTORIAL 2'd2
 `define LP_LEVEL_BITS    2
+// Tutorial rectangle course, in world pixels.  level_data packs these into
+// terrain_rects for drawing and the top level decodes the same values for the
+// collision query, so the drawn course and the solid course cannot drift.
+// The collision floor also extends past both world edges.
+`define LP_TUT_FLOOR_Y   120  // Floor top surface.
+`define LP_TUT_FLOOR_H   32   // Floor depth.
+`define LP_TUT_PAD_X     144  // Low 4 px propulsion practice step.
+`define LP_TUT_PAD_Y     116
+`define LP_TUT_PAD_W     48
+`define LP_TUT_PAD_H     4
+`define LP_TUT_FINISH_X  216  // Finish island under the goal.
+`define LP_TUT_FINISH_Y  112
+`define LP_TUT_FINISH_W  32
+`define LP_TUT_FINISH_H  8
 
 // Block-RAM maps in level_map: one 3-bit class per world pixel. Sky and cave background are
 // open; the other classes are solid. Map 0 is Cave Arch (level 1), address {y[8:0], x[8:0]};
