@@ -184,6 +184,9 @@ module My_Top_Module #(
     // These are declared before the tutorial controller because the landing
     // transition also selects the post-TNT instruction.
     wire response_valid, response_ready, grounded;
+    // Declared before the tutorial controller because a rocket-tile click
+    // must be able to release the guided pause as well as fire the rocket.
+    wire mouse_boost_req;
     reg audio_was_grounded;
     reg falling;
     reg tutorial_pause_active;
@@ -219,10 +222,10 @@ module My_Top_Module #(
     // guarantees that the guided route cannot suffer a second blast.
     wire tutorial_tnt_suppress = (level_index == `LP_LEVEL_TUTORIAL) &&
                                  tutorial_tnt_avoid_active;
-    // BTNR is intentionally accepted during the retry pause: it is the
-    // instructed action that fires the short tutorial rocket and clears the
-    // visible TNT.  Other tutorial pauses still hold BTNR so an accidental
-    // press cannot launch the vehicle before the TNT lesson.
+    // The retry pause accepts either the normal board-button action or the
+    // same fresh click pulse produced by the rocket tile on the run grid.
+    // Other tutorial pauses still hold both controls so an accidental action
+    // cannot launch the vehicle before the TNT lesson.
     wire tutorial_rocket_lesson_pause = tutorial_pause_active &&
                                         (tutorial_prompt_index == 3'd3);
     wire tutorial_rocket_button = (game_state == `LP_RUN) && right_press &&
@@ -267,9 +270,10 @@ module My_Top_Module #(
             tutorial_tnt_landed <= 1'b0;
         end else if (tutorial_pause_active) begin
             if (tutorial_retry_waiting) begin
-                // The TNT is visible before this pause.  BTNR fires the
-                // instructed tutorial rocket and releases the vehicle.
-                if (right_press) begin
+                // The TNT is visible before this pause.  Either BTNR or a
+                // click on the intact rocket tile fires the instructed
+                // tutorial rocket and releases the vehicle.
+                if (right_press || mouse_boost_req) begin
                     tutorial_pause_active <= 1'b0;
                     tutorial_retry_waiting <= 1'b0;
                     tutorial_pause_count <= 8'd0;
@@ -535,7 +539,7 @@ module My_Top_Module #(
     wire ui_level_open_req;
     wire mouse_pop_req;
     wire [3:0] mouse_pop_cell;
-    wire ui_boost_req, mouse_boost_req, combined_boost_req;
+    wire ui_boost_req, combined_boost_req;
     wire mouse_engine_toggle_req, mouse_fan_toggle_req, ui_end_try;
 
     assign pop_req = mouse_pop_req;
