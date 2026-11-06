@@ -41,9 +41,9 @@ This document specifies the shared constants (`game_defs.vh`) and module port co
   - `mute_switch = sw[15]` (`SW15` Hardware Audio Mute)
 
 ### 2.2 `vehicle_builder.v`
-* **Inputs:** `clk`, `reset`, `clear_build`, `game_state`, `cursor_cell[3:0]`, `edit_valid`, `edit_action[1:0]`, `edit_part[2:0]`, `edit_cell[3:0]`, `edit_source[3:0]`, `edit_facing_left`, `edit_facing_down`, `damage_mask[8:0]`, `damage_frame_mask[8:0]`, per-level stock limits (`max_frames`, `max_pigs`, `max_wheels`, `max_engines`, `max_balloons`, `max_rockets`, `max_fans`).
+* **Inputs:** `clk`, `reset`, `clear_build`, `build_locked`, `game_state`, `level_id[1:0]`, `cursor_cell[3:0]`, `edit_valid`, `edit_action[1:0]`, `edit_part[2:0]`, `edit_cell[3:0]`, `edit_source[3:0]`, `edit_facing_left`, `edit_facing_down`, `damage_mask[8:0]`, `damage_frame_mask[8:0]`, per-level stock limits (`max_frames`, `max_pigs`, `max_wheels`, `max_engines`, `max_balloons`, `max_rockets`, `max_fans`).
 * **Outputs:**
-  - `build_grid[26:0]`, `build_frames[8:0]`: Saved player blueprint.
+  - `build_grid[26:0]`, `build_frames[8:0]`: Saved player blueprint (or read-only tutorial contraption when `level_id == LP_LEVEL_TUTORIAL`; automatically resets to `27'd0` upon leaving `LP_LEVEL_TUTORIAL`).
   - `active_grid[26:0]`, `active_frames[8:0]`: Live runtime grid after masking out `damage_mask` and `damage_frame_mask` during `RUN` / `FAIL`.
   - `build_facing_left[8:0]`, `build_facing_down[8:0]`: Per-cell orientation flags for directional parts (Engines, Rockets, Fans).
   - `frames_left`, `pigs_left`, `wheels_left`, `engines_left`, `balloons_left`, `rockets_left`, `fans_left`: Remaining stock counts.
@@ -52,7 +52,7 @@ This document specifies the shared constants (`game_defs.vh`) and module port co
 
 ### 2.3 `physics_engine.v` & `rotating_map_collision_engine.v`
 * **Fixed-Point Coordinates:** Signed Q12.8 format (`vehicle_x`, `vehicle_y`, `vel_x`, `vel_y`).
-* **Rotation:** 6-bit signed `vehicle_tilt` (`-16..15`, $11.25^\circ$ per step).
+* **Rotation & Anti-Shake Stability:** 6-bit signed `vehicle_tilt` (`-16..15`, $11.25^\circ$ per step) with 2-sample stationary hysteresis (`held_count == 2'd2`) and stationary anti-reversal lock (`last_turn_valid`, `unstable_settled_dir`, `stationary_anchor_x_px`).
 * **Collision Handshake:** `collision_req` $\to$ `collision_done` evaluates rotated vehicle pixels against `level_map.v` solidity BRAM, returning `res_x`, `res_y`, `res_grounded`, `res_hit_wall`, `res_slope`, `res_tip_dir`, and `impact_speed`.
 
 ### 2.4 `display_snapshot.v` (318-Bit CDC Bridge)

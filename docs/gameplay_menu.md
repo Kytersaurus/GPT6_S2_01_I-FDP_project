@@ -7,9 +7,12 @@ This document details the user interface layouts, PS/2 mouse drag-and-drop build
 ## 1. Screen Flow & Master Game States
 
 * **Title Screen (`LP_TITLE`):**
-  - **Left OLED (`JA`):** Animated scrolling clouds over Piggy Island meadow, `"LAGGY PIGGIES"` banner, centered **`[PLAY]`** button, and bottom-left **`[GEAR]`** Settings button.
+  - **Left OLED (`JA`):** Animated scrolling clouds over Piggy Island meadow, `"LAGGY PIGGIES"` banner, centered **`[PLAY]`** button, **`[TUTORIAL]`** button (`LP_LEVEL_TUTORIAL`), and bottom-left **`[GEAR]`** Settings button.
   - **Right OLED (`JB`):** Blanked (`16'h0000`).
   - **1-Screen Mode (`SW0`):** Toggling `SW0 = 1` routes the Right OLED World Map directly onto Left OLED (`JA`) and blanks Right OLED (`JB`).
+* **Interactive Tutorial Level (`LP_LEVEL_TUTORIAL = 2'd3`):**
+  - **Read-Only Build View (`LP_BUILD`):** Displays the prebuilt tutorial contraption (`Pig + Engine + Booster + Fan + Balloon + 2 Wheels`) on the Left OLED 3×3 grid with editing locked (`build_locked = 1`), and automatically clears `stored_build_grid` when switching to Map 1 or Map 2.
+  - **Timer-Free Guided Practice (`LP_RUN`):** Blanks the 4-digit 7-segment timer (`an = 4'b1111`), spins wheel spokes strictly when moving or powered (`wheel_turning`), and ends on a flush on-land finish checkerboard (`x = 216..248, y = 120..125`) with a Finish Flag (`x = 228, y = 106..120`) and landing goal box (`x = 212..255, y = 104..120`).
 * **Build Screen (`LP_BUILD`):**
   - **Left OLED (`JA`):**
     - **Left Strip (`x = 1..15`):** 3 stacked part slots (`15×15` px each) with live stock badges, plus a bottom page-cycle arrow (`[v]` on Page 1, `[^]` on Page 2).

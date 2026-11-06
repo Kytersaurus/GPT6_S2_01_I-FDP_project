@@ -68,7 +68,7 @@ This document serves as the single source of truth for **all human teammates (Ka
   - Avoid wide combinational logic cascades across single clock cycles (for example, register stock availability flags in `vehicle_builder.v` rather than chaining 9-cell popcounts + subtractors + edit decoders in a single cycle).
 
 ### 🛡️ 6. Clean Codebase, 100% Pass Rate on Test Suite & Updating Outdated Tests
-* The test suite contains **51 testbenches** covering every subsystem.
+* The test suite contains **55 testbenches** covering every subsystem.
 * **Keep code clean and maintainable:** Proactively remove redundant legacy code, dead fallback hitboxes, phantom shortcuts, and obsolete physical button text.
 * **Never preserve dead code or phantom hitboxes solely for outdated test cases.** When UI contracts or button layouts are refined, update outdated testbenches to assert the clean, modern interface rather than cluttering production RTL with backwards-compatibility hacks.
 * Every commit must achieve a 100% pass rate across all testbenches with timing closure.
@@ -145,10 +145,11 @@ flowchart TD
   - `FAN` and `ROCKET` require `wheel_support` (a frame in the same cell or orthogonally adjacent) and at least one clear exhaust/propulsion side not blocked by an adjacent `FRAME` (`~frame_right`, `~frame_left`, `~frame_above`, `~frame_below`). Non-frame neighbors (wheels, balloons, or another fan/rocket) never obstruct placement.
   - Parts cannot exceed inventory stock limits (stock availability flags are registered on `posedge clk` for 100 MHz timing closure).
 * Stored build is preserved when running or retrying; incoming `damage_mask` and `damage_frame_mask` knock out cells during RUN mode without refunding stock or altering the base build.
+* In Tutorial mode (`LP_LEVEL_TUTORIAL`), the prebuilt contraption is read-only (`build_locked = 1`) in `LP_BUILD` while remaining visible on the Left OLED, and `stored_build_grid` automatically resets to `27'd0` when transitioning to an actual map.
 
 ### 4.4 Rigid Body Physics & Rotation ([`physics_engine.v`](file:///c:/Users/kaush/EE2026Labs/GPT6_S2_01_I-FDP_project/GPT_6_S2_01_I-FDP_project.srcs/sources_1/new/physics_engine.v))
 * Kinematics use Q12.8 fixed-point format (`LP_COORD_BITS = 20` or 16-bit).
-* Rotation is quantized into 32 angular steps (11.25° increments) covering -16..15 tilt values via [`rotation_geometry.vh`](file:///c:/Users/kaush/EE2026Labs/GPT6_S2_01_I-FDP_project/GPT_6_S2_01_I-FDP_project.srcs/sources_1/new/rotation_geometry.vh).
+* Rotation is quantized into 32 angular steps (11.25° increments) covering -16..15 tilt values via [`rotation_geometry.vh`](file:///c:/Users/kaush/EE2026Labs/GPT6_S2_01_I-FDP_project/GPT_6_S2_01_I-FDP_project.srcs/sources_1/new/rotation_geometry.vh), with 2-sample stationary hysteresis (`held_count == 2'd2`) and a stationary anti-reversal lock (`last_turn_valid`, `unstable_settled_dir`, `stationary_anchor_x_px`) to eliminate 2-state `T <-> T+1` shaking when resting on slopes or 1-wheel/frame corners.
 * Mass division $a = F / m$ uses a 16-cycle restoring divider ([`signed_divider16.v`](file:///c:/Users/kaush/EE2026Labs/GPT6_S2_01_I-FDP_project/GPT_6_S2_01_I-FDP_project.srcs/sources_1/new/signed_divider16.v)).
 * Propulsion directions:
   - Wheel Engine (`ENGINE_FORCE`) pushes right (`+X`) normally, or left (`-X`) when `SW2` (`reverse_switch`) is ON.
@@ -189,6 +190,7 @@ flowchart TD
 
 ### 4.9 7-Segment Countdown Run Timer ([`seven_seg_timer.v`](file:///c:/Users/kaush/EE2026Labs/GPT6_S2_01_I-FDP_project/GPT_6_S2_01_I-FDP_project.srcs/sources_1/new/seven_seg_timer.v))
 * Counts down from `20.0` seconds (`SS.T` format) during `RUN` mode and continues into negative overtime (`-0.1`, `-0.2`, ...) after par time expires so players can see how close they were to the 20s time-trial star.
+* Blanked (`an = 4'b1111`) during the interactive Tutorial level (`LP_LEVEL_TUTORIAL`).
 * Exclusively rendered on the Basys 3 4-digit 7-segment display (no duplicate timer on the OLED screens).
 
 ---
@@ -206,7 +208,7 @@ xsim cave_arch_drive_sim -R
 
 Or run the complete regression test suite:
 ```powershell
-.\scripts\run_all_tests.ps1
+.\scripts\run_simulations.ps1
 ```
 
 ### 5.2 Building Bitstream

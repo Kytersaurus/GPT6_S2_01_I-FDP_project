@@ -12,7 +12,7 @@ This document summarizes the hardware pinouts, switch/button assignments, and to
 | **Right OLED (`right_oled`)** | **PMOD JB** | `JB[7:0]` (`cs`, `sdin`, `sclk`, `d_cn`, `resn`, `vccen`, `pmoden`) | 96×64 SSD1331 RGB OLED at 6.25 MHz SPI; displays world follow-camera or Diary walkthrough diagrams |
 | **Audio Amplifier (`Pmod AMP2`)** | **JXADC** | `JXADC[0]` = `AIN` (PWM), `JXADC[1]` = `GAIN`, `JXADC[3]` = `~SHUTDOWN` | 8-bit PWM audio output with dual-voice BGM + prioritized SFX |
 | **USB / PS/2 Mouse** | **USB Host (`PS2Clk`, `PS2Data`)** | `C17` (`PS2Clk`), `B17` (`PS2Data`) | PS/2 streaming mode (`0xF4`) with scroll-wheel Z packet support |
-| **7-Segment Display** | **Onboard (`seg`, `an`, `dp`)** | 4-digit active-low anodes (`an[3:0]`), segments (`seg[6:0]`), decimal (`dp`) | 20.0-second par countdown timer (`SS.T`) with negative overtime (`-0.1`, `-0.2`, ...) |
+| **7-Segment Display** | **Onboard (`seg`, `an`, `dp`)** | 4-digit active-low anodes (`an[3:0]`), segments (`seg[6:0]`), decimal (`dp`) | 20.0-second par countdown timer (`SS.T`) with negative overtime (`-0.1`, `-0.2`, ...); blanked (`an = 4'b1111`) during Tutorial (`LP_LEVEL_TUTORIAL`) |
 
 ---
 

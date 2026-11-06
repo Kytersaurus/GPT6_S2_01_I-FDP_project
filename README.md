@@ -5,7 +5,7 @@
 ![Display](https://img.shields.io/badge/Display-Dual_96x64_RGB_OLED_(6.25_MHz)-orange)
 ![LUTs](https://img.shields.io/badge/Slice_LUTs-17,199_%2F_20,800_(82.69%25)-success)
 ![BRAM](https://img.shields.io/badge/Block_RAM-48_%2F_50_(96.00%25)-informational)
-![Tests](https://img.shields.io/badge/Test_Suite-51%2F51_Passing-brightgreen)
+![Tests](https://img.shields.io/badge/Test_Suite-55%2F55_Passing-brightgreen)
 
 A complete hardware-accelerated clone of **Bad Piggies** built from scratch in Verilog/VHDL on the **Digilent Basys 3** (`XC7A35T-1CPG236C`) FPGA. The system features a real-time Q12.8 fixed-point rigid-body physics engine with 32-step vehicle rotation, Separating Axis Theorem (SAT) cave terrain collision, swept-AABB TNT explosions with cell-level damage masks, dual-voice PWM music synthesis, PS/2 mouse drag-and-drop construction, and a dual-screen 96×64 RGB OLED display pipeline.
 
@@ -106,7 +106,7 @@ Only the active switches on the **Right Cluster (`SW0`–`SW2`)** and **Left Clu
 | **`BTND`** | **Master Hardware Reset** | Synchronized active-high system reset; resets FSM, inventory, and displays |
 | **`LED[15:13]`, `LED[2:0]`** | **Active Switch Indicators** | Mirrors the active switches `SW[15:13]` and `SW[2:0]` |
 | **`LED[12:3]`** | **GO & Game-End Flash LEDs** | Flashes a rapid launch strobe when **`GO`** is pressed (`launch_flash`), an alternating celebration marquee on **`SUCCESS`**, and an alert blink on **`FAIL`** |
-| **7-Segment Display** | **20s Par Countdown Timer** | Displays active-low `SS.T` 20.0-second par countdown (`20.0` $\to$ `0.0`), then counts negative overtime (`-0.1`, `-0.2`, ...) if par expires. Exclusively rendered on the 4-digit 7-segment display |
+| **7-Segment Display** | **20s Par Countdown Timer** | Displays active-low `SS.T` 20.0-second par countdown (`20.0` $\to$ `0.0`), then counts negative overtime (`-0.1`, `-0.2`, ...) if par expires. Blanked (`an = 4'b1111`) during the interactive Tutorial level (`LP_LEVEL_TUTORIAL`) |
 
 ---
 
@@ -124,8 +124,12 @@ Only the active switches on the **Right Cluster (`SW0`–`SW2`)** and **Left Clu
   - **Propulsion Physics:** A Fan pointing right blows air right and pushes the vehicle **left** (`-X`), while a Fan pointing left blows air left and pushes the vehicle **right** (`+X`). Rockets fire high-impulse forward(`+X`) or upward(`-Y`) thrust from their rear nozzle. `SW2` (Reverse) reverses wheel engines only, allowing independent counter-thrust or combined thrust with fans.
 * **Non-Destructive Run Damage:** During `RUN` mode, terrain impacts and TNT explosions apply `damage_mask` and `damage_frame_mask` to knock out parts dynamically without corrupting the player's saved blueprint on `RETRY` or `EDIT`.
 
-### 4.2 Dual-OLED UI, Interactive Run Grid & Visual Guides (`ui_renderer.v`, `left_renderer.v`, `right_renderer.v`)
+### 4.2 Dual-OLED UI, Interactive Run Grid & Guided Tutorial (`ui_renderer.v`, `left_renderer.v`, `right_renderer.v`)
 * **Zero-BRAM Title Screen Scrolling:** On the `"LAGGY PIGGIES"` Title Screen, Right OLED (`JB`) is turned off and its idle Port B on `level_map.v` is multiplexed to Left OLED (`JA`) with an animated horizontal scroll counter, rendering a live scrolling cave background at **0% extra BRAM cost**.
+* **Interactive Tutorial Level (`LP_LEVEL_TUTORIAL`):**
+  - Launches from the Title Screen `[TUTORIAL]` button with a prebuilt contraption (Pig + Engine + Booster + Fan + Balloon + 2 Wheels).
+  - **Read-Only Build Preview & Clean Reset:** In `LP_BUILD`, the tutorial contraption is visible on the Left OLED 3×3 grid but locked against editing (`build_locked = 1`). Returning to Map 1 or Map 2 automatically resets `stored_build_grid` to an empty blueprint.
+  - **Timer-Free Guided Practice & On-Land Finish Line:** Blanks the 7-segment timer during tutorial practice, animates wheel spokes (`wheel_turning`) strictly when moving or powered, and guides the player across a gap onto a flush on-land checkerboard finish line (`x = 216..248, y = 120..125`) with a waving Finish Flag (`x = 228, y = 106..120`).
 * **Interactive Run Screen (Left OLED):**
   - Displays a large centered **3×3 interactive vehicle diagram (16×16 px per cell)** matching the Build screen's proportions, with live structural damage overlays.
   - **Direct Cell Clicking:** Left-clicking directly on an intact **Balloon** pops that specific balloon; clicking an **Engine** toggles wheel drive; clicking an **intact Fan** toggles **only that specific fan cell (`fan_Manual_Mask[cell]`)** so multiple fans can be controlled independently; clicking a **Rocket** fires a boost pulse.
@@ -140,7 +144,7 @@ Only the active switches on the **Right Cluster (`SW0`–`SW2`)** and **Left Clu
 ### 4.3 Q12.8 Rigid-Body Physics & 32-Step Rotation (`physics_engine.v`)
 * **Newtonian Kinematics:** Position and velocity are integrated in signed Q12.8 fixed-point arithmetic (`1/256` pixel sub-step precision).
 * **Sequential Mass Division:** Acceleration $a = F / m$ is computed via a 16-cycle restoring divider (`signed_divider16.v`), avoiding combinational `/` LUT explosion.
-* **32-Step Angular Quantization:** Vehicle tilt spans 32 discrete angles ($11.25^\circ$ per step) using lookup tables in `rotation_geometry.vh`, accounting for center-of-mass torque, balloon buoyancy moments, fan/rocket thrust vectors, and terrain slope gradients.
+* **32-Step Angular Quantization & Stationary Anti-Shake Hysteresis:** Vehicle tilt spans 32 discrete angles ($11.25^\circ$ per step) using lookup tables in `rotation_geometry.vh`, accounting for center-of-mass torque, balloon buoyancy moments, fan/rocket thrust vectors, and terrain slope gradients. Stationary 2-sample hysteresis (`held_count == 2'd2`) and an anti-reversal settle lock (`last_turn_valid`, `unstable_settled_dir`, `stationary_anchor_x_px`) prevent 2-state `T <-> T+1` oscillation when resting on slopes or 1-wheel/frame corners.
 
 ### 4.4 SAT Raster Collision & Swept-AABB TNT (`rotating_map_collision_engine.v`, `tnt_controller.v`)
 * **Rotated Terrain Scanner:** Evaluates the rotated 24×24 vehicle footprint against the 1-bit solidity BRAM, computing floor step-up snapping (up to 3 px, or 6 px while turning), wall blocking, $dy/dx$ slope gradients, and overhang tipping (`tip_dir`).
@@ -157,10 +161,10 @@ Only the active switches on the **Right Cluster (`SW0`–`SW2`)** and **Left Clu
 
 ## 5. Verification & Synthesis Results
 
-### 5.1 Running the 51-Testbench Regression Suite
-All subsystems are verified by **51 self-checking testbenches** in [`sim/`](file:///c:/Users/kaush/EE2026Labs/GPT6_S2_01_I-FDP_project/sim). Run the entire suite in PowerShell:
+### 5.1 Running the 55-Testbench Regression Suite
+All subsystems are verified by **55 self-checking testbenches** in [`sim/`](file:///c:/Users/kaush/EE2026Labs/GPT6_S2_01_I-FDP_project/sim). Run the entire suite in PowerShell:
 ```powershell
-.\scripts\run_all_tests.ps1
+.\scripts\run_simulations.ps1
 ```
 
 ### 5.2 Building the Bitstream
