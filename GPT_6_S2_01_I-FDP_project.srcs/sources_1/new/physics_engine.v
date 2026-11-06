@@ -305,6 +305,12 @@ wire air_leveling_snap = air_leveling_active &&
     wire signed [`LP_COORD_BITS+1:0] display_x_error=$signed(corrected_x)-display_x_guess;
     wire signed [`LP_COORD_BITS+1:0] display_guess=$signed(display_y)+$signed(display_vy);
     wire signed [`LP_COORD_BITS+1:0] display_error=$signed(corrected_y)-display_guess;
+    wire signed [`LP_COORD_BITS:0] grounded_y_error = $signed(corrected_y) - $signed(display_y);
+    wire grounded_stair_step = was_grounded && (corrected_x != previous_x) &&
+                               (grounded_y_error != 0) &&
+                               (grounded_y_error <= 21'sd512) && (grounded_y_error >= -21'sd512);
+    wire wheel_landing_bounce = !was_grounded && (support_wheel_count != 4'd0) &&
+                                (proposed_vy >= 16'sd128) && (proposed_vy < 16'sd512);
     reg signed [5:0] spin;
     reg signed [4:0] spin_frac;
     // A grounded body already three steps past the ground's angle in the tip direction rests
@@ -920,10 +926,20 @@ wire air_leveling_snap = air_leveling_active &&
                         display_vx <= 0;
                     end
                     // Collision has already found the exact supported pose.
-                    // Do not filter vertical contact: filtering y makes the
-                    // wheels visibly float above a floor or slope.
+                    // Smooth 1-2px terrain stair-steps while rolling on a slope,
+                    // and add a 0.5px wheel suspension compression on landing.
                     if (grounded) begin
-                        display_y <= corrected_y; display_vy <= corrected_vy;
+                        if (wheel_landing_bounce) begin
+                            display_y <= corrected_y + 20'sd128;
+                            display_vy <= 0;
+                        end else if (grounded_stair_step) begin
+                            display_y <= $signed(display_y) + (grounded_y_error >>> 1) +
+                                         (grounded_y_error >>> 2);
+                            display_vy <= corrected_vy;
+                        end else begin
+                            display_y <= corrected_y;
+                            display_vy <= corrected_vy;
+                        end
                     end else if (display_error > 22'sd3072 || display_error < -22'sd3072) begin
                         display_y <= corrected_y; display_vy <= 0;
                     end else begin

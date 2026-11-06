@@ -181,7 +181,7 @@ module mouse_adapter (
 
             if (sync_edit_dir && (build_grid[edit_cell*3 +: 3] == edit_part)) begin
                 selected_left <= build_facing_left[edit_cell];
-                selected_down <= build_facing_down[edit_cell];
+                selected_down <= (edit_part == `LP_PART_FRAME) ? 1'b1 : build_facing_down[edit_cell];
                 case (edit_part)
                     `LP_PART_ENGINE:  begin engine_facing_left <= build_facing_left[edit_cell]; end
                     `LP_PART_BOOSTER: begin rocket_facing_left <= build_facing_left[edit_cell]; rocket_facing_down <= build_facing_down[edit_cell]; end
@@ -243,6 +243,10 @@ module mouse_adapter (
                                     selected_part <= `LP_PART_FAN;
                                     selected_left <= fan_facing_left;
                                     selected_down <= fan_facing_down;
+                                end else if (cur_y<34) begin
+                                    selected_part <= `LP_PART_FRAME;
+                                    selected_left <= 0;
+                                    selected_down <= 1'b1;
                                 end else begin place_pending<=0; inventory_armed<=0; end
                             end else if (cur_y<14) begin
                                 selected_part <= `LP_PART_FRAME;
@@ -273,14 +277,18 @@ module mouse_adapter (
                             if (hovered_part != `LP_PART_EMPTY) begin
                                 selected_part <= hovered_part;
                                 selected_left <= hovered_facing_left;
-                                selected_down <= hovered_facing_down;
+                                selected_down <= (hovered_part == `LP_PART_FRAME) ? 1'b1 : hovered_facing_down;
                                 case (hovered_part)
                                     `LP_PART_ENGINE:  begin engine_facing_left <= hovered_facing_left; end
                                     `LP_PART_BOOSTER: begin rocket_facing_left <= hovered_facing_left; rocket_facing_down <= hovered_facing_down; end
                                     `LP_PART_FAN:     begin fan_facing_left    <= hovered_facing_left; fan_facing_down <= hovered_facing_down; end
                                     default: begin end
                                 endcase
-                            end else selected_part <= `LP_PART_FRAME;
+                            end else begin
+                                selected_part <= `LP_PART_FRAME;
+                                selected_left <= 0;
+                                selected_down <= 0;
+                            end
                         end
                     end else if (!mouse_left && left_was_down) begin
                         place_pending <= 0;
@@ -334,7 +342,7 @@ module mouse_adapter (
                              !mouse_right) begin
                     // Gameplay uses one fresh press, rather than construction's drop.
                     if (in_grid) begin
-                        if (hovered_part == `LP_PART_BALLOON) begin
+                        if (hovered_part == `LP_PART_BALLOON || hovered_part == `LP_PART_FRAME) begin
                             pop_req <= 1; pop_cell <= hovered_cell;
                         end else if (run_page == 2'd0) begin
                             if (hovered_part == `LP_PART_ENGINE) begin
