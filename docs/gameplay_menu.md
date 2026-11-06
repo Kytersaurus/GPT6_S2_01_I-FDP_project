@@ -16,8 +16,8 @@ This document details the user interface layouts, PS/2 mouse drag-and-drop build
 * **Build Screen (`LP_BUILD`):**
   - **Left OLED (`JA`):**
     - **Left Strip (`x = 1..15`):** 3 stacked part slots (`15×15` px each) with live stock badges, plus a bottom page-cycle arrow (`[v]` on Page 1, `[^]` on Page 2).
-      - **Page 1:** Wood Frame, Pig Pilot, Wheel, Engine, Balloon (first 3 visible slots + page toggle).
-      - **Page 2:**Engine/Balloon/Rocket Booster/Propeller Fan slots depending on level stock.
+      - **Page 1:** Wood Frame, Pig Pilot, Wheel, Engine, Balloon.
+      - **Page 2:** Rocket Booster, Propeller Fan, and On-Board TNT Crate.
     - **Center 3×3 Build Grid (`x = 20..67, y = 8..55`):** Nine `16×16` px cells with cursor hover highlight, green/red placement validity outline, and ghost drag preview.
     - **Right Action Column (`x = 71..94`):** Top **`[BOOK]`** (Field Diary) and **`[GEAR]`** (Settings) buttons, level indicator, and bottom **`[GO]`** launch button (green when `build_valid`, red/locked when invalid).
   - **Right OLED (`JB`):** Live world preview with vehicle at spawn, zoomable via `SW14` or mouse scroll wheel (`1.5×`, `1.0×`, `0.5×`) and pannable via `SW13` Free Look.

@@ -114,11 +114,11 @@ The wheel engine has **no switch**. It starts OFF on every run and is toggled on
 ## 4. Key Engineering Features
 
 ### 4.1 Vehicle Construction & Bulletproof Directional Mounting (`vehicle_builder.v`)
-* **3×3 Grid (24×24 World Pixels):** Players assemble a custom contraption using up to 7 part types across two inventory pages:
+* **3×3 Grid (24×24 World Pixels):** Players assemble a custom contraption using up to 8 part types across two inventory pages:
   - **Page 1 (Core Parts):** **Wood Frames**, **Pig Pilot**, **Wheels**, **Engine**, and **Balloons**.
-  - **Page 2 (Propulsion Parts):** **Rocket Booster** and **Propeller Fan**.
+  - **Page 2 (Propulsion & Explosives):** **Rocket Booster**, **Propeller Fan**, and **On-Board TNT Crate**.
 * **Mounting & Exhaust Rules:**
-  - `PIG` and `ENGINE` must sit inside a `FRAME` cell.
+  - `PIG`, `ENGINE`, and on-board `TNT` (`LP_PART_FRAME` inside `build_grid`) must sit inside a `FRAME` cell.
   - `WHEEL` requires a supporting `FRAME` above, below, left, or right (only wheels with a frame above or below count as ground-contact wheels).
   - `BALLOON` requires a supporting `FRAME` directly below it.
   - `FAN` and `ROCKET` can sit **inside** a `FRAME` cell or attach externally to an adjacent `FRAME` (`wheel_support`: frame in cell, above, below, left, or right) and automatically orient away from the supporting frame so their **thrust / exhaust face is not blocked by a solid wood frame** (`~frame_right`, `~frame_left`, `~frame_above`, `~frame_below`). Non-frame neighbors (wheels, balloons, or a second fan/rocket) never obstruct fan or rocket placement.
@@ -133,7 +133,7 @@ The wheel engine has **no switch**. It starts OFF on every run and is toggled on
   - **Timer-Free Guided Practice & On-Land Finish Line:** Blanks the 7-segment timer during tutorial practice, animates wheel spokes (`wheel_turning`) strictly when moving or powered, and guides the player across a gap onto a flush on-land checkerboard finish line (`x = 216..248, y = 120..125`) with a waving Finish Flag (`x = 228, y = 106..120`).
 * **Interactive Run Screen (Left OLED):**
   - Displays a large centered **3×3 interactive vehicle diagram (16×16 px per cell)** matching the Build screen's proportions, with live structural damage overlays.
-  - **Direct Cell Clicking:** Left-clicking directly on an intact **Balloon** pops that specific balloon; clicking an **Engine** toggles wheel drive; clicking an **intact Fan** toggles **only that specific fan cell (`fan_Manual_Mask[cell]`)** so multiple fans can be controlled independently; clicking a **Rocket** fires a boost pulse.
+  - **Direct Cell Clicking:** Left-clicking directly on an intact **Balloon** pops that specific balloon; clicking an **on-board TNT crate** detonates it in-flight (destroying adjacent cells and kicking the remaining vehicle); clicking an **Engine** toggles wheel drive; clicking an **intact Fan** toggles **only that specific fan cell (`fan_manual_mask[cell]`)** so multiple fans can be controlled independently; clicking a **Rocket** fires a boost pulse.
   - **Action Bar & Top Bar:** Top bar provides `[RETRY]`, `[GEAR]`, and `[EDIT]`; bottom bar provides `[ENG]`, `[FAN]`, `[RCKT]`, and `[BOOST]`.
 * **Dual-OLED Field Diary (`GUIDE` Mode):**
   - Clicking the Book icon (`[BOOK]`) or pressing `BTNU` in `BUILD` opens a **3-page interactive Field Diary across both OLEDs**:

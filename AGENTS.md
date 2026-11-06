@@ -140,7 +140,7 @@ flowchart TD
 ### 4.3 Vehicle Construction Rules ([`vehicle_builder.v`](file:///c:/Users/kaush/EE2026Labs/GPT6_S2_01_I-FDP_project/GPT_6_S2_01_I-FDP_project.srcs/sources_1/new/vehicle_builder.v))
 * Footprint is 3×3 cells (each 8×8 world pixels, total 24×24 pixels).
 * Mounting rules:
-  - `PIG` and `ENGINE` require an underlying `FRAME`.
+  - `PIG`, `ENGINE`, and on-board `TNT` (`LP_PART_FRAME` inside `build_grid`) require an underlying `FRAME`.
   - `WHEEL` requires a supporting frame above, below, left, or right (`wheel_support`). Only wheels with a frame directly above or below are counted in `wheels_down` / `wheels_up` for ground contact; a side-mounted wheel still adds mass and `wheel_count`.
   - `BALLOON` requires a frame directly below it (and is released if that frame is destroyed).
   - `FAN` and `ROCKET` require `wheel_support` (a frame in the same cell or orthogonally adjacent) and at least one clear exhaust/propulsion side not blocked by an adjacent `FRAME` (`~frame_right`, `~frame_left`, `~frame_above`, `~frame_below`). Non-frame neighbors (wheels, balloons, or another fan/rocket) never obstruct placement.
@@ -157,7 +157,7 @@ flowchart TD
   - Propeller Fan (`FAN_FORCE`) pushes left (`-X`) when facing right (exhaust blows right), and pushes right (`+X`) when facing left (exhaust blows left). Independent of `SW15`.
   - Rocket Booster (`ROCKET_FORCE`) pushes right (`+X`) when horizontal or upward (`-Y`) when vertical.
 * Ground friction: Rolling drag = 6 units per wheel; scraping drag (bare frames on rock) = 256 units.
-* Camera smoothing: `display_y` uses an alpha-beta filter to eliminate 2-pixel terrain step jitter.
+* Camera & visual smoothing: `display_x` and `display_y` smooth 1–2 px slope stair-steps (`grounded_stair_step`), add a 0.5 px wheel landing bounce (`wheel_landing_bounce`), and render with `Q12.1` half-pixel (`0.5 px`) interpolation plus Rocket exhaust flames and Fan wind particles in `right_renderer.v`.
 
 ### 4.5 Terrain Collision & SAT ([`rotating_map_collision_engine.v`](file:///c:/Users/kaush/EE2026Labs/GPT6_S2_01_I-FDP_project/GPT_6_S2_01_I-FDP_project.srcs/sources_1/new/rotating_map_collision_engine.v))
 * Evaluates rotated bounding pixel area against solidity RAM using Separating Axis Theorem (SAT).
