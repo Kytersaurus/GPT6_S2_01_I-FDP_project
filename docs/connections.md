@@ -12,25 +12,26 @@ This document summarizes the hardware pinouts, switch/button assignments, and to
 | **Right OLED (`right_oled`)** | **PMOD JB** | `JB[7:0]` (`cs`, `sdin`, `sclk`, `d_cn`, `resn`, `vccen`, `pmoden`) | 96×64 SSD1331 RGB OLED at 6.25 MHz SPI; displays world follow-camera or Diary walkthrough diagrams |
 | **Audio Amplifier (`Pmod AMP2`)** | **JXADC** | `JXADC[0]` = `AIN` (PWM), `JXADC[1]` = `GAIN`, `JXADC[3]` = `~SHUTDOWN` | 8-bit PWM audio output with dual-voice BGM + prioritized SFX |
 | **USB / PS/2 Mouse** | **USB Host (`PS2Clk`, `PS2Data`)** | `C17` (`PS2Clk`), `B17` (`PS2Data`) | PS/2 streaming mode (`0xF4`) with scroll-wheel Z packet support |
-| **7-Segment Display** | **Onboard (`seg`, `an`, `dp`)** | 4-digit active-low anodes (`an[3:0]`), segments (`seg[6:0]`), decimal (`dp`) | 20.0-second par countdown timer (`SS.T`) with negative overtime (`-0.1`, `-0.2`, ...) |
+| **7-Segment Display** | **Onboard (`seg`, `an`, `dp`)** | 4-digit active-low anodes (`an[3:0]`), segments (`seg[6:0]`), decimal (`dp`) | 20.0-second par countdown timer (`SS.T`) with negative overtime (`-0.1`, `-0.2`, ...); blanked (`an = 4'b1111`) during Tutorial (`LP_LEVEL_TUTORIAL`) |
 
 ---
 
 ## 2. Basys 3 Slide Switches & LEDs
 
-Only the active switches on the **Right Cluster (`SW0`–`SW2`)** and **Left Cluster (`SW13`–`SW15`)** are connected in RTL (middle switches `SW3`–`SW12` are disconnected).
+Gameplay switches sit on the **Left Cluster (`SW13`–`SW15`)** and settings switches on the **Right Cluster (`SW0`–`SW1`)**. Middle switches `SW2`–`SW12` are disconnected in RTL.
 
 | Switch | RTL Signal | `0` (Down / OFF) | `1` (Up / ON) |
 | :--- | :--- | :--- | :--- |
-| **`SW0`** | `show_map` (`sw[0]`) | **2-Screen Dual-OLED Mode:** Left OLED (`JA`) shows UI/Builder/Run Grid; Right OLED (`JB`) shows World Map | **1-Screen Mode:** Left OLED (`JA`) renders the World Map directly; Right OLED (`JB`) is blanked (`16'h0000`) |
-| **`SW1`** | `engine_switch` (`sw[1]`) | Engine controlled by clicking the Engine cell on the 3×3 grid | **Engine ON:** Enables wheel engine drive during `RUN` and syncs `ui_engine_on` |
-| **`SW2`** | `reverse_switch` (`sw[2]`) | **Forward Engine Drive:** Wheel engines push right (`+X`) | **Reverse Engine Drive:** Wheel engines push left (`-X`). *Only affects wheel engines, never fans or rockets* |
-| **`SW13`** | `free_look` (`sw[13]`) | **Follow Camera:** Viewport automatically tracks the vehicle with alpha-beta vertical smoothing | **Free-Look Camera:** Mouse cursor `X/Y` pans the viewport across the entire cave map |
+| **`SW15`** | `reverse_switch` (`sw[15]`) | **Forward Engine Drive:** Wheel engines push right (`+X`) | **Reverse Engine Drive:** Wheel engines push left (`-X`). *Only affects wheel engines, never fans or rockets* |
 | **`SW14`** | `zoom_switch` (`sw[14]`) | **Close Zoom (`1.5×`):** 64×42 world viewport with 12×12 part sprites | **Normal Zoom (`1.0×`):** 96×64 world viewport with 8×8 part sprites. *(Mouse scroll wheel also steps across `1.5×`, `1.0×`, and `0.5×` Overview)* |
-| **`SW15`** | `mute_switch` (`sw[15]`) | **Audio Enabled:** Follows the on-screen Sound menu | **Hardware Audio Mute:** Mutes all BGM and SFX immediately, displays `MUTED BY SW15` in the Sound menu, and pulls `JXADC[3]` low |
+| **`SW13`** | `free_look` (`sw[13]`) | **Follow Camera:** Viewport automatically tracks the vehicle with alpha-beta vertical smoothing | **Free-Look Camera:** Mouse cursor `X/Y` pans the viewport across the entire cave map |
+| **`SW1`** | `show_map` (`sw[1]`) | **2-Screen Dual-OLED Mode:** Left OLED (`JA`) shows UI/Builder/Run Grid; Right OLED (`JB`) shows World Map | **1-Screen Mode:** Left OLED (`JA`) renders the World Map directly; Right OLED (`JB`) is blanked (`16'h0000`) |
+| **`SW0`** | `mute_switch` (`sw[0]`) | **Audio Enabled:** Follows the on-screen Sound menu | **Hardware Audio Mute:** Mutes all BGM and SFX immediately, displays `MUTED BY SW0` in the Sound menu, and pulls `JXADC[3]` low |
+
+The wheel engine has no switch: it starts OFF every run and is toggled only by clicking the Engine cell on the run diagram.
 
 ### Onboard LED Indicators (`LED[15:0]`)
-* **`LED[15:13]` & `LED[2:0]`:** Mirror the active slide switches `SW[15:13]` and `SW[2:0]`.
+* **`LED[15:13]` & `LED[1:0]`:** Mirror the active slide switches `SW[15:13]` and `SW[1:0]`. `LED[2]` stays off.
 * **`LED[12:3]` (Middle 10 LEDs):** Flash dynamically during gameplay events:
   - **When `GO` / Launch is called (`launch_flash`):** Rapid strobe across `LED[12:3]`.
   - **On Level Victory (`LP_SUCCESS`):** Alternating odd/even celebration marquee across `LED[12:3]`.
@@ -45,7 +46,7 @@ Only the active switches on the **Right Cluster (`SW0`–`SW2`)** and **Left Clu
 | :--- | :--- | :--- |
 | **`BTNC`** | `btnC` (`center_press`) | **Launch / Retry:** Launches the vehicle from `BUILD` (when build is valid); retries the current level from `RUN`, `SUCCESS`, or `FAIL` |
 | **`BTNU`** | `btnU` (`up_press`) | **Edit / Guide / Back:** Opens/closes the Field Diary (`GUIDE`) when in `BUILD`; returns to `BUILD` from `RUN`, `SUCCESS`, or `FAIL`; backs out of `LEVEL_SELECT` or `SETTINGS` |
-| **`BTNR`** | `btnR` (`right_press`) | **Rocket Boost Shortcut:** Fires the Rocket Booster / Engine Boost pulse during `RUN` mode |
+| **`BTNR`** | `btnR` (`right_press`) | **Rocket Boost Shortcut:** Fires the Rocket Booster during `RUN` on every level (same as clicking the Rocket cell) |
 | **`BTNL`** | `btnL` (`left_press`) | *Reserved / Inactive* (`jump_press` is tied to `1'b0`) |
 | **`BTND`** | `btnD` (`reset`) | **Master Hardware Reset:** Synchronized active-high reset via `clock_control.v` |
 

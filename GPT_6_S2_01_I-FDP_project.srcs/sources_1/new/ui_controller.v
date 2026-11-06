@@ -8,9 +8,9 @@ module ui_controller (
     input wire [11:0] mouse_x, mouse_y,
     input wire mouse_left, mouse_right, mouse_event,
     input wire next_press,
-    input wire engine_switch_changed,
+    // Tutorial mode hides the Map 1 diary entry while the guided course is active.
     input tri0 tutorial_mode,
-    input wire engine_switch, engine_toggle_req, fan_toggle_req,
+    input wire engine_toggle_req, fan_toggle_req,
     input tri0 [3:0] fan_toggle_cell,
     input tri0 rocket_toggle_req,
     input wire fan_available, rocket_available, rocket_ready, balloon_available,
@@ -49,15 +49,13 @@ module ui_controller (
             level_open_req<=0; level_close_req<=0; level_select_req<=0;
             boost_req<=0;
             if (run_init) begin
-                // If SW1 is already on when the run starts, honour it.  Once
-                // RUN begins, engine_switch_changed and the UI toggle both
-                // update this same state, so either control can turn it off.
-                engine_on<=tutorial_mode ? engine_switch : 1'b0;
+                // Every run starts with the engine off.  Clicking the engine
+                // cell on the run diagram is the only way to toggle it.
+                engine_on<=1'b0;
                 active_fans<=9'd0;
                 run_page<=0;
             end else if (game_state==`LP_RUN) begin
                 if (engine_toggle_req) engine_on<=!engine_on;
-                else if (engine_switch_changed) engine_on<=engine_switch;
                 if (fan_toggle_req && fan_available && fan_toggle_cell < 4'd9)
                     active_fans[fan_toggle_cell] <= !active_fans[fan_toggle_cell];
                 if (rocket_toggle_req && rocket_available && rocket_ready) begin

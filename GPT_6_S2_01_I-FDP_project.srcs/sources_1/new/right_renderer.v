@@ -29,6 +29,7 @@ module right_renderer #(
     input wire [8:0] build_facing_left,
     input tri0 [8:0] build_facing_down,
     input tri0 engine_enabled,
+    input tri0 boost_active,
     input tri0 [8:0] active_fans,
     input wire [8:0] intact_mask,
     input wire [8:0] frame_intact_mask,
@@ -69,6 +70,9 @@ module right_renderer #(
     input wire [9:0] star_box_x, star_box_y,
     input wire star_box_collected,
     input tri0 [7:0] run_seconds,
+    // Level par time in whole seconds, the same value the 7-segment
+    // countdown starts from, so the time star matches what the board shows.
+    input tri0 [7:0] par_time,
     output reg signed [10:0] map_x, map_y,
     input wire [2:0] map_class,
     output reg [15:0] pixel_data
@@ -158,13 +162,19 @@ module right_renderer #(
     wire [5:0] y = USE_PIXEL_INDEX ? raw_pi_y : in_y;
 
     wire before_launch = (game_state == `LP_BUILD || game_state == `LP_GUIDE);
-    // Vehicle (or spawn) top-left in whole world pixels.
+    // Vehicle (or spawn) top-left in whole world pixels plus Q12.1 half-pixel bit.
     wire signed [19:0] origin_x = before_launch ? spawn_x : vehicle_x;
     wire signed [19:0] origin_y = before_launch ? spawn_y : vehicle_y;
     wire signed [19:0] camera_origin_x = before_launch ? spawn_x : camera_x;
     wire signed [19:0] camera_origin_y = before_launch ? spawn_y : camera_y;
     wire signed [11:0] vx = camera_origin_x[19:8];
     wire signed [11:0] vy = camera_origin_y[19:8];
+    wire signed [11:0] veh_x = origin_x[19:8];
+    wire signed [11:0] veh_y = origin_y[19:8];
+    wire veh_hx = (game_state == `LP_RUN) && origin_x[7];
+    wire veh_hy = (game_state == `LP_RUN) && origin_y[7];
+    wire cam_hx = (game_state == `LP_RUN && !free_look) && camera_origin_x[7];
+    wire cam_hy = (game_state == `LP_RUN && !free_look) && camera_origin_y[7];
 
     // Stage 0: camera and the world position under this pixel.
     wire [6:0] sx = x;
@@ -200,8 +210,11 @@ module right_renderer #(
     wire signed [12:0] sx_signed = {6'd0, sx};
     wire signed [12:0] sy_signed = {6'd0, sy};
     reg signed [12:0] cam_x, cam_y;
+    reg cam_hx_eff, cam_hy_eff;
     reg signed [12:0] next_fx, next_fy, next_wx, next_wy, next_tx, next_ty;
     always @* begin
+        cam_hx_eff = cam_hx;
+        cam_hy_eff = cam_hy;
         if (free_look) begin
             cam_x = free_look_x >> 13;
             cam_y = free_look_y >> 13;
@@ -209,10 +222,10 @@ module right_renderer #(
             cam_x = vx + 13'sd12 - $signed({6'd0, world_view_w[7:1]});
             cam_y = vy + 13'sd12 - $signed({6'd0, world_view_h[7:1]});
         end
-        if (cam_x > max_x) cam_x = max_x;
-        if (cam_y > max_y) cam_y = max_y;
-        if (cam_x < 0) cam_x = 0;
-        if (cam_y < 0) cam_y = 0;
+        if (cam_x >= max_x) begin cam_x = max_x; cam_hx_eff = 1'b0; end
+        if (cam_y >= max_y) begin cam_y = max_y; cam_hy_eff = 1'b0; end
+        if (cam_x <= 0) begin cam_x = 0; cam_hx_eff = 1'b0; end
+        if (cam_y <= 0) begin cam_y = 0; cam_hy_eff = 1'b0; end
         if (overview) begin
             // Half scale uses shifts and the existing sprite data, with no new image ROM.
             cam_x[0] = 1'b0; cam_y[0] = 1'b0;
@@ -222,15 +235,18 @@ module right_renderer #(
         end else if (zoomed_out) begin
             next_wx = cam_x + sx_signed;           next_wy = cam_y + sy_signed;
             next_fx = next_wx;                     next_fy = next_wy;
-            next_tx = 2*next_wx;                   next_ty = 2*next_wy;
+            next_tx = {next_wx[11:0], cam_hx_eff}; next_ty = {next_wy[11:0], cam_hy_eff};
         end else begin
-            // An even camera keeps 3*cam/2 whole; screen steps of 2/3 world pixel.
-            cam_x[0] = 1'b0; cam_y[0] = 1'b0;
-            next_wx = cam_x + screen_two_thirds_x; next_wy = cam_y + screen_two_thirds_y;
-            next_fx = cam_x + (cam_x >>> 1) + sx_signed;
-            next_fy = cam_y + (cam_y >>> 1) + sy_signed;
-            next_tx = 2*cam_x + screen_four_thirds_x;
-            next_ty = 2*cam_y + screen_four_thirds_y;
+            // Eliminate 1.5x even-camera judder in RUN mode and interpolate half-pixels (Q12.1).
+            if (game_state != `LP_RUN) begin
+                cam_x[0] = 1'b0; cam_y[0] = 1'b0;
+            end
+            next_wx = cam_x + screen_two_thirds_x + $signed({12'd0, cam_hx_eff & sx_times_171[7]});
+            next_wy = cam_y + screen_two_thirds_y + $signed({12'd0, cam_hy_eff & sy_times_171[7]});
+            next_fx = cam_x + (cam_x >>> 1) + $signed({12'd0, cam_hx_eff}) + sx_signed;
+            next_fy = cam_y + ((cam_y + 13'sd1) >>> 1) + $signed({12'd0, cam_hy_eff}) + sy_signed;
+            next_tx = {cam_x[11:0], cam_hx_eff} + screen_four_thirds_x;
+            next_ty = {cam_y[11:0], cam_hy_eff} + screen_four_thirds_y;
         end
         map_x = next_wx;
         map_y = next_wy;
@@ -298,9 +314,8 @@ module right_renderer #(
                 // prematurely announcing the retry.
                 banner_text = "AVOID TNT       ";
             else if ($signed(vehicle_x) < 20'sd10240)
-                // The engine tile on the other OLED toggles the same engine
-                // state as SW1, so the tutorial can be completed with the
-                // mouse alone.
+                // The engine tile on the other OLED is the only engine
+                // control, so the tutorial is completed with the mouse.
                 banner_text = "CLICK ENGINE ON ";
             else if ($signed(vehicle_x) < 20'sd16384)
                 banner_text = "STAR: DRIVE OVER";
@@ -309,7 +324,7 @@ module right_renderer #(
                 // only at the deliberate stop, not earlier in the warning.
                 banner_text = (tutorial_tnt_seen && $signed(vehicle_x) >= 20'sd22528) ?
                               "CLICK ROCKET NOW" : "AVOID TNT       ";
-            else if ($signed(vehicle_x) < 20'sd49152)
+            else if ($signed(vehicle_x) < 20'sd43008)
                 // Rocket is taught only after the TNT has been shown and
                 // handled.  It is optional on the first pass and points up
                 // in the seeded tutorial vehicle.
@@ -322,7 +337,7 @@ module right_renderer #(
                               (tutorial_fan_tested ? "REACH THE FLAG  " :
                                "CLICK FAN ON/OFF");
             else
-                banner_text = "REACH THE FLAG  ";
+                banner_text = (|active_fans) ? "FAN OFF TO DROP " : "REACH THE FLAG  ";
         end else begin
             banner_text = "GO!             "; banner_left = 7'd39; banner_top = 7'd1;
         end
@@ -330,7 +345,10 @@ module right_renderer #(
     wire banner_lit = text_on(banner_text, banner_left, banner_top, px, py);
     // Ending card layout: the clear card keeps its pig below the row of stars.
     wire [6:0] card_pig_top = (game_state == `LP_SUCCESS) ? 7'd36 : 7'd28;
-    wire [1:0] stars_earned = 2'd1 + (star_box_collected ? 2'd1 : 2'd0) + ((run_seconds < (map_id ? 8'd20 : 8'd25)) ? 2'd1 : 2'd0);
+    // Stars: one for clearing, one for the star box, one for beating par.
+    // Beating par means finishing before the 7-segment countdown reaches 0.
+    wire beat_par_time = (run_seconds < par_time);
+    wire [1:0] stars_earned = 2'd1 + (star_box_collected ? 2'd1 : 2'd0) + (beat_par_time ? 2'd1 : 2'd0);
     reg [6:0] card_star_x;
     reg card_star_earned;
 
@@ -592,19 +610,21 @@ module right_renderer #(
             if (index < hazard_count && wx >= rx && wx < rx+rw && wy >= ry && wy < ry+rh &&
                 (((wx-rx) & 3) == 1 || ((wx-rx) & 3) == 2 || wy-ry >= (rh >>> 1))) pixel_data = 16'hc618;
         end
-        if (goal_draw_pixel) begin
-            if (tutorial_render && wy < $signed({1'b0, goal_rect[15:8]}) + 8)
-                // A small checkered banner marks the finish island while the
-                // green base remains the actual solid goal area.
-                pixel_data = (((((wx - $signed({1'b0, goal_rect[7:0]})) >>> 2) ^
-                                ((wy - $signed({1'b0, goal_rect[15:8]})) >>> 2)) & 1) != 0)
-                              ? 16'hffff : 16'h07e0;
-            else pixel_data = tutorial_render ? 16'h07e0 : 16'h0320;
+        if (goal_draw_pixel && !tutorial_render) begin
+            pixel_data = 16'h0320;
+        end else if (tutorial_render &&
+                     wx >= $signed({1'b0, goal_rect[7:0]}) &&
+                     wx <  $signed({1'b0, goal_rect[7:0]}) + $signed({1'b0, goal_rect[23:16]}) &&
+                     wy >= 14'sd120 && wy < 14'sd126) begin
+            // On-land checkered finish strip embedded into the ground surface (y=120..125).
+            pixel_data = (((((wx - $signed({1'b0, goal_rect[7:0]})) >>> 2) ^
+                            ((wy - 14'sd120) >>> 1)) & 1) != 0)
+                          ? 16'hffff : 16'h07e0;
         end
-        // Finish flag on map levels, in half-world units from its top-left: a 3-wide orange
+        // Finish flag on map levels and tutorial, in half-world units from its top-left: a 3-wide orange
         // wooden pole 28 tall (lit left edge, dark right edge) and a 20 by 16 checkered cloth
         // with a dark border and 4-unit (2 world pixel) squares.
-        if (map_level) begin
+        if (map_level || tutorial_render) begin
             flag_dx = tex_x - $signed({3'd0, flag_x, 1'b0});
             flag_dy = tex_y - $signed({3'd0, flag_y, 1'b0});
             if (flag_dx >= 0 && flag_dx < 3 && flag_dy >= 0 && flag_dy < 28) begin
@@ -647,12 +667,12 @@ module right_renderer #(
         // Vehicle: three cells of 12, 8, or 4 screen pixels, using existing sprites.
         if (overview_q) begin
             cell_px = 7'sd4;
-            vehicle_screen_x = vx >>> 1;
-            vehicle_screen_y = vy >>> 1;
+            vehicle_screen_x = veh_x >>> 1;
+            vehicle_screen_y = veh_y >>> 1;
         end else begin
             cell_px = zoomed_out_q ? 7'sd8 : 7'sd12;
-            vehicle_screen_x = scaled(vx, zoomed_out_q);
-            vehicle_screen_y = scaled(vy, zoomed_out_q);
+            vehicle_screen_x = scaled(veh_x, zoomed_out_q) + (zoomed_out_q ? 15'sd0 : $signed({14'd0, veh_hx}));
+            vehicle_screen_y = scaled(veh_y, zoomed_out_q) + (zoomed_out_q ? 15'sd0 : $signed({14'd0, veh_hy}));
         end
         rel_x = fx - vehicle_screen_x;
         rel_y = fy - vehicle_screen_y;
@@ -693,10 +713,32 @@ module right_renderer #(
             end
             if (small_tiles) begin
                 if (frame_intact_mask[cell_index]) pixel_data = part_sprite(`LP_PART_FRAME, cell_x, cell_y, 1'b0, pixel_data);
-                if (intact_mask[cell_index]) pixel_data = part_sprite_mounted(part, cell_x, cell_y, 8, build_facing_left[cell_index], build_facing_down[cell_index], frame_intact_mask, cell_index, part_anim, pixel_data);
+                if (intact_mask[cell_index]) begin
+                    if (part == `LP_PART_FRAME)
+                        pixel_data = tnt_sprite(cell_x, cell_y, pixel_data);
+                    else
+                        pixel_data = part_sprite_mounted(part, cell_x, cell_y, 8, build_facing_left[cell_index], build_facing_down[cell_index], frame_intact_mask, cell_index, part_anim, pixel_data);
+                end
             end else begin
                 if (frame_intact_mask[cell_index]) pixel_data = part_sprite12(`LP_PART_FRAME, cell_x, cell_y, 1'b0, pixel_data);
-                if (intact_mask[cell_index]) pixel_data = part_sprite_mounted(part, cell_x, cell_y, 12, build_facing_left[cell_index], build_facing_down[cell_index], frame_intact_mask, cell_index, part_anim, pixel_data);
+                if (intact_mask[cell_index]) begin
+                    if (part == `LP_PART_FRAME)
+                        pixel_data = tnt_sprite12(cell_x, cell_y, pixel_data);
+                    else
+                        pixel_data = part_sprite_mounted(part, cell_x, cell_y, 12, build_facing_left[cell_index], build_facing_down[cell_index], frame_intact_mask, cell_index, part_anim, pixel_data);
+                end
+            end
+            // Rocket exhaust flame and Fan wind streak particles during live RUN mode.
+            if (!USE_PIXEL_INDEX && game_state == `LP_RUN && intact_mask[cell_index]) begin
+                if (part == `LP_PART_BOOSTER && boost_active) begin
+                    if ((!build_facing_down[cell_index] && ((!build_facing_left[cell_index] && cell_x < 4'd3) || (build_facing_left[cell_index] && cell_x >= (small_tiles ? 4'd5 : 4'd9))) && cell_y >= 4'd2 && cell_y < (small_tiles ? 4'd6 : 4'd10)) ||
+                        (build_facing_down[cell_index] && ((!build_facing_left[cell_index] && cell_y >= (small_tiles ? 4'd5 : 4'd9)) || (build_facing_left[cell_index] && cell_y < 4'd3)) && cell_x >= 4'd2 && cell_x < (small_tiles ? 4'd6 : 4'd10)))
+                        pixel_data = (anim_phase ^ cell_x[0] ^ cell_y[0]) ? 16'hffe0 : 16'hfd20;
+                end else if (part == `LP_PART_FAN && active_fans[cell_index]) begin
+                    if (((cell_x + cell_y + {3'd0, anim_phase}) & 4'd3) == 4'd0 &&
+                        (cell_x < 4'd2 || cell_x >= (small_tiles ? 4'd6 : 4'd10) || cell_y >= (small_tiles ? 4'd6 : 4'd10)))
+                        pixel_data = 16'h9fff;
+                end
             end
         end
         // High-fall debris: show a compact three-piece scatter burst while the

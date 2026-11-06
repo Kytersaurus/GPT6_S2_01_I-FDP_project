@@ -44,6 +44,16 @@ module rotation_stability_tb #(parameter ENABLE_MOMENTS=1);
         slope=5;repeat(20) update();if(tilt!=2) $fatal(1,"Larger slope change did not align");
         slope=-2;repeat(20) update();if(tilt!= -1) $fatal(1,"Negative slope did not align");
         slope=0;repeat(20) update();if(tilt!=0) $fatal(1,"Flat floor did not settle fully level");
+        if (ENABLE_MOMENTS!=0) begin
+            // Stationary pivot-shift ping-pong test: if pose T=0 probes slope=2 (desired +1)
+            // and pose T=1 immediately probes slope=0 (desired 0) without moving in x,
+            // the vehicle must lock at T=1 and never shake back and forth between 0 and 1.
+            for(i=0;i<16;i=i+1) begin
+                slope=(tilt==0) ? 8'sd2 : 8'sd0;
+                update();
+                if(i>=3 && tilt!=1) $fatal(1,"Stationary vehicle shook between 2 tilt states at step %0d: tilt=%0d",i,tilt);
+            end
+        end
         if (ENABLE_MOMENTS==0) begin
             // Seed residual angular motion after takeoff; both signs must stop.
             contact=0;update();

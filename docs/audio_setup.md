@@ -17,13 +17,13 @@ Plug the **Digilent Pmod AMP2** into the **top row of the `JXADC` PMOD header** 
 
 ---
 
-## 2. Hardware Mute Switch (`SW15`) & On-Screen Sound Mixer
+## 2. Hardware Mute Switch (`SW0`) & On-Screen Sound Mixer
 
-Audio output is controlled by both the **hardware mute switch (`SW15`)** and the **on-screen Sound Menu (`LP_SOUND`)**:
+Audio output is controlled by both the **hardware mute switch (`SW0`)** and the **on-screen Sound Menu (`LP_SOUND`)**:
 
-* **`SW15` (`mute_switch`):**
-  - `SW15 = 0` (Down): Audio follows the on-screen Sound Mixer setting.
-  - `SW15 = 1` (Up): **Hardware Master Mute** — immediately silences all BGM and SFX, pulls `JXADC[3]` (`~SHUTDOWN`) low to power down the amplifier, and displays **`SW15 MUTE`** on the Sound Settings screen.
+* **`SW0` (`mute_switch`):**
+  - `SW0 = 0` (Down): Audio follows the on-screen Sound Mixer setting.
+  - `SW0 = 1` (Up): **Hardware Master Mute** — immediately silences all BGM and SFX, pulls `JXADC[3]` (`~SHUTDOWN`) low to power down the amplifier, and displays **`MUTED BY SW0`** on the Sound Settings screen.
 * **On-Screen Sound Mixer (`[GEAR]` $\to$ `[SOUND]`):**
   - **`[BGM: ON / OFF]`:** Toggles background music (`bgm_enable`).
   - **`[SFX: ON / OFF]`:** Toggles gameplay sound effects (`sfx_enable`).

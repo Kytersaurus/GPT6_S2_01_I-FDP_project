@@ -193,12 +193,10 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
                                  (legacy_contact_wheels == 4'd1) && has_intact_frames;
     wire single_wheel_scraping = single_wheel_grounded &&
                                  ((last_support_wheel_count == 4'd0) ||
-                                  ((last_support_wheel_count == 4'd1) && (support_span_width_q2 > 11'sd52)));
-    wire frame_tip_only = single_wheel_grounded && (last_support_wheel_count == 4'd0) &&
-                          (support_span_width_q2 <= 11'sd52) && (settle_error[2:0] != 3'd0);
-    wire single_wheel_only = (single_wheel_grounded && (last_support_wheel_count == 4'd1) &&
-                              (support_span_width_q2 <= 11'sd52)) || frame_tip_only;
-    wire effective_support_unstable = contact_support_unstable;
+                                  ((last_support_wheel_count == 4'd1) && (support_span_width_q2 > 11'sd40)));
+    wire single_wheel_only = single_wheel_grounded && (last_support_wheel_count == 4'd1) &&
+                             (support_span_width_q2 <= 11'sd40);
+    wire effective_support_unstable = contact_support_unstable && !single_wheel_scraping;
     wire signed [13:0] clamped_angular_velocity=step_angular_sum>18'sd4096 ? 14'sd4096 :
         step_angular_sum< -18'sd4096 ? -14'sd4096 : step_angular_sum[13:0];
     wire pivot_about_contact = was_grounded && step_vy>=0 && last_support_span_valid &&
@@ -223,7 +221,7 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
 // gently, while a large tilt receives more help.  This uses a shift only, so
 // it does not infer a multiplier or consume BRAM.
 wire signed [17:0] air_tilt_q8 = {{13{vehicle_tilt[4]}}, vehicle_tilt};
-    wire air_leveling_active = !was_grounded && step_vy > 16'sd64 &&
+    wire air_leveling_active = tutorial_mode && !was_grounded && step_vy > 16'sd64 &&
                                 !fan_enabled && !rocket_active && vehicle_tilt != 0;
     wire signed [17:0] air_level_accel = air_leveling_active ?
     -(air_tilt_q8 <<< 6) : 18'sd0;
@@ -285,17 +283,27 @@ wire air_leveling_snap = air_leveling_active &&
     // state machine, but do not wait for three identical slope samples. The
     // accepted collision slope is already filtered by the terrain probe, so a
     // supported vehicle can begin turning on the very next physics update.
+    reg signed [`LP_COORD_BITS-1:0] step_x, step_y;
+    reg signed [15:0] step_vx, step_result_vx;
     reg signed [`LP_TILT_BITS-1:0] held_target;
     reg [1:0] held_count;
+    reg last_turn_valid;
+    reg [1:0] equilibrium_count;
+    reg signed [`LP_TILT_BITS-1:0] last_turn_from_tilt;
+    reg signed [1:0] unstable_settled_dir;
+    reg signed [11:0] stationary_anchor_x_px;
     wire small_slope_step=(settle_error==1 || settle_error==-1);
+    wire stationary_x = (step_result_vx < 16'sd24) && (step_result_vx > -16'sd24) &&
+                        (velocity_x < 16'sd24) && (velocity_x > -16'sd24);
+    wire stationary_slope_hold = step_moments_enabled && stationary_x;
     // A large grade change is accepted immediately. A one-angle change must
-    // appear in two consecutive terrain samples, preventing a 12/16 raster
-    // bin alternation from making a stationary vehicle jitter. The first
-    // matching sample is enough here because the terrain probe has already
-    // filtered the contact; waiting for a third movement update made the
-    // rendered body visibly trail the wheels on short slopes.
+    // appear in two consecutive terrain samples when stationary, preventing
+    // raster bin alternation from making a stationary vehicle jitter while
+    // keeping short slopes responsive when moving.
     wire slope_target_ready=last_ground_slope_valid &&
-        ((!small_slope_step) || (desired_tilt==held_target && held_count>=2'd1));
+        ((!small_slope_step) ||
+         (desired_tilt==held_target &&
+          (stationary_slope_hold ? (held_count==2'd2) : (held_count>=2'd1))));
     reg signed [15:0] display_vx, display_vy;
     // Do not predict from the previous display velocity.  A full-velocity
     // predictor can move the sprite past a newly accepted pose when an engine
@@ -305,6 +313,12 @@ wire air_leveling_snap = air_leveling_active &&
     wire signed [`LP_COORD_BITS+1:0] display_x_error=$signed(corrected_x)-display_x_guess;
     wire signed [`LP_COORD_BITS+1:0] display_guess=$signed(display_y)+$signed(display_vy);
     wire signed [`LP_COORD_BITS+1:0] display_error=$signed(corrected_y)-display_guess;
+    wire signed [`LP_COORD_BITS:0] grounded_y_error = $signed(corrected_y) - $signed(display_y);
+    wire grounded_stair_step = was_grounded && (corrected_x != previous_x) &&
+                               (grounded_y_error != 0) &&
+                               (grounded_y_error <= 21'sd512) && (grounded_y_error >= -21'sd512);
+    wire wheel_landing_bounce = !was_grounded && (support_wheel_count != 4'd0) &&
+                                (proposed_vy >= 16'sd128) && (proposed_vy < 16'sd512);
     reg signed [5:0] spin;
     reg signed [4:0] spin_frac;
     // A grounded body already three steps past the ground's angle in the tip direction rests
@@ -357,13 +371,30 @@ wire air_leveling_snap = air_leveling_active &&
     reg signed [15:0] step_remainder, step_thrust, step_drive;
     reg [15:0] step_friction_limit;
     reg signed [15:0] step_friction, total_force;
-    reg signed [`LP_COORD_BITS-1:0] step_x, step_y;
-    reg signed [15:0] step_vx, step_result_vx;
     reg signed [24:0] step_momentum, step_free_momentum;
     reg signed [16:0] step_vx_sum;
     reg signed [`LP_COORD_BITS:0] step_x_sum, step_y_sum;
     localparam signed [`LP_COORD_BITS:0] POSITION_MAX = (1 << (`LP_COORD_BITS-1))-1;
     localparam signed [`LP_COORD_BITS:0] POSITION_MIN = -(1 << (`LP_COORD_BITS-1));
+
+    wire stationary_grounded = was_grounded && (step_vy >= 0) && stationary_x &&
+                               (supported_moment_accel == 16'sd0);
+    wire signed [`LP_TILT_BITS-1:0] tilt_plus_1  = vehicle_tilt + 5'sd1;
+    wire signed [`LP_TILT_BITS-1:0] tilt_minus_1 = vehicle_tilt - 5'sd1;
+    wire block_stationary_plus  = stationary_grounded &&
+                                  ((last_turn_valid && (tilt_plus_1 == last_turn_from_tilt)) ||
+                                   (unstable_settled_dir < 0));
+    wire block_stationary_minus = stationary_grounded &&
+                                  ((last_turn_valid && (tilt_minus_1 == last_turn_from_tilt)) ||
+                                   (unstable_settled_dir > 0));
+    wire signed [11:0] anchor_dx_px = $signed(corrected_x[19:8]) - stationary_anchor_x_px;
+    wire moved_from_anchor = (anchor_dx_px > 12'sd2) || (anchor_dx_px < -12'sd2) ||
+                             (corrected_vx >= 16'sd24) || (corrected_vx <= -16'sd24);
+    wire signed [`LP_TILT_BITS-1:0] response_desired_tilt =
+        tilt_flipped(vehicle_tilt) ? (slope_to_tilt(ground_slope) + 5'b10000) : slope_to_tilt(ground_slope);
+    wire response_at_equilibrium = grounded && ground_slope_valid && !support_unstable &&
+                                   (tip_dir == 2'sd0) && (unstable_settled_dir == 2'sd0) &&
+                                   (response_desired_tilt == vehicle_tilt);
 
     wire signed [15:0] engine_magnitude, lift;
     wire [15:0] wheel_resistance;
@@ -448,6 +479,7 @@ wire air_leveling_snap = air_leveling_active &&
             last_support_endpoint_y_valid<=0; last_support_left_y_q2<=0; last_support_right_y_q2<=0;
             previous_tilt <= 0; proposed_tilt <= 0; vehicle_tilt <= 0;
             spin <= 0; spin_frac <= 0; last_tip <= 0; held_target <= 0; held_count <= 0;
+            last_turn_valid <= 0; equilibrium_count <= 0; last_turn_from_tilt <= 0; unstable_settled_dir <= 0; stationary_anchor_x_px <= 0;
             step_slope_product <= 0; step_slope_force <= 0;
             movement_committed <= 0;
             vehicle_x <= spawn_x; vehicle_y <= spawn_y;
@@ -495,6 +527,10 @@ wire air_leveling_snap = air_leveling_active &&
                 last_ground_slope <= 0;
                 last_tip <= 0;
                 held_count <= 0;
+                last_turn_valid <= 0;
+                equilibrium_count <= 0;
+                last_turn_from_tilt <= 0;
+                unstable_settled_dir <= 0;
                 sampled_scraping <= 0;
                 bowl_osc_count <= 0;
                 prev_nonzero_slope <= 0;
@@ -513,6 +549,8 @@ wire air_leveling_snap = air_leveling_active &&
                 last_ground_slope <= 0;
                 previous_tilt <= 0; proposed_tilt <= 0; vehicle_tilt <= 0;
                 spin <= 0; spin_frac <= 0; last_tip <= 0; held_target <= 0; held_count <= 0;
+                last_turn_valid <= 0; equilibrium_count <= 0; last_turn_from_tilt <= 0; unstable_settled_dir <= 0;
+                stationary_anchor_x_px <= $signed(spawn_x[19:8]);
                 vehicle_x <= spawn_x; vehicle_y <= spawn_y;
                 display_x <= spawn_x; display_y <= spawn_y; display_vx <= 0; display_vy <= 0;
                 previous_x <= spawn_x; previous_y <= spawn_y;
@@ -539,6 +577,7 @@ wire air_leveling_snap = air_leveling_active &&
                 last_ground_slope_valid<=0; last_support_span_valid<=0; step_support_unstable<=0;
                 sampled_scraping <= 0; bowl_osc_count <= 0; prev_nonzero_slope <= 0;
                 spin <= 0; spin_frac <= 0; last_tip <= 0; held_target <= 0; held_count <= 0;
+                last_turn_valid <= 0; equilibrium_count <= 0; last_turn_from_tilt <= 0; unstable_settled_dir <= 0;
                 display_x <= vehicle_x; display_y <= vehicle_y; display_vx <= 0; display_vy <= 0;
             end else case (phase)
                 IDLE: if (step_start) begin
@@ -833,27 +872,31 @@ wire air_leveling_snap = air_leveling_active &&
                     end else if (was_grounded && step_vy>=0 && !step_support_unstable && active_tip==0 && supported_moment_accel==0 &&
                         (last_support_span_valid || (clamped_angular_velocity<14'sd256 && clamped_angular_velocity> -14'sd256))) begin
                         angular_velocity_q8<=0; moment_angle_remainder<=0; spin<=0; spin_frac<=0;
-                        if (!single_wheel_scraping && slope_target_ready && settle_error>0) proposed_tilt<=vehicle_tilt+1'b1;
-                        else if (!single_wheel_scraping && slope_target_ready && settle_error<0) proposed_tilt<=vehicle_tilt-1'b1;
+                        if (!single_wheel_scraping && slope_target_ready && settle_error>0 && !block_stationary_plus) proposed_tilt<=tilt_plus_1;
+                        else if (!single_wheel_scraping && slope_target_ready && settle_error<0 && !block_stationary_minus) proposed_tilt<=tilt_minus_1;
                         else proposed_tilt<=vehicle_tilt;
-                end else if (air_leveling_snap) begin
-                    // Once the descending cart is within one display angle of
-                    // level and has little residual spin, settle it flat so a
-                    // landing cannot visibly oscillate between +/- one step.
-                    angular_velocity_q8<=0; moment_angle_remainder<=0;
-                    spin<=0; spin_frac<=0; proposed_tilt<=0;
-                end else if (!was_grounded && clamped_angular_velocity==0) begin
+                    end else if (air_leveling_snap) begin
+                        // Once the descending cart is within one display angle of
+                        // level and has little residual spin, settle it flat so a
+                        // landing cannot visibly oscillate between +/- one step.
+                        angular_velocity_q8<=0; moment_angle_remainder<=0;
+                        spin<=0; spin_frac<=0; proposed_tilt<=0;
+                    end else if (!was_grounded && clamped_angular_velocity==0) begin
+                        angular_velocity_q8<=0; moment_angle_remainder<=0;
+                        spin<=0; spin_frac<=0; proposed_tilt<=vehicle_tilt;
+                    end else if ((clamped_angular_velocity > 0 && block_stationary_plus) ||
+                                 (clamped_angular_velocity < 0 && block_stationary_minus)) begin
                         angular_velocity_q8<=0; moment_angle_remainder<=0;
                         spin<=0; spin_frac<=0; proposed_tilt<=vehicle_tilt;
                     end else begin
                         angular_velocity_q8<=clamped_angular_velocity;
                         spin<=clamped_angular_velocity >>> 8;
                         spin_frac<=0;
-                        if (force_angle_sum>=16'sd4096) begin
-                            proposed_tilt<=vehicle_tilt+1'b1;
+                        if (force_angle_sum>=16'sd4096 && !block_stationary_plus) begin
+                            proposed_tilt<=tilt_plus_1;
                             moment_angle_remainder<=force_angle_sum-16'sd4096;
-                        end else if (force_angle_sum<= -16'sd4096) begin
-                            proposed_tilt<=vehicle_tilt-1'b1;
+                        end else if (force_angle_sum<= -16'sd4096 && !block_stationary_minus) begin
+                            proposed_tilt<=tilt_minus_1;
                             moment_angle_remainder<=force_angle_sum+16'sd4096;
                         end else begin
                             proposed_tilt<=vehicle_tilt;
@@ -920,10 +963,20 @@ wire air_leveling_snap = air_leveling_active &&
                         display_vx <= 0;
                     end
                     // Collision has already found the exact supported pose.
-                    // Do not filter vertical contact: filtering y makes the
-                    // wheels visibly float above a floor or slope.
+                    // Smooth 1-2px terrain stair-steps while rolling on a slope,
+                    // and add a 0.5px wheel suspension compression on landing.
                     if (grounded) begin
-                        display_y <= corrected_y; display_vy <= corrected_vy;
+                        if (wheel_landing_bounce) begin
+                            display_y <= corrected_y + 20'sd128;
+                            display_vy <= 0;
+                        end else if (grounded_stair_step) begin
+                            display_y <= $signed(display_y) + (grounded_y_error >>> 1) +
+                                         (grounded_y_error >>> 2);
+                            display_vy <= corrected_vy;
+                        end else begin
+                            display_y <= corrected_y;
+                            display_vy <= corrected_vy;
+                        end
                     end else if (display_error > 22'sd3072 || display_error < -22'sd3072) begin
                         display_y <= corrected_y; display_vy <= 0;
                     end else begin
@@ -931,6 +984,26 @@ wire air_leveling_snap = air_leveling_active &&
                         display_vy <= display_vy + (display_error >>> 3);
                     end
                     vehicle_tilt <= sanitize_tilt(corrected_tilt);
+                    if (!grounded || (corrected_vy < -16'sd16) || (corrected_vy > 16'sd64) ||
+                        moved_from_anchor || (supported_moment_accel != 16'sd0)) begin
+                        last_turn_valid <= 1'b0;
+                        equilibrium_count <= 2'd0;
+                        unstable_settled_dir <= 2'sd0;
+                        stationary_anchor_x_px <= $signed(corrected_x[19:8]);
+                    end else if (sanitize_tilt(corrected_tilt) != sanitize_tilt(previous_tilt)) begin
+                        last_turn_valid <= 1'b1;
+                        equilibrium_count <= 2'd0;
+                        last_turn_from_tilt <= sanitize_tilt(previous_tilt);
+                        stationary_anchor_x_px <= $signed(corrected_x[19:8]);
+                        if (step_support_unstable || (active_tip != 2'sd0)) begin
+                            unstable_settled_dir <= (sanitize_tilt(corrected_tilt - previous_tilt) > 0) ? 2'sd1 : -2'sd1;
+                        end
+                    end else if (response_at_equilibrium) begin
+                        if (equilibrium_count == 2'd3) last_turn_valid <= 1'b0;
+                        else equilibrium_count <= equilibrium_count + 1'b1;
+                    end else begin
+                        equilibrium_count <= 2'd0;
+                    end
                     last_tip <= grounded ? tip_dir : 2'sd0;
                     last_support_unstable<=grounded && support_unstable;
                     last_support_span_valid<=grounded && support_span_valid;

@@ -37,7 +37,7 @@ module menu_fixes_tb;
             if(dut.game_state!=`LP_LEVEL_SELECT) $fatal(1,"Map edge not selectable");
             click(12,59);
         end
-        switches[15]=1;click(20,35);
+        switches[0]=1;click(20,35);
         if(dut.game_state!=`LP_GUIDE || dut.diary_page!=3) $fatal(1,"Muted Sound opened map");
         click(70,35);click(70,35);click(70,35);
         if(dut.master_volume!=4) $fatal(1,"4/4 volume unreachable");
@@ -86,19 +86,20 @@ module menu_fixes_tb;
         release dut.fans_left;force dut.rockets_left=4'd0;clocks(1);
         if(!dut.u_physics.moments_enabled) $fatal(1,"Inactive rocket changed shared COM support solver");
         release dut.rockets_left;
-        // SW1 must inhibit both software toggles and actual output.
+        // The engine cell is the only engine control: it toggles on and off.
         click(32,26);if(!dut.engine_enabled || !dut.ui_engine_on) $fatal(1,"Icon did not toggle ON");
-        click(32,26);switches[1]=1;clocks(5);
-        if(!dut.engine_enabled) $fatal(1,"Engine icon cannot enable with SW1 ON");
-        click(32,26);if(dut.engine_enabled) $fatal(1,"Engine icon cannot disable");
-        click(32,26);switches[1]=0;clocks(5);
-        if(dut.engine_enabled || dut.ui_engine_on) $fatal(1,"SW1 did not inhibit engine");
+        click(32,26);if(dut.engine_enabled || dut.ui_engine_on) $fatal(1,"Engine icon cannot disable");
         click(84,59);settings_checks();click(40,59);
         if(dut.game_state!=`LP_RUN) $fatal(1,"Run settings Back lost running page");
         click(84,59);click(82,59);
         if(!dut.start_screen_active || dut.game_state!=`LP_BUILD) $fatal(1,"Settings Home failed");
         if(an!=15 || !dp) $fatal(1,"Timer lit at Home");
-        click(48,40);click(88,59);click(69,35);click(12,18);click(8,59);clocks(20);
+        click(48,40);click(88,59);click(69,35);click(12,18);
+        if(dut.build_grid!=0 || dut.build_frames!=0) $fatal(1,"Leaving tutorial did not reset build for actual map");
+        dut.u_builder.build_grid={`LP_PART_WHEEL,`LP_PART_EMPTY,`LP_PART_WHEEL,
+            `LP_PART_EMPTY,`LP_PART_PIG,`LP_PART_ENGINE,`LP_PART_EMPTY,`LP_PART_EMPTY,`LP_PART_EMPTY};
+        dut.u_builder.build_frames=9'b000111000;clocks(2);
+        click(8,59);clocks(20);
         click(34,59);clocks(4);
         if(dut.game_state!=`LP_FAIL) $fatal(1,"End try did not reach result");
         click(12,59);
