@@ -111,7 +111,7 @@ module crash_impact_tb;
         // Test 1c: Intended first-map cave descent (384 pixels) remains safe.
         // The revised threshold is 448 pixels.
         force dut.falling = 1'b1;
-        force dut.fall_start_y = 20'sd0;
+        force dut.fall_peak_y = 20'sd0;
         force dut.response_valid = 1'b1;
         force dut.response_ready = 1'b1;
         force dut.grounded = 1'b1;
@@ -123,7 +123,7 @@ module crash_impact_tb;
         if (dut.impact_damage_valid !== 1'b0)
             $fatal(1, "Normal 32-pixel drop triggered impact damage!");
         release dut.falling;
-        release dut.fall_start_y;
+        release dut.fall_peak_y;
         release dut.response_valid;
         release dut.response_ready;
         release dut.grounded;
@@ -149,7 +149,7 @@ module crash_impact_tb;
         force dut.proposed_vy = 16'sd800;
         force dut.vehicle_tilt = 5'sd0;
         force dut.falling = 1'b1;
-        force dut.fall_start_y = 20'sd0;
+        force dut.fall_peak_y = 20'sd0;
         force dut.corrected_y = 20'sd16384;
         clocks(1);
 
@@ -165,7 +165,7 @@ module crash_impact_tb;
         release dut.proposed_vy;
         release dut.vehicle_tilt;
         release dut.falling;
-        release dut.fall_start_y;
+        release dut.fall_peak_y;
         release dut.corrected_y;
         clocks(1);
 
@@ -191,7 +191,7 @@ module crash_impact_tb;
         force dut.proposed_vy = 16'sd800;
         force dut.vehicle_tilt = -5'sd16;
         force dut.falling = 1'b1;
-        force dut.fall_start_y = 20'sd0;
+        force dut.fall_peak_y = 20'sd0;
         force dut.corrected_y = 20'sd16384;
         clocks(1);
 
@@ -207,7 +207,7 @@ module crash_impact_tb;
         release dut.proposed_vy;
         release dut.vehicle_tilt;
         release dut.falling;
-        release dut.fall_start_y;
+        release dut.fall_peak_y;
         release dut.corrected_y;
         clocks(1);
 
@@ -229,7 +229,7 @@ module crash_impact_tb;
         force dut.proposed_vy = 16'sd1300;
         force dut.vehicle_tilt = 5'sd0;
         force dut.falling = 1'b1;
-        force dut.fall_start_y = 20'sd0;
+        force dut.fall_peak_y = 20'sd0;
         force dut.corrected_y = 20'sd114688;
         clocks(1);
 
@@ -245,7 +245,7 @@ module crash_impact_tb;
         release dut.proposed_vy;
         release dut.vehicle_tilt;
         release dut.falling;
-        release dut.fall_start_y;
+        release dut.fall_peak_y;
         release dut.corrected_y;
         clocks(1);
 
