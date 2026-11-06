@@ -107,7 +107,7 @@ module cave_coordinates_tb;
         grid[4*3 +: 3]=`LP_PART_PIG;
         clocks(3); reset=0; clocks(1);
         // Synthetic rectangle fixtures isolate coordinate range from ROM geometry.
-        check_step(208*256,76*256,1,0,0);
+        check_step(216*256,76*256,1,0,0);
         level_index=1;
         check_step(68*256,178*256,1,0,0);
         // Movement and collision preserve distant coordinates and remove old clamps.

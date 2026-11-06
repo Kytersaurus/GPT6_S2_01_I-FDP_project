@@ -11,8 +11,8 @@ This document details the user interface layouts, PS/2 mouse drag-and-drop build
   - **Right OLED (`JB`):** Blanked (`16'h0000`).
   - **1-Screen Mode (`SW1`):** Toggling `SW1 = 1` routes the Right OLED World Map directly onto Left OLED (`JA`) and blanks Right OLED (`JB`).
 * **Interactive Tutorial Level (`LP_LEVEL_TUTORIAL = 2'd2`):**
-  - **Read-Only Build View (`LP_BUILD`):** Displays the prebuilt tutorial contraption (`Pig + Engine + Booster + Fan + Balloon + 2 Wheels`) on the Left OLED 3×3 grid with editing locked (`build_locked = 1`), shows `"CLICK GO TO PLAY"` at `y = 56` (while hiding the Map 1/2 Diary button via `tutorial_mode`), renders a Welcome card with a procedural `[ C ]` (`BTNC`) button icon on Right OLED, and automatically clears `stored_build_grid` when switching to Map 1 or Map 2.
-  - **Timer-Free Guided Practice & Blinking Tile Prompts (`LP_RUN`):** Blanks the 4-digit 7-segment timer (`an = 4'b1111`), anchors the camera to the floor (`world_height = 126`), blinks (`16'hffe0`) the exact target cell border on Left OLED (`tutorial_target_cell`: Engine cell 3, Rocket cell 1, Fan cell 7), immediately releases the initial pause when the Engine tile is clicked, displays the `[ C ]` (`BTNC`) icon for post-TNT retry, and ends on a flush on-land finish checkerboard (`x = 216..248, y = 120..125`) with a Finish Flag (`x = 228, y = 106..120`) and landing goal box (`x = 216..248, y = 104..120`).
+  - **Read-Only Build View (`LP_BUILD`):** Displays the prebuilt tutorial contraption (`Pig + Engine + Booster + Fan + Balloon + 2 Wheels`) on the Left OLED 3×3 grid with editing locked (`build_locked = 1`), keeps the normal `[GO]`, `[BOOK]` and `[GEAR]` buttons, renders a Welcome card with a procedural `BTNC` key icon on Right OLED, and automatically clears `stored_build_grid` when switching to Map 1 or Map 2.
+  - **Guided Run Flow (`LP_RUN`):** After `GO` the world pauses for a scroll-wheel exercise (`SCROLL^ ZOOM IN`, `SCROLLv ZOOM OUT`), then the engine lesson. One register, `tutorial_lesson` (`LP_LESSON_*` in `game_defs.vh`), decides the pause, the Right OLED message and the glowing Left OLED control (Engine cell 3, Rocket cell 1, Fan cell 7, or the retry button), so they always agree; the glow uses a free-running blink, so it also works while the engine is off. Only the control being taught is accepted. The first drive meets the TNT and the cart lands, then the player is told to click the retry icon on the Left OLED. The retry stops at x=88 for the rocket, then at x=168 for the fan. The fan lifts the cart until y=60 or x=192, the player switches it off, and it falls straight down (`tutorial_air_stop`) with its pig short of the goal at x=216. It then rolls right to the flag, so it never leaves the world.
 * **Build Screen (`LP_BUILD`):**
   - **Left OLED (`JA`):**
     - **Left Inventory Strip (`x = 1..15`):** Stacked part slots with live stock badges, plus a bottom page-cycle arrow (`[v]` on Page 1, `[^]` on Page 2).
@@ -20,7 +20,7 @@ This document details the user interface layouts, PS/2 mouse drag-and-drop build
       - **Page 2:** Rocket Booster, Propeller Fan, and On-Board TNT Crate.
     - **Center 3×3 Build Grid (`x = 20..67, y = 4..51`):** Nine `16×16` px cells with cursor hover highlight, green/red placement validity outline, and ghost drag preview.
     - **Bottom Action Bar (`y = 55..63`):** Bottom-left **`[GO]`** launch button (`x = 0..17`, green when `build_valid`, red/locked when invalid), **`[BOOK]`** Field Diary button (`x = 64..79`, hidden in Tutorial mode), and **`[GEAR]`** Settings button (`x = 80..95`).
-  - **Right OLED (`JB`):** Live world preview with vehicle at spawn, zoomable via `SW14` or mouse scroll wheel (`1.5×`, `1.0×`, `0.5×`) and pannable via `SW13` Free Look.
+  - **Right OLED (`JB`):** Live world preview with vehicle at spawn, pannable via `SW14` Free Look. The scroll wheel turns the inventory page here; it steps the zoom (`1.5×`, `1.0×`, `0.5×`) outside Build.
 
 ---
 
@@ -60,7 +60,7 @@ This document details the user interface layouts, PS/2 mouse drag-and-drop build
     - Clicking an intact **On-Board TNT cell** detonates it in-flight (`onboard_tnt_detonate`), destroying orthogonal neighbor cells/frames, scattering debris (`scatter_mask`), and applying a directional velocity kick.
     - Clicking an intact **Engine cell** toggles wheel drive (`ui_engine_on`). This is the only engine control.
     - Clicking an intact **Fan cell** toggles **only that specific fan (`ui_active_fans[cell]`)**, allowing individual fans to be turned on/off independently.
-    - Clicking an intact **Rocket cell** triggers a rocket boost pulse (shortcut: `BTNR`).
+    - Clicking an intact **Rocket cell** triggers a rocket boost pulse on that specific rocket cell (once per run).
 * **Bottom Navigation Bar (`y = 53..63`):**
   - **`[TRY]` (`x = 2..22`):** Resets the vehicle to spawn with all parts restored (shortcut: `BTNC`).
   - **`[END]` (`x = 26..46`):** Ends the current attempt (`end_try_req`).
@@ -82,6 +82,6 @@ This document details the user interface layouts, PS/2 mouse drag-and-drop build
    - **Main Settings View (`diary_page == 0`):**
      - **Sound Settings Card (`x = 8..44, y = 12..48`):** Opens Master Volume (`diary_page = 3`: `[-]` at `x = 8..28, y = 24..37`, `[+]` at `x = 64..84, y = 24..37` with 4 stepped bars, `MUTED BY SW0` banner, and `[BACK]` at `x = 0..27, y = 52..63`).
      - **Map Select Card (`x = 51..87, y = 12..48`):** Opens the 3-row Map Selector (`LP_LEVEL_SELECT`: `Map 1: Cave Arch` at `y = 10..21`, `Map 2: Cave Flight` at `y = 24..35`, `Tutorial` at `y = 38..49`, and `[BACK]` at `x = 0..27, y = 52..63`).
-     - **`[ ? ]` (Bottom-Left Button, `x = 2..25, y = 52..62`):** Cycles through **Mouse Controls (`1/2`: Left-Click Drag & Right-Click Remove)** and **Board Switches (`2/2`: visual icons over `SW15` Reverse, `SW14` Zoom, `SW13` Free-Look Pan, `SW1` 1-OLED Mode, and `SW0` Mute)**.
+     - **`[ ? ]` (Bottom-Left Button, `x = 2..25, y = 52..62`):** Cycles through **Mouse Controls (`1/2`: Left-Click Drag & Right-Click Remove)** and **Board Switches (`2/2`: visual icons over `SW15` Reverse, `SW14` Free-Look Pan, `SW1` 1-OLED Mode, and `SW0` Mute)**.
      - **`[BACK]` (`x = 28..68, y = 52..62`):** Returns to the previous screen.
      - **`[HOME]` (`x = 70..95, y = 52..62`):** Returns to the `"LAGGY PIGGIES"` Start Screen.

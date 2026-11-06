@@ -47,7 +47,7 @@ module role4_level_solutions_tb;
             if (dut.game_state !== `LP_BUILD || dut.level_index !== level) $fatal(1,"Not in BUILD on level %0d",level+1);
             press_c();
             cycles=0;
-            while (dut.vehicle_x <= ((level==0) ? 20'sd53248 : 20'sd17408) && cycles < 100000) begin clocks(1); cycles=cycles+1; end
+            while (dut.vehicle_x <= ((level==0) ? 20'sd55296 : 20'sd17408) && cycles < 100000) begin clocks(1); cycles=cycles+1; end
             force dut.goal_hit = 1'b1;
             cycles=0;
             while (dut.game_state != `LP_SUCCESS && cycles < 100000) begin clocks(1); cycles=cycles+1; end

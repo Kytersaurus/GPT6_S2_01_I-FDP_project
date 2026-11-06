@@ -37,6 +37,7 @@ module mouse_adapter (
     output reg pop_req,
     output reg [3:0] pop_cell,
     output reg boost_req,
+    output reg [3:0] boost_cell,
     output reg engine_toggle_req,
     output reg fan_toggle_req,
     output reg [3:0] fan_toggle_cell
@@ -168,6 +169,7 @@ module mouse_adapter (
             pop_req <= 0;
             pop_cell <= 0;
             boost_req <= 0;
+            boost_cell <= 0;
             engine_toggle_req <= 0;
             fan_toggle_req <= 0;
             fan_toggle_cell <= 0;
@@ -351,7 +353,9 @@ module mouse_adapter (
                                 fan_toggle_req <= 1;
                                 fan_toggle_cell <= hovered_cell;
                             end else if (hovered_part == `LP_PART_BOOSTER) begin
+                                // Each rocket fires on its own: the cell says which one.
                                 boost_req <= 1;
+                                boost_cell <= hovered_cell;
                             end
                         end
                     end

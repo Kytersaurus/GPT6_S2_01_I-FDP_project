@@ -32,10 +32,9 @@ This document specifies the shared constants (`game_defs.vh`) and module port co
 
 ### 2.1 `input_controller.v` & Top-Level Switch Signals
 * **Inputs:** `clk`, `reset`, `btnU`, `btnD`, `btnL`, `btnR`, `btnC`, `sw[15:0]`, mouse coordinates & button signals.
-* **Active Switch Signals (`SW2`–`SW12` are unused/disconnected):**
+* **Active Switch Signals (`SW2`–`SW13` are unused/disconnected):**
   - `reverse_switch = sw[15]` (`SW15` Wheel Engine Reverse)
-  - `zoom_switch = sw[14]` (`SW14` Camera Zoom `1.5×` / `1.0×`)
-  - `free_look = sw[13]` (`SW13` Mouse Free-Look Camera Pan)
+  - `free_look = sw[14]` (`SW14` Mouse Free-Look Camera Pan)
   - `show_map = sw[1]` (`SW1` 1-Screen / 2-Screen Mode toggle on PMOD JA)
   - `mute_switch = sw[0]` (`SW0` Hardware Audio Mute)
   - There is no engine switch: the engine starts OFF each run and is toggled only by clicking its run-diagram cell.

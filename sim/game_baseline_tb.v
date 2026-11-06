@@ -36,8 +36,8 @@ module game_baseline_tb;
         begin
             wait(dut.game_state==`LP_RUN);clocks(1);dut.u_ui_control.engine_on=1;
             cycles=0;
-            while (dut.vehicle_x <= 20'sd53248 && cycles < 400000) begin clocks(1); cycles=cycles+1; end
-            if (dut.vehicle_x <= 20'sd53248) $fatal(1,"Vehicle did not move: state=%0d x=%0d y=%0d",dut.game_state,dut.vehicle_x,dut.vehicle_y);
+            while (dut.vehicle_x <= 20'sd55296 && cycles < 400000) begin clocks(1); cycles=cycles+1; end
+            if (dut.vehicle_x <= 20'sd55296) $fatal(1,"Vehicle did not move: state=%0d x=%0d y=%0d",dut.game_state,dut.vehicle_x,dut.vehicle_y);
             force dut.goal_hit = 1'b1;
             cycles=0;
             while (dut.game_state != `LP_SUCCESS && cycles < 400000) begin clocks(1); cycles=cycles+1; end
@@ -85,7 +85,7 @@ module game_baseline_tb;
         while (dut.vehicle_x <= 20'sd17408 && cycles < 400000) begin clocks(1); cycles=cycles+1; end
         if (dut.game_state != `LP_RUN || dut.vehicle_x <= 20'sd17408) $fatal(1,"Default DRIVE engine did not propel vehicle");
         btnD=1; clocks(10); btnD=0; clocks(20);
-        if (dut.game_state != `LP_BUILD || dut.vehicle_x != 20'sd53248 ||
+        if (dut.game_state != `LP_BUILD || dut.vehicle_x != 20'sd55296 ||
             dut.build_grid!==0 || dut.build_frames!==0 || dut.build_valid || dut.frames_left!=5)
             $fatal(1,"Reset did not restore the blank builder");
         $display("PASS game_baseline_tb: launch, landing, goal, held input, retry, edit, DRIVE engine, reset, update sequencing");

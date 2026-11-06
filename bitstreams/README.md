@@ -8,7 +8,7 @@ This directory organizes all verified programming bitstreams (`.bit`) generated 
 
 * **`bad_piggies_top_latest.bit`** — Always points to a ready-to-flash copy of the most recent verified build.
 * **`LATEST.txt`** — Machine- and human-readable metadata pointer for the latest build (timestamp, source commit, utilization, and timing).
-* **`builds.json`** — Complete chronological manifest of all **52 archived builds** with ISO timestamps, source commits, descriptions, and SHA-256 checksums.
+* **`builds.json`** — Complete chronological manifest of all **55 archived builds** with ISO timestamps, source commits, descriptions, and SHA-256 checksums.
 * **`YYYY-MM-DD/HHMMSS_My_Top_Module.bit`** — Date-indexed folders storing every historical build in `HHMMSS` chronological order.
 
 ---
@@ -18,12 +18,12 @@ This directory organizes all verified programming bitstreams (`.bit`) generated 
 | Property | Value |
 | :--- | :--- |
 | **Quick-Flash File** | **[`bad_piggies_top_latest.bit`](bad_piggies_top_latest.bit)** |
-| **Archived Path** | **[`2026-11-06/172639_My_Top_Module.bit`](2026-11-06/172639_My_Top_Module.bit)** |
+| **Archived Path** | **[`2026-11-07/005414_My_Top_Module.bit`](2026-11-07/005414_My_Top_Module.bit)** |
 | **Pointer Metadata** | [`LATEST.txt`](LATEST.txt) |
-| **Source Commit** | `38d8512` / `b7f4f27` (`main`) |
-| **Build Timestamp** | `2026-11-06 17:26:39 +08:00` |
-| **Resource Utilization** | **17,199 / 20,800 Slice LUTs (82.69%)**, **48 / 50 Block RAM (`96.00%`)**, **16 / 90 DSP48E1 (`17.78%`)**, **WNS > `0.000 ns`** |
-| **Key Highlights** | • **Interactive Guided Tutorial (`LP_LEVEL_TUTORIAL`):** Prebuilt tutorial contraption with `"CLICK GO TO PLAY"` prompt in `BUILD`, blinking target cell borders (`tutorial_target_cell`) in `RUN`, procedural `[ C ]` (`BTNC`) button prompt on Welcome/Retry screens, and floor-anchored tutorial camera (`world_height = 126`).<br>• **Ergonomic Switch Layout:** Left cluster for gameplay (`SW15` Engine Reverse, `SW14` Camera Zoom, `SW13` Free-Look Pan); right cluster for settings (`SW1` 1-OLED JA Map View, `SW0` Hardware Audio Mute); wheel engine is mouse-only on the 3×3 run diagram.<br>• **Tiered Fall Damage & On-Board TNT:** Medium falls break only the contact row's non-pig parts while preserving wood frames; high falls break all non-pig parts/frames; clickable on-board TNT crate detonates in-flight with radial blast masks and debris scatter.<br>• **Sub-Pixel Q12.1 Display Smoothing & Rotation Stability:** Half-pixel (`0.5 px`) sprite rendering with rocket exhaust flames, fan wind particles, wheel landing bounce, and 2-sample stationary hysteresis + anti-reversal lock preventing slope oscillation. |
+| **Source Commit** | `de67a39` (`role4`) |
+| **Build Timestamp** | `2026-11-07 00:54:14 +08:00` |
+| **Resource Utilization** | **19,747 / 20,800 Slice LUTs (94.94%)**, **48 / 50 Block RAM (`96.00%`)**, **WNS `+0.040 ns`**, **WHS `+0.053 ns`**, 0 failing endpoints |
+| **Key Highlights** | Tutorial rework with a zoom exercise, glowing controls, a retry icon prompt and a landing before the flag; Cave Arch and Cave Flight tweaks; individually fired rockets; down-only hanging fans; `SW14` free look with no zoom switch or `BTNR`; balloon pop and a new settings gear. **All 86 simulation benches pass; not yet tested on the board.** |
 
 ---
 

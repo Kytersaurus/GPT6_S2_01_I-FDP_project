@@ -188,11 +188,11 @@ module role4_game_display_tb;
         level=0; #1;
         if (!map_level || world_width != `LP_MAP_WORLD_WIDTH || world_height != `LP_MAP_WORLD_HEIGHT)
             $fatal(1,"Level 1 is not Cave Arch");
-        if (spawn_x !== 20'sd53248 || spawn_y !== 20'sd19456 || flag_x != 600 || flag_y != 472)
+        if (spawn_x !== 20'sd55296 || spawn_y !== 20'sd19456 || flag_x != 600 || flag_y != 472)
             $fatal(1,"Level 1 spawn or flag moved");
         if (hazard_count != 0 || map_id) $fatal(1,"Level 1 has unexpected objects or map");
         // Three TNT: behind the spawn and one in each arch; unused entries stay zero.
-        if (tnt_count != 3 || tnt_positions !== {10'd390, 10'd116, 10'd260, 10'd588, 10'd92, 10'd194})
+        if (tnt_count != 3 || tnt_positions !== {10'd402, 10'd108, 10'd260, 10'd588, 10'd92, 10'd194})
             $fatal(1,"Level 1 TNT moved");
         if (star_box_x != 170 || star_box_y != 391) $fatal(1,"Level 1 star box moved");
         level=1; #1;
@@ -202,7 +202,7 @@ module role4_game_display_tb;
             $fatal(1,"Level 2 spawn or flag moved");
         if (hazard_count != 0) $fatal(1,"Level 2 has unexpected objects");
         // Three TNT: in the ditch, in the lower gap under the ledge, and on the slope to the finish.
-        if (tnt_count != 3 || tnt_positions !== {10'd68, 10'd710, 10'd158, 10'd541, 10'd191, 10'd316})
+        if (tnt_count != 3 || tnt_positions !== {10'd83, 10'd690, 10'd158, 10'd541, 10'd191, 10'd316})
             $fatal(1,"Level 2 TNT moved");
         if (star_box_x != 541 || star_box_y != 103) $fatal(1,"Level 2 star box moved");
 

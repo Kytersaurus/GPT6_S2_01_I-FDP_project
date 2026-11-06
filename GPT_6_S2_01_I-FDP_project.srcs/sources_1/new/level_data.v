@@ -44,26 +44,26 @@ module level_data (
                 // x=98..128; world top y=100, x=196..257); the finish flag stands on the cave
                 // road (map top y=243 at x=300; world top y=486 at x=600).
                 // Collision queries the terrain ROM; goals derive from the flag position.
-                spawn_x = 20'sd53248;   // x=208
+                spawn_x = 20'sd55296;   // x=216: the whole cart is on the flat top (ends x=240)
                 spawn_y = 20'sd19456;   // y=76: the 24-pixel vehicle rests on y=100
                 map_id = 1'b0;
                 par_time = 8'd25;
                 world_width = `LP_MAP_WORLD_WIDTH;
                 world_height = `LP_MAP_WORLD_HEIGHT;
                 flag_x = 10'd600;
-                // Star box top-left: on the second arch's far-left bump, 6 px right of TNT 2.
+                // Star box top-left: on the second arch's far-left bump.
                 star_box_x = 10'd170; star_box_y = 10'd391;
                 flag_y = 10'd472;   // 14-pixel pole ends on the road at y=486
                 // TNT {y, x} top-left in world pixels, resting on the floor:
-                //  0: on the start plateau 6 px behind the spawn (vehicle x=208..231), floor
+                //  0: on the start plateau 14 px behind the spawn (vehicle x=216..239), floor
                 //     y=100, so reversing is caught.
                 //  1: up the right wall of the first (moon) arch, wedged against the curve where
                 //     it steepens (wall x~598 at y=260), so a cart that climbs too far right and
                 //     high is caught.
-                //  2: on the bump in the far-left pocket of the second arch, floor y=398, past
-                //     the drop at x~200, so a cart that goes too far left is caught.
+                //  2: on the flat floor (y=410) at the far-left end of the second arch's pocket,
+                //     past the star's bump, so a cart that goes too far left is caught.
                 tnt_count = 3'd3;
-                tnt_positions = {10'd390, 10'd116, 10'd260, 10'd588, 10'd92, 10'd194};
+                tnt_positions = {10'd402, 10'd108, 10'd260, 10'd588, 10'd92, 10'd194};
             end
             2'd1: begin
                 // Level 2, Cave Flight: a flying level. Start on the ground at the bottom left
@@ -84,9 +84,10 @@ module level_data (
                 //  0: in the ditch between the first hill and the climb into the cave, floor y=199.
                 //  1: in the second flight's lower gap, on its floor (y=166) under the middle of
                 //     the rock ledge (x 521..569) that splits it from the upper gap.
-                //  2: halfway up the grass slope to the finish ledge, floor y=76..79 (resting uphill).
+                //  2: part-way up the grass slope to the finish ledge, well below its top. The
+                //     slope surface is y=95 under the crate's left edge and y=88 under its right.
                 tnt_count = 3'd3;
-                tnt_positions = {10'd68, 10'd710, 10'd158, 10'd541, 10'd191, 10'd316};
+                tnt_positions = {10'd83, 10'd690, 10'd158, 10'd541, 10'd191, 10'd316};
             end
             2'd2: begin
                 // Playable tutorial: an independent rectangle course, not Map 1.

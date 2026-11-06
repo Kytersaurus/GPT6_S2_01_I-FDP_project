@@ -9,7 +9,7 @@ module ui_controller (
     input wire [11:0] mouse_x, mouse_y,
     input wire mouse_left, mouse_right, mouse_event,
     input wire next_press,
-    // Tutorial mode hides the Map 1 diary entry while the guided course is active.
+    // Tutorial mode hides the result screen's diary entry on the guided course.
     input tri0 tutorial_mode,
     input wire engine_toggle_req, fan_toggle_req,
     input tri0 [3:0] fan_toggle_cell,
@@ -122,7 +122,7 @@ module ui_controller (
                         end
                     end else if (game_state==`LP_BUILD && my>=55 && my<=63) begin
                         if (mx<=17) launch_req <= 1;
-                        else if (mx>=64 && mx<=79 && !tutorial_mode) begin guide_open_req <= 1; diary_page <= 0; end
+                        else if (mx>=64 && mx<=79) begin guide_open_req <= 1; diary_page <= 0; end
                         else if (mx>=80 && mx<=95) level_open_req <= 1;
                     end else if (game_state==`LP_GUIDE) begin
                         // Volume [-] (x: 8..28, y: 24..37) and [+] (x: 64..84, y: 24..37)
