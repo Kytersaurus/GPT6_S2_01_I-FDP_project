@@ -50,7 +50,7 @@ module left_renderer #(
     input wire star_box_collected,
     // Tutorial-only display state. These inputs are optional for standalone
     // renderer benches (tri0 defaults keep ordinary maps unchanged).
-    input wire signed [19:0] vehicle_x,
+    input tri0 signed [19:0] vehicle_x,
     input tri0 tutorial_tnt_seen,
     input tri0 tutorial_tnt_landed,
     input tri0 tutorial_fan_tested,

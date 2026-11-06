@@ -193,10 +193,12 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
                                  (legacy_contact_wheels == 4'd1) && has_intact_frames;
     wire single_wheel_scraping = single_wheel_grounded &&
                                  ((last_support_wheel_count == 4'd0) ||
-                                  ((last_support_wheel_count == 4'd1) && (support_span_width_q2 > 11'sd40)));
-    wire single_wheel_only = single_wheel_grounded && (last_support_wheel_count == 4'd1) &&
-                             (support_span_width_q2 <= 11'sd40);
-    wire effective_support_unstable = contact_support_unstable && !single_wheel_scraping;
+                                  ((last_support_wheel_count == 4'd1) && (support_span_width_q2 > 11'sd52)));
+    wire frame_tip_only = single_wheel_grounded && (last_support_wheel_count == 4'd0) &&
+                          (support_span_width_q2 <= 11'sd52) && (settle_error[2:0] != 3'd0);
+    wire single_wheel_only = (single_wheel_grounded && (last_support_wheel_count == 4'd1) &&
+                              (support_span_width_q2 <= 11'sd52)) || frame_tip_only;
+    wire effective_support_unstable = contact_support_unstable;
     wire signed [13:0] clamped_angular_velocity=step_angular_sum>18'sd4096 ? 14'sd4096 :
         step_angular_sum< -18'sd4096 ? -14'sd4096 : step_angular_sum[13:0];
     wire pivot_about_contact = was_grounded && step_vy>=0 && last_support_span_valid &&
