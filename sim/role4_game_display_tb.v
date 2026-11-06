@@ -75,6 +75,7 @@ module role4_game_display_tb;
     reg [6:0] look_x=0, look_y=0;
     reg [8:0] view_intact=9'b101110000;
     reg [7:0] view_seconds=0;
+    reg [7:0] view_par_time=8'd25; // Cave Arch par time
     reg view_star_collected=0;
     reg [2*`LP_MAX_TNT-1:0] view_blast=0;
     reg view_phase=0;
@@ -110,7 +111,7 @@ module role4_game_display_tb;
         .spawn_x(spawn_x),.spawn_y(spawn_y),.terrain_count(terrain_count),.terrain_rects(terrain_rects),
         .goal_rect(goal_rect),.tnt_count(tnt_count),.tnt_positions(tnt_positions),.tnt_intact(tnt_intact),
         .hazard_count(hazard_count),.hazard_rects(hazard_rects),.blast_phase(view_blast),.anim_phase(view_phase),
-        .star_box_x(star_box_x),.star_box_y(star_box_y),.star_box_collected(view_star_collected),.run_seconds(view_seconds),.pixel_data(right_colour)
+        .star_box_x(star_box_x),.star_box_y(star_box_y),.star_box_collected(view_star_collected),.run_seconds(view_seconds),.par_time(view_par_time),.pixel_data(right_colour)
     );
 
     task clocks;
@@ -341,6 +342,12 @@ module role4_game_display_tb;
         expect_right(24, 24, 16'hfee0, "star 1 gold");
         expect_right(48, 24, 16'hfee0, "star 2 gold");
         expect_right(72, 24, 16'hfee0, "star 3 gold");
+        // The time star follows the level par time that the 7-segment counts
+        // down from: 30 s beats Cave Flight's 45 s par but not Cave Arch's 25 s.
+        view_seconds=30; view_par_time=8'd45;
+        expect_right(72, 24, 16'hfee0, "star 3 gold under 45 s par");
+        view_par_time=8'd25;
+        expect_right(72, 24, 16'h39e7, "star 3 unearned over 25 s par");
 
         // Map view, Level 0 (Cave Arch): night sky above the start plateau and grass along its top edge (map ROM).
         level=0; view_state=`LP_BUILD; zoomed_out=0;

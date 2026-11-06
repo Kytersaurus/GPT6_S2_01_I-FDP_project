@@ -44,15 +44,13 @@ module tutorial_retry_tb;
         // clock_control also has a power-on reset counter of 255 cycles.
         clock_n(270);
 
-        // SW1 may still be on from the first attempt. Tutorial INIT_RUN must
-        // preserve that state so retry starts moving without an off/on toggle.
+        // The engine is mouse-only, so every tutorial retry starts with it off.
         force dut.level_index = `LP_LEVEL_TUTORIAL;
-        sw = 16'd2;
         force dut.game_state = `LP_INIT_RUN;
         force dut.run_init = 1'b1;
         clock_n(2);
-        if (!dut.ui_engine_on)
-            $fatal(1, "Tutorial retry did not honor an already-on SW1");
+        if (dut.ui_engine_on)
+            $fatal(1, "Tutorial retry did not start with the engine off");
         release dut.run_init;
 
         // Model a completed TNT demonstration followed by the retry/build state.

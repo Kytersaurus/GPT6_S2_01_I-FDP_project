@@ -15,10 +15,11 @@ This document serves as the single source of truth for **all human teammates (Ka
   - PS/2 Mouse: Standard PS/2 streaming interface (`USB Host / PMOD JC`).
   - Basys 3 onboard I/O:
     - **4-digit active-low 7-segment display:** 20.0-second par countdown timer (`20.0` $\to$ `0.0`, then negative overtime `-0.1`, `-0.2`, ...). All timer rendering is exclusively on the 7-segment display.
-    - **Right-Cluster Switches (`SW0`–`SW2`):** `SW0` 1-Screen / 2-Screen Mode toggle (`0` = 2-Screen Dual-OLED mode, `1` = 1-Screen mode showing World Map on Left OLED `JA` and blanking `JB`), `SW1` Engine switch (`1` = engine ON in `RUN`), `SW2` Engine Reverse (`0` = forward, `1` = reverse wheel engine drive only).
-    - **Left-Cluster Switches (`SW13`–`SW15`):** `SW13` Free-Look camera pan (`1` = mouse pans camera), `SW14` Camera Zoom toggle (`0` = 1.5× Close, `1` = 1.0× Normal), `SW15` Hardware Audio Mute (`1` = mute all audio). Unused middle switches `SW3`–`SW12` are disconnected.
-    - **Onboard LEDs (`LED[15:0]`):** `LED[15:13]` and `LED[2:0]` mirror the active switches; `LED[12:3]` flash on **`GO` / Launch** (`launch_flash`) and when the **game ends** (`LP_SUCCESS` marquee / `LP_FAIL` alert blink).
-    - **Pushbuttons:** `BTNC` Launch/Retry, `BTNU` Edit/Diary/Back, `BTNR` Rocket Boost shortcut, `BTND` Master Reset.
+    - **Left-Cluster Gameplay Switches (`SW13`–`SW15`):** `SW15` Engine Reverse (`0` = forward, `1` = reverse wheel engine drive only), `SW14` Camera Zoom toggle (`0` = 1.5× Close, `1` = 1.0× Normal), `SW13` Free-Look camera pan (`1` = mouse pans camera).
+    - **Right-Cluster Settings Switches (`SW0`–`SW1`):** `SW1` 1-Screen / 2-Screen Mode toggle (`0` = 2-Screen Dual-OLED mode, `1` = 1-Screen mode showing World Map on Left OLED `JA` and blanking `JB`), `SW0` Hardware Audio Mute (`1` = mute all audio). Unused middle switches `SW2`–`SW12` are disconnected.
+    - **Engine:** There is no engine switch. The wheel engine starts OFF on every run and is toggled only by clicking its cell on the run diagram.
+    - **Onboard LEDs (`LED[15:0]`):** `LED[15:13]` and `LED[1:0]` mirror the active switches (`LED[2]` stays off); `LED[12:3]` flash on **`GO` / Launch** (`launch_flash`) and when the **game ends** (`LP_SUCCESS` marquee / `LP_FAIL` alert blink).
+    - **Pushbuttons:** `BTNC` Launch/Retry, `BTNU` Edit/Diary/Back, `BTNR` Rocket Boost shortcut (fires the rocket during `RUN` on every level, same as clicking the Rocket cell), `BTND` Master Reset, `BTNL` reserved.
 * **Team Roles & Responsibilities:**
   - **Role 1 (Kaushal):** Vehicle Builder, Inventory/Stock Validation, Mouse Input & Drag-and-Drop, Audio Pipeline (BGM + SFX), 7-Segment Countdown Timer, Left OLED UI Layouts, Dual-OLED Diary Walkthrough & Settings `[ ? ]` Switch Guide.
   - **Role 2 (Kyle):** Physics Engine, Newtonian Kinematics, Fixed-Point Arithmetic (Q12.8), 16-Cycle Signed Divider, Tilt Dynamics & Settling.
@@ -140,8 +141,8 @@ flowchart TD
 * Footprint is 3×3 cells (each 8×8 world pixels, total 24×24 pixels).
 * Mounting rules:
   - `PIG` and `ENGINE` require an underlying `FRAME`.
-  - `WHEEL` requires a supporting frame directly above or below.
-  - `BALLOON` requires frame support below, left, or right.
+  - `WHEEL` requires a supporting frame above, below, left, or right (`wheel_support`). Only wheels with a frame directly above or below are counted in `wheels_down` / `wheels_up` for ground contact; a side-mounted wheel still adds mass and `wheel_count`.
+  - `BALLOON` requires a frame directly below it (and is released if that frame is destroyed).
   - `FAN` and `ROCKET` require `wheel_support` (a frame in the same cell or orthogonally adjacent) and at least one clear exhaust/propulsion side not blocked by an adjacent `FRAME` (`~frame_right`, `~frame_left`, `~frame_above`, `~frame_below`). Non-frame neighbors (wheels, balloons, or another fan/rocket) never obstruct placement.
   - Parts cannot exceed inventory stock limits (stock availability flags are registered on `posedge clk` for 100 MHz timing closure).
 * Stored build is preserved when running or retrying; incoming `damage_mask` and `damage_frame_mask` knock out cells during RUN mode without refunding stock or altering the base build.
@@ -152,8 +153,8 @@ flowchart TD
 * Rotation is quantized into 32 angular steps (11.25° increments) covering -16..15 tilt values via [`rotation_geometry.vh`](file:///c:/Users/kaush/EE2026Labs/GPT6_S2_01_I-FDP_project/GPT_6_S2_01_I-FDP_project.srcs/sources_1/new/rotation_geometry.vh), with 2-sample stationary hysteresis (`held_count == 2'd2`) and a stationary anti-reversal lock (`last_turn_valid`, `unstable_settled_dir`, `stationary_anchor_x_px`) to eliminate 2-state `T <-> T+1` shaking when resting on slopes or 1-wheel/frame corners.
 * Mass division $a = F / m$ uses a 16-cycle restoring divider ([`signed_divider16.v`](file:///c:/Users/kaush/EE2026Labs/GPT6_S2_01_I-FDP_project/GPT_6_S2_01_I-FDP_project.srcs/sources_1/new/signed_divider16.v)).
 * Propulsion directions:
-  - Wheel Engine (`ENGINE_FORCE`) pushes right (`+X`) normally, or left (`-X`) when `SW2` (`reverse_switch`) is ON.
-  - Propeller Fan (`FAN_FORCE`) pushes left (`-X`) when facing right (exhaust blows right), and pushes right (`+X`) when facing left (exhaust blows left). Independent of `SW2`.
+  - Wheel Engine (`ENGINE_FORCE`) pushes right (`+X`) normally, or left (`-X`) when `SW15` (`reverse_switch`) is ON.
+  - Propeller Fan (`FAN_FORCE`) pushes left (`-X`) when facing right (exhaust blows right), and pushes right (`+X`) when facing left (exhaust blows left). Independent of `SW15`.
   - Rocket Booster (`ROCKET_FORCE`) pushes right (`+X`) when horizontal or upward (`-Y`) when vertical.
 * Ground friction: Rolling drag = 6 units per wheel; scraping drag (bare frames on rock) = 256 units.
 * Camera smoothing: `display_y` uses an alpha-beta filter to eliminate 2-pixel terrain step jitter.
@@ -177,19 +178,19 @@ flowchart TD
 * Outputs 8-bit PWM on `JXADC[0]` with hardware gain on `JXADC[1]` and active shutdown on `JXADC[3]`.
 
 ### 4.8 Dual OLED Rendering & Hardware Orientation
-* **JA (Left OLED):** Rotated 180° in hardware (`95 - x`, `63 - y`) because PMOD JA is mounted upside down on the Basys 3 board. (When `SW0` is ON, Left OLED displays the World Map directly for 1-Screen play).
+* **JA (Left OLED):** Rotated 180° in hardware (`95 - x`, `63 - y`) because PMOD JA is mounted upside down on the Basys 3 board. (When `SW1` is ON, Left OLED displays the World Map directly for 1-Screen play).
   - *Title Screen:* Animated Piggy Island sky & scrolling clouds with `"LAGGY PIGGIES"` logo, Play button, and Settings button.
   - *Build Screen:* 16px 3×3 grid, inventory pages 1 & 2, drag preview, Go button, Book/Diary & Settings icons.
   - *Run Screen:* Centered 16px 3×3 interactive damage diagram, direct cell clicking (balloons, engine, individual fans, rockets), bottom action bar (`[TRY]`, `[END]`, `[EDIT]`, `[GEAR]`).
-  - *Settings & `[ ? ]` Guide:* Sound Settings, Map Select, Home, and bottom-left `[ ? ]` toggle cycling Mouse Controls (`1/2`) and Board Switches (`2/2`: `SW15` Mute, `SW14` Zoom, `SW13` Pan, `SW2` Reverse, `SW0` 1-OLED).
+  - *Settings & `[ ? ]` Guide:* Sound Settings, Map Select, Home, and bottom-left `[ ? ]` toggle cycling Mouse Controls (`1/2`) and Board Switches (`2/2`: `SW15` Reverse, `SW14` Zoom, `SW13` Pan, `SW1` 1-OLED, `SW0` Mute).
 * **JB (Right OLED):**
-  - Completely blanked (`16'h0000`) on Title Screen, Level Select screen, and when `SW0` 1-Screen mode is active.
+  - Completely blanked (`16'h0000`) on Title Screen, Level Select screen, and when `SW1` 1-Screen mode is active.
   - *Field Diary (`GUIDE`):* Pans the Right OLED camera to the live level checkpoint and poses the recommended demo contraption synchronized with the 3-step Diary walkthrough on Left OLED.
   - *Build & Run Modes:* World follow-camera with 3 zoom levels (1.5×, 1.0×, 0.5× via `SW14` or scroll wheel) or mouse Free Look (`SW13`).
 * **Port B BRAM Multiplexing:** During the Title Screen, because Right OLED is turned off, Port B of the terrain BRAM (`level_map.v`) is routed to the Left OLED pipeline with an offset scroll counter. This produces a live moving cave background at **0% extra BRAM cost**.
 
 ### 4.9 7-Segment Countdown Run Timer ([`seven_seg_timer.v`](file:///c:/Users/kaush/EE2026Labs/GPT6_S2_01_I-FDP_project/GPT_6_S2_01_I-FDP_project.srcs/sources_1/new/seven_seg_timer.v))
-* Counts down from `20.0` seconds (`SS.T` format) during `RUN` mode and continues into negative overtime (`-0.1`, `-0.2`, ...) after par time expires so players can see how close they were to the 20s time-trial star.
+* Counts down from `20.0` seconds (`SS.T` format) during `RUN` mode and continues into negative overtime (`-0.1`, `-0.2`, ...) after par time expires so players can see how close they were to the time star. The time star is earned by finishing before the level's own par time reaches zero (`par_time` in `level_data.v`: Cave Arch 25 s, Cave Flight 45 s, Tutorial 30 s), the same value the countdown starts from.
 * Blanked (`an = 4'b1111`) during the interactive Tutorial level (`LP_LEVEL_TUTORIAL`).
 * Exclusively rendered on the Basys 3 4-digit 7-segment display (no duplicate timer on the OLED screens).
 

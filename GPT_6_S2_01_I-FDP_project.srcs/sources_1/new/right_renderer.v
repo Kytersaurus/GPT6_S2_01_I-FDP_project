@@ -69,6 +69,9 @@ module right_renderer #(
     input wire [9:0] star_box_x, star_box_y,
     input wire star_box_collected,
     input tri0 [7:0] run_seconds,
+    // Level par time in whole seconds, the same value the 7-segment
+    // countdown starts from, so the time star matches what the board shows.
+    input tri0 [7:0] par_time,
     output reg signed [10:0] map_x, map_y,
     input wire [2:0] map_class,
     output reg [15:0] pixel_data
@@ -246,9 +249,8 @@ module right_renderer #(
                 // prematurely announcing the retry.
                 banner_text = "AVOID TNT       ";
             else if ($signed(vehicle_x) < 20'sd10240)
-                // The engine tile on the other OLED toggles the same engine
-                // state as SW1, so the tutorial can be completed with the
-                // mouse alone.
+                // The engine tile on the other OLED is the only engine
+                // control, so the tutorial is completed with the mouse.
                 banner_text = "CLICK ENGINE ON ";
             else if ($signed(vehicle_x) < 20'sd16384)
                 banner_text = "STAR: DRIVE OVER";
@@ -278,7 +280,10 @@ module right_renderer #(
     wire banner_lit = text_on(banner_text, banner_left, banner_top, px, py);
     // Ending card layout: the clear card keeps its pig below the row of stars.
     wire [6:0] card_pig_top = (game_state == `LP_SUCCESS) ? 7'd36 : 7'd28;
-    wire [1:0] stars_earned = 2'd1 + (star_box_collected ? 2'd1 : 2'd0) + ((run_seconds < (map_id ? 8'd20 : 8'd25)) ? 2'd1 : 2'd0);
+    // Stars: one for clearing, one for the star box, one for beating par.
+    // Beating par means finishing before the 7-segment countdown reaches 0.
+    wire beat_par_time = (run_seconds < par_time);
+    wire [1:0] stars_earned = 2'd1 + (star_box_collected ? 2'd1 : 2'd0) + (beat_par_time ? 2'd1 : 2'd0);
     reg [6:0] card_star_x;
     reg card_star_earned;
 

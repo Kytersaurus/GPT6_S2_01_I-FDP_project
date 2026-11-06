@@ -13,7 +13,7 @@ This document specifies the shared constants (`game_defs.vh`) and module port co
 * `LP_FAIL = 3'd3`: Pig killed by hazard/out-of-bounds or vehicle destroyed.
 * `LP_GUIDE = 3'd4`: Dual-OLED 3-page Field Diary (`Left OLED` text + `Right OLED` visual diagrams).
 * `LP_SETTINGS = 3'd5`: Settings menu (`Mouse Speed`, `Sound`, `Levels`, `Title`, and `[ ? ]` Switch Guide).
-* `LP_SOUND = 3'd6`: Audio mixer (`BGM ON/OFF`, `SFX ON/OFF`, `TEST SFX`, `SW15 MUTE` indicator).
+* `LP_SOUND = 3'd6`: Audio mixer (`BGM ON/OFF`, `SFX ON/OFF`, `TEST SFX`, `MUTED BY SW0` indicator).
 * `LP_TITLE = 3'd7`: Animated `"LAGGY PIGGIES"` Start Screen (with `LP_LEVEL_SELECT` sub-mode).
 
 ### 1.2 Part Encodings (`3-bit` per cell, `27-bit` packed 3×3 grid)
@@ -32,13 +32,13 @@ This document specifies the shared constants (`game_defs.vh`) and module port co
 
 ### 2.1 `input_controller.v` & Top-Level Switch Signals
 * **Inputs:** `clk`, `reset`, `btnU`, `btnD`, `btnL`, `btnR`, `btnC`, `sw[15:0]`, mouse coordinates & button signals.
-* **Active Switch Signals (`SW3`–`SW12` are unused/disconnected):**
-  - `show_map = sw[0]` (`SW0` 1-Screen / 2-Screen Mode toggle on PMOD JA)
-  - `engine_switch = sw[1]` (`SW1` Engine Switch)
-  - `reverse_switch = sw[2]` (`SW2` Wheel Engine Reverse)
-  - `free_look = sw[13]` (`SW13` Mouse Free-Look Camera Pan)
+* **Active Switch Signals (`SW2`–`SW12` are unused/disconnected):**
+  - `reverse_switch = sw[15]` (`SW15` Wheel Engine Reverse)
   - `zoom_switch = sw[14]` (`SW14` Camera Zoom `1.5×` / `1.0×`)
-  - `mute_switch = sw[15]` (`SW15` Hardware Audio Mute)
+  - `free_look = sw[13]` (`SW13` Mouse Free-Look Camera Pan)
+  - `show_map = sw[1]` (`SW1` 1-Screen / 2-Screen Mode toggle on PMOD JA)
+  - `mute_switch = sw[0]` (`SW0` Hardware Audio Mute)
+  - There is no engine switch: the engine is toggled only by clicking its run-diagram cell.
 
 ### 2.2 `vehicle_builder.v`
 * **Inputs:** `clk`, `reset`, `clear_build`, `build_locked`, `game_state`, `level_id[1:0]`, `cursor_cell[3:0]`, `edit_valid`, `edit_action[1:0]`, `edit_part[2:0]`, `edit_cell[3:0]`, `edit_source[3:0]`, `edit_facing_left`, `edit_facing_down`, `damage_mask[8:0]`, `damage_frame_mask[8:0]`, per-level stock limits (`max_frames`, `max_pigs`, `max_wheels`, `max_engines`, `max_balloons`, `max_rockets`, `max_fans`).

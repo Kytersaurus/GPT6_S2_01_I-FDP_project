@@ -3,7 +3,7 @@
 `include "game_defs.vh"
 module gameplay_menu_tb;
     reg clk=0,btnD=1,btnC=0,btnU=0;
-    reg [15:0] sw=2;
+    reg [15:0] sw=0;
     reg [11:0] mx=0,my=0;
     reg ml=0,mr=0,me=0;
     reg [3:0] mz=0;
@@ -71,7 +71,7 @@ module gameplay_menu_tb;
         click(8,59);clocks(30);
         if(dut.game_state!=`LP_RUN || dut.run_page!=0 || !dut.engine_reverse || dut.drive_engines!=1 || dut.engine_enabled)
             $fatal(1,"DRIVE default or left-engine physics contract incorrect");
-        sw=16'h0006;clocks(5);if(dut.engine_reverse) $fatal(1,"SW2 failed to reverse saved engine direction");sw=2;clocks(5);
+        sw=16'h8000;clocks(5);if(dut.engine_reverse) $fatal(1,"SW15 failed to reverse saved engine direction");sw=0;clocks(5);
         click(48,10);if(!dut.engine_enabled) $fatal(1,"Engine OFF menu missing");
         packet(48,10,1,0);packet(48,10,1,0);packet(48,10,0,0);
         if(dut.engine_enabled) $fatal(1,"Held engine menu repeated");
@@ -95,7 +95,7 @@ module gameplay_menu_tb;
         if(dut.game_state!=`LP_RUN || dut.run_page!=0) $fatal(1,"Physical retry shortcut removed");
         btnU=1;clocks(14);btnU=0;clocks(5);
         if(dut.game_state!=`LP_BUILD) $fatal(1,"Physical edit shortcut removed");
-        $display("PASS gameplay_menu_tb: contents-first moves, engine/rocket facing, side attachments/stock, SW2, DRIVE/POP/SOUND, retry/edit and physical shortcuts");
+        $display("PASS gameplay_menu_tb: contents-first moves, engine/rocket facing, side attachments/stock, SW15, DRIVE/POP/SOUND, retry/edit and physical shortcuts");
         $finish;
     end
     initial begin #300000;$fatal(1,"Gameplay menu test timed out");end

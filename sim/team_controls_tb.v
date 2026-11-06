@@ -36,16 +36,16 @@ module team_controls_tb;
     endtask
     initial begin
         clocks(20);btnD=0;clocks(280);build_test_vehicle();
+        sw=16'h0001;clocks(8);
+        if(!dut.audio_muted || dut.engine_reverse || dut.engine_enabled) $fatal(1,"SW0 mute conflicts with DRIVE control");
         sw=16'h8000;clocks(8);
-        if(!dut.audio_muted || dut.engine_reverse || dut.engine_enabled) $fatal(1,"SW15 conflicts with DRIVE control");
-        sw=16'h0004;clocks(8);
-        if(dut.audio_muted || !dut.engine_reverse || dut.engine_enabled) $fatal(1,"SW2 does not independently reverse");
+        if(dut.audio_muted || !dut.engine_reverse || dut.engine_enabled) $fatal(1,"SW15 does not independently reverse");
         btnR=1;clocks(16);btnR=0;clocks(16);
-        if(beep_pulses!=0 || jump_pulses!=0) $fatal(1,"Reserved BTNR made a sound or jumped");
+        if(beep_pulses!=0 || jump_pulses!=0) $fatal(1,"BTNR in BUILD made a sound or jumped");
         btnL=1;clocks(16);btnL=0;clocks(16);
         if(beep_pulses!=0 || jump_pulses!=0) $fatal(1,"Reserved BTNL requested a jump or test audio");
-        // Real reverse movement must use SW2, with audio unmuted.
-        sw=16'h0006;clocks(8);btnC=1;clocks(16);btnC=0;
+        // Real reverse movement must use SW15, with audio unmuted.
+        sw=16'h8000;clocks(8);btnC=1;clocks(16);btnC=0;
         wait(dut.game_state==`LP_RUN);clocks(1);dut.u_ui_control.engine_on=1;
         waited=0;while(dut.vehicle_x>=dut.level_spawn_x && waited<500000) begin clocks(1);waited=waited+1;end
         if(dut.game_state!=`LP_RUN || dut.vehicle_x>=dut.level_spawn_x || dut.audio_muted) $fatal(1,"Reverse did not drive left independently");
@@ -59,7 +59,7 @@ module team_controls_tb;
             $fatal(1,"Held BTNL activated a retired jump or test audio");
         if(dut.vehicle_y<dut.level_spawn_y) $fatal(1,"Retired jump button lifted the unpowered vehicle");
         btnL=0;
-        $display("PASS team_controls_tb: DRIVE engine, SW1 mute/SW2 reverse debug, silent reserved BTNR/BTNL, real reverse and retired jump suppression");
+        $display("PASS team_controls_tb: DRIVE engine, SW0 mute/SW15 reverse, silent BTNR in BUILD and reserved BTNL, real reverse and retired jump suppression");
         $finish;
     end
     initial begin #15000000; $fatal(1,"Merged controls test timed out");end
