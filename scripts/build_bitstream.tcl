@@ -25,6 +25,15 @@ route_design
 # Repair the last short setup paths after final routing.
 phys_opt_design -directive AggressiveExplore
 route_design -directive Explore
+# The device is about 95% full, so a few picoseconds of slack can be placement noise.
+# Repeat the repair a bounded number of times while the design still misses timing.
+for {set lp_attempt 0} {$lp_attempt < 3} {incr lp_attempt} {
+    set lp_wns [get_property SLACK [get_timing_paths -max_paths 1 -nworst 1 -setup]]
+    if {$lp_wns >= 0} { break }
+    puts "Setup slack is $lp_wns ns; timing repair attempt [expr {$lp_attempt + 1}]"
+    phys_opt_design -directive AggressiveExplore
+    route_design -directive AggressiveExplore
+}
 
 # Reports
 report_utilization -file [file join $lp_output_dir utilization_routed.rpt]

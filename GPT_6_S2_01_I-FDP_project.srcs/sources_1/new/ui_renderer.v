@@ -15,6 +15,8 @@ module ui_renderer (
     input wire [6:0] cursor_x, cursor_y,
     input tri0 [6:0] cloud_scroll_fg,
     input tri0 [6:0] cloud_scroll_bg,
+    // Tutorial: flashes the RUN screen's retry button while the lesson asks for it.
+    input tri0 retry_glow,
     output reg [15:0] pixel_data
 );
     `include "ui_font.vh"
@@ -78,41 +80,44 @@ module ui_renderer (
     function [1:0] gear_shade_at;
         input signed [6:0] center_x, center_y, px, py;
         reg signed [6:0] lx, ly;
-        reg [1:0] pix_code; // 0: bg/valley, 1: bright white-silver, 2: brushed light silver, 3: metallic slate bevel
+        reg [8:0] row;
+        reg lit;
         begin
             lx = px - center_x;
             ly = py - center_y;
-            pix_code = 2'd0;
+            row = 9'd0;
+            lit = 1'b0;
             if (center_y == 7'sd59) begin
-                // Compact 7x7 8-tooth metallic gear for 9px-tall BUILD toolbar button (y=55..63)
+                // 7x7 gear for the 9px-tall BUILD toolbar button (y=55..63):
+                // eight teeth around a solid ring with a small round hole.
                 if (lx >= -3 && lx <= 3 && ly >= -3 && ly <= 3) begin
                     case (ly)
-                        -7'sd3: case (lx)  7'sd0: pix_code = 2'd1; default: pix_code = 2'd0; endcase
-                        -7'sd2: case (lx) -7'sd2,  7'sd0,  7'sd2: pix_code = 2'd1; default: pix_code = 2'd0; endcase
-                        -7'sd1: case (lx) -7'sd1,  7'sd0: pix_code = 2'd1;  7'sd1: pix_code = 2'd2; default: pix_code = 2'd0; endcase
-                         7'sd0: case (lx) -7'sd3, -7'sd2, -7'sd1: pix_code = 2'd1;  7'sd1,  7'sd2: pix_code = 2'd2;  7'sd3: pix_code = 2'd3; default: pix_code = 2'd0; endcase
-                         7'sd1: case (lx) -7'sd1: pix_code = 2'd1;  7'sd0,  7'sd1: pix_code = 2'd2; default: pix_code = 2'd0; endcase
-                         7'sd2: case (lx) -7'sd2: pix_code = 2'd2;  7'sd0,  7'sd2: pix_code = 2'd3; default: pix_code = 2'd0; endcase
-                         7'sd3: case (lx)  7'sd0: pix_code = 2'd3; default: pix_code = 2'd0; endcase
-                        default: pix_code = 2'd0;
+                        -7'sd3,  7'sd3: row = 9'b001001001;
+                        -7'sd2,  7'sd2: row = 9'b000111110;
+                        -7'sd1,  7'sd1: row = 9'b000110110;
+                         7'sd0:         row = 9'b001100011;
+                        default:        row = 9'd0;
                     endcase
+                    lit = row[3 - lx];
                 end
             end else if (lx >= -4 && lx <= 4 && ly >= -4 && ly <= 4) begin
-                // 9x9 8-tooth metallic settings gear: distinct N/S/E/W + NW/NE/SW/SE teeth, silver ring, round center hole
+                // 9x9 gear: wide teeth on the four sides, narrow teeth on the
+                // diagonals, and a round hole showing the button face behind it.
                 case (ly)
-                    -7'sd4: case (lx)  7'sd0: pix_code = 2'd1; default: pix_code = 2'd0; endcase
-                    -7'sd3: case (lx) -7'sd3, -7'sd1,  7'sd0,  7'sd1: pix_code = 2'd1;  7'sd3: pix_code = 2'd2; default: pix_code = 2'd0; endcase
-                    -7'sd2: case (lx) -7'sd2, -7'sd1,  7'sd0: pix_code = 2'd1;  7'sd1,  7'sd2: pix_code = 2'd2; default: pix_code = 2'd0; endcase
-                    -7'sd1: case (lx) -7'sd3, -7'sd2: pix_code = 2'd1; -7'sd1,  7'sd1: pix_code = 2'd3;  7'sd2,  7'sd3: pix_code = 2'd2; default: pix_code = 2'd0; endcase
-                     7'sd0: case (lx) -7'sd4, -7'sd3, -7'sd2: pix_code = 2'd1;  7'sd2,  7'sd3: pix_code = 2'd2;  7'sd4: pix_code = 2'd3; default: pix_code = 2'd0; endcase
-                     7'sd1: case (lx) -7'sd3, -7'sd2: pix_code = 2'd1; -7'sd1,  7'sd1: pix_code = 2'd3;  7'sd2,  7'sd3: pix_code = 2'd2; default: pix_code = 2'd0; endcase
-                     7'sd2: case (lx) -7'sd2, -7'sd1: pix_code = 2'd1;  7'sd0,  7'sd1,  7'sd2: pix_code = 2'd2; default: pix_code = 2'd0; endcase
-                     7'sd3: case (lx) -7'sd3: pix_code = 2'd2; -7'sd1,  7'sd0,  7'sd1: pix_code = 2'd2;  7'sd3: pix_code = 2'd3; default: pix_code = 2'd0; endcase
-                     7'sd4: case (lx)  7'sd0: pix_code = 2'd3; default: pix_code = 2'd0; endcase
-                    default: pix_code = 2'd0;
+                    -7'sd4,  7'sd4: row = 9'b000111000;
+                    -7'sd3,  7'sd3: row = 9'b010111010;
+                    -7'sd2,  7'sd2: row = 9'b001111100;
+                    -7'sd1,  7'sd1: row = 9'b111101111;
+                     7'sd0:         row = 9'b111000111;
+                    default:        row = 9'd0;
                 endcase
+                lit = row[4 - lx];
             end
-            gear_shade_at = pix_code;
+            // Light falls from the top-left: 0 is empty, then highlight, body and shadow.
+            if (!lit) gear_shade_at = 2'd0;
+            else if (lx + ly <= -7'sd2) gear_shade_at = 2'd1;
+            else if (lx + ly <= 7'sd2) gear_shade_at = 2'd2;
+            else gear_shade_at = 2'd3;
         end
     endfunction
 
@@ -408,13 +413,7 @@ module ui_renderer (
     always @* begin
         line_text = "                "; line_left = 7'd0; line_top = 6'd0; line_colour = 16'hffff;
         if (!start_screen_active) begin
-            if (game_state == `LP_BUILD && level_index == `LP_LEVEL_TUTORIAL &&
-                feedback_code == `LP_FEEDBACK_NONE) begin
-                // The tutorial build screen has a read-only status line. The
-                // controller still accepts the GO hitbox, but no diary/book
-                // control is shown for this level.
-                line_text = "CLICK GO TO PLAY"; line_left = 7'd0; line_top = 6'd56; line_colour = 16'hffe0;
-            end else if (game_state == `LP_LEVEL_SELECT) begin
+            if (game_state == `LP_LEVEL_SELECT) begin
                 if (y < 6'd12) begin
                     line_text = "SELECT MAP      "; line_left = 7'd18; line_top = 6'd2; line_colour = 16'h07ff;
                 end else if (y < 6'd24) begin
@@ -461,7 +460,6 @@ module ui_renderer (
                         line_top = 6'd38; line_colour = 16'hffff;
                         if (x < 7'd22)                  begin line_text = "15              "; line_left = 7'd8;  end
                         else if (x < 7'd38)             begin line_text = "14              "; line_left = 7'd24; end
-                        else if (x < 7'd54)             begin line_text = "13              "; line_left = 7'd40; end
                         else if (x >= 7'd59 && x < 7'd74) begin line_text = "1               "; line_left = 7'd64; end
                         else if (x >= 7'd75)            begin line_text = "0               "; line_left = 7'd80; end
                     end
@@ -762,24 +760,16 @@ module ui_renderer (
                         ((x == 10 || x == 17) && (y == 18 || y == 22)))
                         pixel_data = 16'h07ff;
 
-                    // 2) Above SW14 (x: 23..36, center 29): Green Zoom Magnifier with '+'
-                    if ((x >= 26 && x <= 30 && (y == 15 || y == 21)) ||
-                        (y >= 16 && y <= 20 && (x == 25 || x == 31)) ||
-                        (x == 32 && y == 22) || (x == 33 && y == 23) || (x == 34 && y == 24))
-                        pixel_data = 16'h07e0;
-                    else if ((x == 28 && y >= 17 && y <= 19) || (y == 18 && x >= 27 && x <= 29))
-                        pixel_data = 16'hffff; // White '+' zoom crosshair inside lens
-
-                    // 3) Above SW13 (x: 39..52, center 45): 4-Way Free-Look Pan Compass Crosshair (+)
-                    if ((y == 20 && x >= 40 && x <= 50) ||
-                        (x == 45 && y >= 15 && y <= 25) ||
-                        (y == 16 && x >= 44 && x <= 46) ||
-                        (y == 24 && x >= 44 && x <= 46) ||
-                        (x == 41 && y >= 19 && y <= 21) ||
-                        (x == 49 && y >= 19 && y <= 21))
+                    // 2) Above SW14 (x: 23..36, center 29): 4-Way Free-Look Pan Compass Crosshair (+)
+                    if ((y == 20 && x >= 24 && x <= 34) ||
+                        (x == 29 && y >= 15 && y <= 25) ||
+                        (y == 16 && x >= 28 && x <= 30) ||
+                        (y == 24 && x >= 28 && x <= 30) ||
+                        (x == 25 && y >= 19 && y <= 21) ||
+                        (x == 33 && y >= 19 && y <= 21))
                         pixel_data = 16'hffe0;
 
-                    // 4) Above SW1 (x: 60..73, center 66): 1-OLED Screen Monitor Icon
+                    // 3) Above SW1 (x: 60..73, center 66): 1-OLED Screen Monitor Icon
                     if (x >= 61 && x <= 72 && y >= 15 && y <= 23) begin
                         if (x == 61 || x == 72 || y == 15 || y == 23)
                             pixel_data = 16'h07ff; // Cyan OLED screen bezel
@@ -791,7 +781,7 @@ module ui_renderer (
                         pixel_data = 16'h07ff; // Monitor stand base
                     end
 
-                    // 5) Above SW0 (x: 76..89, center 82): Gold Speaker + Red Mute 'X'
+                    // 4) Above SW0 (x: 76..89, center 82): Gold Speaker + Red Mute 'X'
                     if ((x >= 77 && x <= 78 && y >= 19 && y <= 21) ||
                         (x == 79 && y >= 18 && y <= 22) ||
                         (x == 80 && y >= 17 && y <= 23) ||
@@ -801,16 +791,14 @@ module ui_renderer (
                         (x - 83 == y - 18 || 87 - x == y - 18))
                         pixel_data = 16'hf800; // Red mute 'X' next to speaker
 
-                    // 5 Highlighted Slide Switches on the Basys 3 bottom edge:
-                    // SW15 (x:7..20), SW14 (x:23..36), SW13 (x:39..52), SW1 (x:60..73), SW0 (x:76..89)
+                    // 4 Highlighted Slide Switches on the Basys 3 bottom edge:
+                    // SW15 (x:7..20), SW14 (x:23..36), SW1 (x:60..73), SW0 (x:76..89)
                     if (y >= 32 && y <= 47) begin
                         if ((x >= 7  && x <= 20) || (x >= 23 && x <= 36) ||
-                            (x >= 39 && x <= 52) || (x >= 60 && x <= 73) ||
-                            (x >= 76 && x <= 89)) begin
+                            (x >= 60 && x <= 73) || (x >= 76 && x <= 89)) begin
                             if (y == 32 || y == 47 ||
                                 x == 7  || x == 20 || x == 23 || x == 36 ||
-                                x == 39 || x == 52 || x == 60 || x == 73 ||
-                                x == 76 || x == 89)
+                                x == 60 || x == 73 || x == 76 || x == 89)
                                 pixel_data = 16'h7bef; // Metallic switch housing
                             else if (y <= 35)
                                 pixel_data = 16'hffe0; // Gold actuator lever at top
@@ -1125,8 +1113,7 @@ module ui_renderer (
             // -----------------------------------------------------------------
             // BUILD SCREEN: Centralized GO and Authentic Icons
             // -----------------------------------------------------------------
-            if (y >= 55 && feedback_code == `LP_FEEDBACK_NONE &&
-                level_index != `LP_LEVEL_TUTORIAL) begin
+            if (y >= 55 && feedback_code == `LP_FEEDBACK_NONE) begin
                 pixel_data = 16'h0841;
                 // GO Button (x: 0..17, centered text at x=4)
                 if (x < 18) begin
@@ -1172,10 +1159,10 @@ module ui_renderer (
                 // Button 1: [ TRY ] (x: 2..22)
                 if (x >= 2 && x <= 22) begin
                     if (x == 2 || x == 22 || y == 53 || y == 63)
-                        pixel_data = (cursor_x >= 2 && cursor_x <= 22 && cursor_y >= 53 && cursor_y <= 63) ? 16'hffe0 : 16'h04b4;
+                        pixel_data = ((cursor_x >= 2 && cursor_x <= 22 && cursor_y >= 53 && cursor_y <= 63) || retry_glow) ? 16'hffe0 : 16'h04b4;
                     else if (cursor_x >= 2 && cursor_x <= 22 && cursor_y >= 53 && cursor_y <= 63) pixel_data = 16'h0351;
                     else pixel_data = 16'h18e5;
-                    if (retry_lit) pixel_data = 16'hffff;
+                    if (retry_lit) pixel_data = retry_glow ? 16'hffe0 : 16'hffff;
                 end
 
                 // Button 2: [ END TRY ] (x: 26..46, center 36)

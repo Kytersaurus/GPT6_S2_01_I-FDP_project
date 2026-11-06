@@ -127,6 +127,12 @@ module vehicle_builder #(
     wire [8:0] can_point_left  = wheel_support & ~frame_left;
     wire [8:0] can_point_up    = wheel_support & ~frame_above;
     wire [8:0] can_point_down  = wheel_support & ~frame_below;
+    // A fan held only by the frame above it hangs under the cart, so it is a lift
+    // fan and may only blow straight down. A frame beside it mounts it on that side
+    // as well, and a frame below stops it blowing down, so those keep sideways.
+    wire [8:0] fan_hangs_under_frame = frame_above & ~frame_below & ~side_support;
+    wire [8:0] fan_can_point_right = can_point_right & ~fan_hangs_under_frame;
+    wire [8:0] fan_can_point_left  = can_point_left  & ~fan_hangs_under_frame;
 
     // Usable directions of one cell, indexed by {facing_down, facing_left}.
     // Rockets: 0 right, 1 left, 2 up, 3 down. Fans blow right, left or down only,
@@ -135,12 +141,14 @@ module vehicle_builder #(
         input [2:0] mounted_kind;
         input [3:0] part_cell;
         begin
-            usable_directions[0] = can_point_right[part_cell];
-            usable_directions[1] = can_point_left[part_cell];
             if (mounted_kind == `LP_PART_FAN) begin
+                usable_directions[0] = fan_can_point_right[part_cell];
+                usable_directions[1] = fan_can_point_left[part_cell];
                 usable_directions[2] = can_point_down[part_cell];
                 usable_directions[3] = 1'b0;
             end else begin
+                usable_directions[0] = can_point_right[part_cell];
+                usable_directions[1] = can_point_left[part_cell];
                 usable_directions[2] = can_point_up[part_cell];
                 usable_directions[3] = can_point_down[part_cell];
             end

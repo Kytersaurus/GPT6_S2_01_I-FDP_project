@@ -15,11 +15,11 @@ This document serves as the single source of truth for **all human teammates (Ka
   - PS/2 Mouse: Standard PS/2 streaming interface (`USB Host / PMOD JC`).
   - Basys 3 onboard I/O:
     - **4-digit active-low 7-segment display:** 20.0-second par countdown timer (`20.0` $\to$ `0.0`, then negative overtime `-0.1`, `-0.2`, ...). All timer rendering is exclusively on the 7-segment display.
-    - **Left-Cluster Gameplay Switches (`SW13`–`SW15`):** `SW15` Engine Reverse (`0` = forward, `1` = reverse wheel engine drive only), `SW14` Camera Zoom toggle (`0` = 1.5× Close, `1` = 1.0× Normal), `SW13` Free-Look camera pan (`1` = mouse pans camera).
-    - **Right-Cluster Settings Switches (`SW0`–`SW1`):** `SW1` 1-Screen / 2-Screen Mode toggle (`0` = 2-Screen Dual-OLED mode, `1` = 1-Screen mode showing World Map on Left OLED `JA` and blanking `JB`), `SW0` Hardware Audio Mute (`1` = mute all audio). Unused middle switches `SW2`–`SW12` are disconnected.
+    - **Left-Cluster Gameplay Switches (`SW14`, `SW15`):** `SW15` Engine Reverse (`0` = forward, `1` = reverse wheel engine drive only), `SW14` Free-Look camera pan (`1` = mouse pans camera). The camera zoom is on the mouse wheel only.
+    - **Right-Cluster Settings Switches (`SW0`–`SW1`):** `SW1` 1-Screen / 2-Screen Mode toggle (`0` = 2-Screen Dual-OLED mode, `1` = 1-Screen mode showing World Map on Left OLED `JA` and blanking `JB`), `SW0` Hardware Audio Mute (`1` = mute all audio). Unused middle switches `SW2`–`SW13` are disconnected.
     - **Engine:** There is no engine switch. The wheel engine starts OFF on every run and is toggled only by clicking its cell on the run diagram.
-    - **Onboard LEDs (`LED[15:0]`):** `LED[15:13]` and `LED[1:0]` mirror the active switches (`LED[2]` stays off); `LED[12:3]` flash on **`GO` / Launch** (`launch_flash`) and when the **game ends** (`LP_SUCCESS` marquee / `LP_FAIL` alert blink).
-    - **Pushbuttons:** `BTNC` Launch/Retry, `BTNU` Edit/Diary/Back, `BTNR` Rocket Boost shortcut (fires the rocket during `RUN` on every level, same as clicking the Rocket cell), `BTND` Master Reset, `BTNL` reserved.
+    - **Onboard LEDs (`LED[15:0]`):** `LED[15:14]` and `LED[1:0]` mirror the active switches (`LED[13]` and `LED[2]` stay off); `LED[12:3]` flash on **`GO` / Launch** (`launch_flash`) and when the **game ends** (`LP_SUCCESS` marquee / `LP_FAIL` alert blink).
+    - **Pushbuttons:** `BTNC` Launch/Retry, `BTNU` Edit/Diary/Back, `BTND` Master Reset, `BTNL` and `BTNR` reserved. Each rocket fires only by clicking its own cell.
 * **Team Roles & Responsibilities:**
   - **Role 1 (Kaushal):** Vehicle Builder, Inventory/Stock Validation, Mouse Input & Drag-and-Drop, Audio Pipeline (BGM + SFX), 7-Segment Countdown Timer, Left OLED UI Layouts, Dual-OLED Diary Walkthrough & Settings `[ ? ]` Switch Guide.
   - **Role 2 (Kyle):** Physics Engine, Newtonian Kinematics, Fixed-Point Arithmetic (Q12.8), 16-Cycle Signed Divider, Tilt Dynamics & Settling.
@@ -40,7 +40,7 @@ This document serves as the single source of truth for **all human teammates (Ka
   - **Explicit FSM states:** Define states with `localparam` and write clean state transition logic.
 
 ### ⚡ 2. Strict LUT Minimization (Tight FPGA Capacity)
-* **Constraint:** The Artix-7 `XC7A35T` has only **20,800 Slice LUTs**. The design currently uses **17,199 LUTs (82.69%)**, leaving ~3,600 LUTs of routing and feature headroom. We must continue to conserve LUTs carefully.
+* **Constraint:** The Artix-7 `XC7A35T` has only **20,800 Slice LUTs**. The design currently uses **19,747 LUTs (94.94%)**, leaving only ~1,050 LUTs of routing and feature headroom. We must continue to conserve LUTs carefully.
 * **Rules:**
   - **NO runtime division (`/`) or modulo (`%`) in single-cycle or display paths.**
     - A single combinational `/` or `%` synthesizes into massive multiplier/divider trees consuming hundreds of LUTs and destroying timing.
@@ -146,7 +146,7 @@ flowchart TD
   - `FAN` and `ROCKET` require `wheel_support` (a frame in the same cell or orthogonally adjacent) and at least one clear exhaust/propulsion side not blocked by an adjacent `FRAME` (`~frame_right`, `~frame_left`, `~frame_above`, `~frame_below`). Non-frame neighbors (wheels, balloons, or another fan/rocket) never obstruct placement.
   - Parts cannot exceed inventory stock limits (stock availability flags are registered on `posedge clk` for 100 MHz timing closure).
 * Stored build is preserved when running or retrying; incoming `damage_mask` and `damage_frame_mask` knock out cells during RUN mode without refunding stock or altering the base build.
-* In Tutorial mode (`LP_LEVEL_TUTORIAL`), the prebuilt contraption is read-only (`build_locked = 1`) in `LP_BUILD` with a `"CLICK GO TO PLAY"` prompt on Left OLED (hiding the Map 1/2 Diary button) and a Welcome card + `[ C ]` (`BTNC`) icon on Right OLED. During `LP_RUN`, Left OLED blinks the target cell border (`tutorial_target_cell`: Engine cell 3, Rocket cell 1, Fan cell 7) and `stored_build_grid` automatically resets to `27'd0` when transitioning to an actual map.
+* In Tutorial mode (`LP_LEVEL_TUTORIAL`), the prebuilt contraption is read-only in `LP_BUILD`, the Left OLED keeps its normal `GO`, book and gear buttons, and the Right OLED shows a Welcome card with a `BTNC` key icon. After `GO` the world pauses for a scroll-wheel exercise (`SCROLL^ ZOOM IN`, `SCROLLv ZOOM OUT`), then the engine lesson. One register, `tutorial_lesson` (`LP_LESSON_*` in `game_defs.vh`), decides the pause, the Right OLED message and the glowing Left OLED control (Engine cell 3, Rocket cell 1, Fan cell 7, or the retry button), so they always agree; the glow uses a free-running blink, so it also works while the engine is off. Only the control being taught is accepted. The first drive meets the TNT and the cart lands, then the player is told to click the retry icon on the Left OLED. The retry stops at x=88 for the rocket, then at x=168 for the fan. The fan lifts the cart until y=60 or x=192, the player switches it off, and it falls straight down (`tutorial_air_stop`) with its pig short of the goal at x=216. It then rolls right to the flag, so it never leaves the world. `stored_build_grid` automatically resets to `27'd0` when transitioning to an actual map.
 
 ### 4.4 Rigid Body Physics & Rotation ([`physics_engine.v`](file:///c:/Users/kaush/EE2026Labs/GPT6_S2_01_I-FDP_project/GPT_6_S2_01_I-FDP_project.srcs/sources_1/new/physics_engine.v))
 * Kinematics use Q12.8 fixed-point format (`LP_COORD_BITS = 20` or 16-bit).
@@ -182,11 +182,11 @@ flowchart TD
   - *Title Screen:* Animated Piggy Island sky & scrolling clouds with `"LAGGY PIGGIES"` logo, Play button, and Settings button.
   - *Build Screen:* 16px 3×3 grid, inventory pages 1 & 2, drag preview, Go button, Book/Diary & Settings icons.
   - *Run Screen:* Centered 16px 3×3 interactive damage diagram, direct cell clicking (balloons, engine, individual fans, rockets), bottom action bar (`[TRY]`, `[END]`, `[EDIT]`, `[GEAR]`).
-  - *Settings & `[ ? ]` Guide:* Sound Settings, Map Select, Home, and bottom-left `[ ? ]` toggle cycling Mouse Controls (`1/2`) and Board Switches (`2/2`: `SW15` Reverse, `SW14` Zoom, `SW13` Pan, `SW1` 1-OLED, `SW0` Mute).
+  - *Settings & `[ ? ]` Guide:* Sound Settings, Map Select, Home, and bottom-left `[ ? ]` toggle cycling Mouse Controls (`1/2`) and Board Switches (`2/2`: `SW15` Reverse, `SW14` Pan, `SW1` 1-OLED, `SW0` Mute).
 * **JB (Right OLED):**
   - Completely blanked (`16'h0000`) on Title Screen, Level Select screen, and when `SW1` 1-Screen mode is active.
-  - *Field Diary (`GUIDE`):* Pans the Right OLED camera to the live level checkpoint and poses the recommended demo contraption synchronized with the 3-step Diary walkthrough on Left OLED.
-  - *Build & Run Modes:* World follow-camera with 3 zoom levels (1.5×, 1.0×, 0.5× via `SW14` or scroll wheel) or mouse Free Look (`SW13`).
+  - *Field Diary (`GUIDE`):* Poses the recommended demo contraption at the level's spawn point, synchronized with the 3-step Diary walkthrough on Left OLED; the cart stays put as the pages turn.
+  - *Build & Run Modes:* World follow-camera with 3 zoom levels (1.5×, 1.0×, 0.5× via the scroll wheel, which turns the inventory page instead during Build) or mouse Free Look (`SW14`).
 * **Port B BRAM Multiplexing:** During the Title Screen, because Right OLED is turned off, Port B of the terrain BRAM (`level_map.v`) is routed to the Left OLED pipeline with an offset scroll counter. This produces a live moving cave background at **0% extra BRAM cost**.
 
 ### 4.9 7-Segment Countdown Run Timer ([`seven_seg_timer.v`](file:///c:/Users/kaush/EE2026Labs/GPT6_S2_01_I-FDP_project/GPT_6_S2_01_I-FDP_project.srcs/sources_1/new/seven_seg_timer.v))
@@ -223,7 +223,7 @@ Check resource utilization and timing in:
 
 Verify before flashing:
 - **Block RAM Tile** $\le 48$ / 50.
-- **Slice LUTs** $\le 20,800$ (currently ~17,199 / 82.69%).
+- **Slice LUTs** $\le 20,800$ (currently ~19,747 / 94.94%).
 - **WNS** $\ge 0.000$ ns.
 
 ---
@@ -235,7 +235,7 @@ Before committing or opening a PR:
 2. [ ] **LUT minimized?** Did you avoid single-cycle `/` and `%`? Are register bit-widths minimal?
 3. [ ] **0 Extra BRAM?** Are all UI elements and icons in distributed LUT logic?
 4. [ ] **Map files untouched?** Are `cave_*.mem` and `level_map.v` completely unmodified?
-5. [ ] **All 51 testbenches passing?** Did you run regression tests without errors?
+5. [ ] **All 86 testbenches passing?** Did you run regression tests without errors?
 6. [ ] **Timing closed?** Are WNS and WHS positive with 0 failing endpoints?
 7. [ ] **Clean UI & Modern Test Contracts?** Are dead/phantom hitboxes removed, buttons strictly confined to their visible bounds, and outdated testbenches updated?
 8. [ ] **Clean git status?** No temporary files, logs, or clutter left behind?

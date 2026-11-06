@@ -5,11 +5,12 @@ module input_controller #(
     parameter integer DEBOUNCE_CYCLES = 20000000,
     parameter integer RELEASE_CYCLES = 2000000
 ) (
-    input wire clk, reset, btnC, btnU, btnL, btnR, mute_switch, reverse_switch,
-    output wire start_press, edit_press, right_press, audio_muted, engine_reverse, jump_press
+    input wire clk, reset, btnC, btnU, btnL, mute_switch, reverse_switch,
+    output wire start_press, edit_press, audio_muted, engine_reverse, jump_press
 );
     // The wheel engine is switched on and off only by clicking its cell on
-    // the run diagram, so no engine switch is synchronised here.
+    // the run diagram, and rockets only by clicking their own cells, so neither
+    // needs a switch or button here.
     reg mute_meta, mute_sync;
     reg reverse_meta, reverse_sync;
     button_debouncer #(.RELEASE_CYCLES(RELEASE_CYCLES)) u_center (
@@ -22,10 +23,6 @@ module input_controller #(
     );
     // BTNL is reserved. Keep this legacy output inert for older module callers.
     assign jump_press = 1'b0;
-    button_debouncer #(.RELEASE_CYCLES(RELEASE_CYCLES)) u_right (
-        .CLOCK(clk), .reset(reset), .btn(btnR),
-        .freq_count(DEBOUNCE_CYCLES-1), .btn_pressed(right_press)
-    );
     always @(posedge clk) begin
         if (reset) begin
             reverse_meta <= 0; reverse_sync <= 0;

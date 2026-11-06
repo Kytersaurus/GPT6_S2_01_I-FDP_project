@@ -8,7 +8,7 @@ module directional_parts_tb;
     reg [3:0] cell_id=0,source=0;
     reg [8:0] mask=0;
     wire [26:0] grid;
-    wire [8:0] frames,direction,intact;
+    wire [8:0] frames,direction,facing_down,intact;
     wire signed [4:0] balance, fan_balance, rocket_balance;
     wire [3:0] engines,rockets,fans;
     wire [2:0] feedback;
@@ -18,7 +18,7 @@ module directional_parts_tb;
         .clk(clk),.reset(reset),.game_state(state),.run_init(init),.init_ready(),
         .edit_valid(edit),.edit_op(op),.edit_cell(cell_id),.edit_source(source),.edit_part(part),.edit_facing_left(left),
         .damage_valid(damage),.damage_ready(),.damage_mask(mask),.damage_frame_mask(9'd0),
-        .build_grid(grid),.build_frames(frames),.build_facing_left(direction),.engine_balance(balance),.fan_balance(fan_balance),.rocket_balance(rocket_balance),
+        .build_grid(grid),.build_frames(frames),.build_facing_left(direction),.build_facing_down(facing_down),.engine_balance(balance),.fan_balance(fan_balance),.rocket_balance(rocket_balance),
         .intact_mask(intact),.frame_intact_mask(),.build_valid(build_valid),.engine_count(engines),.rockets_left(rockets),.fans_left(fans),
         .feedback_code(feedback));
     task clocks;input integer n;begin repeat(n) @(negedge clk);end endtask
@@ -36,13 +36,13 @@ module directional_parts_tb;
         if(engines!=2 || balance!=0 || !direction[3] || direction[4]) $fatal(1,"Opposing engines failed to cancel");
         put(0,`LP_PART_BOOSTER,1);put(6,`LP_PART_BOOSTER,0);
         if(rockets!=0 || grid[20:18]!=0 || !direction[0]) $fatal(1,"Rocket stock/direction or unsupported placement failed");
-        put(7,`LP_PART_FAN,0);
+        put(5,`LP_PART_FAN,0); // Side-mounted beside the frame in cell 4.
         if(fan_balance!=1 || rocket_balance!=-1) $fatal(1,"Air part directions incorrect");
         state=`LP_INIT_RUN;init=1;clocks(2);init=0;state=`LP_RUN;clocks(2);
         mask=9'b000010000;damage=1;clocks(1);damage=0;clocks(2);
         if(engines!=1 || balance!=-1 || !direction[3] || grid[14:12]!=`LP_PART_ENGINE)
             $fatal(1,"Damage changed saved direction or engine balance did not update");
-        mask=9'b010000001;damage=1;clocks(1);damage=0;clocks(2);
+        mask=9'b000100001;damage=1;clocks(1);damage=0;clocks(2);
         if(fan_balance!=0 || rocket_balance!=0) $fatal(1,"Destroyed air parts still produced thrust");
         state=`LP_INIT_RUN;init=1;clocks(2);init=0;state=`LP_RUN;clocks(2);
         if(fan_balance!=1 || rocket_balance!=-1) $fatal(1,"Retry did not restore air directions");
@@ -56,8 +56,13 @@ module directional_parts_tb;
         if(direction[3] || !build_valid) $fatal(1,"Nondirectional part retained an engine direction or invalidated build");
         put(1,`LP_PART_BALLOON,0);put(6,`LP_PART_WHEEL,0);
         if(!build_valid) $fatal(1,"Adjacent balloon or wheel invalidated fan/rocket placement");
-        source=7;cell_id=5;part=`LP_PART_FAN;op=`LP_EDIT_MOVE;edit=1;clocks(1);edit=0;clocks(1);
-        if(!build_valid || grid[17:15]!=`LP_PART_FAN) $fatal(1,"Moved fan did not immediately resolve a valid direction");
+        source=5;cell_id=7;part=`LP_PART_FAN;op=`LP_EDIT_MOVE;edit=1;clocks(1);edit=0;clocks(2);
+        if(!build_valid || grid[23:21]!=`LP_PART_FAN || !facing_down[7]) $fatal(1,"Fan moved under the cart did not turn to blow down");
+        // Hanging under the cart, a fan can never be turned left or right.
+        left=0;cell_id=7;part=`LP_PART_FAN;op=`LP_EDIT_PLACE;edit=1;clocks(1);edit=0;clocks(2);
+        if(!facing_down[7]) $fatal(1,"Fan under the cart turned to blow right");
+        left=1;edit=1;clocks(1);edit=0;clocks(2);
+        if(!facing_down[7] || !build_valid) $fatal(1,"Fan under the cart turned to blow left");
         $display("PASS directional_parts_tb: no side wrap, stock, opposing engine balance, damage/retry, filled-frame rejection and direction cleanup");
         $finish;
     end

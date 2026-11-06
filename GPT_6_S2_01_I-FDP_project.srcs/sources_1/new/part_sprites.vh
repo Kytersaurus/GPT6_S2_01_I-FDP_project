@@ -111,12 +111,13 @@ function [15:0] part_sprite;
                     2, 5: row = 32'h10200201;
                     default: row = 32'h10022001;
                 endcase
-                `LP_PART_PIG: case (sprite_y)         // Ears, eyes and snout
-                    1: row = 32'h04000040;
-                    3: row = 32'h03533530;
-                    4: row = 32'h03366330;
-                    5: row = 32'h03655630;
-                    2, 6: row = 32'h03333330;
+                `LP_PART_PIG: case (sprite_y)         // The same face as the larger sprites:
+                    1: row = 32'h00400400;            // dark outline and ears,
+                    2: row = 32'h04333340;
+                    3: row = 32'h04855840;            // white eyes with black pupils,
+                    4: row = 32'h04366340;            // and a pink snout with nostrils.
+                    5: row = 32'h04622640;
+                    6: row = 32'h00444400;
                     default: row = 0;
                 endcase
                 `LP_PART_WHEEL: case (sprite_y)       // Tyre, rim, hub and two spoke phases
@@ -565,6 +566,42 @@ function [15:0] part_sprite_mounted;
         if (size == 16) part_sprite_mounted = part_sprite16(part, ix, iy, phase, background);
         else if (size == 12) part_sprite_mounted = part_sprite12(part, ix, iy, phase, background);
         else part_sprite_mounted = part_sprite(part, ix, iy, phase, background);
+    end
+endfunction
+
+// Balloon pop drawn inside the balloon's own cell, for any cell size up to 16.
+// Phase 1 is a white-hot flash, phase 2 torn shards flying out along eight spokes,
+// and phase 3 the last fragments at the cell's edge. Phase 0 draws nothing.
+function [15:0] balloon_pop_sprite;
+    input [1:0] phase;
+    input [3:0] cell_x, cell_y;
+    input [4:0] size;
+    input [15:0] background;
+    reg [4:0] centre_dx, centre_dy;
+    reg [5:0] centre_distance;
+    reg on_spoke;
+    begin
+        // Twice the distance from the cell centre, which keeps it a whole number.
+        centre_dx = ({cell_x, 1'b0} + 5'd1 >= size) ? ({cell_x, 1'b0} + 5'd1 - size) : (size - {cell_x, 1'b0} - 5'd1);
+        centre_dy = ({cell_y, 1'b0} + 5'd1 >= size) ? ({cell_y, 1'b0} + 5'd1 - size) : (size - {cell_y, 1'b0} - 5'd1);
+        centre_distance = centre_dx + centre_dy;
+        on_spoke = (centre_dx <= 5'd1) || (centre_dy <= 5'd1) ||
+                   (centre_dx == centre_dy) || (centre_dx + 5'd2 == centre_dy) || (centre_dy + 5'd2 == centre_dx);
+        balloon_pop_sprite = background;
+        case (phase)
+            2'd1: begin
+                if (centre_distance < (size >> 1)) balloon_pop_sprite = 16'hffff;
+                else if (centre_distance < size) balloon_pop_sprite = 16'hf81f;
+            end
+            2'd2: begin
+                if (on_spoke && centre_distance >= (size >> 1) && centre_distance < size + (size >> 1))
+                    balloon_pop_sprite = centre_distance[1] ? 16'hfc7e : 16'hf81f;
+            end
+            2'd3: begin
+                if (on_spoke && centre_distance >= size + (size >> 2)) balloon_pop_sprite = 16'ha091;
+            end
+            default: ;
+        endcase
     end
 endfunction
 

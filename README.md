@@ -85,13 +85,12 @@ flowchart TD
 | **PS/2 Mouse** | **USB Host (HID) / JC** | Cursor navigation, drag-and-drop building, scroll-wheel zoom, and interactive part activation |
 
 ### 3.2 Basys 3 Active Switch Mapping
-Gameplay switches sit on the **Left Cluster (`SW13`–`SW15`)** and settings switches on the **Right Cluster (`SW0`–`SW1`)**. The unused middle switches `SW2`–`SW12` are disconnected:
+Gameplay switches sit on the **Left Cluster (`SW14`, `SW15`)** and settings switches on the **Right Cluster (`SW0`–`SW1`)**. The unused middle switches `SW2`–`SW13` are disconnected. The camera zoom is on the mouse wheel:
 
 | Switch | Signal / Role | `0` (Down / OFF) | `1` (Up / ON) |
 | :--- | :--- | :--- | :--- |
 | **`SW15`** | **Engine Reverse** (`reverse_switch`) | **Forward Engine Drive:** Wheel engines push right (`+X`) | **Reverse Engine Drive:** Wheel engines push left (`-X`). *(Affects wheel engines only, never fans or rockets)* |
-| **`SW14`** | **Camera Zoom Toggle** (`zoom_switch`) | **Close View (`1.5×`):** 64×42 world viewport (12×12 part sprites) | **Normal View (`1.0×`):** 96×64 world viewport (8×8 part sprites). *(Mouse scroll wheel also steps across `1.5×`, `1.0×`, and `0.5×` Overview)* |
-| **`SW13`** | **Free-Look Camera Pan** (`free_look`) | **Follow Camera:** Viewport automatically tracks the vehicle with alpha-beta vertical smoothing | **Mouse Free Look:** Moving the mouse pans the viewport across the entire cave map |
+| **`SW14`** | **Free-Look Camera Pan** (`free_look`) | **Follow Camera:** Viewport automatically tracks the vehicle with alpha-beta vertical smoothing | **Mouse Free Look:** Moving the mouse pans the viewport across the entire cave map |
 | **`SW1`** | **1-Screen / 2-Screen Mode** (`show_map`) | **2-Screen Dual-OLED Mode:** Left OLED (`JA`) shows UI/Builder/Run Grid; Right OLED (`JB`) shows World Map | **1-Screen Mode:** Left OLED (`JA`) displays the World Map directly; Right OLED (`JB`) is blanked |
 | **`SW0`** | **Hardware Audio Mute** (`mute_switch`) | **Audio Enabled:** Controlled by on-screen Sound menu | **Hardware Mute:** Immediately mutes all BGM & SFX, shows `MUTED BY SW0` in Sound menu, and pulls `JXADC[3]` low |
 
@@ -103,9 +102,8 @@ The wheel engine has **no switch**. It starts OFF on every run and is toggled on
 | :--- | :--- | :--- |
 | **`BTNC`** | **Launch / Retry** | Launches the vehicle from `BUILD` (when build is valid); retries the current level from `RUN`, `SUCCESS`, or `FAIL` |
 | **`BTNU`** | **Edit / Guide / Back** | Opens/closes the Diary (`GUIDE`) in `BUILD`; returns to `BUILD` from `RUN`, `SUCCESS`, or `FAIL`; backs out of `LEVEL_SELECT` or `SETTINGS` |
-| **`BTNR`** | **Rocket Boost Shortcut** | Fires the Rocket Booster pulse during `RUN` on every level (same as clicking the Rocket cell); does nothing in other states |
 | **`BTND`** | **Master Hardware Reset** | Synchronized active-high system reset; resets FSM, inventory, and displays |
-| **`LED[15:13]`, `LED[1:0]`** | **Active Switch Indicators** | Mirrors the active switches `SW[15:13]` and `SW[1:0]` (`LED[2]` stays off) |
+| **`LED[15:14]`, `LED[1:0]`** | **Active Switch Indicators** | Mirrors the active switches `SW[15:14]` and `SW[1:0]` (`LED[13]` and `LED[2]` stay off) |
 | **`LED[12:3]`** | **GO & Game-End Flash LEDs** | Flashes a rapid launch strobe when **`GO`** is pressed (`launch_flash`), an alternating celebration marquee on **`SUCCESS`**, and an alert blink on **`FAIL`** |
 | **7-Segment Display** | **20s Par Countdown Timer** | Displays active-low `SS.T` 20.0-second par countdown (`20.0` $\to$ `0.0`), then counts negative overtime (`-0.1`, `-0.2`, ...) if par expires. Blanked (`an = 4'b1111`) during the interactive Tutorial level (`LP_LEVEL_TUTORIAL`) |
 
@@ -129,8 +127,8 @@ The wheel engine has **no switch**. It starts OFF on every run and is toggled on
 * **Zero-BRAM Title Screen Scrolling:** On the `"LAGGY PIGGIES"` Title Screen, Right OLED (`JB`) is turned off and its idle Port B on `level_map.v` is multiplexed to Left OLED (`JA`) with an animated horizontal scroll counter, rendering a live scrolling cave background at **0% extra BRAM cost**.
 * **Interactive Tutorial Level (`LP_LEVEL_TUTORIAL`):**
   - Launches from the Title Screen `[TUTORIAL]` button with a prebuilt contraption (Pig + Engine + Booster + Fan + Balloon + 2 Wheels).
-  - **Read-Only Build Preview & Clean Reset:** In `LP_BUILD`, the tutorial contraption is visible on the Left OLED 3×3 grid with a `"CLICK GO TO PLAY"` status banner (`y = 56`), editing and the Map 1/2 Diary (`[BOOK]`) are locked/hidden (`tutorial_mode = 1`), and Right OLED displays a full-screen Welcome card with a procedural `[ C ]` (`BTNC`) launch button icon. Returning to Map 1 or Map 2 automatically resets `stored_build_grid` to an empty blueprint.
-  - **Blinking Target-Tile Prompts & On-Land Finish Line:** Blanks the 7-segment timer during tutorial practice, anchors the camera to the floor (`world_height = 126`), blinks (`16'hffe0`) the exact 3×3 cell border required at each step (Cell 3 Engine $\to$ Cell 1 Rocket $\to$ Cell 7 Fan), immediately unpauses when the Engine or Rocket tile is clicked, shows a `[ C ]` (`BTNC`) retry prompt after the first TNT demonstration, and ends on a flush on-land checkerboard finish line (`x = 216..248, y = 120..125`) with a Finish Flag (`x = 228, y = 106..120`).
+  - **Read-Only Build Preview & Clean Reset:** In `LP_BUILD`, the tutorial contraption is visible on the Left OLED 3×3 grid and its normal `[GO]`, `[BOOK]` and `[GEAR]` buttons, editing is locked, and Right OLED displays a full-screen Welcome card with a procedural `BTNC` key icon. Returning to Map 1 or Map 2 automatically resets `stored_build_grid` to an empty blueprint.
+  - **Guided Run Flow:** After `GO` the world pauses for a scroll-wheel exercise (`SCROLL^ ZOOM IN`, `SCROLLv ZOOM OUT`), then the engine lesson. One register, `tutorial_lesson` (`LP_LESSON_*` in `game_defs.vh`), decides the pause, the Right OLED message and the glowing Left OLED control (Engine cell 3, Rocket cell 1, Fan cell 7, or the retry button), so they always agree; the glow uses a free-running blink, so it also works while the engine is off. Only the control being taught is accepted. The first drive meets the TNT and the cart lands, then the player is told to click the retry icon on the Left OLED. The retry stops at x=88 for the rocket, then at x=168 for the fan. The fan lifts the cart until y=60 or x=192, the player switches it off, and it falls straight down (`tutorial_air_stop`) with its pig short of the goal at x=216. It then rolls right to the flag, so it never leaves the world.
 * **Interactive Run Screen (Left OLED):**
   - Displays a large centered **3×3 interactive vehicle diagram (16×16 px per cell)** matching the Build screen's proportions, with live structural damage overlays.
   - **Direct Cell Clicking:** Left-clicking directly on an intact **Balloon** pops that specific balloon; clicking an **on-board TNT crate** detonates it in-flight (destroying adjacent cells and kicking the remaining vehicle); clicking an **Engine** toggles wheel drive; clicking an **intact Fan** toggles **only that specific fan cell (`fan_manual_mask[cell]`)** so multiple fans can be controlled independently; clicking a **Rocket** fires a boost pulse.
@@ -140,7 +138,7 @@ The wheel engine has **no switch**. It starts OFF on every run and is toggled on
     - **Left OLED (`JA`):** Concise page instructions (`1/3 GOAL`, `2/3 BUILD`, `3/3 RUN`) with `[BACK]`, `[<]`, and `[>]` buttons.
     - **Right OLED (`JB`):** Synchronized **live visual diagrams** — Page 1 renders a **Pig $\to$ Goal Flag** diagram, Page 2 renders an **Inventory $\to$ 3×3 Grid + `[GO]`** assembly diagram, and Page 3 renders a **3×3 Interactive Click Grid + Action Bar** diagram.
 * **Settings Menu & `[ ? ]` Hardware Switch Guide:**
-  - Accessible from the Title Screen, Build Screen, or Run Screen via the Gear icon (`[GEAR]`), providing **Mouse Speed (`SLOW / NORM / FAST`)**, **Sound Mixer (`ALL / BGM / SFX / MUTE`)**, **Level Select (`MAP 1 / 2 / 3`)**, **`[TITLE]`**, and a top-right **`[ ? ]` How to Play / Switch Guide** toggle that displays all hardware switch mappings (`SW0`, `SW1`, `SW13–SW15`, `BTNC/U/R`).
+  - Accessible from the Title Screen, Build Screen, or Run Screen via the Gear icon (`[GEAR]`), providing **Mouse Speed (`SLOW / NORM / FAST`)**, **Sound Mixer (`ALL / BGM / SFX / MUTE`)**, **Level Select (`MAP 1 / 2 / 3`)**, **`[TITLE]`**, and a top-right **`[ ? ]` How to Play / Switch Guide** toggle that displays all hardware switch mappings (`SW0`, `SW1`, `SW14`, `SW15`, `BTNC/U`).
 
 ### 4.3 Q12.8 Rigid-Body Physics & 32-Step Rotation (`physics_engine.v`)
 * **Newtonian Kinematics:** Position and velocity are integrated in signed Q12.8 fixed-point arithmetic (`1/256` pixel sub-step precision).

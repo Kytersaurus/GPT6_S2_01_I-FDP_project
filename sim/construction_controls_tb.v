@@ -171,7 +171,7 @@ module construction_controls_tb;
         if (drag_active) $fatal(1,"Outside release left the preview active");
         expect_pixel(24,8,16'h0841);
         packet(74,18,1,0); packet(12,12,1,0);
-        expect_pixel(10,10,16'h07e0); expect_pixel(10,11,16'h0000);
+        expect_pixel(10,10,16'h07e0); expect_pixel(10,11,16'hffff);
         packet(54,55,0,0);
         packet(74,28,1,0); packet(12,12,1,0);
         expect_pixel(10,10,16'hffff); expect_pixel(8,8,16'h0841);

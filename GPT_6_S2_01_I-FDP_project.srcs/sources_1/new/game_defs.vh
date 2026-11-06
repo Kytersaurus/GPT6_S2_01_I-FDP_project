@@ -96,6 +96,24 @@
 `define LP_TUT_FINISH_Y  120
 `define LP_TUT_FINISH_W  32
 `define LP_TUT_FINISH_H  8
+// Tutorial lessons, in teaching order. One register in the top level holds the
+// current lesson; the world pause, the right OLED message and the glowing left
+// OLED control are all decoded from it, so they can never disagree.
+`define LP_LESSON_BITS      4
+`define LP_LESSON_ZOOM_IN   4'd0   // Paused: scroll the wheel up.
+`define LP_LESSON_ZOOM_OUT  4'd1   // Paused: scroll the wheel down.
+`define LP_LESSON_ENGINE    4'd2   // Paused: click the glowing engine.
+`define LP_LESSON_STAR      4'd3   // Driving towards the star box.
+`define LP_LESSON_TNT       4'd4   // Driving towards the TNT.
+`define LP_LESSON_TNT_FALL  4'd5   // Thrown by the first TNT blast.
+`define LP_LESSON_RETRY     4'd6   // Paused: click the retry icon on the left OLED.
+`define LP_LESSON_ROCKET    4'd7   // Paused before the TNT: click the glowing rocket.
+`define LP_LESSON_HOP       4'd8   // Rocket fired; rolling on past the TNT.
+`define LP_LESSON_FAN_ON    4'd9   // Paused: click the glowing fan.
+`define LP_LESSON_FAN_FLY   4'd10  // Rising on the fan.
+`define LP_LESSON_FAN_OFF   4'd11  // Paused in the air: click the glowing fan again.
+`define LP_LESSON_DROP      4'd12  // Falling straight down, short of the flag.
+`define LP_LESSON_FLAG      4'd13  // Landed: rolling right to the flag.
 
 // Block-RAM maps in level_map: one 3-bit class per world pixel. Sky and cave background are
 // open; the other classes are solid. Map 0 is Cave Arch (level 1), address {y[8:0], x[8:0]};

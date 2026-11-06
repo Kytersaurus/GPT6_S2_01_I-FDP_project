@@ -35,7 +35,11 @@ module left_renderer #(
     input tri0 wheel_moving,
     input wire boost_active,
     input tri0 [8:0] active_fans,
-    input tri0 rocket_ready,
+    // Rockets fire one at a time: which are burning now, and which are used up.
+    input tri0 [8:0] rocket_burn_mask, rocket_spent_mask,
+    // Cells whose balloon has just burst, and how far through the burst they are.
+    input tri0 [8:0] balloon_pop_mask,
+    input tri0 [1:0] balloon_pop_phase,
     input wire [3:0] frames_left, pigs_left, wheels_left, engines_left, balloons_left,
     input wire [2:0] selected_part,
     input wire drag_active,
@@ -50,11 +54,8 @@ module left_renderer #(
     input wire star_box_collected,
     // Tutorial-only display state. These inputs are optional for standalone
     // renderer benches (tri0 defaults keep ordinary maps unchanged).
-    input tri0 signed [19:0] vehicle_x,
-    input tri0 tutorial_tnt_seen,
-    input tri0 tutorial_tnt_landed,
-    input tri0 tutorial_fan_tested,
-    input tri0 tutorial_tnt_intact,
+    input tri0 [`LP_LESSON_BITS-1:0] tutorial_lesson,
+    input tri0 tutorial_blink,
     input wire anim_phase,
     output reg [15:0] pixel_data
 );
@@ -114,20 +115,26 @@ module left_renderer #(
     wire [6:0] arrow_row = y - inventory_content_top - 7'd1;
     wire [5:0] message_row = y - 6'd56;
     wire text_lit = (text_column < 3'd5) && letter_bits[34 - (text_row * 5 + text_column)];
-    // Blink the exact tile needed for each tutorial action:
-    // engine = cell 3, rocket = cell 1, fan = cell 7.
-    wire [3:0] tutorial_target_cell =
-        (level_index != `LP_LEVEL_TUTORIAL || !full_run) ? 4'd15 :
-        (!engine_enabled && $signed(vehicle_x) < 20'sd10240) ? 4'd3 :
-        (tutorial_tnt_seen && tutorial_tnt_intact && !tutorial_tnt_landed &&
-         rocket_ready && $signed(vehicle_x) >= 20'sd22528 &&
-         $signed(vehicle_x) < 20'sd36864) ? 4'd1 :
-        // After the guided rocket has fired, rocket_ready is low. That is a
-        // more reliable phase marker than the TNT mask because the tutorial's
-        // safety corridor may deliberately leave the crate intact.
-        (tutorial_tnt_seen && !tutorial_fan_tested && !rocket_ready &&
-         $signed(vehicle_x) >= 20'sd49152 && $signed(vehicle_x) < 20'sd55296) ? 4'd7 :
-        4'd15;
+    // Glow the exact tile needed for each tutorial action, from the shared lesson
+    // register: engine = cell 3, rocket = cell 1, fan = cell 7; 15 glows nothing.
+    reg [3:0] tutorial_target_cell;
+    always @* begin
+        tutorial_target_cell = 4'd15;
+        if (level_index == `LP_LEVEL_TUTORIAL && full_run) begin
+            case (tutorial_lesson)
+                `LP_LESSON_ENGINE:
+                    tutorial_target_cell = 4'd3;
+                // The cart cannot finish these driving lessons with the engine off.
+                `LP_LESSON_STAR, `LP_LESSON_TNT, `LP_LESSON_HOP, `LP_LESSON_FLAG:
+                    if (!engine_enabled) tutorial_target_cell = 4'd3;
+                `LP_LESSON_ROCKET:
+                    tutorial_target_cell = 4'd1;
+                `LP_LESSON_FAN_ON, `LP_LESSON_FAN_OFF:
+                    tutorial_target_cell = 4'd7;
+                default: ;
+            endcase
+        end
+    end
 
     // Inventory and drag preview use the same sprites as the grid and the right OLED.
     function [15:0] draw_part_icon;
@@ -157,9 +164,6 @@ module left_renderer #(
                     `LP_FAIL_HAZARD: message = "HAZARD HIT      ";
                     default: message = "OUT OF BOUNDS   ";
                 endcase
-                else if (game_state == `LP_BUILD && level_index == `LP_LEVEL_TUTORIAL) begin
-                    message = "CLICK GO TO PLAY"; message_colour = 16'hffe0;
-                end
                 else if (build_valid) begin message = "READY           "; message_colour = 16'h07e0; end
                 else case (build_error)
                     `LP_BUILD_ERR_PIG: message = "ADD PIG         ";
@@ -261,12 +265,12 @@ module left_renderer #(
                 if (in_build && cell_hovered)
                     pixel_data = 16'h07ff;
                 else if (full_run) begin
-                    if (tutorial_target_cell < 4'd9 && cell_index == tutorial_target_cell && anim_phase)
+                    if (cell_index == tutorial_target_cell && tutorial_blink)
                         pixel_data = 16'hffe0;
                     else if (intact_mask[cell_index] &&
                         ((part == `LP_PART_ENGINE && engine_enabled) ||
                          (part == `LP_PART_FAN && active_fans[cell_index]) ||
-                         (part == `LP_PART_BOOSTER && boost_active)))
+                         (part == `LP_PART_BOOSTER && rocket_burn_mask[cell_index])))
                         pixel_data = 16'h07e0;
                     else if (cell_hovered)
                         pixel_data = 16'hffe0;
@@ -297,8 +301,8 @@ module left_renderer #(
                             part_anim = active_fans[cell_index] ? anim_phase : 1'b0;
                             part_dim  = !active_fans[cell_index];
                         end else if (part == `LP_PART_BOOSTER) begin
-                            part_anim = boost_active ? anim_phase : 1'b0;
-                            part_dim  = !(boost_active || rocket_ready);
+                            part_anim = rocket_burn_mask[cell_index] ? anim_phase : 1'b0;
+                            part_dim  = rocket_spent_mask[cell_index] && !rocket_burn_mask[cell_index];
                         end else if (part == `LP_PART_WHEEL) begin
                             part_anim = wheel_moving ? anim_phase : 1'b0;
                         end
@@ -309,6 +313,9 @@ module left_renderer #(
                         spr_pixel = part_sprite_mounted(part, cell_x, cell_y, compact_run ? 12 : 16, build_facing_left[cell_index], build_facing_down[cell_index], frame_intact_mask, cell_index, part_anim, pixel_data);
                     pixel_data = (part_dim && spr_pixel != pixel_data) ? ((spr_pixel & 16'hf7de) >> 1) : spr_pixel;
                 end
+                // The burst plays over the cell after the balloon has gone.
+                if (balloon_pop_mask[cell_index])
+                    pixel_data = balloon_pop_sprite(balloon_pop_phase, cell_x, cell_y, 5'd16, pixel_data);
             end
             if (feedback_code != `LP_FEEDBACK_NONE && feedback_cell < 9 &&
                 cell_index == feedback_cell &&

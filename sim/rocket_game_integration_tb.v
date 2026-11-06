@@ -13,7 +13,8 @@ module rocket_game_integration_tb;
     initial begin
         force dut.game_state=state;force dut.run_init=init;force dut.step_start=step;
         force dut.update_release=1'b0;force dut.physics_tick=1'b0;
-        force dut.ui_rocket_req=fire;force dut.ui_engine_on=1'b0;
+        // The fixture's rocket is in cell 2, the cell a click would name.
+        force dut.ui_rocket_req=fire;force dut.mouse_boost_cell=4'd2;force dut.ui_engine_on=1'b0;
         clocks(20);board_reset=0;clocks(300);
         dut.u_builder.build_grid={`LP_PART_WHEEL,`LP_PART_EMPTY,`LP_PART_WHEEL,
             `LP_PART_EMPTY,`LP_PART_PIG,`LP_PART_ENGINE,`LP_PART_BOOSTER,`LP_PART_EMPTY,`LP_PART_EMPTY};

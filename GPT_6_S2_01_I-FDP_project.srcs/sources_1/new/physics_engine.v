@@ -36,7 +36,13 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
     input tri0 signed [4:0] rocket_vertical_balance,
     input tri0 [3:0] rocket_count,
     input tri0 fan_enabled, rocket_req, tutorial_mode,
+    // Rockets burn independently. rocket_fire_mask names the cell(s) rocket_req
+    // lights and rocket_present_mask the rockets on the cart. Left unconnected,
+    // both are all ones: one request lights every rocket together.
+    input tri1 [8:0] rocket_fire_mask, rocket_present_mask,
     output wire rocket_ready, rocket_active,
+    output wire [8:0] rocket_burn_mask,
+    output reg [8:0] rocket_spent_mask,
     // Read-only geometry for force application and the mass centre. Disabled
     // by default for legacy arithmetic benches; the game enables it explicitly.
     input tri0 moments_enabled,
@@ -109,7 +115,9 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
     // Power-of-two per-part forces use wiring shifts, not multipliers.
     localparam FAN_FORCE_SHIFT = 6; // Fan force 64; rocket force is a power-of-two parameter.
     localparam [6:0] ROCKET_TICKS = 7'd90; // 1.5 s at the default 60 Hz
-    localparam [6:0] TUTORIAL_ROCKET_TICKS = 7'd16; // one short TNT-clearing hop
+    // One short TNT-clearing hop. The tutorial cart's balloon leaves only 8 of 32 gravity,
+    // so even 5 ticks of thrust lift it about 15 px, over the 8 px crate and back down.
+    localparam [6:0] TUTORIAL_ROCKET_TICKS = 7'd5;
     reg [4:0] phase;
     reg signed [15:0] velocity_x, velocity_y;
     reg [4:0] tnt_blast_steps;
@@ -129,8 +137,13 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
         tnt_velocity_sum_y > $signed({1'b0,TNT_MAX_VY}) ? TNT_MAX_VY :
         tnt_velocity_sum_y < -$signed({1'b0,TNT_MAX_VY}) ? -TNT_MAX_VY : tnt_velocity_sum_y[15:0];
     reg was_grounded;
-    reg [6:0] rocket_fuel;
-    reg rocket_spent;
+    // Two burn timers, because a level allows at most two rockets (Cave Flight).
+    // Each remembers which cell(s) it is burning.
+    reg [6:0] rocket_fuel, second_rocket_fuel;
+    reg [8:0] first_burn_cells, second_burn_cells;
+    wire rocket_spent = |rocket_spent_mask;
+    assign rocket_burn_mask = ((rocket_fuel != 0) ? first_burn_cells : 9'd0) |
+                              ((second_rocket_fuel != 0) ? second_burn_cells : 9'd0);
     reg signed [4:0] sampled_fans, sampled_rockets, sampled_vertical_rockets;
     reg [3:0] sampled_lift_fans;
     reg signed [15:0] step_vertical_force;
@@ -181,13 +194,21 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
     reg signed [15:0] supported_moment_accel;
     wire signed [13:0] pivot_dx, pivot_dy;
     wire [3:0] wheel_side=tilt_flipped(vehicle_tilt) ? wheels_up : wheels_down;
-    wire [3:0] legacy_contact_wheels=(wheels_down|wheels_up)==0 ? wheel_count : wheel_side;
+    // The builder's wheel and frame counts are long combinational sums over the damage
+    // masks, and they feed the angular-velocity adder. They change only when a part
+    // breaks, far less often than a physics step, so one register here costs nothing
+    // in behaviour and takes those sums out of the 100 MHz path.
+    reg [3:0] legacy_contact_wheels;
+    reg has_intact_frames;
+    always @(posedge clk) begin
+        legacy_contact_wheels <= (wheels_down|wheels_up)==0 ? wheel_count : wheel_side;
+        has_intact_frames <= (frame_intact_mask & build_frames) != 9'd0;
+    end
     wire [3:0] contact_wheels=last_support_span_valid ? last_support_wheel_count : legacy_contact_wheels;
     reg signed [`LP_TILT_BITS-1:0] slope_tilt;
     wire signed [`LP_TILT_BITS-1:0] desired_tilt=tilt_flipped(vehicle_tilt) ? slope_tilt+5'b10000 : slope_tilt;
     // Shortest way round: the 5-bit difference wraps to -16..15.
     wire signed [`LP_TILT_BITS-1:0] settle_error=desired_tilt-vehicle_tilt;
-    wire has_intact_frames = (frame_intact_mask & build_frames) != 9'd0;
     wire signed [10:0] support_span_width_q2 = $signed(last_support_right_q2) - $signed(last_support_left_q2);
     wire single_wheel_grounded = was_grounded && last_support_span_valid &&
                                  (legacy_contact_wheels == 4'd1) && has_intact_frames;
@@ -238,7 +259,7 @@ wire air_leveling_snap = air_leveling_active &&
         .build_grid(build_grid),.build_frames(build_frames),.intact_mask(intact_mask),
         .frame_intact_mask(frame_intact_mask),.facing_left(build_facing_left),
         .rocket_vertical_mask(rocket_vertical_mask),.fan_lift_mask(fan_lift_mask),.fan_active_mask(fan_active_mask),
-        .fan_on(fan_enabled),.rocket_on(rocket_active),
+        .fan_on(fan_enabled),.rocket_on(rocket_active),.rocket_burn_mask(rocket_burn_mask),
         .grounded(was_grounded),.tilt(vehicle_tilt),.wheel_force_valid(wheel_force_valid),
         .contact_span_valid(last_support_span_valid),.single_wheel_only(single_wheel_only),
         .contact_left_q2(last_support_left_q2),.contact_right_q2(last_support_right_q2),
@@ -253,20 +274,36 @@ wire air_leveling_snap = air_leveling_active &&
         .pivot_start(phase==PIVOT_START),.next_tilt(proposed_tilt),.pivot_valid(pivot_valid),
         .pivot_ready(phase==PIVOT_WAIT),.pivot_dx(pivot_dx),.pivot_dy(pivot_dy)
     );
+    // A rocket can still fire if it is on the cart and has not been used this run.
+    wire [8:0] unfired_rockets = rocket_present_mask & ~rocket_spent_mask;
+    wire [8:0] rockets_to_light = rocket_fire_mask & unfired_rockets;
+    wire [6:0] full_rocket_burn = tutorial_mode ? TUTORIAL_ROCKET_TICKS : ROCKET_TICKS;
+    wire rocket_burn_step = game_state==`LP_RUN && phase == IDLE && step_start;
     assign rocket_ready = game_state == `LP_RUN && !run_init &&
-                          !rocket_spent && rocket_count != 0;
+                          (|unfired_rockets) && rocket_count != 0;
     assign rocket_active = game_state == `LP_RUN && !run_init &&
-                           rocket_fuel != 0 && rocket_count != 0;
-    // Requests are captured even between physics steps. A shared one-shot burn
-    // is restored only by reset/retry, and only accepted updates consume fuel.
+                           (rocket_fuel != 0 || second_rocket_fuel != 0) && rocket_count != 0;
+    // Requests are captured even between physics steps. Each rocket is a one-shot
+    // restored only by reset/retry, and only accepted updates consume fuel.
     always @(posedge clk) begin
         if (reset || run_init || (game_state != `LP_RUN && !menu_paused)) begin
-            rocket_fuel <= 0; rocket_spent <= 0;
-        end else if (rocket_req && rocket_ready) begin
-            rocket_fuel <= tutorial_mode ? TUTORIAL_ROCKET_TICKS : ROCKET_TICKS;
-            rocket_spent <= 1;
-        end else if (game_state==`LP_RUN && phase == IDLE && step_start && rocket_fuel != 0)
-            rocket_fuel <= rocket_fuel - 1'b1;
+            rocket_fuel <= 0; second_rocket_fuel <= 0;
+            first_burn_cells <= 0; second_burn_cells <= 0;
+            rocket_spent_mask <= 0;
+        end else begin
+            if (rocket_burn_step && rocket_fuel != 0) rocket_fuel <= rocket_fuel - 1'b1;
+            if (rocket_burn_step && second_rocket_fuel != 0) second_rocket_fuel <= second_rocket_fuel - 1'b1;
+            if (rocket_req && rocket_ready && rockets_to_light != 0) begin
+                rocket_spent_mask <= rocket_spent_mask | rockets_to_light;
+                if (rocket_fuel == 0) begin
+                    rocket_fuel <= full_rocket_burn;
+                    first_burn_cells <= rockets_to_light;
+                end else begin
+                    second_rocket_fuel <= full_rocket_burn;
+                    second_burn_cells <= rockets_to_light;
+                end
+            end
+        end
     end
     // Accepted terrain gradient in Q4.4 dy/dx; positive descends to the right.
     // An upside-down body settles onto the slope with its top row down.
@@ -1067,6 +1104,8 @@ module vehicle_moments #(parameter integer ROCKET_FORCE_SHIFT = 9,
     input tri0 [8:0] fan_lift_mask,
     input tri1 [8:0] fan_active_mask,
     input wire fan_on, rocket_on, grounded,
+    // Only burning rockets push. Unconnected, every rocket follows rocket_on.
+    input tri1 [8:0] rocket_burn_mask,
     input wire signed [`LP_TILT_BITS-1:0] tilt,
     // Accepted terrain contacts in world x, relative to the grid centre (Q2).
     // Omitted ports retain the inferred-wheel fallback for legacy callers.
@@ -1124,7 +1163,7 @@ module vehicle_moments #(parameter integer ROCKET_FORCE_SHIFT = 9,
     reg [8:0] normal_scale;
     reg signed [18:0] normal_left_product;
     reg [26:0] grid;
-    reg [8:0] frames, alive, frame_alive, direction, vertical, lift_mask, active_fan_mask, contact_mask;
+    reg [8:0] frames, alive, frame_alive, direction, vertical, lift_mask, active_fan_mask, contact_mask, burning_rockets;
     reg fans_active, rockets_active, on_ground, flipped;
     reg signed [9:0] cosine, sine, next_cosine, next_sine;
     reg signed [`LP_TILT_BITS-1:0] saved_tilt;
@@ -1166,7 +1205,7 @@ module vehicle_moments #(parameter integer ROCKET_FORCE_SHIFT = 9,
                 if(lift_mask[index]) cell_force=-(16'sd1 <<< FAN_LIFT_FORCE_SHIFT);
                 else cell_force=direction[index] ? 16'sd64 : -16'sd64;
             end
-            `LP_PART_BOOSTER: if (rockets_active) begin
+            `LP_PART_BOOSTER: if (rockets_active && burning_rockets[index]) begin
                 cell_axis_y=vertical[index];
                 if (vertical[index]) cell_force=direction[index] ? (16'sd1 <<< ROCKET_FORCE_SHIFT) : -(16'sd1 <<< ROCKET_FORCE_SHIFT);
                 else cell_force=direction[index] ? -(16'sd1 <<< ROCKET_FORCE_SHIFT) : (16'sd1 <<< ROCKET_FORCE_SHIFT);
@@ -1294,7 +1333,7 @@ module vehicle_moments #(parameter integer ROCKET_FORCE_SHIFT = 9,
             saved_tilt<=0; pivot_point_x<=0; pivot_point_y<=0;
             com_x_q2<=0; com_y_q2<=0; body_mass<=0;
             index<=0; wheel_contacts<=0; contact_mask<=0; lift_fans<=0; remaining_gravity<=0;
-            grid<=0; frames<=0; alive<=0; frame_alive<=0; direction<=0; vertical<=0; lift_mask<=0; active_fan_mask<=0;
+            grid<=0; frames<=0; alive<=0; frame_alive<=0; direction<=0; vertical<=0; lift_mask<=0; active_fan_mask<=0; burning_rockets<=0;
             fans_active<=0; rockets_active<=0; on_ground<=0; flipped<=0;
             cosine<=0; sine<=0; mass_x<=0; mass_y<=0;
             force_cell<=0;
@@ -1309,7 +1348,7 @@ module vehicle_moments #(parameter integer ROCKET_FORCE_SHIFT = 9,
                     grid<=build_grid; frames<=build_frames; alive<=intact_mask;
                     frame_alive<=frame_intact_mask; direction<=facing_left; vertical<=rocket_vertical_mask;
                     lift_mask<=fan_lift_mask; active_fan_mask<=fan_active_mask;
-                    fans_active<=fan_on; rockets_active<=rocket_on; on_ground<=grounded;
+                    fans_active<=fan_on; rockets_active<=rocket_on; burning_rockets<=rocket_burn_mask; on_ground<=grounded;
                     actual_span_valid<=contact_span_valid;
                     single_wheel_mode<=single_wheel_only;
                     actual_left<=contact_left_q2; actual_right<=contact_right_q2; actual_y<=contact_y_q2;
