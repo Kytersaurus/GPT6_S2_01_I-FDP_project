@@ -146,7 +146,7 @@ flowchart TD
   - `FAN` and `ROCKET` require `wheel_support` (a frame in the same cell or orthogonally adjacent) and at least one clear exhaust/propulsion side not blocked by an adjacent `FRAME` (`~frame_right`, `~frame_left`, `~frame_above`, `~frame_below`). Non-frame neighbors (wheels, balloons, or another fan/rocket) never obstruct placement.
   - Parts cannot exceed inventory stock limits (stock availability flags are registered on `posedge clk` for 100 MHz timing closure).
 * Stored build is preserved when running or retrying; incoming `damage_mask` and `damage_frame_mask` knock out cells during RUN mode without refunding stock or altering the base build.
-* In Tutorial mode (`LP_LEVEL_TUTORIAL`), the prebuilt contraption is read-only (`build_locked = 1`) in `LP_BUILD` while remaining visible on the Left OLED, and `stored_build_grid` automatically resets to `27'd0` when transitioning to an actual map.
+* In Tutorial mode (`LP_LEVEL_TUTORIAL`), the prebuilt contraption is read-only (`build_locked = 1`) in `LP_BUILD` with a `"CLICK GO TO PLAY"` prompt on Left OLED (hiding the Map 1/2 Diary button) and a Welcome card + `[ C ]` (`BTNC`) icon on Right OLED. During `LP_RUN`, Left OLED blinks the target cell border (`tutorial_target_cell`: Engine cell 3, Rocket cell 1, Fan cell 7) and `stored_build_grid` automatically resets to `27'd0` when transitioning to an actual map.
 
 ### 4.4 Rigid Body Physics & Rotation ([`physics_engine.v`](file:///c:/Users/kaush/EE2026Labs/GPT6_S2_01_I-FDP_project/GPT_6_S2_01_I-FDP_project.srcs/sources_1/new/physics_engine.v))
 * Kinematics use Q12.8 fixed-point format (`LP_COORD_BITS = 20` or 16-bit).
