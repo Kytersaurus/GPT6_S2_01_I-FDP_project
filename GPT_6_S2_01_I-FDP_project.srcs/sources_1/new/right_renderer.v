@@ -257,7 +257,7 @@ module right_renderer #(
                 // only at the deliberate stop, not earlier in the warning.
                 banner_text = (tutorial_tnt_seen && $signed(vehicle_x) >= 20'sd22528) ?
                               "CLICK ROCKET NOW" : "AVOID TNT       ";
-            else if ($signed(vehicle_x) < 20'sd49152)
+            else if ($signed(vehicle_x) < 20'sd43008)
                 // Rocket is taught only after the TNT has been shown and
                 // handled.  It is optional on the first pass and points up
                 // in the seeded tutorial vehicle.
@@ -270,7 +270,7 @@ module right_renderer #(
                               (tutorial_fan_tested ? "REACH THE FLAG  " :
                                "CLICK FAN ON/OFF");
             else
-                banner_text = "REACH THE FLAG  ";
+                banner_text = (|active_fans) ? "FAN OFF TO DROP " : "REACH THE FLAG  ";
         end else begin
             banner_text = "GO!             "; banner_left = 7'd39; banner_top = 7'd1;
         end
@@ -543,19 +543,21 @@ module right_renderer #(
             if (index < hazard_count && wx >= rx && wx < rx+rw && wy >= ry && wy < ry+rh &&
                 (((wx-rx) & 3) == 1 || ((wx-rx) & 3) == 2 || wy-ry >= (rh >>> 1))) pixel_data = 16'hc618;
         end
-        if (goal_draw_pixel) begin
-            if (tutorial_render && wy < $signed({1'b0, goal_rect[15:8]}) + 8)
-                // A small checkered banner marks the finish island while the
-                // green base remains the actual solid goal area.
-                pixel_data = (((((wx - $signed({1'b0, goal_rect[7:0]})) >>> 2) ^
-                                ((wy - $signed({1'b0, goal_rect[15:8]})) >>> 2)) & 1) != 0)
-                              ? 16'hffff : 16'h07e0;
-            else pixel_data = tutorial_render ? 16'h07e0 : 16'h0320;
+        if (goal_draw_pixel && !tutorial_render) begin
+            pixel_data = 16'h0320;
+        end else if (tutorial_render &&
+                     wx >= $signed({1'b0, goal_rect[7:0]}) &&
+                     wx <  $signed({1'b0, goal_rect[7:0]}) + $signed({1'b0, goal_rect[23:16]}) &&
+                     wy >= 14'sd120 && wy < 14'sd126) begin
+            // On-land checkered finish strip embedded into the ground surface (y=120..125).
+            pixel_data = (((((wx - $signed({1'b0, goal_rect[7:0]})) >>> 2) ^
+                            ((wy - 14'sd120) >>> 1)) & 1) != 0)
+                          ? 16'hffff : 16'h07e0;
         end
-        // Finish flag on map levels, in half-world units from its top-left: a 3-wide orange
+        // Finish flag on map levels and tutorial, in half-world units from its top-left: a 3-wide orange
         // wooden pole 28 tall (lit left edge, dark right edge) and a 20 by 16 checkered cloth
         // with a dark border and 4-unit (2 world pixel) squares.
-        if (map_level) begin
+        if (map_level || tutorial_render) begin
             flag_dx = tex_x - $signed({3'd0, flag_x, 1'b0});
             flag_dy = tex_y - $signed({3'd0, flag_y, 1'b0});
             if (flag_dx >= 0 && flag_dx < 3 && flag_dy >= 0 && flag_dy < 28) begin
@@ -637,7 +639,7 @@ module right_renderer #(
                 cell_x = cell_x << 1;
                 cell_y = cell_y << 1;
             end
-            part_anim = anim_phase;
+            part_anim = (game_state == `LP_RUN) ? anim_phase : 1'b0;
             if (!USE_PIXEL_INDEX && game_state == `LP_RUN) begin
                 if (part == `LP_PART_FAN)         part_anim = active_fans[cell_index] ? anim_phase : 1'b0;
                 else if (part == `LP_PART_ENGINE) part_anim = engine_enabled ? anim_phase : 1'b0;

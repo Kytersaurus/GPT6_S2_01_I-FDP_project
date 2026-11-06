@@ -98,7 +98,12 @@ module menu_fixes_tb;
         click(84,59);click(82,59);
         if(!dut.start_screen_active || dut.game_state!=`LP_BUILD) $fatal(1,"Settings Home failed");
         if(an!=15 || !dp) $fatal(1,"Timer lit at Home");
-        click(48,40);click(88,59);click(69,35);click(12,18);click(8,59);clocks(20);
+        click(48,40);click(88,59);click(69,35);click(12,18);
+        if(dut.build_grid!=0 || dut.build_frames!=0) $fatal(1,"Leaving tutorial did not reset build for actual map");
+        dut.u_builder.build_grid={`LP_PART_WHEEL,`LP_PART_EMPTY,`LP_PART_WHEEL,
+            `LP_PART_EMPTY,`LP_PART_PIG,`LP_PART_ENGINE,`LP_PART_EMPTY,`LP_PART_EMPTY,`LP_PART_EMPTY};
+        dut.u_builder.build_frames=9'b000111000;clocks(2);
+        click(8,59);clocks(20);
         click(34,59);clocks(4);
         if(dut.game_state!=`LP_FAIL) $fatal(1,"End try did not reach result");
         click(12,59);

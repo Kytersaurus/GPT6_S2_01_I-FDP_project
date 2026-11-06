@@ -92,7 +92,7 @@ module tutorial_clear_tb;
 
         if (map_level || hazard_count != 0 || tnt_count != 1)
             $fatal(1, "Tutorial outcome data is not a clearable rectangle course");
-        if (goal_rect !== {8'd40, 8'd32, 8'd80, 8'd216})
+        if (goal_rect !== {8'd16, 8'd32, 8'd104, 8'd216})
             $fatal(1, "Tutorial finish rectangle changed");
 
         // The start pose must not finish immediately.
@@ -100,8 +100,14 @@ module tutorial_clear_tb;
         if (goal_hit || hazard_hit || out_of_bounds)
             $fatal(1, "Tutorial start pose incorrectly ends the run");
 
-        // At x=216,y=96 the centered pig is inside the green finish island
-        // x=216..248, y=80..120 shown by right_renderer.
+        // Flying high above the finish line (x=216, y=72 -> pig_y=84) must NOT
+        // trigger goal_hit until the vehicle lands on the ground!
+        sample_pose(20'sd55296, 20'sd18432);
+        if (goal_hit || hazard_hit || out_of_bounds)
+            $fatal(1, "Airborne pose above finish line cleared before landing");
+
+        // At x=216,y=96 (landed on y=120) the centered pig is inside the on-land
+        // finish goal x=216..248, y=104..120.
         sample_pose(20'sd55296, 20'sd24576);
         if (!goal_hit || hazard_hit || out_of_bounds)
             $fatal(1, "Tutorial route cannot reach its finish island");

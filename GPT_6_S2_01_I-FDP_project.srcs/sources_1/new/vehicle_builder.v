@@ -190,7 +190,8 @@ module vehicle_builder #(
         edit_result = `LP_FEEDBACK_NONE;
         source_part = `LP_PART_EMPTY;
         if (edit_source < 9) source_part = build_grid[edit_source*3 +: 3];
-        if (game_state == `LP_BUILD && !run_init && edit_valid && edit_cell < 9) begin
+        if (game_state == `LP_BUILD && !run_init && edit_valid && edit_cell < 9 &&
+            level_index != `LP_LEVEL_TUTORIAL) begin
             case (edit_op)
                 `LP_EDIT_PLACE: case (edit_part)
                     `LP_PART_FRAME: begin
@@ -314,15 +315,25 @@ module vehicle_builder #(
                 end else feedback_count <= feedback_count + 1'b1;
             end
             if (!run_init) init_ready <= 0;
-            if (level_index != `LP_LEVEL_TUTORIAL) tutorial_seeded <= 0;
             if (run_init && !init_ready) begin
                 // Retry restores both layers of the saved build.
                 runtime_intact <= content_mask;
                 runtime_frames <= build_frames;
                 init_ready <= 1;
             end
+            else if (level_index != `LP_LEVEL_TUTORIAL && tutorial_seeded) begin
+                // Reset the pre-built tutorial contraption when leaving the
+                // tutorial for an actual map so the player starts fresh.
+                build_grid <= 0;
+                build_frames <= 0;
+                build_facing_left <= 0;
+                build_facing_down <= 0;
+                runtime_intact <= 0;
+                runtime_frames <= 0;
+                tutorial_seeded <= 1'b0;
+            end
             else if (game_state == `LP_BUILD && level_index == `LP_LEVEL_TUTORIAL &&
-                     !tutorial_seeded && !edit_valid) begin
+                     !tutorial_seeded) begin
                 // Give Play a usable vehicle immediately.  The normal builder
                 // and run controls are still used, so the player can inspect
                 // and edit it after learning each control.

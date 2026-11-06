@@ -89,7 +89,7 @@ module level_data (
             2'd2: begin
                 // Playable tutorial: an independent rectangle course, not Map 1.
                 // It has a flat floor, a star marker, one optional TNT
-                // encounter, a low propulsion step and a finish island.
+                // encounter, a low propulsion pad and an on-land finish line.
                 map_level = 1'b0;
                 // Keep the complete 24-pixel vehicle clear of the route start.
                 spawn_x = 20'sd4096;    // x=16
@@ -100,15 +100,15 @@ module level_data (
                 world_height = 10'd160;
                 terrain_count = 3'd4;
                 terrain_rects = {
-                    8'd8,  8'd32, 8'd112, 8'd216,
-                    8'd4,  8'd48, 8'd116, 8'd144,
+                    8'd8,  8'd32, 8'd120, 8'd216,
+                    8'd2,  8'd48, 8'd118, 8'd144,
                     // Reserved empty slot: the engine lesson stays flat.
                     8'd0,  8'd48, 8'd120, 8'd40,
                     8'd32, 8'd248,8'd120, 8'd0
                 };
-                goal_rect = {8'd40, 8'd32, 8'd80, 8'd216};
-                flag_x = 10'd0;
-                flag_y = 10'd0;
+                goal_rect = {8'd16, 8'd32, 8'd104, 8'd216};
+                flag_x = 10'd228;
+                flag_y = 10'd106;
                 star_box_x = 10'd80;
                 star_box_y = 10'd112;
                 tnt_count = 3'd1;

@@ -270,7 +270,7 @@ module left_renderer #(
                             part_anim = boost_active ? anim_phase : 1'b0;
                             part_dim  = !(boost_active || rocket_ready);
                         end else if (part == `LP_PART_WHEEL) begin
-                            part_anim = (engine_enabled || wheel_moving) ? anim_phase : 1'b0;
+                            part_anim = wheel_moving ? anim_phase : 1'b0;
                         end
                     end
                     spr_pixel = part_sprite_mounted(part, cell_x, cell_y, compact_run ? 12 : 16, build_facing_left[cell_index], build_facing_down[cell_index], frame_intact_mask, cell_index, part_anim, pixel_data);

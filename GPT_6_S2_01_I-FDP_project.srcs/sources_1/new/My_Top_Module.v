@@ -158,15 +158,11 @@ module My_Top_Module #(
     // decoded here so the active rotating collision engine sees the same
     // floor, step, practice pad and finish island that the renderer draws.
     wire tutorial_floor = collision_query_y >= 11'sd120 && collision_query_y < 11'sd152;
-    // No physical platform is placed in the engine lesson; it stays flat.
-    wire tutorial_platform = 1'b0;
-    // The propulsion teaching pad is deliberately a low step.  Its purpose
-    // is to demonstrate rocket/fan controls, not to become a mandatory wall.
+    // The propulsion teaching pad is a 2-pixel ground pad (within the 3-pixel
+    // floor-snap limit) and the finish line sits directly on the land at y=120.
     wire tutorial_propulsion_pad = collision_query_x >= 11'sd144 && collision_query_x < 11'sd192 &&
-                                   collision_query_y >= 11'sd116 && collision_query_y < 11'sd120;
-    wire tutorial_finish = collision_query_x >= 11'sd216 && collision_query_x < 11'sd248 &&
-                           collision_query_y >= 11'sd112 && collision_query_y < 11'sd120;
-    wire tutorial_solid = tutorial_floor || tutorial_platform || tutorial_propulsion_pad || tutorial_finish;
+                                   collision_query_y >= 11'sd118 && collision_query_y < 11'sd120;
+    wire tutorial_solid = tutorial_floor || tutorial_propulsion_pad;
     wire [2:0] collision_query_class = (level_index == `LP_LEVEL_TUTORIAL) ?
                                        (tutorial_solid ? `LP_MAP_ROCK : `LP_MAP_SKY) :
                                        (collision_query_solid ? `LP_MAP_ROCK : `LP_MAP_SKY);
@@ -205,8 +201,8 @@ module My_Top_Module #(
         ($signed(vehicle_x) < 20'sd10240) ? 3'd0 :
         ($signed(vehicle_x) < 20'sd20480) ? 3'd1 :
         ($signed(vehicle_x) < 20'sd36864) ? 3'd2 :
-        ($signed(vehicle_x) < 20'sd49152) ? 3'd3 :
-        ($signed(vehicle_x) < 20'sd55296) ? 3'd4 : 3'd5;
+        ($signed(vehicle_x) < 20'sd43008) ? 3'd3 :
+        ($signed(vehicle_x) < 20'sd49152) ? 3'd4 : 3'd5;
     // The real physics tick remains available for the pause timer, while the
     // gameplay tick is withheld so the vehicle, timer and world handshakes
     // genuinely stop when a new teaching prompt appears.
@@ -288,14 +284,19 @@ module My_Top_Module #(
                     tutorial_tnt_avoid_active <= 1'b1;
                 end
             end else if (tutorial_guided_run && tutorial_next_prompt == 3'd5) begin
-                // The guided retry must demonstrate the fan, but the fan must
-                // be off before the final straight so the course stays easy.
-                if (!tutorial_fan_tested && (|ui_active_fans))
+                // Release as soon as the player turns the fan on so they see
+                // the vehicle lift into the air before the drop checkpoint.
+                if (|ui_active_fans) begin
                     tutorial_fan_tested <= 1'b1;
-                else if (tutorial_fan_tested && !(|ui_active_fans)) begin
                     tutorial_pause_active <= 1'b0;
                     tutorial_pause_count <= 8'd0;
-                    tutorial_next_prompt <= 3'd6;
+                end
+            end else if (tutorial_guided_run && tutorial_next_prompt == 3'd6) begin
+                // Hold before the finish until the fan is switched off so the
+                // vehicle drops and lands on the finish line.
+                if (!(|ui_active_fans)) begin
+                    tutorial_pause_active <= 1'b0;
+                    tutorial_pause_count <= 8'd0;
                 end
             end else if (physics_tick) begin
                 if (tutorial_pause_count >= TUTORIAL_PAUSE_FRAMES-1) begin
@@ -574,7 +575,7 @@ module My_Top_Module #(
         .launch_flash(launch_flash)
     );
     wire [7:0] par_time;
-    seven_seg_timer #(.COUNTDOWN(1), .TIME_LIMIT(20)) u_board_timer (.clk(clk), .reset(reset || (game_state!=`LP_RUN && game_state!=`LP_SUCCESS && game_state!=`LP_FAIL)), .seconds(run_seconds), .time_limit(par_time), .seg(seg), .an(an), .dp(dp));
+    seven_seg_timer #(.COUNTDOWN(1), .TIME_LIMIT(20)) u_board_timer (.clk(clk), .reset(reset || (level_index == `LP_LEVEL_TUTORIAL) || (game_state!=`LP_RUN && game_state!=`LP_SUCCESS && game_state!=`LP_FAIL)), .seconds(run_seconds), .time_limit(par_time), .seg(seg), .an(an), .dp(dp));
     pig_death_effect u_pig_death (
         .clk(clk), .reset(reset), .run_init(run_init), .physics_tick(tutorial_physics_tick), .pig_alive(pig_alive),
         .game_state(game_state), .build_grid(build_grid), .vehicle_x(vehicle_x), .vehicle_y(vehicle_y), .vehicle_tilt(vehicle_tilt),
@@ -610,7 +611,8 @@ module My_Top_Module #(
         .ps2_clk(PS2Clk), .ps2_data(PS2Data)
     );
     mouse_adapter u_mouse_adapter (
-        .clk(clk), .reset(reset), .input_enabled(builder_input_enabled && !start_screen_active), .game_state(game_state),
+        .clk(clk), .reset(reset), .input_enabled(builder_input_enabled && !start_screen_active),
+        .game_state((level_index == `LP_LEVEL_TUTORIAL && game_state == `LP_BUILD) ? `LP_GUIDE : game_state),
         .build_grid(build_grid), .build_frames(build_frames), .build_facing_left(build_facing_left), .build_facing_down(build_facing_down),
         .run_page(run_page), .selected_left(selected_left), .selected_down(selected_down), .inventory_page(inventory_page),
         .engine_facing_left(engine_facing_left), .fan_facing_left(fan_facing_left), .fan_facing_down(fan_facing_down), .rocket_facing_left(rocket_facing_left), .rocket_facing_down(rocket_facing_down),
@@ -909,7 +911,8 @@ module My_Top_Module #(
     // Wheels use a faster independent phase so their spokes do not appear to
     // freeze while the vehicle is travelling between physics updates.
     reg [2:0] wheel_frames;
-    wire vehicle_moving = (corrected_x[19:8] != previous_x[19:8]) || (!grounded && (corrected_y[19:8] != previous_y[19:8]));
+    wire vehicle_moving = (game_state == `LP_RUN) && !tutorial_pause_active &&
+                          ((corrected_x[19:8] != previous_x[19:8]) || (!grounded && (corrected_y[19:8] != previous_y[19:8])));
     reg moving_meta, moving_sync;
     always @(posedge oled_clk) begin
         if (oled_reset) begin
@@ -920,11 +923,20 @@ module My_Top_Module #(
         end else begin
             moving_meta <= vehicle_moving;
             moving_sync <= moving_meta;
-            if (left_frame && (draw_state == `LP_RUN || in_diary_walkthrough)) begin
-                if (draw_engine || draw_fan_on || draw_boost_active || in_diary_walkthrough)
-                    engine_frames <= engine_frames + (draw_boost_active ? 4'd2 : 4'd1);
-                if (moving_sync || in_diary_walkthrough)
-                    wheel_frames <= wheel_frames + 1'b1;
+            if (left_frame) begin
+                if (draw_state == `LP_RUN || in_diary_walkthrough) begin
+                    if (draw_engine || draw_fan_on || draw_boost_active || in_diary_walkthrough)
+                        engine_frames <= engine_frames + (draw_boost_active ? 4'd2 : 4'd1);
+                    else
+                        engine_frames <= 4'd0;
+                    if (moving_sync || in_diary_walkthrough)
+                        wheel_frames <= wheel_frames + 1'b1;
+                    else
+                        wheel_frames <= 3'd0;
+                end else begin
+                    engine_frames <= 4'd0;
+                    wheel_frames <= 3'd0;
+                end
             end
         end
     end
