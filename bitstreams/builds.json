@@ -1,4 +1,4 @@
-﻿[
+[
     {
         "path":  "2026-10-19/192905_oled-test.bit",
         "built":  "2026-10-19T19:29:05",
@@ -376,5 +376,12 @@
         "source_commit":  "536fdca",
         "description":  "LATEST \u0026 RECOMMENDED: Complete 14-item bugfix \u0026 polish build including rocket_ready boost gating across all input sources (17,189 LUTs / 82.64%, 48/50 BRAM, 16/90 DSPs, WNS +0.003 ns).",
         "sha256":  "6e5fe1242fe745e79194cf2cde88cd6f78db006612019f68af8e0d9e155b2d97"
+    },
+    {
+        "path":  "2026-11-07/005414_My_Top_Module.bit",
+        "built":  "2026-11-07T00:54:14",
+        "source_commit":  "de67a39",
+        "description":  "LATEST: Tutorial rework (lesson register, zoom exercise, glowing controls, retry icon, landing before the flag, new sky), Cave Arch and Cave Flight tweaks, individually fired rockets, down-only hanging fans, SW14 free look, no zoom switch or BTNR, balloon pop, new gear. Timing closed (19,747 LUTs / 94.94%, 48/50 BRAM, WNS +0.040 ns, WHS +0.053 ns). Not yet tested on the board.",
+        "sha256":  "66cbbe7dbcbf2755c64c0f08b0f6d35ebf04c368cf3e564974d95a71cef7df59"
     }
 ]

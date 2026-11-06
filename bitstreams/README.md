@@ -8,7 +8,7 @@ This directory organizes all verified programming bitstreams (`.bit`) generated 
 
 * **`bad_piggies_top_latest.bit`** — Always points to a ready-to-flash copy of the most recent verified build.
 * **`LATEST.txt`** — Machine- and human-readable metadata pointer for the latest build (timestamp, source commit, utilization, and timing).
-* **`builds.json`** — Complete chronological manifest of all **52 archived builds** with ISO timestamps, source commits, descriptions, and SHA-256 checksums.
+* **`builds.json`** — Complete chronological manifest of all **55 archived builds** with ISO timestamps, source commits, descriptions, and SHA-256 checksums.
 * **`YYYY-MM-DD/HHMMSS_My_Top_Module.bit`** — Date-indexed folders storing every historical build in `HHMMSS` chronological order.
 
 ---
@@ -18,12 +18,12 @@ This directory organizes all verified programming bitstreams (`.bit`) generated 
 | Property | Value |
 | :--- | :--- |
 | **Quick-Flash File** | **[`bad_piggies_top_latest.bit`](bad_piggies_top_latest.bit)** |
-| **Archived Path** | **[`2026-11-05/161745_My_Top_Module.bit`](2026-11-05/161745_My_Top_Module.bit)** |
+| **Archived Path** | **[`2026-11-07/005414_My_Top_Module.bit`](2026-11-07/005414_My_Top_Module.bit)** |
 | **Pointer Metadata** | [`LATEST.txt`](LATEST.txt) |
-| **Source Commit** | `089c399` (`main` / `role1`) |
-| **Build Timestamp** | `2026-11-05 16:17:45 +08:00` |
-| **Resource Utilization** | **17,200 / 20,800 Slice LUTs (82.69%)**, **48 / 50 Block RAM (`96.00%`)**, **16 / 90 DSP48E1 (`17.78%`)**, **WNS `+0.106 ns`** |
-| **Key Highlights** | • **Fan & Rocket Placement, Arrows & Mounting Bracket:** Synced inventory directional arrows on grid rotation/placement; added metallic mounting bracket for top/bottom/side-mounted fans.<br>• **Single-Use Rocket & Stationary Wheels:** Rockets fire once per run and stay permanently dimmed afterward; wheels only spin when the engine is ON or the vehicle is moving.<br>• **Diary & Zoom Fixes:** Removed fake frame borders on outer cells, fixed scroll-wheel zoom inversion, posed Map 1 Step 2 cleanly above the pavement with a left-facing rocket (`<`) toward the Star Crate, and moved Map 2's fan to the right side of the Pig's frame.<br>• **TNT & Bare-Pig Rolling Physics:** TNT and high falls destroy contents when a frame breaks and can break the Pig's wood frame so the bare Pig rolls along the terrain; moved Map 1's arch TNT 40 px left (`x=116`) away from the Star Crate and relaxed Map 2 fall damage sensitivity.<br>• **Settings & Result UI Polish:** Borderless Start Screen gear icon, 4-button Result Screen bar with `[ GEAR ]` Settings access, and `VOL`/`MUTE` + `M1`/`M2` labels in Settings. |
+| **Source Commit** | `de67a39` (`role4`) |
+| **Build Timestamp** | `2026-11-07 00:54:14 +08:00` |
+| **Resource Utilization** | **19,747 / 20,800 Slice LUTs (94.94%)**, **48 / 50 Block RAM (`96.00%`)**, **WNS `+0.040 ns`**, **WHS `+0.053 ns`**, 0 failing endpoints |
+| **Key Highlights** | Tutorial rework with a zoom exercise, glowing controls, a retry icon prompt and a landing before the flag; Cave Arch and Cave Flight tweaks; individually fired rockets; down-only hanging fans; `SW14` free look with no zoom switch or `BTNR`; balloon pop and a new settings gear. **All 86 simulation benches pass; not yet tested on the board.** |
 
 ---
 
