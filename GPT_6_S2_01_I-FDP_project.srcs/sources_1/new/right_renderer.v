@@ -246,19 +246,22 @@ module right_renderer #(
                 // prematurely announcing the retry.
                 banner_text = "AVOID TNT       ";
             else if ($signed(vehicle_x) < 20'sd10240)
-                banner_text = "SW1 ON TO DRIVE ";
+                // The engine tile on the other OLED toggles the same engine
+                // state as SW1, so the tutorial can be completed with the
+                // mouse alone.
+                banner_text = "CLICK ENGINE ON ";
             else if ($signed(vehicle_x) < 20'sd16384)
                 banner_text = "STAR: DRIVE OVER";
             else if ($signed(vehicle_x) < 20'sd36864)
                 // Warn while TNT is approaching. On retry, the action appears
                 // only at the deliberate stop, not earlier in the warning.
                 banner_text = (tutorial_tnt_seen && $signed(vehicle_x) >= 20'sd22528) ?
-                              "BTNR ROCKET OVER" : "AVOID TNT       ";
+                              "CLICK ROCKET NOW" : "AVOID TNT       ";
             else if ($signed(vehicle_x) < 20'sd49152)
                 // Rocket is taught only after the TNT has been shown and
                 // handled.  It is optional on the first pass and points up
                 // in the seeded tutorial vehicle.
-                banner_text = rocket_ready ? "BTNR FIRE ROCKET" : "ROCKET USED     ";
+                banner_text = rocket_ready ? "CLICK ROCKET NOW" : "ROCKET USED     ";
             else if ($signed(vehicle_x) < 20'sd55296)
                 // The guided retry requires an on/off fan demonstration once.
                 // After the fan has been switched off, do not show the setup

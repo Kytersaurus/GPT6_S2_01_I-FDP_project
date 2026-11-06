@@ -217,6 +217,19 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
     wire signed [13:0] air_angular_velocity =
         (moment_accel==0 && (!effective_support_unstable || gravity_tilt_q8==0 || step_vy<0) && angular_speed<14'd64) ? 14'sd0 :
         (angular_velocity_q8<0 ? angular_velocity_q8+air_drag_q8 : angular_velocity_q8-air_drag_q8);
+// During the descending part of a jump, gravity and rotational inertia should
+// bring a cart gently toward a level landing pose.  Use a small proportional
+// righting term rather than a fixed torque: a one-step tilt is corrected very
+// gently, while a large tilt receives more help.  This uses a shift only, so
+// it does not infer a multiplier or consume BRAM.
+wire signed [17:0] air_tilt_q8 = {{13{vehicle_tilt[4]}}, vehicle_tilt};
+    wire air_leveling_active = !was_grounded && step_vy > 16'sd64 &&
+                                !fan_enabled && !rocket_active && vehicle_tilt != 0;
+    wire signed [17:0] air_level_accel = air_leveling_active ?
+    -(air_tilt_q8 <<< 6) : 18'sd0;
+wire air_leveling_snap = air_leveling_active &&
+                         ((vehicle_tilt == 5'sd1) || (vehicle_tilt == -5'sd1)) &&
+                         angular_speed < 14'd512;
     wire signed [15:0] force_angle_sum=$signed(moment_angle_remainder)+$signed(clamped_angular_velocity);
     vehicle_moments #(.ROCKET_FORCE_SHIFT(ROCKET_FORCE_SHIFT), .WHEEL_TORQUE_SHIFT(WHEEL_TORQUE_SHIFT),
         .FAN_LIFT_FORCE_SHIFT(FAN_LIFT_FORCE_SHIFT)) u_moments (
@@ -277,9 +290,12 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
     wire small_slope_step=(settle_error==1 || settle_error==-1);
     // A large grade change is accepted immediately. A one-angle change must
     // appear in two consecutive terrain samples, preventing a 12/16 raster
-    // bin alternation from making a stationary vehicle jitter.
+    // bin alternation from making a stationary vehicle jitter. The first
+    // matching sample is enough here because the terrain probe has already
+    // filtered the contact; waiting for a third movement update made the
+    // rendered body visibly trail the wheels on short slopes.
     wire slope_target_ready=last_ground_slope_valid &&
-        ((!small_slope_step) || (desired_tilt==held_target && held_count==2'd2));
+        ((!small_slope_step) || (desired_tilt==held_target && held_count>=2'd1));
     reg signed [15:0] display_vx, display_vy;
     // Do not predict from the previous display velocity.  A full-velocity
     // predictor can move the sprite past a newly accepted pose when an engine
@@ -799,6 +815,7 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
                             $signed(ground_angular_velocity) :
                             $signed(air_angular_velocity))+$signed(supported_moment_accel)+
                             (effective_support_unstable && step_vy>=0 ? $signed(gravity_tilt_q8) : 18'sd0)+
+                            $signed(air_level_accel)+
                             (was_grounded ?
                             (active_tip>0 ? 18'sd256 : active_tip<0 ? -18'sd256 : 18'sd0) : 18'sd0);
                         phase<=ROTATE_FORCE;
@@ -819,7 +836,13 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
                         if (!single_wheel_scraping && slope_target_ready && settle_error>0) proposed_tilt<=vehicle_tilt+1'b1;
                         else if (!single_wheel_scraping && slope_target_ready && settle_error<0) proposed_tilt<=vehicle_tilt-1'b1;
                         else proposed_tilt<=vehicle_tilt;
-                    end else if (!was_grounded && clamped_angular_velocity==0) begin
+                end else if (air_leveling_snap) begin
+                    // Once the descending cart is within one display angle of
+                    // level and has little residual spin, settle it flat so a
+                    // landing cannot visibly oscillate between +/- one step.
+                    angular_velocity_q8<=0; moment_angle_remainder<=0;
+                    spin<=0; spin_frac<=0; proposed_tilt<=0;
+                end else if (!was_grounded && clamped_angular_velocity==0) begin
                         angular_velocity_q8<=0; moment_angle_remainder<=0;
                         spin<=0; spin_frac<=0; proposed_tilt<=vehicle_tilt;
                     end else begin
@@ -885,15 +908,15 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
                         corrected_x != proposed_x) begin
                         display_x <= corrected_x; display_vx <= 0;
                     end else begin
-                        // Correct fifteen sixteenths of the remaining
-                        // horizontal error.  The old three-quarter correction
-                        // made grounded y lead displayed x on slopes, so the
-                        // wheels appeared to follow the terrain late.  This
-                        // still leaves a sub-pixel interpolation step while
-                        // keeping the sprite nearly on the accepted pose.
+                        // Correct thirty-one thirty-seconds of the remaining
+                        // horizontal error.  This leaves only a small
+                        // sub-pixel interpolation step while keeping the
+                        // rendered wheels aligned with the accepted terrain
+                        // sample.  Large corrections still take the snap path
+                        // above, so retry and wall contacts cannot drag.
                         display_x <= display_x_guess + (display_x_error >>> 1) +
                                      (display_x_error >>> 2) + (display_x_error >>> 3) +
-                                     (display_x_error >>> 4);
+                                     (display_x_error >>> 4) + (display_x_error >>> 5);
                         display_vx <= 0;
                     end
                     // Collision has already found the exact supported pose.
