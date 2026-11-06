@@ -223,7 +223,7 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
 // gently, while a large tilt receives more help.  This uses a shift only, so
 // it does not infer a multiplier or consume BRAM.
 wire signed [17:0] air_tilt_q8 = {{13{vehicle_tilt[4]}}, vehicle_tilt};
-    wire air_leveling_active = !was_grounded && step_vy > 16'sd64 &&
+    wire air_leveling_active = tutorial_mode && !was_grounded && step_vy > 16'sd64 &&
                                 !fan_enabled && !rocket_active && vehicle_tilt != 0;
     wire signed [17:0] air_level_accel = air_leveling_active ?
     -(air_tilt_q8 <<< 6) : 18'sd0;
