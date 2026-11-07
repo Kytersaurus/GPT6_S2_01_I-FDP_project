@@ -1180,14 +1180,22 @@ module My_Top_Module #(
                      draw_state == `LP_SUCCESS)),
         .pixel_data(left_pixel_data)
     );
-    // Dual-OLED Diary Walkthrough: pose the recommended demo vehicle on the live terrain,
-    // always at the level's spawn point so the cart stays put as the pages turn.
+    // Dual-OLED Diary Walkthrough: pan the Right OLED camera to the selected checkpoint
+    // and pose the recommended demo vehicle on the live terrain with active step parts.
+    wire signed [19:0] diary_pose_x = (draw_diary_page == 2'd0) ? draw_spawn_x :
+        (draw_map_id == 1'b0) ? ((draw_diary_page == 2'd1) ? {12'd448, 8'd0} : {12'd564, 8'd0}) :
+                                ((draw_diary_page == 2'd1) ? {12'd512, 8'd0} : {12'd732, 8'd0});
+    wire signed [19:0] diary_pose_y = (draw_diary_page == 2'd0) ? draw_spawn_y :
+        (draw_map_id == 1'b0) ? ((draw_diary_page == 2'd1) ? {12'd222, 8'd0} : {12'd462, 8'd0}) :
+                                ((draw_diary_page == 2'd1) ? {12'd87,  8'd0} : {12'd40,  8'd0});
     wire [26:0] diary_grid = (draw_map_id == 1'b0) ?
         {`LP_PART_WHEEL, `LP_PART_EMPTY, `LP_PART_WHEEL, `LP_PART_ENGINE, `LP_PART_PIG, `LP_PART_EMPTY, `LP_PART_EMPTY,   `LP_PART_BOOSTER, `LP_PART_EMPTY} :
         {`LP_PART_WHEEL, `LP_PART_FAN,   `LP_PART_WHEEL, `LP_PART_ENGINE, `LP_PART_PIG, `LP_PART_EMPTY, `LP_PART_BALLOON, `LP_PART_EMPTY,   `LP_PART_FAN};
     wire [8:0] diary_frames = (draw_map_id == 1'b0) ? 9'b000_111_000 : 9'b000_111_010;
     wire [8:0] diary_intact = (draw_map_id == 1'b0) ? 9'b101_110_010 : 9'b111_110_101;
-    wire [8:0] diary_active_fans = (draw_map_id == 1'b1) ? 9'b010_000_001 : 9'd0;
+    wire [8:0] diary_active_fans = (draw_map_id == 1'b1) ?
+        ((draw_diary_page == 2'd0) ? 9'b000_000_001 : (draw_diary_page == 2'd1) ? 9'b010_000_001 : 9'b010_000_000) : 9'd0;
+    wire [8:0] diary_rocket_burn = (draw_map_id == 1'b0 && draw_diary_page == 2'd1) ? 9'b000_000_010 : 9'd0;
 
     right_renderer #(
         .USE_PIXEL_INDEX(0)
@@ -1200,8 +1208,8 @@ module My_Top_Module #(
         .build_facing_left(in_diary_walkthrough ? ((draw_map_id == 1'b1) ? 9'b000_000_001 : 9'd0) : draw_facing_left),
         .build_facing_down(in_diary_walkthrough ? ((draw_map_id == 1'b0) ? 9'b000_000_010 : 9'b010_000_000) : draw_facing_down),
         .engine_enabled(in_diary_walkthrough ? 1'b1 : draw_engine),
-        .boost_active(in_diary_walkthrough ? 1'b0 : draw_boost_active),
-        .rocket_burn_mask(in_diary_walkthrough ? 9'd0 : draw_rocket_burn_mask),
+        .boost_active(in_diary_walkthrough ? (|diary_rocket_burn) : draw_boost_active),
+        .rocket_burn_mask(in_diary_walkthrough ? diary_rocket_burn : draw_rocket_burn_mask),
         .balloon_pop_mask(in_diary_walkthrough ? 9'd0 : draw_balloon_pop_mask), .balloon_pop_phase(draw_balloon_pop_phase),
         .active_fans(in_diary_walkthrough ? diary_active_fans : draw_active_fans),
         .intact_mask(in_diary_walkthrough ? diary_intact : draw_intact),
@@ -1209,10 +1217,10 @@ module My_Top_Module #(
         // Follow the filtered pose for both the vehicle and camera. This keeps
         // the wheels attached to the moving ground instead of making the map
         // jump on every raw physics-pixel update.
-        .vehicle_x(in_diary_walkthrough ? draw_spawn_x : draw_x),
-        .vehicle_y(in_diary_walkthrough ? draw_spawn_y : draw_y),
-        .camera_x(in_diary_walkthrough ? draw_spawn_x : draw_x),
-        .camera_y(in_diary_walkthrough ? draw_spawn_y : draw_y),
+        .vehicle_x(in_diary_walkthrough ? diary_pose_x : draw_x),
+        .vehicle_y(in_diary_walkthrough ? diary_pose_y : draw_y),
+        .camera_x(in_diary_walkthrough ? diary_pose_x : draw_x),
+        .camera_y(in_diary_walkthrough ? diary_pose_y : draw_y),
         .vehicle_tilt(in_diary_walkthrough ? 5'sd0 : draw_tilt),
         .spawn_x(draw_spawn_x), .spawn_y(draw_spawn_y),
         .terrain_count(draw_terrain_count), .terrain_rects(draw_terrain_rects), .goal_rect(draw_goal_rect),

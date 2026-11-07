@@ -186,7 +186,7 @@ flowchart TD
   - *Settings & `[ ? ]` Guide:* Sound Settings, Map Select, Home, and bottom-left `[ ? ]` toggle cycling Mouse Controls (`1/2`) and Board Switches (`2/2`: `SW15` Reverse, `SW14` Pan, `SW1` 1-OLED, `SW0` Mute).
 * **JB (Right OLED):**
   - Completely blanked (`16'h0000`) on Title Screen, Level Select screen, and when `SW1` 1-Screen mode is active.
-  - *Field Diary (`GUIDE`):* Poses the recommended demo contraption at the level's spawn point, synchronized with the 3-step Diary walkthrough on Left OLED; the cart stays put as the pages turn.
+  - *Field Diary (`GUIDE`):* Pans the Right OLED camera and poses the recommended demo contraption across the 3 level checkpoints (`[1]` Launch/Spawn, `[2]` Ramp Dip / Star Crate, `[3]` Finish Flag) with matching active parts, synchronized with the 3-step Diary walkthrough on Left OLED.
   - *Build & Run Modes:* World follow-camera with 3 zoom levels (1.5×, 1.0×, 0.5× via the scroll wheel, which turns the inventory page instead during Build) or mouse Free Look (`SW14`).
 * **Port B BRAM Multiplexing:** During the Title Screen, because Right OLED is turned off, Port B of the terrain BRAM (`level_map.v`) is routed to the Left OLED pipeline with an offset scroll counter. This produces a live moving cave background at **0% extra BRAM cost**.
 
