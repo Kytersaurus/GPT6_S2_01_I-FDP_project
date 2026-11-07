@@ -48,7 +48,6 @@ module physics_friction_tb;
         .step_start(step_start), .update_release(update_release),
         .wheel_count(wheels), .engine_count(engines), .balloon_count(4'd0),
         .mass_units(mass), .engine_enabled(engine_enabled), .engine_reverse(engine_reverse),
-        .boost_req(1'b0),
         .move_valid(weak_move_valid), .move_ready(move_ready),
         .proposed_vx(weak_nvx), .response_valid(response_valid),
         .corrected_x(cx), .corrected_y(cy), .corrected_vx(weak_nvx),

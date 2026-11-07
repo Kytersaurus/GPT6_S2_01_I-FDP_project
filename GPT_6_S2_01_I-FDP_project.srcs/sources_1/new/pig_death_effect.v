@@ -43,7 +43,7 @@ module pig_death_effect #(parameter integer PHASE_TICKS=6) (
             was_alive<=pig_alive; death_phase<=0; ticks<=0; death_x<=0; death_y<=0;
         end else begin
             was_alive<=pig_alive;
-            if (game_state==`LP_RUN && was_alive && !pig_alive) begin
+            if ((game_state==`LP_RUN || game_state==`LP_FAIL) && was_alive && !pig_alive) begin
                 if (pig_found) begin
                     death_x<=$signed(vehicle_x)+22'sd3072+pig_offset_x;
                     death_y<=$signed(vehicle_y)+22'sd3072+pig_offset_y;

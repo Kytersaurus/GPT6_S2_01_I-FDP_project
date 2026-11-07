@@ -17,7 +17,7 @@ module wheel_stability_tb;
             .spawn_x(20'sd8192),.spawn_y(20'sd8192),.step_start(step),.update_release(release_step),
             .wheel_count(4'd1),.wheels_down(4'd1),.wheels_up(4'd0),.engine_count(4'd1),
             .balloon_count(4'd0),.mass_units(8'd10),.engine_enabled(1'b1),.engine_reverse(1'b0),
-            .boost_req(1'b0),.fan_balance(5'sd0),.fan_enabled(1'b0),
+            .fan_balance(5'sd0),.fan_enabled(1'b0),
             .rocket_balance(5'sd0),.rocket_count(4'd0),.rocket_req(1'b0),.moments_enabled(1'b1),
             .build_grid({`LP_PART_EMPTY,`LP_PART_WHEEL,`LP_PART_EMPTY,
                          `LP_PART_EMPTY,`LP_PART_PIG,`LP_PART_ENGINE,

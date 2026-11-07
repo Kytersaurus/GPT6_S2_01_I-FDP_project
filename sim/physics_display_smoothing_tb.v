@@ -23,7 +23,7 @@ module physics_display_smoothing_tb;
         .step_start(step_start), .update_release(update_release),
         .wheel_count(4'd0), .engine_count(4'd0), .balloon_count(4'd0),
         .mass_units(8'd11), .engine_enabled(1'b0), .engine_reverse(1'b0),
-        .boost_req(1'b0), .moments_enabled(1'b0),
+        .moments_enabled(1'b0),
         .move_valid(move_valid), .move_ready(move_ready),
         .previous_x(previous_x), .previous_y(previous_y),
         .proposed_x(proposed_x), .proposed_y(proposed_y),

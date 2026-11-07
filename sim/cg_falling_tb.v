@@ -32,7 +32,7 @@ module cg_falling_tb;
     physics_engine physics(.clk(clk),.reset(reset),.run_init(init),.game_state(state),
         .spawn_x(spawn_x),.spawn_y(20'sd20480),.step_start(step),.update_release(release_step),
         .wheel_count(4'd0),.engine_count(4'd0),.balloon_count(4'd0),.mass_units(8'd20),
-        .engine_enabled(1'b0),.engine_reverse(1'b0),.boost_req(1'b0),
+        .engine_enabled(1'b0),.engine_reverse(1'b0),
         .moments_enabled(1'b1),.build_grid({12'd0,`LP_PART_PIG,12'd0}),
         .build_frames(9'h1ff),.frame_intact_mask(9'h1ff),.intact_mask(9'b000010000),
         .build_facing_left(9'd0),.rocket_vertical_mask(9'd0),

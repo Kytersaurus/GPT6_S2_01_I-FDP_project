@@ -34,7 +34,7 @@ module slope_map_integration_tb;
         .spawn_x(spawn_x), .spawn_y(spawn_y), .step_start(step_start), .update_release(update_release),
         .wheel_count(4'd0), .engine_count(engines), .balloon_count(balloons), .mass_units(mass),
         .engine_enabled(engine_enabled), .engine_reverse(engine_reverse),
-        .boost_req(1'b0), .boost_active(), .move_valid(move_valid), .move_ready(move_ready),
+        .move_valid(move_valid), .move_ready(move_ready),
         .previous_x(px), .previous_y(py), .proposed_x(nx), .proposed_y(ny),
         .proposed_vx(nvx), .proposed_vy(nvy), .response_valid(response_valid), .response_ready(response_ready),
         .corrected_x(cx), .corrected_y(cy), .corrected_vx(cvx), .corrected_vy(cvy),

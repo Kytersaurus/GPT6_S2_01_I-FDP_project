@@ -1286,7 +1286,7 @@ module ui_renderer (
                 end else if (example_row == 2'd3) begin
                     pixel_data = 16'hffe0;
                 end else if ((diary_page == 2'd0 && level_index == 0 && ((example_row == 1 && example_col == 2) || (example_row == 2 && example_col != 1))) ||
-                             (diary_page == 2'd0 && level_index != 0 && ((example_row == 0 && example_col != 1) || (example_row == 1 && example_col == 2) || (example_row == 2 && example_col == 1))) ||
+                             (diary_page == 2'd0 && level_index != 0 && ((example_row == 0 && example_col == 0) || (example_row == 1 && example_col == 2) || (example_row == 2 && example_col == 1))) ||
                              (diary_page == 2'd1 && level_index == 0 && (example_row == 0 && example_col == 1)) ||
                              (diary_page == 2'd1 && level_index != 0 && ((example_row == 0 && example_col == 0) || (example_row == 2 && example_col == 1))) ||
                              (diary_page == 2'd2 && level_index == 0 && ((example_row == 1 && example_col == 2) || (example_row == 2 && example_col != 1))) ||

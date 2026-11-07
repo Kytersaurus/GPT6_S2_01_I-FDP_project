@@ -20,7 +20,7 @@ module rocket_orientation_tb;
     physics_engine #(.ROCKET_FORCE_SHIFT(10)) dut(.clk(clk),.reset(reset),.run_init(init),.game_state(state),
         .spawn_x(20'sd8192),.spawn_y(20'sd8192),.step_start(step),.update_release(release_step),
         .wheel_count(4'd0),.engine_count(4'd0),.balloon_count(4'd0),.mass_units(mass),
-        .engine_enabled(1'b0),.engine_reverse(1'b0),.boost_req(1'b0),
+        .engine_enabled(1'b0),.engine_reverse(1'b0),
         .moments_enabled(1'b1),.build_grid(grid),.build_frames(frames),.frame_intact_mask(frames),
         .intact_mask(alive),.build_facing_left(facing),.rocket_vertical_mask(vertical),
         .fan_balance(5'sd0),.fan_enabled(1'b0),.rocket_balance(horizontal),.rocket_vertical_balance(up_down),

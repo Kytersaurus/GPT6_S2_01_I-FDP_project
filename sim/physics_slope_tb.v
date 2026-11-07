@@ -29,7 +29,6 @@ module physics_slope_tb;
         .step_start(step_start), .update_release(update_release),
         .wheel_count(wheels), .engine_count(engines), .balloon_count(balloons),
         .mass_units(mass), .engine_enabled(engine_enabled), .engine_reverse(engine_reverse),
-        .boost_req(1'b0), .boost_active(),
         .move_valid(move_valid), .move_ready(move_ready),
         .previous_x(px), .previous_y(py), .proposed_x(nx), .proposed_y(ny),
         .proposed_vx(nvx), .proposed_vy(nvy),

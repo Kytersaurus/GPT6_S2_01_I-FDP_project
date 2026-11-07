@@ -6,6 +6,8 @@
 ## Clock signal
 set_property -dict { PACKAGE_PIN W5   IOSTANDARD LVCMOS33 } [get_ports clk]
 create_clock -add -name sys_clk_pin -period 10.00 -waveform {0 5} [get_ports clk]
+create_generated_clock -name oled_clk -source [get_ports clk] -divide_by 16 [get_pins u_clocking/u_oled_divider/CUSTOM_CLOCK_reg/Q]
+set_clock_groups -asynchronous -group [get_clocks sys_clk_pin] -group [get_clocks oled_clk]
 
 
 ## Switches

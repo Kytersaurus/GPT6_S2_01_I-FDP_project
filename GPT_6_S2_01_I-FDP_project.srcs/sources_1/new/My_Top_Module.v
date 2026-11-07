@@ -68,7 +68,7 @@ module My_Top_Module #(
     wire signed [9:0] support_left_q2, support_right_q2, support_y_q2;
     wire signed [9:0] support_left_y_q2, support_right_y_q2;
     wire signed [13:0] pivot_dx_q8, pivot_dy_q8;
-    wire engine_reverse, reverse_switch_enabled, boost_req, boost_active;
+    wire engine_reverse, reverse_switch_enabled;
     wire selected_left, edit_facing_left, draw_selected_left;
     wire selected_down, edit_facing_down;
     wire [1:0] inventory_page, draw_inventory_page;
@@ -592,10 +592,7 @@ module My_Top_Module #(
         .audio_muted(audio_muted), .engine_reverse(reverse_switch_enabled)
     );
     wire ui_home_req;
-    wire ui_boost_req;
     wire ui_end_try;
-
-    assign boost_req = rocket_ready && (ui_boost_req || accepted_rocket_click);
 
     ui_controller u_ui_control (
         .clk(clk), .reset(reset), .input_enabled(builder_input_enabled), .run_init(run_init),
@@ -613,7 +610,7 @@ module My_Top_Module #(
         .guide_open_req(ui_guide_open), .guide_close_req(ui_guide_close),
         .level_open_req(level_open_req), .level_close_req(level_close_req),
         .level_select_req(level_select_req), .selected_level(selected_level),
-        .boost_req(ui_boost_req), .diary_page(diary_page),
+        .diary_page(diary_page),
         .master_volume(master_volume), .engine_on(ui_engine_on),
         .fan_on(ui_fan_on), .active_fans(ui_active_fans), .rocket_req(ui_rocket_req),
         .launch_flash(launch_flash)
@@ -621,7 +618,8 @@ module My_Top_Module #(
     wire [7:0] par_time;
     seven_seg_timer #(.COUNTDOWN(1), .TIME_LIMIT(20)) u_board_timer (.clk(clk), .reset(reset || (level_index == `LP_LEVEL_TUTORIAL) || (game_state!=`LP_RUN && game_state!=`LP_SUCCESS && game_state!=`LP_FAIL)), .seconds(run_seconds), .time_limit(par_time), .seg(seg), .an(an), .dp(dp));
     pig_death_effect u_pig_death (
-        .clk(clk), .reset(reset), .run_init(run_init), .physics_tick(tutorial_physics_tick), .pig_alive(pig_alive),
+        .clk(clk), .reset(reset), .run_init(run_init), .physics_tick(tutorial_physics_tick),
+        .pig_alive(pig_alive && !(game_state == `LP_FAIL && fail_reason == `LP_FAIL_HAZARD)),
         .game_state(game_state), .build_grid(build_grid), .vehicle_x(vehicle_x), .vehicle_y(vehicle_y), .vehicle_tilt(vehicle_tilt),
         .death_phase(death_phase), .death_x(death_x), .death_y(death_y)
     );
@@ -866,7 +864,7 @@ module My_Top_Module #(
         .spawn_x(spawn_x), .spawn_y(spawn_y), .step_start(step_start), .update_release(update_release),
         .wheel_count(wheel_count), .wheels_down(wheels_down), .wheels_up(wheels_up), .tip_dir(tip_dir), .support_unstable(support_unstable),
         .engine_count(drive_engines), .balloon_count(balloon_count),
-        .mass_units(mass_units), .engine_enabled(engine_enabled), .engine_reverse(engine_reverse), .boost_req(boost_req), .boost_active(boost_active),
+        .mass_units(mass_units), .engine_enabled(engine_enabled), .engine_reverse(engine_reverse),
         .tnt_knockback_valid(tnt_knockback_valid || onboard_tnt_detonate),
         .tnt_knockback_x(onboard_tnt_detonate ? ((|(onboard_tnt_pop & 9'b001001001)) ? 16'sd512 : (|(onboard_tnt_pop & 9'b100100100)) ? -16'sd512 : 16'sd384) : tnt_knockback_x),
         .tnt_knockback_y(onboard_tnt_detonate ? -16'sd768 : tnt_knockback_y),
@@ -939,7 +937,7 @@ module My_Top_Module #(
         start_screen_active, ui_fan_on, star_box_collected, vehicle_tilt, audio_muted,
         selected_left, inventory_page, build_facing_left, rockets_left, fans_left,
         master_volume, diary_page, guide_return_state, death_phase, death_x, death_y,
-        launch_flash, (boost_active || rocket_active), drag_from_grid, drag_source, drag_contents,
+        launch_flash, rocket_active, drag_from_grid, drag_source, drag_contents,
         game_state, build_grid, intact_mask, frame_intact_mask, build_valid, build_error,
         display_x, display_y, engine_enabled, frames_left, pigs_left, wheels_left,
         engines_left, balloons_left, cursor_x, cursor_y, selected_part, drag_active,
@@ -1126,15 +1124,15 @@ module My_Top_Module #(
         .query_class(), .query_solid(collision_query_solid)
     );
     wire [8:0] draw_active_fans = {
-        draw_intact[8] && draw_grid[26:24] == `LP_PART_FAN && (draw_ui_active_fans != 0 ? draw_ui_active_fans[8] : draw_fan_on),
-        draw_intact[7] && draw_grid[23:21] == `LP_PART_FAN && (draw_ui_active_fans != 0 ? draw_ui_active_fans[7] : draw_fan_on),
-        draw_intact[6] && draw_grid[20:18] == `LP_PART_FAN && (draw_ui_active_fans != 0 ? draw_ui_active_fans[6] : draw_fan_on),
-        draw_intact[5] && draw_grid[17:15] == `LP_PART_FAN && (draw_ui_active_fans != 0 ? draw_ui_active_fans[5] : draw_fan_on),
-        draw_intact[4] && draw_grid[14:12] == `LP_PART_FAN && (draw_ui_active_fans != 0 ? draw_ui_active_fans[4] : draw_fan_on),
-        draw_intact[3] && draw_grid[11:9]  == `LP_PART_FAN && (draw_ui_active_fans != 0 ? draw_ui_active_fans[3] : draw_fan_on),
-        draw_intact[2] && draw_grid[8:6]   == `LP_PART_FAN && (draw_ui_active_fans != 0 ? draw_ui_active_fans[2] : draw_fan_on),
-        draw_intact[1] && draw_grid[5:3]   == `LP_PART_FAN && (draw_ui_active_fans != 0 ? draw_ui_active_fans[1] : draw_fan_on),
-        draw_intact[0] && draw_grid[2:0]   == `LP_PART_FAN && (draw_ui_active_fans != 0 ? draw_ui_active_fans[0] : draw_fan_on)
+        draw_intact[8] && draw_grid[26:24] == `LP_PART_FAN && draw_ui_active_fans[8],
+        draw_intact[7] && draw_grid[23:21] == `LP_PART_FAN && draw_ui_active_fans[7],
+        draw_intact[6] && draw_grid[20:18] == `LP_PART_FAN && draw_ui_active_fans[6],
+        draw_intact[5] && draw_grid[17:15] == `LP_PART_FAN && draw_ui_active_fans[5],
+        draw_intact[4] && draw_grid[14:12] == `LP_PART_FAN && draw_ui_active_fans[4],
+        draw_intact[3] && draw_grid[11:9]  == `LP_PART_FAN && draw_ui_active_fans[3],
+        draw_intact[2] && draw_grid[8:6]   == `LP_PART_FAN && draw_ui_active_fans[2],
+        draw_intact[1] && draw_grid[5:3]   == `LP_PART_FAN && draw_ui_active_fans[1],
+        draw_intact[0] && draw_grid[2:0]   == `LP_PART_FAN && draw_ui_active_fans[0]
     };
     left_renderer #(
         .USE_PIXEL_INDEX(0),

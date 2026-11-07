@@ -18,7 +18,6 @@ module ui_controller (
     output reg home_req, launch_req, edit_req, end_try_req, guide_open_req, guide_close_req,
     output reg level_open_req, level_close_req, level_select_req,
     output reg [1:0] selected_level,
-    output reg boost_req,
     output reg [1:0] diary_page,
     output reg [2:0] master_volume,
     output reg engine_on,
@@ -39,14 +38,12 @@ module ui_controller (
             left_was_down<=0; diary_page<=0; master_volume<=2;
             engine_on<=0;
             active_fans<=9'd0;
-            boost_req<=0;
             home_req<=0; launch_req<=0; edit_req<=0; end_try_req<=0; guide_open_req<=0; guide_close_req<=0;
             rocket_req<=0; launch_ticks<=0;
             level_open_req<=0; level_close_req<=0; level_select_req<=0; selected_level<=0;
         end else begin
             home_req<=0; launch_req<=0; edit_req<=0; end_try_req<=0; guide_open_req<=0; guide_close_req<=0; rocket_req<=0;
             level_open_req<=0; level_close_req<=0; level_select_req<=0;
-            boost_req<=0;
             if (run_init) begin
                 // Every run starts with the engine off.  Clicking the engine
                 // cell on the run diagram is the only way to toggle it.
@@ -56,10 +53,8 @@ module ui_controller (
                 if (engine_toggle_req) engine_on<=!engine_on;
                 if (fan_toggle_req && fan_available && fan_toggle_cell < 4'd9)
                     active_fans[fan_toggle_cell] <= !active_fans[fan_toggle_cell];
-                if (rocket_toggle_req && rocket_available && rocket_ready) begin
+                if (rocket_toggle_req && rocket_available && rocket_ready)
                     rocket_req<=1;
-                    boost_req<=1;
-                end
             end
             if (!fan_available || (game_state!=`LP_RUN && game_state!=`LP_SETTINGS && game_state!=`LP_GUIDE))
                 active_fans<=9'd0;

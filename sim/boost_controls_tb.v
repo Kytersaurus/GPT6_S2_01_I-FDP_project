@@ -68,19 +68,19 @@ module boost_controls_tb;
         while (dut.game_state != `LP_RUN) clocks(1);
         clocks(5);
 
-        if (dut.boost_active) $fatal(1, "Boost active before any click");
+        if (dut.rocket_active) $fatal(1, "Boost active before any click");
 
         // Click outside button
         left_click(12'd90, 12'd46);
         clocks(2);
-        if (dut.boost_active) $fatal(1, "Boost triggered outside button");
+        if (dut.rocket_active) $fatal(1, "Boost triggered outside button");
 
         // Ordinary vehicle clicks must not trigger an invisible old boost row.
         left_click(12'd32, 12'd40); clocks(2);
-        if(dut.boost_active) $fatal(1,"Wheel sprite triggered boost control");
+        if(dut.rocket_active) $fatal(1,"Wheel sprite triggered boost control");
         // The compatible left-panel boost shortcut stays outside the vehicle.
         left_click(12'd64, 12'd26); clocks(2);
-        if (!dut.boost_active) $fatal(1, "Damage diagram booster failed to activate");
+        if (!dut.rocket_active) $fatal(1, "Damage diagram booster failed to activate");
 
         $display("PASS boost_controls_tb: left-panel boost activation and ordinary sprite-click exclusion");
         $finish;

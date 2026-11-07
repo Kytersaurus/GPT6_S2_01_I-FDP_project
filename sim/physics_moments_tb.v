@@ -23,7 +23,7 @@ module physics_moments_tb;
         .spawn_x(20'sd8192),.spawn_y(20'sd8192),.step_start(step),.update_release(release_step),
         .wheel_count(wheel_count),.wheels_down(down),.wheels_up(up),.engine_count(engine_count),
         .balloon_count(4'd0),.mass_units(mass),.engine_enabled(engine),.engine_reverse(1'b0),
-        .boost_req(boost),.moments_enabled(1'b1),
+        .moments_enabled(1'b1),
         .build_grid(grid),.build_frames(frames),.intact_mask(alive),.frame_intact_mask(frame_alive),
         .build_facing_left(facing),.rocket_vertical_mask(vertical),
         .fan_balance(fans),.rocket_balance(rockets),.rocket_vertical_balance(vrockets),
