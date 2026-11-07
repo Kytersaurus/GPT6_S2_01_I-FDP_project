@@ -1,32 +1,56 @@
-// Owner: Shared clock/reset support - Role 1 (Kaushal) maintains this starter.
 `timescale 1ns / 1ps
-module clock_control #(parameter integer PHYSICS_CYCLES = 1666667) (
-    input wire clk, reset_button,
+
+module clock_control #(
+    parameter integer PHYSICS_CYCLES = 1666667
+) (
+    input wire clk,
+    input wire reset_button,
     output reg reset = 1,
-    output wire oled_clk, oled_reset,
+    output wire oled_clk,
+    output wire oled_reset,
     output reg physics_tick
 );
     reg [7:0] power_on_count = 0;
     // Sample the reset button twice before using it in the game logic.
-    reg reset_meta = 1, reset_sync = 1;
+    reg reset_meta = 1;
+    reg reset_sync = 1;
     // Count main-clock cycles, using a straightforward fixed-width counter.
     reg [31:0] tick_count;
     reg [1:0] display_reset_pipe = 2'b11;
+
     custom_clk_divider u_oled_divider (
-        .CLOCK(clk), .freq_count(32'd7), .CUSTOM_CLOCK(oled_clk)
+        .CLOCK(clk),
+        .freq_count(32'd7),
+        .CUSTOM_CLOCK(oled_clk)
     );
-    always @(posedge clk) begin
-        reset_meta <= reset_button; reset_sync <= reset_meta;
+
+    always @ (posedge clk) begin
+        reset_meta <= reset_button;
+        reset_sync <= reset_meta;
         // Save the reset decision before distributing it to the other modules.
         reset <= (power_on_count != 8'hff) || reset_sync;
-        if (power_on_count != 8'hff) power_on_count <= power_on_count + 1'b1;
-        if (reset) begin tick_count <= 0; physics_tick <= 0; end
-        else if (tick_count == PHYSICS_CYCLES-1) begin tick_count <= 0; physics_tick <= 1; end
-        else begin tick_count <= tick_count + 1'b1; physics_tick <= 0; end
+        if (power_on_count != 8'hff) begin
+            power_on_count <= power_on_count + 1'b1;
+        end
+        if (reset) begin
+            tick_count <= 0;
+            physics_tick <= 0;
+        end else if (tick_count == PHYSICS_CYCLES-1) begin
+            tick_count <= 0;
+            physics_tick <= 1;
+        end else begin
+            tick_count <= tick_count + 1'b1;
+            physics_tick <= 0;
+        end
     end
-    always @(posedge oled_clk or posedge reset) begin
-        if (reset) display_reset_pipe <= 2'b11;
-        else display_reset_pipe <= {display_reset_pipe[0], 1'b0};
+
+    always @ (posedge oled_clk or posedge reset) begin
+        if (reset) begin
+            display_reset_pipe <= 2'b11;
+        end else begin
+            display_reset_pipe <= {display_reset_pipe[0], 1'b0};
+        end
     end
+
     assign oled_reset = display_reset_pipe[1];
 endmodule

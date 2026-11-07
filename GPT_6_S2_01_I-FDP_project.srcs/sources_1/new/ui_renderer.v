@@ -1,18 +1,20 @@
-// Owner: Role 1 - Kaushal; shared left-screen layout with Role 4 - Marcus.
 `timescale 1ns / 1ps
 `include "game_defs.vh"
+
 module ui_renderer (
     input wire [6:0] x,
     input wire [5:0] y,
     input wire [15:0] base_pixel,
-    input wire [2:0] game_state, feedback_code,
+    input wire [2:0] game_state,
+    input wire [2:0] feedback_code,
     input wire start_screen_active,
     input wire [1:0] diary_page,
     input wire audio_muted,
     input wire [2:0] master_volume,
     input wire [`LP_LEVEL_BITS-1:0] level_index,
     input wire build_valid,
-    input wire [6:0] cursor_x, cursor_y,
+    input wire [6:0] cursor_x,
+    input wire [6:0] cursor_y,
     input tri0 [6:0] cloud_scroll_fg,
     input tri0 [6:0] cloud_scroll_bg,
     // Tutorial: flashes the RUN screen's retry button while the lesson asks for it.
@@ -22,10 +24,13 @@ module ui_renderer (
     `include "ui_font.vh"
     `include "part_sprites.vh"
 
-    reg [3:0] example_local_x, example_local_y;
-    reg [1:0] example_row, example_col;
+    reg [3:0] example_local_x;
+    reg [3:0] example_local_y;
+    reg [1:0] example_row;
+    reg [1:0] example_col;
     reg [2:0] example_part;
-    reg example_draw, example_has_frame;
+    reg example_draw;
+    reg example_has_frame;
 
     // Helper function to evaluate 2x comic bubble title font ("LAGGY PIGGIES")
     // Glyphs: 0:L, 1:A, 2:G, 3:Y, 4:P, 5:I, 6:E, 7:S
@@ -33,28 +38,72 @@ module ui_renderer (
         input [6:0] px;
         input [5:0] py;
         reg [2:0] gid;
-        reg [3:0] lx, ly;
+        reg [3:0] lx;
+        reg [3:0] ly;
         reg in_char;
-        reg [2:0] fcol, frow;
+        reg [2:0] fcol;
+        reg [2:0] frow;
         reg [34:0] glyph;
         begin
-            gid = 0; lx = 0; ly = 0; in_char = 0; glyph = 0;
+            gid = 0;
+            lx = 0;
+            ly = 0;
+            in_char = 0;
+            glyph = 0;
             if (py >= 3 && py <= 16) begin
                 ly = py - 6'd3;
-                if (px >= 18 && px <= 27)      begin gid = 3'd0; lx = px - 7'd18; in_char = 1; end
-                else if (px >= 30 && px <= 39) begin gid = 3'd1; lx = px - 7'd30; in_char = 1; end
-                else if (px >= 42 && px <= 51) begin gid = 3'd2; lx = px - 7'd42; in_char = 1; end
-                else if (px >= 54 && px <= 63) begin gid = 3'd2; lx = px - 7'd54; in_char = 1; end
-                else if (px >= 66 && px <= 75) begin gid = 3'd3; lx = px - 7'd66; in_char = 1; end
+                if (px >= 18 && px <= 27) begin
+                    gid = 3'd0;
+                    lx = px - 7'd18;
+                    in_char = 1;
+                end else if (px >= 30 && px <= 39) begin
+                    gid = 3'd1;
+                    lx = px - 7'd30;
+                    in_char = 1;
+                end else if (px >= 42 && px <= 51) begin
+                    gid = 3'd2;
+                    lx = px - 7'd42;
+                    in_char = 1;
+                end else if (px >= 54 && px <= 63) begin
+                    gid = 3'd2;
+                    lx = px - 7'd54;
+                    in_char = 1;
+                end else if (px >= 66 && px <= 75) begin
+                    gid = 3'd3;
+                    lx = px - 7'd66;
+                    in_char = 1;
+                end
             end else if (py >= 18 && py <= 31) begin
                 ly = py - 6'd18;
-                if (px >= 7 && px <= 16)       begin gid = 3'd4; lx = px - 7'd7;  in_char = 1; end
-                else if (px >= 19 && px <= 28) begin gid = 3'd5; lx = px - 7'd19; in_char = 1; end
-                else if (px >= 31 && px <= 40) begin gid = 3'd2; lx = px - 7'd31; in_char = 1; end
-                else if (px >= 43 && px <= 52) begin gid = 3'd2; lx = px - 7'd43; in_char = 1; end
-                else if (px >= 55 && px <= 64) begin gid = 3'd5; lx = px - 7'd55; in_char = 1; end
-                else if (px >= 67 && px <= 76) begin gid = 3'd6; lx = px - 7'd67; in_char = 1; end
-                else if (px >= 79 && px <= 88) begin gid = 3'd7; lx = px - 7'd79; in_char = 1; end
+                if (px >= 7 && px <= 16) begin
+                    gid = 3'd4;
+                    lx = px - 7'd7;
+                    in_char = 1;
+                end else if (px >= 19 && px <= 28) begin
+                    gid = 3'd5;
+                    lx = px - 7'd19;
+                    in_char = 1;
+                end else if (px >= 31 && px <= 40) begin
+                    gid = 3'd2;
+                    lx = px - 7'd31;
+                    in_char = 1;
+                end else if (px >= 43 && px <= 52) begin
+                    gid = 3'd2;
+                    lx = px - 7'd43;
+                    in_char = 1;
+                end else if (px >= 55 && px <= 64) begin
+                    gid = 3'd5;
+                    lx = px - 7'd55;
+                    in_char = 1;
+                end else if (px >= 67 && px <= 76) begin
+                    gid = 3'd6;
+                    lx = px - 7'd67;
+                    in_char = 1;
+                end else if (px >= 79 && px <= 88) begin
+                    gid = 3'd7;
+                    lx = px - 7'd79;
+                    in_char = 1;
+                end
             end
             if (in_char) begin
                 fcol = lx >> 1;
@@ -78,8 +127,12 @@ module ui_renderer (
 
     // Helper function to draw an Apple-style metallic 8-tooth settings gear
     function [1:0] gear_shade_at;
-        input signed [6:0] center_x, center_y, px, py;
-        reg signed [6:0] lx, ly;
+        input signed [6:0] center_x;
+        input signed [6:0] center_y;
+        input signed [6:0] px;
+        input signed [6:0] py;
+        reg signed [6:0] lx;
+        reg signed [6:0] ly;
         reg [8:0] row;
         reg lit;
         begin
@@ -134,9 +187,15 @@ module ui_renderer (
 
     // Helper function for realistic 3-panel accordion-folded terrain/treasure map icon (11x7)
     function [15:0] draw_map_icon;
-        input signed [6:0] cx, cy, px, py;
+        input signed [6:0] cx;
+        input signed [6:0] cy;
+        input signed [6:0] px;
+        input signed [6:0] py;
         input [15:0] bg;
-        reg signed [4:0] lx, ly, top_y, bot_y;
+        reg signed [4:0] lx;
+        reg signed [4:0] ly;
+        reg signed [4:0] top_y;
+        reg signed [4:0] bot_y;
         reg in_mid;
         begin
             lx = px - cx;
@@ -163,8 +222,12 @@ module ui_renderer (
     // Helper function for realistic open book / diary icon with curved pages & red bookmark (13x7)
     // Returns {lit, colour}; where lit is 0 the button background shows through.
     function [16:0] draw_diary_icon;
-        input signed [6:0] cx, cy, px, py;
-        reg signed [4:0] lx, ly;
+        input signed [6:0] cx;
+        input signed [6:0] cy;
+        input signed [6:0] px;
+        input signed [6:0] py;
+        reg signed [4:0] lx;
+        reg signed [4:0] ly;
         reg [4:0] alx;
         begin
             lx = px - cx;
@@ -194,8 +257,12 @@ module ui_renderer (
     // Icon Glyph Helpers (Pure distributed logic / LUT ROMs - 0 BRAM, Rule 3)
     // -------------------------------------------------------------------------
     function is_back_arrow;
-        input signed [6:0] cx, cy, px, py;
-        reg signed [4:0] lx, ly;
+        input signed [6:0] cx;
+        input signed [6:0] cy;
+        input signed [6:0] px;
+        input signed [6:0] py;
+        reg signed [4:0] lx;
+        reg signed [4:0] ly;
         reg [3:0] aly;
         begin
             lx = px - cx;
@@ -207,8 +274,12 @@ module ui_renderer (
     endfunction
 
     function is_home_icon;
-        input signed [6:0] cx, cy, px, py;
-        reg signed [4:0] lx, ly;
+        input signed [6:0] cx;
+        input signed [6:0] cy;
+        input signed [6:0] px;
+        input signed [6:0] py;
+        reg signed [4:0] lx;
+        reg signed [4:0] ly;
         begin
             lx = px - cx;
             ly = py - cy;
@@ -221,8 +292,12 @@ module ui_renderer (
     endfunction
 
     function is_checkmark_icon;
-        input signed [6:0] cx, cy, px, py;
-        reg signed [6:0] lx, ly;
+        input signed [6:0] cx;
+        input signed [6:0] cy;
+        input signed [6:0] px;
+        input signed [6:0] py;
+        reg signed [6:0] lx;
+        reg signed [6:0] ly;
         begin
             lx = px - cx;
             ly = py - cy;
@@ -237,8 +312,12 @@ module ui_renderer (
     endfunction
 
     function is_retry_icon;
-        input signed [6:0] cx, cy, px, py;
-        reg signed [6:0] lx, ly;
+        input signed [6:0] cx;
+        input signed [6:0] cy;
+        input signed [6:0] px;
+        input signed [6:0] py;
+        reg signed [6:0] lx;
+        reg signed [6:0] ly;
         reg [8:0] row;
         begin
             lx = px - cx;
@@ -265,8 +344,12 @@ module ui_renderer (
     endfunction
 
     function is_stop_icon;
-        input signed [6:0] cx, cy, px, py;
-        reg signed [4:0] lx, ly;
+        input signed [6:0] cx;
+        input signed [6:0] cy;
+        input signed [6:0] px;
+        input signed [6:0] py;
+        reg signed [4:0] lx;
+        reg signed [4:0] ly;
         begin
             lx = px - cx;
             ly = py - cy;
@@ -276,8 +359,12 @@ module ui_renderer (
 
     // Returns {lit, colour}; where lit is 0 the button background shows through.
     function [16:0] cartoon_wrench;
-        input signed [6:0] cx, cy, px, py;
-        reg signed [4:0] lx, ly;
+        input signed [6:0] cx;
+        input signed [6:0] cy;
+        input signed [6:0] px;
+        input signed [6:0] py;
+        reg signed [4:0] lx;
+        reg signed [4:0] ly;
         reg [8:0] row;
         begin
             lx = px - cx;
@@ -303,8 +390,12 @@ module ui_renderer (
     endfunction
 
     function is_play_icon;
-        input signed [6:0] cx, cy, px, py;
-        reg signed [4:0] lx, ly;
+        input signed [6:0] cx;
+        input signed [6:0] cy;
+        input signed [6:0] px;
+        input signed [6:0] py;
+        reg signed [4:0] lx;
+        reg signed [4:0] ly;
         begin
             lx = px - cx;
             ly = py - cy;
@@ -384,14 +475,18 @@ module ui_renderer (
     // screen picks the icon's centre. Every extra call would be another copy of its logic.
     wire on_build_screen = (game_state == `LP_BUILD);
     wire on_run_screen = (game_state == `LP_RUN);
-    reg [6:0] gear_centre_x, gear_centre_y;
-    always @* begin
+    reg [6:0] gear_centre_x;
+    reg [6:0] gear_centre_y;
+    always @ (*) begin
         if (start_screen_active) begin
-            gear_centre_x = 7'd12; gear_centre_y = 7'd54;
+            gear_centre_x = 7'd12;
+            gear_centre_y = 7'd54;
         end else if (on_build_screen) begin
-            gear_centre_x = 7'd87; gear_centre_y = 7'd59;
+            gear_centre_x = 7'd87;
+            gear_centre_y = 7'd59;
         end else begin
-            gear_centre_x = 7'd84; gear_centre_y = 7'd58;
+            gear_centre_x = 7'd84;
+            gear_centre_y = 7'd58;
         end
     end
     wire [1:0] gear_shade = gear_shade_at(gear_centre_x, gear_centre_y, x, y);
@@ -410,58 +505,102 @@ module ui_renderer (
     reg [6:0] line_left;
     reg [5:0] line_top;
     reg [15:0] line_colour;
-    always @* begin
-        line_text = "                "; line_left = 7'd0; line_top = 6'd0; line_colour = 16'hffff;
+    always @ (*) begin
+        line_text = "                ";
+        line_left = 7'd0;
+        line_top = 6'd0;
+        line_colour = 16'hffff;
         if (!start_screen_active) begin
             if (game_state == `LP_LEVEL_SELECT) begin
                 if (y < 6'd12) begin
-                    line_text = "SELECT MAP      "; line_left = 7'd18; line_top = 6'd2; line_colour = 16'h07ff;
+                    line_text = "SELECT MAP      ";
+                    line_left = 7'd18;
+                    line_top = 6'd2;
+                    line_colour = 16'h07ff;
                 end else if (y < 6'd24) begin
-                    line_text = "MAP 1: ARCH     "; line_left = 7'd10; line_top = 6'd12; line_colour = 16'h07ff;
+                    line_text = "MAP 1: ARCH     ";
+                    line_left = 7'd10;
+                    line_top = 6'd12;
+                    line_colour = 16'h07ff;
                 end else if (y < 6'd38) begin
-                    line_text = "MAP 2: FLIGHT   "; line_left = 7'd10; line_top = 6'd26; line_colour = 16'h07ff;
+                    line_text = "MAP 2: FLIGHT   ";
+                    line_left = 7'd10;
+                    line_top = 6'd26;
+                    line_colour = 16'h07ff;
                 end else if (y < 6'd52) begin
-                    line_text = "TUTORIAL        "; line_left = 7'd10; line_top = 6'd40; line_colour = 16'hffe0;
+                    line_text = "TUTORIAL        ";
+                    line_left = 7'd10;
+                    line_top = 6'd40;
+                    line_colour = 16'hffe0;
                 end else begin
-                    line_text = "PICK A MAP      "; line_left = 7'd32; line_top = 6'd56; line_colour = 16'h7bef;
+                    line_text = "PICK A MAP      ";
+                    line_left = 7'd32;
+                    line_top = 6'd56;
+                    line_colour = 16'h7bef;
                 end
             end else if (game_state == `LP_SETTINGS) begin
                 if (y < 6'd11) begin
-                    line_top = 6'd2; line_colour = 16'h07ff;
+                    line_top = 6'd2;
+                    line_colour = 16'h07ff;
                     if (diary_page == 2'd1) begin
-                        line_text = "MOUSE CTRL  1/2 "; line_left = 7'd2;
+                        line_text = "MOUSE CTRL  1/2 ";
+                        line_left = 7'd2;
                     end else if (diary_page == 2'd2) begin
-                        line_text = "BOARD SW    2/2 "; line_left = 7'd2;
+                        line_text = "BOARD SW    2/2 ";
+                        line_left = 7'd2;
                     end else begin
-                        line_text = "SETTINGS        "; line_left = 7'd24;
+                        line_text = "SETTINGS        ";
+                        line_left = 7'd24;
                     end
                 end else if (diary_page == 2'd0) begin
                     if (y >= 6'd36 && y <= 6'd42) begin
                         line_top = 6'd36;
                         if (x < 7'd46 && audio_muted) begin
-                            line_text = "MUTE            "; line_left = 7'd16; line_colour = 16'hf800;
+                            line_text = "MUTE            ";
+                            line_left = 7'd16;
+                            line_colour = 16'hf800;
                         end else if (x >= 7'd55) begin
-                            line_text = "1 2             "; line_left = 7'd61; line_colour = 16'hffff;
+                            line_text = "1 2             ";
+                            line_left = 7'd61;
+                            line_colour = 16'hffff;
                         end
                     end
                 end else if (diary_page == 2'd1) begin
                     line_left = 7'd56;
                     if (y >= 6'd12 && y <= 6'd19) begin
-                        line_top = 6'd12; line_text = "DRAG            "; line_colour = 16'h07e0;
+                        line_top = 6'd12;
+                        line_text = "DRAG            ";
+                        line_colour = 16'h07e0;
                     end else if (y >= 6'd20 && y <= 6'd27) begin
-                        line_top = 6'd20; line_text = "PLACE           "; line_colour = 16'hffff;
+                        line_top = 6'd20;
+                        line_text = "PLACE           ";
+                        line_colour = 16'hffff;
                     end else if (y >= 6'd32 && y <= 6'd39) begin
-                        line_top = 6'd32; line_text = "PUT             "; line_colour = 16'hf800;
+                        line_top = 6'd32;
+                        line_text = "PUT             ";
+                        line_colour = 16'hf800;
                     end else if (y >= 6'd40 && y <= 6'd47) begin
-                        line_top = 6'd40; line_text = "BACK            "; line_colour = 16'hffff;
+                        line_top = 6'd40;
+                        line_text = "BACK            ";
+                        line_colour = 16'hffff;
                     end
                 end else if (diary_page == 2'd2) begin
                     if (y >= 6'd38 && y <= 6'd45) begin
-                        line_top = 6'd38; line_colour = 16'hffff;
-                        if (x < 7'd22)                  begin line_text = "15              "; line_left = 7'd8;  end
-                        else if (x < 7'd38)             begin line_text = "14              "; line_left = 7'd24; end
-                        else if (x >= 7'd59 && x < 7'd74) begin line_text = "1               "; line_left = 7'd64; end
-                        else if (x >= 7'd75)            begin line_text = "0               "; line_left = 7'd80; end
+                        line_top = 6'd38;
+                        line_colour = 16'hffff;
+                        if (x < 7'd22) begin
+                            line_text = "15              ";
+                            line_left = 7'd8;
+                        end else if (x < 7'd38) begin
+                            line_text = "14              ";
+                            line_left = 7'd24;
+                        end else if (x >= 7'd59 && x < 7'd74) begin
+                            line_text = "1               ";
+                            line_left = 7'd64;
+                        end else if (x >= 7'd75) begin
+                            line_text = "0               ";
+                            line_left = 7'd80;
+                        end
                     end
                 end
             end else if (game_state == `LP_GUIDE) begin
@@ -471,69 +610,118 @@ module ui_renderer (
                     if (diary_page != 2'd3) begin
                         line_top = 6'd56;
                         if (x < 7'd53) begin
-                            line_text = "1               "; line_left = 7'd40;
+                            line_text = "1               ";
+                            line_left = 7'd40;
                             if (diary_page == 2'd0) line_colour = 16'hffe0;
                         end else if (x < 7'd74) begin
-                            line_text = "2               "; line_left = 7'd61;
+                            line_text = "2               ";
+                            line_left = 7'd61;
                             if (diary_page == 2'd1) line_colour = 16'hffe0;
                         end else begin
-                            line_text = "3               "; line_left = 7'd82;
+                            line_text = "3               ";
+                            line_left = 7'd82;
                             if (diary_page == 2'd2) line_colour = 16'hffe0;
                         end
                     end
-                end else case (diary_page)
-                    2'd0: begin
-                        if (y < 6'd12) begin
-                            line_text = "1 LAUNCH    1/3 "; line_left = 7'd2; line_top = 6'd2; line_colour = 16'h07ff;
-                        end else if (y >= 6'd34 && y <= 6'd42) begin
-                            line_left = 7'd47; line_top = 6'd35;
-                            if (level_index == 0) begin line_text = "ENG ON          "; line_colour = 16'h07e0; end
-                            else                  begin line_text = "ENG+FAN         "; line_colour = 16'h07ff; end
+                end else begin
+                    case (diary_page)
+                        2'd0: begin
+                            if (y < 6'd12) begin
+                                line_text = "1 LAUNCH    1/3 ";
+                                line_left = 7'd2;
+                                line_top = 6'd2;
+                                line_colour = 16'h07ff;
+                            end else if (y >= 6'd34 && y <= 6'd42) begin
+                                line_left = 7'd47;
+                                line_top = 6'd35;
+                                if (level_index == 0) begin
+                                    line_text = "ENG ON          ";
+                                    line_colour = 16'h07e0;
+                                end else begin
+                                    line_text = "ENG+FAN         ";
+                                    line_colour = 16'h07ff;
+                                end
+                            end
                         end
-                    end
-                    2'd1: begin
-                        if (y < 6'd12) begin
-                            line_text = "2 STAR      2/3 "; line_left = 7'd2; line_top = 6'd2; line_colour = 16'hffe0;
-                        end else if (y >= 6'd34 && y <= 6'd42) begin
-                            line_left = 7'd47; line_top = 6'd35;
-                            if (level_index == 0) begin line_text = "ROCKET!         "; line_colour = 16'hfd20; end
-                            else                  begin line_text = "2 FANS!         "; line_colour = 16'h07ff; end
+                        2'd1: begin
+                            if (y < 6'd12) begin
+                                line_text = "2 STAR      2/3 ";
+                                line_left = 7'd2;
+                                line_top = 6'd2;
+                                line_colour = 16'hffe0;
+                            end else if (y >= 6'd34 && y <= 6'd42) begin
+                                line_left = 7'd47;
+                                line_top = 6'd35;
+                                if (level_index == 0) begin
+                                    line_text = "ROCKET!         ";
+                                    line_colour = 16'hfd20;
+                                end else begin
+                                    line_text = "2 FANS!         ";
+                                    line_colour = 16'h07ff;
+                                end
+                            end
                         end
-                    end
-                    2'd2: begin
-                        if (y < 6'd12) begin
-                            line_text = "3 FINISH    3/3 "; line_left = 7'd2; line_top = 6'd2; line_colour = 16'h07e0;
-                        end else if (y >= 6'd34 && y <= 6'd42) begin
-                            line_left = 7'd47; line_top = 6'd35;
-                            if (level_index == 0) begin line_text = "ENG ->          "; line_colour = 16'h07e0; end
-                            else                  begin line_text = "FAN+ENG         "; line_colour = 16'h07ff; end
+                        2'd2: begin
+                            if (y < 6'd12) begin
+                                line_text = "3 FINISH    3/3 ";
+                                line_left = 7'd2;
+                                line_top = 6'd2;
+                                line_colour = 16'h07e0;
+                            end else if (y >= 6'd34 && y <= 6'd42) begin
+                                line_left = 7'd47;
+                                line_top = 6'd35;
+                                if (level_index == 0) begin
+                                    line_text = "ENG ->          ";
+                                    line_colour = 16'h07e0;
+                                end else begin
+                                    line_text = "FAN+ENG         ";
+                                    line_colour = 16'h07ff;
+                                end
+                            end
                         end
-                    end
-                    default: begin
-                        if (y < 6'd12) begin
-                            line_text = "SOUND SETTINGS  "; line_left = 7'd6; line_top = 6'd2; line_colour = 16'h07ff;
-                        end else if (y < 6'd22) begin
-                            line_text = "MASTER VOLUME   "; line_left = 7'd6; line_top = 6'd13;
-                        end else if (y < 6'd40) begin
-                            line_top = 6'd28;
-                            if (x < 7'd60) begin line_text = " -              "; line_left = 7'd12; end
-                            else begin line_text = " +              "; line_left = 7'd68; end
-                        end else if (audio_muted) begin
-                            // Switch 0 (Mute) status banner: only shown when muted.
-                            line_text = "MUTED BY SW0    "; line_left = 7'd10; line_top = 6'd43; line_colour = 16'hf800;
+                        default: begin
+                            if (y < 6'd12) begin
+                                line_text = "SOUND SETTINGS  ";
+                                line_left = 7'd6;
+                                line_top = 6'd2;
+                                line_colour = 16'h07ff;
+                            end else if (y < 6'd22) begin
+                                line_text = "MASTER VOLUME   ";
+                                line_left = 7'd6;
+                                line_top = 6'd13;
+                            end else if (y < 6'd40) begin
+                                line_top = 6'd28;
+                                if (x < 7'd60) begin
+                                    line_text = " -              ";
+                                    line_left = 7'd12;
+                                end else begin
+                                    line_text = " +              ";
+                                    line_left = 7'd68;
+                                end
+                            end else if (audio_muted) begin
+                                // Switch 0 (Mute) status banner: only shown when muted.
+                                line_text = "MUTED BY SW0    ";
+                                line_left = 7'd10;
+                                line_top = 6'd43;
+                                line_colour = 16'hf800;
+                            end
                         end
-                    end
-                endcase
+                    endcase
+                end
             end
         end
     end
     wire line_lit = text_on(line_text, line_left, line_top, x, y);
 
-
-    always @* begin
+    always @ (*) begin
         pixel_data = base_pixel;
-        example_draw = 1'b0; example_has_frame = 1'b0; example_part = `LP_PART_EMPTY;
-        example_local_x = 4'd0; example_local_y = 4'd0; example_row = 2'd0; example_col = 2'd0;
+        example_draw = 1'b0;
+        example_has_frame = 1'b0;
+        example_part = `LP_PART_EMPTY;
+        example_local_x = 4'd0;
+        example_local_y = 4'd0;
+        example_row = 2'd0;
+        example_col = 2'd0;
 
         if (start_screen_active) begin
             // -----------------------------------------------------------------
@@ -653,10 +841,13 @@ module ui_renderer (
                 // --- PAGE 1/2: DEDICATED MOUSE CONTROLS SCREEN (diary_page == 1) ---
                 // Top Card (x: 4..91, y: 11..29): Left-Click = Drag & Place into Grid
                 if (x >= 4 && x <= 91 && y >= 11 && y <= 29) begin
-                    if (x == 4 || x == 91 || y == 11 || y == 29) pixel_data = 16'h04b4;
-                    else pixel_data = 16'h1082;
+                    if (x == 4 || x == 91 || y == 11 || y == 29)
+                        pixel_data = 16'h04b4;
+                    else
+                        pixel_data = 16'h1082;
                     // Mouse Cord at top (x=12, y:12..14)
-                    if (x == 12 && y >= 12 && y <= 14) pixel_data = 16'h7bef;
+                    if (x == 12 && y >= 12 && y <= 14)
+                        pixel_data = 16'h7bef;
                     // Curved Mouse Body (x: 7..17, y: 15..26)
                     if (x >= 7 && x <= 17 && y >= 15 && y <= 26 &&
                         !((x <= 8 || x >= 16) && y == 15) &&
@@ -698,10 +889,13 @@ module ui_renderer (
 
                 // Bottom Card (x: 4..91, y: 31..49): Right-Click = Put Back from Grid
                 if (x >= 4 && x <= 91 && y >= 31 && y <= 49) begin
-                    if (x == 4 || x == 91 || y == 31 || y == 49) pixel_data = 16'h04b4;
-                    else pixel_data = 16'h1082;
+                    if (x == 4 || x == 91 || y == 31 || y == 49)
+                        pixel_data = 16'h04b4;
+                    else
+                        pixel_data = 16'h1082;
                     // Mouse Cord at top (x=12, y:32..34)
-                    if (x == 12 && y >= 32 && y <= 34) pixel_data = 16'h7bef;
+                    if (x == 12 && y >= 32 && y <= 34)
+                        pixel_data = 16'h7bef;
                     // Curved Mouse Body (x: 7..17, y: 35..46)
                     if (x >= 7 && x <= 17 && y >= 35 && y <= 46 &&
                         !((x <= 8 || x >= 16) && y == 35) &&
@@ -743,7 +937,8 @@ module ui_renderer (
             end else if (diary_page == 2'd2) begin
                 // --- PAGE 2/2: DEDICATED BOARD SWITCHES SCREEN (diary_page == 2) ---
                 if (x >= 4 && x <= 91 && y >= 11 && y <= 49) begin
-                    if (x == 4 || x == 91 || y == 11 || y == 49) pixel_data = 16'h04b4;
+                    if (x == 4 || x == 91 || y == 11 || y == 49)
+                        pixel_data = 16'h04b4;
                     else if (y >= 30) begin
                         // Dark green Basys 3 PCB bottom strip where physical switches sit
                         pixel_data = (y == 30) ? 16'h03a0 : 16'h01c0;
@@ -861,32 +1056,48 @@ module ui_renderer (
                         if (x >= 67 && x <= 71) begin
                             // Middle panel shifted down 1px for 3D accordion fold
                             if (y >= 17 && y <= 28) begin
-                                if (y == 17 || y == 28) pixel_data = 16'h9c45;
-                                else if (y <= 21) pixel_data = 16'h2684; // Green highland hills
-                                else if (y >= 24 && x >= 68 && x <= 70) pixel_data = 16'h1d9f; // Blue river & bay
-                                else if (x == 68 && y >= 22) pixel_data = 16'h1d9f; // River channel
-                                else pixel_data = 16'hd632; // Shaded fold parchment coastline
+                                if (y == 17 || y == 28)
+                                    pixel_data = 16'h9c45;
+                                else if (y <= 21)
+                                    pixel_data = 16'h2684; // Green highland hills
+                                else if (y >= 24 && x >= 68 && x <= 70)
+                                    pixel_data = 16'h1d9f; // Blue river & bay
+                                else if (x == 68 && y >= 22)
+                                    pixel_data = 16'h1d9f; // River channel
+                                else
+                                    pixel_data = 16'hd632; // Shaded fold parchment coastline
                             end
                         end else if (y >= 16 && y <= 27) begin
                             // Left (61..66) and Right (72..77) panels
-                            if (x == 61 || x == 77 || y == 16 || y == 27) pixel_data = 16'hc588;
-                            else if (x <= 66 && y <= 22) pixel_data = 16'h2684; // West green continent
-                            else if (x >= 64 && x <= 66 && y >= 24) pixel_data = 16'h1d9f; // West sea / river mouth
-                            else if (x >= 72 && y <= 20) pixel_data = 16'h2684; // East green continent
-                            else if (x >= 73 && x <= 75 && y == 21) pixel_data = 16'h3f07; // Bright green coastal ridge
-                            else if (x >= 72 && y >= 23) pixel_data = 16'h1d9f; // East ocean bay
-                            else pixel_data = 16'hffdf; // Sandy parchment coastline
+                            if (x == 61 || x == 77 || y == 16 || y == 27)
+                                pixel_data = 16'hc588;
+                            else if (x <= 66 && y <= 22)
+                                pixel_data = 16'h2684; // West green continent
+                            else if (x >= 64 && x <= 66 && y >= 24)
+                                pixel_data = 16'h1d9f; // West sea / river mouth
+                            else if (x >= 72 && y <= 20)
+                                pixel_data = 16'h2684; // East green continent
+                            else if (x >= 73 && x <= 75 && y == 21)
+                                pixel_data = 16'h3f07; // Bright green coastal ridge
+                            else if (x >= 72 && y >= 23)
+                                pixel_data = 16'h1d9f; // East ocean bay
+                            else
+                                pixel_data = 16'hffdf; // Sandy parchment coastline
                         end
                     end
 
                     // Map Indicator Boxes (Map 1 vs Map 2) centered at y: 35..43
                     if (y >= 35 && y <= 43) begin
                         if (x >= 59 && x <= 67) begin
-                            if (x == 59 || x == 67 || y == 35 || y == 43) pixel_data = (level_index == `LP_LEVEL_ARCH) ? 16'hffe0 : 16'h2945;
-                            else pixel_data = (level_index == `LP_LEVEL_ARCH) ? 16'h07e0 : 16'h18e5;
+                            if (x == 59 || x == 67 || y == 35 || y == 43)
+                                pixel_data = (level_index == `LP_LEVEL_ARCH) ? 16'hffe0 : 16'h2945;
+                            else
+                                pixel_data = (level_index == `LP_LEVEL_ARCH) ? 16'h07e0 : 16'h18e5;
                         end else if (x >= 71 && x <= 79) begin
-                            if (x == 71 || x == 79 || y == 35 || y == 43) pixel_data = (level_index == `LP_LEVEL_FLIGHT) ? 16'hffe0 : 16'h2945;
-                            else pixel_data = (level_index == `LP_LEVEL_FLIGHT) ? 16'h07e0 : 16'h18e5;
+                            if (x == 71 || x == 79 || y == 35 || y == 43)
+                                pixel_data = (level_index == `LP_LEVEL_FLIGHT) ? 16'hffe0 : 16'h2945;
+                            else
+                                pixel_data = (level_index == `LP_LEVEL_FLIGHT) ? 16'h07e0 : 16'h18e5;
                         end
                     end
                 end
@@ -925,7 +1136,7 @@ module ui_renderer (
             if (x >= 70 && x <= 95 && y >= 52 && y <= 62) begin
                 if (x == 70 || x == 95 || y == 52 || y == 62)
                     pixel_data = (cursor_x >= 70 && cursor_x <= 95 && cursor_y >= 52 && cursor_y <= 62) ? 16'hffe0 : 16'h04b4;
-                else if (cursor_x >= 70 && cursor_x <= 95 && cursor_y >= 52 && cursor_y <= 62)
+                else if (cursor_x >= 70 && cursor_x <= 95 && cursor_y >= 52 && cursor_y >= 62)
                     pixel_data = 16'h0432;
                 else
                     pixel_data = 16'h18e5;
@@ -944,12 +1155,26 @@ module ui_renderer (
                 // --- TABS 1, 2, 3: INTERACTIVE CHECKPOINT WALKTHROUGH ---
                 // 1. Left Half (x: 4..39, y: 12..47): 36x36 Vehicle Grid using shared part_sprite12
                 if (x >= 4 && x < 40 && y >= 12 && y < 48) begin
-                    if (x < 16)      begin example_col = 0; example_local_x = x - 4;  end
-                    else if (x < 28) begin example_col = 1; example_local_x = x - 16; end
-                    else             begin example_col = 2; example_local_x = x - 28; end
-                    if (y < 24)      begin example_row = 0; example_local_y = y - 12; end
-                    else if (y < 36) begin example_row = 1; example_local_y = y - 24; end
-                    else             begin example_row = 2; example_local_y = y - 36; end
+                    if (x < 16) begin
+                        example_col = 0;
+                        example_local_x = x - 4;
+                    end else if (x < 28) begin
+                        example_col = 1;
+                        example_local_x = x - 16;
+                    end else begin
+                        example_col = 2;
+                        example_local_x = x - 28;
+                    end
+                    if (y < 24) begin
+                        example_row = 0;
+                        example_local_y = y - 12;
+                    end else if (y < 36) begin
+                        example_row = 1;
+                        example_local_y = y - 24;
+                    end else begin
+                        example_row = 2;
+                        example_local_y = y - 36;
+                    end
                     example_draw = 1'b1;
                     // Map 1: [Empty, Up-Rocket, Empty] / [Frame, Pig, Engine] / [Wheel, Empty, Wheel].
                     // Map 2: [Left-Fan, Frame, Balloon] / [Frame, Pig, Engine] / [Wheel, Down-Fan, Wheel].
@@ -974,8 +1199,10 @@ module ui_renderer (
 
                 // 2. Right Half (x: 43..92, y: 12..47): Checkpoint Action Card
                 if (x >= 43 && x <= 92 && y >= 12 && y <= 47) begin
-                    if (x == 43 || x == 92 || y == 12 || y == 47) pixel_data = 16'h04b4;
-                    else pixel_data = 16'h1082;
+                    if (x == 43 || x == 92 || y == 12 || y == 47)
+                        pixel_data = 16'h04b4;
+                    else
+                        pixel_data = 16'h1082;
                 end
 
                 // Active 12x12 Part Sprite inside Action Card (x: 47..58, y: 15..26)
@@ -1013,7 +1240,8 @@ module ui_renderer (
                 end else if (diary_page == 2'd1) begin
                     // Target Star Crate Icon on Right of Card (x: 78..88, y: 16..26)
                     if (x >= 78 && x <= 88 && y >= 16 && y <= 26) begin
-                        if (x == 78 || x == 88 || y == 16 || y == 26) pixel_data = 16'hc4a3;
+                        if (x == 78 || x == 88 || y == 16 || y == 26)
+                            pixel_data = 16'hc4a3;
                         else if ((y == 17 && x == 83) ||
                                  (y == 18 && x >= 82 && x <= 84) ||
                                  (y == 19 && x >= 79 && x <= 87) ||
@@ -1023,7 +1251,8 @@ module ui_renderer (
                                  (y == 23 && ((x >= 80 && x <= 81) || (x >= 85 && x <= 86))) ||
                                  (y == 24 && (x == 79 || x == 87)))
                             pixel_data = 16'hffe0;
-                        else pixel_data = 16'h7261;
+                        else
+                            pixel_data = 16'h7261;
                     end
                     if (level_index == 0) begin
                         // Map 1 Step 2: Cyan Reverse + Rocket Up Arrow <^ (x: 62..74, y: 16..24)
@@ -1039,7 +1268,8 @@ module ui_renderer (
                     end
                 end else begin
                     // Step 3: Checkered Finish Flag on Right (x: 78..88, y: 16..26) + Boost Arrow
-                    if (x == 78 && y >= 16 && y <= 26) pixel_data = 16'hffff;
+                    if (x == 78 && y >= 16 && y <= 26)
+                        pixel_data = 16'hffff;
                     else if (x >= 79 && x <= 88 && y >= 16 && y <= 21)
                         pixel_data = (((x >> 1) + (y >> 1)) & 1'b1) ? 16'hffff : 16'hf800;
                     // Orange Boost Arrow -> (x: 62..74, y: 19..23)
@@ -1053,8 +1283,10 @@ module ui_renderer (
                 if (x >= 8 && x <= 28 && y >= 24 && y <= 37) begin
                     if (x == 8 || x == 28 || y == 24 || y == 37)
                         pixel_data = (cursor_x >= 8 && cursor_x <= 28 && cursor_y >= 24 && cursor_y <= 37) ? 16'hffe0 : 16'h04b4;
-                    else if (cursor_x >= 8 && cursor_x <= 28 && cursor_y >= 24 && cursor_y <= 37) pixel_data = 16'h0351;
-                    else pixel_data = 16'h18e5;
+                    else if (cursor_x >= 8 && cursor_x <= 28 && cursor_y >= 24 && cursor_y <= 37)
+                        pixel_data = 16'h0351;
+                    else
+                        pixel_data = 16'h18e5;
                 end
 
                 // 4 Stepped Volume Indicator Bars (x: 34..58, y: 25..37)
@@ -1071,8 +1303,10 @@ module ui_renderer (
                 if (x >= 64 && x <= 84 && y >= 24 && y <= 37) begin
                     if (x == 64 || x == 84 || y == 24 || y == 37)
                         pixel_data = (cursor_x >= 64 && cursor_x <= 84 && cursor_y >= 24 && cursor_y <= 37) ? 16'hffe0 : 16'h04b4;
-                    else if (cursor_x >= 64 && cursor_x <= 84 && cursor_y >= 24 && cursor_y <= 37) pixel_data = 16'h0351;
-                    else pixel_data = 16'h18e5;
+                    else if (cursor_x >= 64 && cursor_x <= 84 && cursor_y >= 24 && cursor_y <= 37)
+                        pixel_data = 16'h0351;
+                    else
+                        pixel_data = 16'h18e5;
                 end
             end
 
@@ -1092,19 +1326,22 @@ module ui_renderer (
                             pixel_data = ((diary_page == 0) || (cursor_x >= 32 && cursor_x <= 51 && cursor_y >= 55)) ? 16'hffe0 : 16'h04b4;
                         else if (cursor_x >= 32 && cursor_x <= 51 && cursor_y >= 55)
                             pixel_data = 16'h0351;
-                        else pixel_data = 16'h18e5;
+                        else
+                            pixel_data = 16'h18e5;
                     end else if (x >= 53 && x <= 72) begin
                         if (x == 53 || x == 72 || y == 55 || y == 63)
                             pixel_data = ((diary_page == 1) || (cursor_x >= 53 && cursor_x <= 72 && cursor_y >= 55)) ? 16'hffe0 : 16'h04b4;
                         else if (cursor_x >= 53 && cursor_x <= 72 && cursor_y >= 55)
                             pixel_data = 16'h0351;
-                        else pixel_data = 16'h18e5;
+                        else
+                            pixel_data = 16'h18e5;
                     end else if (x >= 74 && x <= 93) begin
                         if (x == 74 || x == 93 || y == 55 || y == 63)
                             pixel_data = ((diary_page == 2) || (cursor_x >= 74 && cursor_x <= 93 && cursor_y >= 55)) ? 16'hffe0 : 16'h04b4;
                         else if (cursor_x >= 74 && cursor_x <= 93 && cursor_y >= 55)
                             pixel_data = 16'h0351;
-                        else pixel_data = 16'h18e5;
+                        else
+                            pixel_data = 16'h18e5;
                     end
                 end
             end
@@ -1120,8 +1357,10 @@ module ui_renderer (
                         pixel_data = (cursor_x < 18 && cursor_y >= 55) ? (build_valid ? 16'hffe0 : 16'hf800) : (build_valid ? 16'h07e0 : 16'h4208);
                     else if (cursor_x < 18 && cursor_y >= 55)
                         pixel_data = build_valid ? 16'h0351 : 16'h2945;
-                    else pixel_data = build_valid ? 16'h18e5 : 16'h18c3;
-                    if (is_checkmark_icon(7'd8, 6'd59, x, y)) pixel_data = build_valid ? 16'h07e0 : 16'h7bef;
+                    else
+                        pixel_data = build_valid ? 16'h18e5 : 16'h18c3;
+                    if (is_checkmark_icon(7'd8, 6'd59, x, y))
+                        pixel_data = build_valid ? 16'h07e0 : 16'h7bef;
                 end
                 // Open Book Diary Icon (x: 64..79)
                 else if (x >= 64 && x < 80) begin
@@ -1159,8 +1398,10 @@ module ui_renderer (
                 if (x >= 2 && x <= 22) begin
                     if (x == 2 || x == 22 || y == 53 || y == 63)
                         pixel_data = ((cursor_x >= 2 && cursor_x <= 22 && cursor_y >= 53 && cursor_y <= 63) || retry_glow) ? 16'hffe0 : 16'h04b4;
-                    else if (cursor_x >= 2 && cursor_x <= 22 && cursor_y >= 53 && cursor_y <= 63) pixel_data = 16'h0351;
-                    else pixel_data = 16'h18e5;
+                    else if (cursor_x >= 2 && cursor_x <= 22 && cursor_y >= 53 && cursor_y <= 63)
+                        pixel_data = 16'h0351;
+                    else
+                        pixel_data = 16'h18e5;
                     if (retry_lit) pixel_data = retry_glow ? 16'hffe0 : 16'hffff;
                 end
 
@@ -1168,8 +1409,10 @@ module ui_renderer (
                 else if (x >= 26 && x <= 46) begin
                     if (x == 26 || x == 46 || y == 53 || y == 63)
                         pixel_data = (cursor_x >= 26 && cursor_x <= 46 && cursor_y >= 53 && cursor_y <= 63) ? 16'hffe0 : 16'h04b4;
-                    else if (cursor_x >= 26 && cursor_x <= 46 && cursor_y >= 53 && cursor_y <= 63) pixel_data = 16'h0351;
-                    else pixel_data = 16'h18e5;
+                    else if (cursor_x >= 26 && cursor_x <= 46 && cursor_y >= 53 && cursor_y <= 63)
+                        pixel_data = 16'h0351;
+                    else
+                        pixel_data = 16'h18e5;
                     if (is_stop_icon(7'd36, 6'd58, x, y)) pixel_data = 16'hf800; // Red stop icon
                 end
 
@@ -1177,8 +1420,10 @@ module ui_renderer (
                 else if (x >= 50 && x <= 70) begin
                     if (x == 50 || x == 70 || y == 53 || y == 63)
                         pixel_data = (cursor_x >= 50 && cursor_x <= 70 && cursor_y >= 53 && cursor_y <= 63) ? 16'hffe0 : 16'h04b4;
-                    else if (cursor_x >= 50 && cursor_x <= 70 && cursor_y >= 53 && cursor_y <= 63) pixel_data = 16'h0351;
-                    else pixel_data = 16'h18e5;
+                    else if (cursor_x >= 50 && cursor_x <= 70 && cursor_y >= 53 && cursor_y <= 63)
+                        pixel_data = 16'h0351;
+                    else
+                        pixel_data = 16'h18e5;
                     if (wrench_icon[16]) pixel_data = wrench_icon[15:0];
                 end
 
@@ -1186,8 +1431,10 @@ module ui_renderer (
                 else if (x >= 74 && x <= 94) begin
                     if (x == 74 || x == 94 || y == 53 || y == 63)
                         pixel_data = (cursor_x >= 74 && cursor_x <= 94 && cursor_y >= 53 && cursor_y <= 63) ? 16'hffe0 : 16'h04b4;
-                    else if (cursor_x >= 74 && cursor_x <= 94 && cursor_y >= 53 && cursor_y <= 63) pixel_data = 16'h0351;
-                    else pixel_data = 16'h18e5;
+                    else if (cursor_x >= 74 && cursor_x <= 94 && cursor_y >= 53 && cursor_y <= 63)
+                        pixel_data = 16'h0351;
+                    else
+                        pixel_data = 16'h18e5;
                     if (gear_lit) pixel_data = gear_colour;
                 end
             end
@@ -1207,7 +1454,8 @@ module ui_renderer (
                     else
                         pixel_data = 16'h18e5;
                     if (game_state == `LP_SUCCESS) begin
-                        if (is_play_icon(7'd74, 6'd16, x, y)) pixel_data = retry_glow ? 16'hffe0 : 16'h07e0; // Bright green / blinking gold play triangle
+                        if (is_play_icon(7'd74, 6'd16, x, y))
+                            pixel_data = retry_glow ? 16'hffe0 : 16'h07e0; // Bright green / blinking gold play triangle
                     end else begin
                         if (wrench_icon[16]) pixel_data = wrench_icon[15:0];
                     end
@@ -1229,32 +1477,40 @@ module ui_renderer (
                 if (x >= 2 && x <= 22) begin
                     if (x == 2 || x == 22 || y == 53 || y == 63)
                         pixel_data = (cursor_x >= 2 && cursor_x <= 22 && cursor_y >= 53 && cursor_y <= 63) ? 16'hffe0 : 16'h04b4;
-                    else if (cursor_x >= 2 && cursor_x <= 22 && cursor_y >= 53 && cursor_y <= 63) pixel_data = 16'h0351;
-                    else pixel_data = 16'h18e5;
+                    else if (cursor_x >= 2 && cursor_x <= 22 && cursor_y >= 53 && cursor_y <= 63)
+                        pixel_data = 16'h0351;
+                    else
+                        pixel_data = 16'h18e5;
                     if (home_icon_lit) pixel_data = 16'hffff;
                 end
                 // Button 2: [ MAP SELECT ] (x: 26..46, center 36, 58)
                 else if (x >= 26 && x <= 46) begin
                     if (x == 26 || x == 46 || y == 53 || y == 63)
                         pixel_data = (cursor_x >= 26 && cursor_x <= 46 && cursor_y >= 53 && cursor_y <= 63) ? 16'hffe0 : 16'h04b4;
-                    else if (cursor_x >= 26 && cursor_x <= 46 && cursor_y >= 53 && cursor_y <= 63) pixel_data = 16'h0351;
-                    else pixel_data = 16'h18e5;
+                    else if (cursor_x >= 26 && cursor_x <= 46 && cursor_y >= 53 && cursor_y <= 63)
+                        pixel_data = 16'h0351;
+                    else
+                        pixel_data = 16'h18e5;
                     pixel_data = draw_map_icon(7'd36, 6'd58, x, y, pixel_data);
                 end
                 // Button 3: [ GUIDE ] (x: 50..70, center 60, 58)
                 else if (x >= 50 && x <= 70) begin
                     if (x == 50 || x == 70 || y == 53 || y == 63)
                         pixel_data = (cursor_x >= 50 && cursor_x <= 70 && cursor_y >= 53 && cursor_y <= 63) ? 16'hffe0 : 16'h04b4;
-                    else if (cursor_x >= 50 && cursor_x <= 70 && cursor_y >= 53 && cursor_y <= 63) pixel_data = 16'h0351;
-                    else pixel_data = 16'h18e5;
+                    else if (cursor_x >= 50 && cursor_x <= 70 && cursor_y >= 53 && cursor_y <= 63)
+                        pixel_data = 16'h0351;
+                    else
+                        pixel_data = 16'h18e5;
                     if (diary_icon[16]) pixel_data = diary_icon[15:0];
                 end
                 // Button 4: [ SETTINGS GEAR ] (x: 74..94, center 84, 58)
                 else if (x >= 74 && x <= 94) begin
                     if (x == 74 || x == 94 || y == 53 || y == 63)
                         pixel_data = (cursor_x >= 74 && cursor_x <= 94 && cursor_y >= 53 && cursor_y <= 63) ? 16'hffe0 : 16'h04b4;
-                    else if (cursor_x >= 74 && cursor_x <= 94 && cursor_y >= 53 && cursor_y <= 63) pixel_data = 16'h0351;
-                    else pixel_data = 16'h18e5;
+                    else if (cursor_x >= 74 && cursor_x <= 94 && cursor_y >= 53 && cursor_y <= 63)
+                        pixel_data = 16'h0351;
+                    else
+                        pixel_data = 16'h18e5;
                     if (gear_lit) pixel_data = gear_colour;
                 end
             end

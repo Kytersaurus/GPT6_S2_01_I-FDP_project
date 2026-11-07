@@ -1,4 +1,3 @@
-// Owner: Shared integration - all roles; Role 4 (Marcus) coordinates edits.
 `timescale 1ns / 1ps
 
 //////////////////////////////////////////////////////////////////////////////////
@@ -17,40 +16,48 @@
 //   The wheel engine and rockets have no switch or button; they are worked only by
 //   clicking their run-diagram cells. The map zoom is on the mouse wheel.
 // Buttons: BTNC launch/retry, BTNU edit/next level after success, BTND reset,
-//   BTNL and BTNR reserved.  SW2..SW13 are unused.
+//   BTNL and BTNR reserved. SW2..SW13 are unused.
 module My_Top_Module #(
-    parameter integer PHYSICS_CYCLES = 1666667,
+    parameter integer PHYSICS_CYCLES         = 1666667,
     parameter integer BUTTON_DEBOUNCE_CYCLES = 20000000,
-    parameter integer BUTTON_RELEASE_CYCLES = 2000000,
-    parameter integer AUDIO_NOTE_CYCLES = 8000000,
-    parameter integer AUDIO_FADE_CYCLES = 50000,
-    parameter integer ENABLE_BGM = 1,
+    parameter integer BUTTON_RELEASE_CYCLES  = 2000000,
+    parameter integer AUDIO_NOTE_CYCLES      = 8000000,
+    parameter integer AUDIO_FADE_CYCLES      = 50000,
+    parameter integer ENABLE_BGM             = 1,
 `ifdef SYNTHESIS
-    parameter integer ENABLE_START_SCREEN = 1,
+    parameter integer ENABLE_START_SCREEN    = 1,
 `else
-    parameter integer ENABLE_START_SCREEN = 0,
+    parameter integer ENABLE_START_SCREEN    = 0,
 `endif
-    parameter integer BGM_UNIT_CYCLES = 15625000,
-    parameter integer FRAME_LIMIT = 5,
-    parameter integer PIG_LIMIT = 1,
-    parameter integer WHEEL_LIMIT = 4,
-    parameter integer ENGINE_LIMIT = 1,
+    parameter integer BGM_UNIT_CYCLES        = 15625000,
+    parameter integer FRAME_LIMIT            = 5,
+    parameter integer PIG_LIMIT              = 1,
+    parameter integer WHEEL_LIMIT            = 4,
+    parameter integer ENGINE_LIMIT           = 1,
     // Ground thrust per engine. 320 lets one engine pull a 15-unit cart (three
     // frames, pig, engine, four wheels) up about 40 degrees, as a motor cart in
     // Bad Piggies climbs a hill; 96 managed only about 12 degrees.
-    parameter integer ENGINE_FORCE = 320,
-    parameter integer ENABLE_MOMENTS = 1,
+    parameter integer ENGINE_FORCE           = 320,
+    parameter integer ENABLE_MOMENTS         = 1,
     // Rocket must overcome gravity on a loaded cart when pointing upward.
-    parameter integer ROCKET_FORCE_SHIFT = 10, // 1024; set 9 for the older 512
-    parameter integer BALLOON_LIMIT = 2,
-    parameter integer ROCKET_LIMIT = 1, FAN_LIMIT = 1,
-    parameter integer FEEDBACK_CYCLES = 100000000
+    parameter integer ROCKET_FORCE_SHIFT     = 10, // 1024; set 9 for the older 512
+    parameter integer BALLOON_LIMIT          = 2,
+    parameter integer ROCKET_LIMIT           = 1,
+    parameter integer FAN_LIMIT              = 1,
+    parameter integer FEEDBACK_CYCLES        = 100000000
 ) (
-    input wire clk, btnC, btnU, btnR, btnL, btnD,
+    input wire clk,
+    input wire btnC,
+    input wire btnU,
+    input wire btnR,
+    input wire btnL,
+    input wire btnD,
     input wire [15:0] sw,
-    inout wire PS2Clk, PS2Data,
+    inout wire PS2Clk,
+    inout wire PS2Data,
     output wire [15:0] led,
-    output wire [7:0] JA, JB,
+    output wire [7:0] JA,
+    output wire [7:0] JB,
     output wire [6:0] seg,
     output wire [3:0] an,
     output wire dp,
@@ -61,123 +68,227 @@ module My_Top_Module #(
 `else
     wire enable_start_screen = (ENABLE_START_SCREEN != 0);
 `endif
-    wire reset, oled_clk, oled_reset, physics_tick, start_press, edit_press, engine_enabled;
+
+    wire reset;
+    wire oled_clk;
+    wire oled_reset;
+    wire physics_tick;
+    wire start_press;
+    wire edit_press;
+    wire engine_enabled;
     wire support_unstable;
-    wire support_span_valid, ground_slope_valid;
+    wire support_span_valid;
+    wire ground_slope_valid;
     wire [3:0] support_wheel_count;
-    wire signed [9:0] support_left_q2, support_right_q2, support_y_q2;
-    wire signed [9:0] support_left_y_q2, support_right_y_q2;
-    wire signed [13:0] pivot_dx_q8, pivot_dy_q8;
-    wire engine_reverse, reverse_switch_enabled;
-    wire selected_left, edit_facing_left, draw_selected_left;
-    wire selected_down, edit_facing_down;
-    wire [1:0] inventory_page, draw_inventory_page;
-    wire [8:0] build_facing_left, draw_facing_left;
+    wire signed [9:0] support_left_q2;
+    wire signed [9:0] support_right_q2;
+    wire signed [9:0] support_y_q2;
+    wire signed [9:0] support_left_y_q2;
+    wire signed [9:0] support_right_y_q2;
+    wire signed [13:0] pivot_dx_q8;
+    wire signed [13:0] pivot_dy_q8;
+    wire engine_reverse;
+    wire reverse_switch_enabled;
+    wire selected_left;
+    wire edit_facing_left;
+    wire draw_selected_left;
+    wire selected_down;
+    wire edit_facing_down;
+    wire [1:0] inventory_page;
+    wire [1:0] draw_inventory_page;
+    wire [8:0] build_facing_left;
+    wire [8:0] draw_facing_left;
     wire [8:0] build_facing_down;
-    wire engine_facing_left, fan_facing_left, fan_facing_down, rocket_facing_left, rocket_facing_down;
-    wire signed [4:0] engine_balance, fan_balance;
-    wire rocket_ready, rocket_active;
-    wire [8:0] rocket_burn_mask, rocket_spent_mask;
-    wire [3:0] drive_engines = engine_balance<0 ? -engine_balance : engine_balance;
-    wire [3:0] rocket_count, fan_count, rockets_left, fans_left, draw_rockets_left, draw_fans_left;
+    wire engine_facing_left;
+    wire fan_facing_left;
+    wire fan_facing_down;
+    wire rocket_facing_left;
+    wire rocket_facing_down;
+    wire signed [4:0] engine_balance;
+    wire signed [4:0] fan_balance;
+    wire rocket_ready;
+    wire rocket_active;
+    wire [8:0] rocket_burn_mask;
+    wire [8:0] rocket_spent_mask;
+    wire [3:0] drive_engines = (engine_balance < 0) ? -engine_balance : engine_balance;
+    wire [3:0] rocket_count;
+    wire [3:0] fan_count;
+    wire [3:0] rockets_left;
+    wire [3:0] fans_left;
+    wire [3:0] draw_rockets_left;
+    wire [3:0] draw_fans_left;
     // Every production build uses the same COM-aware body. Wheel drive stays
     // translational; adding an inactive fan must not change the physics model.
     wire body_moments_enabled = (ENABLE_MOMENTS != 0);
-    wire fan_available = fan_count != 0;
-    wire rocket_available = rocket_count != 0;
-    wire ui_fan_on, ui_rocket_req; wire [8:0] ui_active_fans; wire [3:0] mouse_fan_toggle_cell;
-    assign engine_reverse = reverse_switch_enabled ^ (engine_balance<0);
-    wire ui_engine_on, ui_launch, ui_edit, ui_guide_open, ui_guide_close;
-    wire [1:0] diary_page, death_phase;
-    wire [2:0] master_volume, draw_master_volume;
+    wire fan_available = (fan_count != 0);
+    wire rocket_available = (rocket_count != 0);
+    wire ui_fan_on;
+    wire ui_rocket_req;
+    wire [8:0] ui_active_fans;
+    wire [3:0] mouse_fan_toggle_cell;
+    assign engine_reverse = reverse_switch_enabled ^ (engine_balance < 0);
+    wire ui_engine_on;
+    wire ui_launch;
+    wire ui_edit;
+    wire ui_guide_open;
+    wire ui_guide_close;
+    wire [1:0] diary_page;
+    wire [1:0] death_phase;
+    wire [2:0] master_volume;
+    wire [2:0] draw_master_volume;
     wire [2:0] guide_return_state;
-    wire signed [`LP_COORD_BITS-1:0] death_x, death_y;
-    wire launch_flash; wire [2:0] game_state, init_ready; wire run_init, step_start, update_release;
+    wire signed [`LP_COORD_BITS-1:0] death_x;
+    wire signed [`LP_COORD_BITS-1:0] death_y;
+    wire launch_flash;
+    wire [2:0] game_state;
+    wire [2:0] init_ready;
+    wire run_init;
+    wire step_start;
+    wire update_release;
     // The engine is on only while RUN is active and the player has clicked
     // the engine cell on the run diagram to turn it on.
     assign engine_enabled = (game_state == `LP_RUN && !run_init) ? ui_engine_on : 1'b0;
 
-
     wire [26:0] build_grid;
-    wire [8:0] build_frames, intact_mask, frame_intact_mask;
-    wire build_valid, pig_alive, damage_ready;
-    wire [3:0] build_error, wheel_count, engine_count, balloon_count, wheels_down, wheels_up;
+    wire [8:0] build_frames;
+    wire [8:0] intact_mask;
+    wire [8:0] frame_intact_mask;
+    wire build_valid;
+    wire pig_alive;
+    wire damage_ready;
+    wire [3:0] build_error;
+    wire [3:0] wheel_count;
+    wire [3:0] engine_count;
+    wire [3:0] balloon_count;
+    wire [3:0] wheels_down;
+    wire [3:0] wheels_up;
     wire signed [1:0] tip_dir;
     wire [2:0] feedback_code;
     wire [3:0] feedback_cell;
-    wire [3:0] frames_left, pigs_left, wheels_left, engines_left, balloons_left;
-    wire [11:0] mouse_x, mouse_y, mouse_value;
-    wire mouse_left, mouse_right, mouse_event, setx, sety, setmax_x, setmax_y;
-    wire [6:0] cursor_x, cursor_y;
-    wire [2:0] selected_part, edit_part;
-    wire edit_valid, drag_active, drag_from_grid;
+    wire [3:0] frames_left;
+    wire [3:0] pigs_left;
+    wire [3:0] wheels_left;
+    wire [3:0] engines_left;
+    wire [3:0] balloons_left;
+    wire [11:0] mouse_x;
+    wire [11:0] mouse_y;
+    wire [11:0] mouse_value;
+    wire mouse_left;
+    wire mouse_right;
+    wire mouse_event;
+    wire setx;
+    wire sety;
+    wire setmax_x;
+    wire setmax_y;
+    wire [6:0] cursor_x;
+    wire [6:0] cursor_y;
+    wire [2:0] selected_part;
+    wire [2:0] edit_part;
+    wire edit_valid;
+    wire drag_active;
+    wire drag_from_grid;
     wire [2:0] drag_contents;
     wire [1:0] edit_op;
-    wire [3:0] edit_cell, edit_source, drag_source;
+    wire [3:0] edit_cell;
+    wire [3:0] edit_source;
+    wire [3:0] drag_source;
     wire left_frame;
-    reg view_meta_game, view_sync_game, view_ack_meta, view_ack_game;
-    reg view_meta_display, view_sync_display, show_map;
+    reg view_meta_game;
+    reg view_sync_game;
+    reg view_ack_meta;
+    reg view_ack_game;
+    reg view_meta_display;
+    reg view_sync_display;
+    reg show_map;
     wire builder_input_enabled = !view_sync_game && !view_ack_game;
+
     // SW1 chooses the 1-OLED JA map view; publish the change only between complete frames.
-    always @(posedge clk) begin
+    always @ (posedge clk) begin
         if (reset) begin
-            view_meta_game <= 0; view_sync_game <= 0; view_ack_meta <= 0; view_ack_game <= 0;
+            view_meta_game <= 0;
+            view_sync_game <= 0;
+            view_ack_meta  <= 0;
+            view_ack_game  <= 0;
         end else begin
-            view_meta_game <= sw[1]; view_sync_game <= view_meta_game;
-            view_ack_meta <= show_map; view_ack_game <= view_ack_meta;
+            view_meta_game <= sw[1];
+            view_sync_game <= view_meta_game;
+            view_ack_meta  <= show_map;
+            view_ack_game  <= view_ack_meta;
         end
     end
-    always @(posedge oled_clk) begin
-        if (oled_reset) begin view_meta_display <= 0; view_sync_display <= 0; show_map <= 0; end
-        else begin
-            view_meta_display <= view_sync_game; view_sync_display <= view_meta_display;
-            if (left_frame) show_map <= view_sync_display;
+
+    always @ (posedge oled_clk) begin
+        if (oled_reset) begin
+            view_meta_display <= 0;
+            view_sync_display <= 0;
+            show_map          <= 0;
+        end else begin
+            view_meta_display <= view_sync_game;
+            view_sync_display <= view_meta_display;
+            if (left_frame) begin
+                show_map <= view_sync_display;
+            end
         end
     end
-    wire pop_req, pop_pending, pop_valid, gameplay_ready;
+
+    wire pop_req;
+    wire pop_pending;
+    wire pop_valid;
+    wire gameplay_ready;
     wire [3:0] pop_cell;
     wire [8:0] pop_mask;
     wire [7:0] mass_units;
-    wire signed [`LP_COORD_BITS-1:0] spawn_x, spawn_y, vehicle_x, vehicle_y, display_x, display_y;
+    wire signed [`LP_COORD_BITS-1:0] spawn_x;
+    wire signed [`LP_COORD_BITS-1:0] spawn_y;
+    wire signed [`LP_COORD_BITS-1:0] vehicle_x;
+    wire signed [`LP_COORD_BITS-1:0] vehicle_y;
+    wire signed [`LP_COORD_BITS-1:0] display_x;
+    wire signed [`LP_COORD_BITS-1:0] display_y;
     // Preserve the full Q12.8 spawn throughout movement and display.
-    wire signed [19:0] level_spawn_x, level_spawn_y;
+    wire signed [19:0] level_spawn_x;
+    wire signed [19:0] level_spawn_y;
     assign spawn_x = level_spawn_x;
     assign spawn_y = level_spawn_y;
     wire [2:0] terrain_count;
     wire [127:0] terrain_rects;
     wire [31:0] goal_rect;
-    wire map_level, map_id;
+    wire map_level;
+    wire map_id;
     wire [`LP_LEVEL_BITS-1:0] level_index;
-    wire signed [10:0] collision_query_x, collision_query_y;
+    wire signed [10:0] collision_query_x;
+    wire signed [10:0] collision_query_y;
     // The live collision path only needs the registered solid/open result.
     // Map colour classes remain available on level_map's draw and simulation
     // interfaces, while this one-bit path avoids a second query colour ROM.
     wire collision_query_solid;
     // Collision only needs the solid/open result. Keeping this one-bit path
     // separate lets Vivado discard the query-side colour ROM copy.
-    // The tutorial is a BRAM-free rectangle course.  Its collision query is
+    // The tutorial is a BRAM-free rectangle course. Its collision query is
     // decoded here from the same LP_TUT_* constants that level_data packs into
     // terrain_rects for drawing, so the solid course always matches the drawn one.
     // The floor has no x limit so the cart never drops off its side edges.
-    wire tutorial_floor = collision_query_y >= 11'sd`LP_TUT_FLOOR_Y &&
-                          collision_query_y <  11'sd`LP_TUT_FLOOR_Y + 11'sd`LP_TUT_FLOOR_H;
+    wire tutorial_floor = (collision_query_y >= 11'sd`LP_TUT_FLOOR_Y) &&
+                          (collision_query_y < (11'sd`LP_TUT_FLOOR_Y + 11'sd`LP_TUT_FLOOR_H));
     // The propulsion teaching pad is a 2-pixel ground pad (within the 3-pixel
     // floor-snap limit) and the finish line sits directly on the land at y=120.
-    wire tutorial_propulsion_pad = collision_query_x >= 11'sd`LP_TUT_PAD_X &&
-                                   collision_query_x <  11'sd`LP_TUT_PAD_X + 11'sd`LP_TUT_PAD_W &&
-                                   collision_query_y >= 11'sd`LP_TUT_PAD_Y &&
-                                   collision_query_y <  11'sd`LP_TUT_PAD_Y + 11'sd`LP_TUT_PAD_H;
-    wire tutorial_finish = collision_query_x >= 11'sd`LP_TUT_FINISH_X &&
-                           collision_query_x <  11'sd`LP_TUT_FINISH_X + 11'sd`LP_TUT_FINISH_W &&
-                           collision_query_y >= 11'sd`LP_TUT_FINISH_Y &&
-                           collision_query_y <  11'sd`LP_TUT_FINISH_Y + 11'sd`LP_TUT_FINISH_H;
+    wire tutorial_propulsion_pad = (collision_query_x >= 11'sd`LP_TUT_PAD_X) &&
+                                   (collision_query_x < (11'sd`LP_TUT_PAD_X + 11'sd`LP_TUT_PAD_W)) &&
+                                   (collision_query_y >= 11'sd`LP_TUT_PAD_Y) &&
+                                   (collision_query_y < (11'sd`LP_TUT_PAD_Y + 11'sd`LP_TUT_PAD_H));
+    wire tutorial_finish = (collision_query_x >= 11'sd`LP_TUT_FINISH_X) &&
+                           (collision_query_x < (11'sd`LP_TUT_FINISH_X + 11'sd`LP_TUT_FINISH_W)) &&
+                           (collision_query_y >= 11'sd`LP_TUT_FINISH_Y) &&
+                           (collision_query_y < (11'sd`LP_TUT_FINISH_Y + 11'sd`LP_TUT_FINISH_H));
     wire tutorial_solid = tutorial_floor || tutorial_propulsion_pad || tutorial_finish;
     // The tutorial uses the rectangle course; the cave maps use the map ROM.
     wire query_is_solid = (level_index == `LP_LEVEL_TUTORIAL) ? tutorial_solid : collision_query_solid;
     wire [2:0] collision_query_class = query_is_solid ? `LP_MAP_ROCK : `LP_MAP_SKY;
-    wire [9:0] world_width, world_height, flag_x, flag_y;
+    wire [9:0] world_width;
+    wire [9:0] world_height;
+    wire [9:0] flag_x;
+    wire [9:0] flag_y;
     wire [`LP_MAX_TNT-1:0] tnt_intact;
-    // The close-up run view is 64 world pixels wide.  Stop at x=88 so the
+    // The close-up run view is 64 world pixels wide. Stop at x=88 so the
     // TNT at x=128 is visible near the right edge, with 16 pixels of vehicle
     // clearance before the normal contact boundary at approximately x=104.
     localparam signed [19:0] TUTORIAL_ROCKET_STOP_X_Q8 = 20'sd22528; // 88 pixels
@@ -195,9 +306,13 @@ module My_Top_Module #(
     localparam integer TUTORIAL_TNT_GRACE_FRAMES = 90;
     wire tutorial_level = (level_index == `LP_LEVEL_TUTORIAL);
     wire start_screen_active;
-    wire response_valid, response_ready, grounded;
+    wire response_valid;
+    wire response_ready;
+    wire grounded;
     // Fresh clicks on the run diagram, before the tutorial decides which it accepts.
-    wire mouse_boost_req, mouse_engine_toggle_req, mouse_fan_toggle_req;
+    wire mouse_boost_req;
+    wire mouse_engine_toggle_req;
+    wire mouse_fan_toggle_req;
     wire [3:0] mouse_boost_cell;
     wire [3:0] mouse_z;
     reg audio_was_grounded;
@@ -214,15 +329,24 @@ module My_Top_Module #(
     // The real physics tick stays available, but the gameplay tick is withheld, so
     // the vehicle, timer and world handshakes genuinely stop.
     reg tutorial_lesson_waits;
-    always @* begin
+
+    always @ (*) begin
         case (tutorial_lesson)
-            `LP_LESSON_ZOOM_IN, `LP_LESSON_ZOOM_OUT, `LP_LESSON_ENGINE, `LP_LESSON_RETRY,
-            `LP_LESSON_ROCKET, `LP_LESSON_FAN_ON, `LP_LESSON_FAN_OFF:
+            `LP_LESSON_ZOOM_IN,
+            `LP_LESSON_ZOOM_OUT,
+            `LP_LESSON_ENGINE,
+            `LP_LESSON_RETRY,
+            `LP_LESSON_ROCKET,
+            `LP_LESSON_FAN_ON,
+            `LP_LESSON_FAN_OFF: begin
                 tutorial_lesson_waits = 1'b1;
-            default:
+            end
+            default: begin
                 tutorial_lesson_waits = 1'b0;
+            end
         endcase
     end
+
     wire tutorial_pause_active = tutorial_level && (game_state == `LP_RUN) && tutorial_lesson_waits;
     wire tutorial_physics_tick = physics_tick && !tutorial_pause_active;
     // The tutorial only accepts the control it is teaching, so the cart cannot be
@@ -238,9 +362,9 @@ module My_Top_Module #(
     // No lesson teaches popping, and the guided route's lift depends on the balloon.
     wire accepted_pop_click = pop_req && !tutorial_level;
     // The TNT mask can fall on the same clock as the first out-of-bounds
-    // result, before the grace counter is loaded.  Cover that one edge clock
+    // result, before the grace counter is loaded. Cover that one edge clock
     // (TNT just spent, previous sample still intact) and then the 90-frame
-    // counter.  Once the counter expires, leaving the world fails as normal.
+    // counter. Once the counter expires, leaving the world fails as normal.
     wire tutorial_tnt_just_spent = !tnt_intact[0] && tutorial_tnt_was_intact;
     wire tutorial_bounds_grace = tutorial_level &&
                                  (tutorial_tnt_grace_frames != 0 || tutorial_tnt_just_spent);
@@ -252,108 +376,146 @@ module My_Top_Module #(
     wire tutorial_air_stop = tutorial_level && !grounded &&
                              (tutorial_lesson == `LP_LESSON_FAN_FLY || tutorial_lesson == `LP_LESSON_DROP);
     wire tutorial_step_accepted = response_valid && response_ready;
-    always @(posedge clk) begin
+
+    always @ (posedge clk) begin
         if (reset || !tutorial_level || start_screen_active) begin
-            tutorial_lesson <= `LP_LESSON_ZOOM_IN;
-            tutorial_zoom_done <= 1'b0;
-            tutorial_tnt_seen <= 1'b0;
-            tutorial_tnt_was_intact <= 1'b1;
+            tutorial_lesson           <= `LP_LESSON_ZOOM_IN;
+            tutorial_zoom_done        <= 1'b0;
+            tutorial_tnt_seen         <= 1'b0;
+            tutorial_tnt_was_intact   <= 1'b1;
             tutorial_tnt_grace_frames <= 8'd0;
             tutorial_tnt_avoid_active <= 1'b0;
-            tutorial_lesson_ticks <= 8'd0;
+            tutorial_lesson_ticks     <= 8'd0;
         end else if (run_init) begin
             // Every launch or retry starts from the engine lesson once the wheel is learnt.
-            tutorial_lesson <= tutorial_zoom_done ? `LP_LESSON_ENGINE : `LP_LESSON_ZOOM_IN;
-            tutorial_tnt_was_intact <= 1'b1;
+            tutorial_lesson           <= tutorial_zoom_done ? `LP_LESSON_ENGINE : `LP_LESSON_ZOOM_IN;
+            tutorial_tnt_was_intact   <= 1'b1;
             tutorial_tnt_grace_frames <= 8'd0;
             tutorial_tnt_avoid_active <= 1'b0;
-            tutorial_lesson_ticks <= 8'd0;
+            tutorial_lesson_ticks     <= 8'd0;
         end else if (game_state == `LP_RUN) begin
-            // Detect the armed-to-spent edge.  This starts a short recovery
+            // Detect the armed-to-spent edge. This starts a short recovery
             // grace period for the tutorial demonstration only; normal maps
             // retain their ordinary out-of-bounds failure behavior.
             if (tnt_intact[0]) begin
                 tutorial_tnt_was_intact <= 1'b1;
             end else if (tutorial_tnt_was_intact) begin
-                tutorial_tnt_was_intact <= 1'b0;
-                tutorial_tnt_seen <= 1'b1;
+                tutorial_tnt_was_intact   <= 1'b0;
+                tutorial_tnt_seen         <= 1'b1;
                 tutorial_tnt_grace_frames <= TUTORIAL_TNT_GRACE_FRAMES;
             end
             // The rocket lesson also starts this window, with the TNT still intact.
-            if (tutorial_tnt_grace_frames != 0 && physics_tick && !tutorial_tnt_just_spent)
+            if (tutorial_tnt_grace_frames != 0 && physics_tick && !tutorial_tnt_just_spent) begin
                 tutorial_tnt_grace_frames <= tutorial_tnt_grace_frames - 1'b1;
+            end
 
             case (tutorial_lesson)
-                `LP_LESSON_ZOOM_IN:
+                `LP_LESSON_ZOOM_IN: begin
                     // Negative wheel deltas step in; see zoom_control.
-                    if (mouse_event && mouse_z != 0 && mouse_z[3])
+                    if (mouse_event && mouse_z != 0 && mouse_z[3]) begin
                         tutorial_lesson <= `LP_LESSON_ZOOM_OUT;
-                `LP_LESSON_ZOOM_OUT:
+                    end
+                end
+                `LP_LESSON_ZOOM_OUT: begin
                     if (mouse_event && mouse_z != 0 && !mouse_z[3]) begin
                         tutorial_zoom_done <= 1'b1;
-                        tutorial_lesson <= `LP_LESSON_ENGINE;
+                        tutorial_lesson    <= `LP_LESSON_ENGINE;
                     end
-                `LP_LESSON_ENGINE:
-                    if (ui_engine_on) tutorial_lesson <= `LP_LESSON_STAR;
-                `LP_LESSON_STAR:
-                    if ($signed(vehicle_x) >= TUTORIAL_TNT_AHEAD_X_Q8) tutorial_lesson <= `LP_LESSON_TNT;
-                `LP_LESSON_TNT:
+                end
+                `LP_LESSON_ENGINE: begin
+                    if (ui_engine_on) begin
+                        tutorial_lesson <= `LP_LESSON_STAR;
+                    end
+                end
+                `LP_LESSON_STAR: begin
+                    if ($signed(vehicle_x) >= TUTORIAL_TNT_AHEAD_X_Q8) begin
+                        tutorial_lesson <= `LP_LESSON_TNT;
+                    end
+                end
+                `LP_LESSON_TNT: begin
                     // The first attempt deliberately meets the TNT; a retry stops short of it.
-                    if (!tnt_intact[0]) tutorial_lesson <= `LP_LESSON_TNT_FALL;
-                    else if (tutorial_tnt_seen && $signed(vehicle_x) >= TUTORIAL_ROCKET_STOP_X_Q8)
+                    if (!tnt_intact[0]) begin
+                        tutorial_lesson <= `LP_LESSON_TNT_FALL;
+                    end else if (tutorial_tnt_seen && $signed(vehicle_x) >= TUTORIAL_ROCKET_STOP_X_Q8) begin
                         tutorial_lesson <= `LP_LESSON_ROCKET;
-                `LP_LESSON_TNT_FALL:
+                    end
+                end
+                `LP_LESSON_TNT_FALL: begin
                     // Announce the retry once the cart has really landed and settled, so
                     // the player sees the whole blast and fall first. A blast that never
                     // lifts the cart off the ground moves on when the recovery window ends.
                     if (tutorial_lesson_ticks != 8'd0) begin
-                        if (tutorial_step_accepted) tutorial_lesson_ticks <= tutorial_lesson_ticks + 1'b1;
-                        if (tutorial_lesson_ticks >= TUTORIAL_LANDING_SETTLE_TICKS)
+                        if (tutorial_step_accepted) begin
+                            tutorial_lesson_ticks <= tutorial_lesson_ticks + 1'b1;
+                        end
+                        if (tutorial_lesson_ticks >= TUTORIAL_LANDING_SETTLE_TICKS) begin
                             tutorial_lesson <= `LP_LESSON_RETRY;
+                        end
                     end else if (tutorial_step_accepted && grounded &&
                                  ((!audio_was_grounded && falling) || tutorial_tnt_grace_frames == 0)) begin
                         tutorial_lesson_ticks <= 8'd1;
                     end
+                end
                 `LP_LESSON_RETRY: begin
                     // Waits for the retry button; run_init above then restarts the lessons.
                 end
-                `LP_LESSON_ROCKET:
+                `LP_LESSON_ROCKET: begin
                     if (accepted_rocket_click || !rocket_available) begin
                         tutorial_tnt_avoid_active <= 1'b1;
                         // The short rocket burn may lift the body briefly, so keep the
                         // same recovery grace used after a TNT blast.
                         tutorial_tnt_grace_frames <= TUTORIAL_TNT_GRACE_FRAMES;
-                        tutorial_lesson <= `LP_LESSON_HOP;
+                        tutorial_lesson           <= `LP_LESSON_HOP;
                     end
+                end
                 `LP_LESSON_HOP: begin
-                    if ($signed(vehicle_x) >= TUTORIAL_TNT_CLEAR_X_Q8) tutorial_tnt_avoid_active <= 1'b0;
-                    if ($signed(vehicle_x) >= TUTORIAL_FAN_STOP_X_Q8) tutorial_lesson <= `LP_LESSON_FAN_ON;
-                end
-                `LP_LESSON_FAN_ON:
-                    if (!fan_available) tutorial_lesson <= `LP_LESSON_FLAG;
-                    else if (|ui_active_fans) begin
-                        tutorial_lesson_ticks <= 8'd0;
-                        tutorial_lesson <= `LP_LESSON_FAN_FLY;
+                    if ($signed(vehicle_x) >= TUTORIAL_TNT_CLEAR_X_Q8) begin
+                        tutorial_tnt_avoid_active <= 1'b0;
                     end
-                `LP_LESSON_FAN_FLY: begin
-                    if (tutorial_step_accepted) tutorial_lesson_ticks <= tutorial_lesson_ticks + 1'b1;
-                    if ($signed(vehicle_y) < TUTORIAL_FLIGHT_TOP_Y_Q8 ||
-                        tutorial_lesson_ticks >= TUTORIAL_FLIGHT_MAX_TICKS)
-                        tutorial_lesson <= `LP_LESSON_FAN_OFF;
+                    if ($signed(vehicle_x) >= TUTORIAL_FAN_STOP_X_Q8) begin
+                        tutorial_lesson <= `LP_LESSON_FAN_ON;
+                    end
                 end
-                `LP_LESSON_FAN_OFF:
-                    if (!(|ui_active_fans)) tutorial_lesson <= `LP_LESSON_DROP;
-                `LP_LESSON_DROP:
-                    if (tutorial_step_accepted && grounded) tutorial_lesson <= `LP_LESSON_FLAG;
+                `LP_LESSON_FAN_ON: begin
+                    if (!fan_available) begin
+                        tutorial_lesson <= `LP_LESSON_FLAG;
+                    end else if (|ui_active_fans) begin
+                        tutorial_lesson_ticks <= 8'd0;
+                        tutorial_lesson       <= `LP_LESSON_FAN_FLY;
+                    end
+                end
+                `LP_LESSON_FAN_FLY: begin
+                    if (tutorial_step_accepted) begin
+                        tutorial_lesson_ticks <= tutorial_lesson_ticks + 1'b1;
+                    end
+                    if ($signed(vehicle_y) < TUTORIAL_FLIGHT_TOP_Y_Q8 ||
+                        tutorial_lesson_ticks >= TUTORIAL_FLIGHT_MAX_TICKS) begin
+                        tutorial_lesson <= `LP_LESSON_FAN_OFF;
+                    end
+                end
+                `LP_LESSON_FAN_OFF: begin
+                    if (!(|ui_active_fans)) begin
+                        tutorial_lesson <= `LP_LESSON_DROP;
+                    end
+                end
+                `LP_LESSON_DROP: begin
+                    if (tutorial_step_accepted && grounded) begin
+                        tutorial_lesson <= `LP_LESSON_FLAG;
+                    end
+                end
                 default: begin
                     // LP_LESSON_FLAG: the goal check ends the run when the cart arrives.
                 end
             endcase
         end
     end
-    wire level_open_req, level_close_req, level_select_req;
+
+    wire level_open_req;
+    wire level_close_req;
+    wire level_select_req;
     wire [`LP_LEVEL_BITS-1:0] selected_level;
-    wire zoomed_out, overview;
+    wire zoomed_out;
+    wire overview;
     wire [1:0] fail_reason;
     wire [7:0] run_seconds;
     wire [2*`LP_MAX_TNT-1:0] blast_phase;
@@ -362,27 +524,54 @@ module My_Top_Module #(
     wire [`LP_TNT_BITS-1:0] tnt_positions;
     wire [1:0] hazard_count;
     wire [`LP_HAZARD_BITS-1:0] hazard_rects;
-    wire tnt_damage_valid, tnt_complete;
-    wire [8:0] tnt_damage_mask, tnt_frame_mask;
+    wire tnt_damage_valid;
+    wire tnt_complete;
+    wire [8:0] tnt_damage_mask;
+    wire [8:0] tnt_frame_mask;
     wire tnt_knockback_valid;
-    wire signed [15:0] tnt_knockback_x, tnt_knockback_y;
+    wire signed [15:0] tnt_knockback_x;
+    wire signed [15:0] tnt_knockback_y;
     wire collision_impact_valid;
     wire [3:0] collision_impact_flags;
-    wire move_valid, move_ready;
+    wire move_valid;
+    wire move_ready;
     wire signed [7:0] ground_slope;
-    wire signed [`LP_TILT_BITS-1:0] previous_tilt, proposed_tilt, corrected_tilt, vehicle_tilt;
-    wire signed [`LP_COORD_BITS-1:0] previous_x, previous_y, proposed_x, proposed_y;
-    wire signed [15:0] proposed_vx, proposed_vy;
-    wire signed [`LP_COORD_BITS-1:0] corrected_x, corrected_y;
-    wire signed [15:0] corrected_vx, corrected_vy;
-    wire movement_committed, world_valid, world_ready, goal_hit, hazard_hit, out_of_bounds, star_box_hit, star_box_collected;
-    wire [9:0] star_box_x, star_box_y;
-    wire [9:0] draw_star_box_x, draw_star_box_y;
-    wire launch_event, success_event, failure_event;
-    wire audio_muted, audio_busy, audio_pwm;
+    wire signed [`LP_TILT_BITS-1:0] previous_tilt;
+    wire signed [`LP_TILT_BITS-1:0] proposed_tilt;
+    wire signed [`LP_TILT_BITS-1:0] corrected_tilt;
+    wire signed [`LP_TILT_BITS-1:0] vehicle_tilt;
+    wire signed [`LP_COORD_BITS-1:0] previous_x;
+    wire signed [`LP_COORD_BITS-1:0] previous_y;
+    wire signed [`LP_COORD_BITS-1:0] proposed_x;
+    wire signed [`LP_COORD_BITS-1:0] proposed_y;
+    wire signed [15:0] proposed_vx;
+    wire signed [15:0] proposed_vy;
+    wire signed [`LP_COORD_BITS-1:0] corrected_x;
+    wire signed [`LP_COORD_BITS-1:0] corrected_y;
+    wire signed [15:0] corrected_vx;
+    wire signed [15:0] corrected_vy;
+    wire movement_committed;
+    wire world_valid;
+    wire world_ready;
+    wire goal_hit;
+    wire hazard_hit;
+    wire out_of_bounds;
+    wire star_box_hit;
+    wire star_box_collected;
+    wire [9:0] star_box_x;
+    wire [9:0] star_box_y;
+    wire [9:0] draw_star_box_x;
+    wire [9:0] draw_star_box_y;
+    wire launch_event;
+    wire success_event;
+    wire failure_event;
+    wire audio_muted;
+    wire audio_busy;
+    wire audio_pwm;
     wire sound_start;
     wire signed [3:0] bgm_sample;
-    wire [2:0] sound_id, active_sound;
+    wire [2:0] sound_id;
+    wire [2:0] active_sound;
     reg [2:0] previous_game_state;
     wire audio_cancel = run_init || (game_state == `LP_BUILD && previous_game_state != `LP_BUILD);
     wire [8:0] onboard_tnt_mask = {
@@ -407,11 +596,11 @@ module My_Top_Module #(
 
     wire wall_crash_right = ($signed(proposed_vx) >= 16'sd448 && $signed(corrected_vx) <= 0);
     wire wall_crash_left  = ($signed(proposed_vx) <= -16'sd448 && $signed(corrected_vx) >= 0);
-    wire wall_crash_event = (wall_crash_right || wall_crash_left);
+    wire wall_crash_event = wall_crash_right || wall_crash_left;
 
     // Ignore the first gentle contact at spawn and continuous rolling contact.
     // Trigger on hard landings or high-speed wall collisions.
-    wire collision_sound_event = game_state == `LP_RUN && response_valid && response_ready &&
+    wire collision_sound_event = (game_state == `LP_RUN) && response_valid && response_ready &&
                                  ((grounded && !audio_was_grounded && $signed(proposed_vy) >= 16'sd128) ||
                                   wall_crash_event);
     wire explosion_sound_event;
@@ -425,43 +614,45 @@ module My_Top_Module #(
         ($signed(proposed_y) < $signed(fall_peak_y)) ? proposed_y : fall_peak_y;
     wire signed [`LP_COORD_BITS-1:0] fall_distance_q8 = $signed(corrected_y) - $signed(landing_peak_y);
     wire high_fall_landing = response_valid && response_ready && grounded && !audio_was_grounded &&
-                              falling && (airborne_ticks >= (map_id ? 6'd14 : 6'd12)) &&
-                              ($signed(proposed_vy) >= 16'sd512) &&
-                              (fall_distance_q8 >= (map_id ? FLIGHT_FALL_DISTANCE_Q8 : ARCH_FALL_DISTANCE_Q8));
+                             falling && (airborne_ticks >= (map_id ? 6'd14 : 6'd12)) &&
+                             ($signed(proposed_vy) >= 16'sd512) &&
+                             (fall_distance_q8 >= (map_id ? FLIGHT_FALL_DISTANCE_Q8 : ARCH_FALL_DISTANCE_Q8));
     wire medium_fall_landing = response_valid && response_ready && grounded && !audio_was_grounded &&
                                falling && !high_fall_landing && (airborne_ticks >= (map_id ? 6'd14 : 6'd12)) &&
                                ($signed(proposed_vy) >= 16'sd512) &&
                                (fall_distance_q8 >= (map_id ? 20'sd12288 : 20'sd14848));
-    always @(posedge clk) begin
+
+    always @ (posedge clk) begin
         if (reset) begin
-            audio_was_grounded <= 0;
+            audio_was_grounded  <= 0;
             previous_game_state <= `LP_BUILD;
-            airborne_ticks <= 6'd0;
-            falling <= 1'b0;
-            fall_peak_y <= 0;
-        end
-        else begin
+            airborne_ticks      <= 6'd0;
+            falling             <= 1'b0;
+            fall_peak_y         <= 0;
+        end else begin
             previous_game_state <= game_state;
             if (run_init || game_state != `LP_RUN) begin
                 audio_was_grounded <= 0;
-                airborne_ticks <= 6'd0;
-                falling <= 1'b0;
-                fall_peak_y <= 0;
-            end
-            else if (response_valid && response_ready) begin
+                airborne_ticks     <= 6'd0;
+                falling            <= 1'b0;
+                fall_peak_y        <= 0;
+            end else if (response_valid && response_ready) begin
                 audio_was_grounded <= grounded;
                 if (!grounded) begin
-                    if (airborne_ticks < 6'd63) airborne_ticks <= airborne_ticks + 1'b1;
+                    if (airborne_ticks < 6'd63) begin
+                        airborne_ticks <= airborne_ticks + 1'b1;
+                    end
                     // Start a new arc at the first airborne sample, then keep
                     // the smallest y (the highest point) reached by the arc.
-                    if (audio_was_grounded || !falling)
+                    if (audio_was_grounded || !falling) begin
                         fall_peak_y <= ($signed(proposed_y) < $signed(previous_y)) ? proposed_y : previous_y;
-                    else if ($signed(proposed_y) < $signed(fall_peak_y))
+                    end else if ($signed(proposed_y) < $signed(fall_peak_y)) begin
                         fall_peak_y <= proposed_y;
+                    end
                     falling <= 1'b1;
                 end else begin
                     airborne_ticks <= 6'd0;
-                    falling <= 1'b0;
+                    falling        <= 1'b0;
                 end
             end
         end
@@ -475,9 +666,9 @@ module My_Top_Module #(
     reg [8:0] next_impact_mask;
     reg [8:0] next_frame_mask;
 
-    always @* begin
+    always @ (*) begin
         next_impact_mask = 9'd0;
-        next_frame_mask = 9'd0;
+        next_frame_mask  = 9'd0;
         if (high_fall_landing) begin
             // A terminal high fall requests all cells/frames. vehicle_builder
             // still protects the pig through its final safety gate.
@@ -506,40 +697,44 @@ module My_Top_Module #(
     // Compact visual-only debris state. The renderer uses a fixed offset table
     // instead of instantiating independent physics for nine debris bodies.
     reg [8:0] scatter_mask;
-    reg signed [`LP_COORD_BITS-1:0] scatter_x, scatter_y;
+    reg signed [`LP_COORD_BITS-1:0] scatter_x;
+    reg signed [`LP_COORD_BITS-1:0] scatter_y;
     reg [5:0] scatter_phase;
 
-    always @(posedge clk) begin
+    always @ (posedge clk) begin
         if (reset || run_init || game_state != `LP_RUN) begin
-            impact_damage_valid <= 1'b0;
-            impact_damage_mask <= 9'd0;
+            impact_damage_valid      <= 1'b0;
+            impact_damage_mask       <= 9'd0;
             impact_damage_frame_mask <= 9'd0;
-            scatter_mask <= 9'd0;
-            scatter_x <= 0;
-            scatter_y <= 0;
-            scatter_phase <= 6'd0;
+            scatter_mask             <= 9'd0;
+            scatter_x                <= 0;
+            scatter_y                <= 0;
+            scatter_phase            <= 6'd0;
         end else begin
             impact_damage_valid <= 1'b0;
             if (scatter_phase != 0 && tutorial_physics_tick) begin
-                if (scatter_phase >= 6'd24) scatter_phase <= 6'd0;
-                else scatter_phase <= scatter_phase + 1'b1;
+                if (scatter_phase >= 6'd24) begin
+                    scatter_phase <= 6'd0;
+                end else begin
+                    scatter_phase <= scatter_phase + 1'b1;
+                end
             end
             if (onboard_tnt_detonate) begin
-                scatter_mask <= ((onboard_tnt_blast_mask & (intact_mask | frame_intact_mask)) & ~pig_mask);
-                scatter_x <= vehicle_x;
-                scatter_y <= vehicle_y;
+                scatter_mask  <= ((onboard_tnt_blast_mask & (intact_mask | frame_intact_mask)) & ~pig_mask);
+                scatter_x     <= vehicle_x;
+                scatter_y     <= vehicle_y;
                 scatter_phase <= 6'd1;
             end else if (response_valid && response_ready && damage_ready && vert_crash_event) begin
-                impact_damage_valid <= 1'b1;
-                impact_damage_mask <= next_impact_mask;
+                impact_damage_valid      <= 1'b1;
+                impact_damage_mask       <= next_impact_mask;
                 impact_damage_frame_mask <= next_frame_mask;
                 if (scatter_damage_mask != 0) begin
-                    scatter_mask <= scatter_damage_mask;
-                    scatter_x <= corrected_x;
-                    scatter_y <= corrected_y;
+                    scatter_mask  <= scatter_damage_mask;
+                    scatter_x     <= corrected_x;
+                    scatter_y     <= corrected_y;
                     scatter_phase <= 6'd1;
                 end else begin
-                    scatter_mask <= 9'd0;
+                    scatter_mask  <= 9'd0;
                     scatter_phase <= 6'd0;
                 end
             end
@@ -551,9 +746,9 @@ module My_Top_Module #(
     // eight physics frames each (about 0.4 s). Purely visual: it never touches physics.
     localparam [4:0] BALLOON_POP_LAST_TICK = 5'd23;
     wire [8:0] balloon_cells = {
-        build_grid[26:24] == `LP_PART_BALLOON, build_grid[23:21] == `LP_PART_BALLOON, build_grid[20:18] == `LP_PART_BALLOON,
-        build_grid[17:15] == `LP_PART_BALLOON, build_grid[14:12] == `LP_PART_BALLOON, build_grid[11:9]  == `LP_PART_BALLOON,
-        build_grid[8:6]   == `LP_PART_BALLOON, build_grid[5:3]   == `LP_PART_BALLOON, build_grid[2:0]   == `LP_PART_BALLOON
+        (build_grid[26:24] == `LP_PART_BALLOON), (build_grid[23:21] == `LP_PART_BALLOON), (build_grid[20:18] == `LP_PART_BALLOON),
+        (build_grid[17:15] == `LP_PART_BALLOON), (build_grid[14:12] == `LP_PART_BALLOON), (build_grid[11:9]  == `LP_PART_BALLOON),
+        (build_grid[8:6]   == `LP_PART_BALLOON), (build_grid[5:3]   == `LP_PART_BALLOON), (build_grid[2:0]   == `LP_PART_BALLOON)
     };
     reg [8:0] intact_last_clock;
     reg [8:0] balloon_pop_mask;
@@ -562,17 +757,18 @@ module My_Top_Module #(
     // Phase 0 means idle; ticks 1..7, 8..15 and 16..23 are phases 1, 2 and 3.
     wire [1:0] balloon_pop_phase = (balloon_pop_ticks == 5'd0) ? 2'd0 :
                                    (balloon_pop_ticks[4] ? 2'd3 : (balloon_pop_ticks[3] ? 2'd2 : 2'd1));
-    always @(posedge clk) begin
+
+    always @ (posedge clk) begin
         intact_last_clock <= intact_mask;
         if (reset || run_init || game_state != `LP_RUN) begin
-            balloon_pop_mask <= 9'd0;
+            balloon_pop_mask  <= 9'd0;
             balloon_pop_ticks <= 5'd0;
         end else if (balloons_just_burst != 0) begin
-            balloon_pop_mask <= balloons_just_burst;
+            balloon_pop_mask  <= balloons_just_burst;
             balloon_pop_ticks <= 5'd1;
         end else if (balloon_pop_ticks != 0 && physics_tick) begin
             if (balloon_pop_ticks == BALLOON_POP_LAST_TICK) begin
-                balloon_pop_mask <= 9'd0;
+                balloon_pop_mask  <= 9'd0;
                 balloon_pop_ticks <= 5'd0;
             end else begin
                 balloon_pop_ticks <= balloon_pop_ticks + 1'b1;
@@ -580,168 +776,403 @@ module My_Top_Module #(
         end
     end
 
-    clock_control #(.PHYSICS_CYCLES(PHYSICS_CYCLES)) u_clocking (
-        .clk(clk), .reset_button(btnD), .reset(reset), .oled_clk(oled_clk),
-        .oled_reset(oled_reset), .physics_tick(physics_tick)
+    clock_control #(
+        .PHYSICS_CYCLES(PHYSICS_CYCLES)
+    ) u_clocking (
+        .clk(clk),
+        .reset_button(btnD),
+        .reset(reset),
+        .oled_clk(oled_clk),
+        .oled_reset(oled_reset),
+        .physics_tick(physics_tick)
     );
-
 
     input_controller #(
-        .DEBOUNCE_CYCLES(BUTTON_DEBOUNCE_CYCLES), .RELEASE_CYCLES(BUTTON_RELEASE_CYCLES)
+        .DEBOUNCE_CYCLES(BUTTON_DEBOUNCE_CYCLES),
+        .RELEASE_CYCLES(BUTTON_RELEASE_CYCLES)
     ) u_input (
-        .clk(clk), .reset(reset), .btnC(btnC), .btnU(btnU),
-        .mute_switch(sw[0]), .reverse_switch(sw[15]), .start_press(start_press), .edit_press(edit_press),
-        .audio_muted(audio_muted), .engine_reverse(reverse_switch_enabled)
+        .clk(clk),
+        .reset(reset),
+        .btnC(btnC),
+        .btnU(btnU),
+        .mute_switch(sw[0]),
+        .reverse_switch(sw[15]),
+        .start_press(start_press),
+        .edit_press(edit_press),
+        .audio_muted(audio_muted),
+        .engine_reverse(reverse_switch_enabled)
     );
+
     wire ui_home_req;
     wire ui_end_try;
 
     ui_controller u_ui_control (
-        .clk(clk), .reset(reset), .input_enabled(builder_input_enabled), .run_init(run_init),
-        .physics_tick(physics_tick), .launch_event(launch_event),
-        .start_screen_active(start_screen_active), .game_state(game_state),
-        .mouse_x({5'd0, cursor_x}), .mouse_y({5'd0, cursor_y}),
-        .mouse_left(mouse_left), .mouse_right(mouse_right), .mouse_event(mouse_event),
+        .clk(clk),
+        .reset(reset),
+        .input_enabled(builder_input_enabled),
+        .run_init(run_init),
+        .physics_tick(physics_tick),
+        .launch_event(launch_event),
+        .start_screen_active(start_screen_active),
+        .game_state(game_state),
+        .mouse_x({5'd0, cursor_x}),
+        .mouse_y({5'd0, cursor_y}),
+        .mouse_left(mouse_left),
+        .mouse_right(mouse_right),
+        .mouse_event(mouse_event),
         .next_press(start_press),
         .tutorial_mode(tutorial_level),
         .engine_toggle_req(accepted_engine_click),
-        .fan_toggle_req(accepted_fan_click), .fan_toggle_cell(mouse_fan_toggle_cell), .rocket_toggle_req(accepted_rocket_click),
-        .fan_available(fan_available), .rocket_available(rocket_available),
+        .fan_toggle_req(accepted_fan_click),
+        .fan_toggle_cell(mouse_fan_toggle_cell),
+        .rocket_toggle_req(accepted_rocket_click),
+        .fan_available(fan_available),
+        .rocket_available(rocket_available),
         .rocket_ready(rocket_ready),
-        .home_req(ui_home_req), .launch_req(ui_launch), .edit_req(ui_edit), .end_try_req(ui_end_try),
-        .guide_open_req(ui_guide_open), .guide_close_req(ui_guide_close),
-        .level_open_req(level_open_req), .level_close_req(level_close_req),
-        .level_select_req(level_select_req), .selected_level(selected_level),
+        .home_req(ui_home_req),
+        .launch_req(ui_launch),
+        .edit_req(ui_edit),
+        .end_try_req(ui_end_try),
+        .guide_open_req(ui_guide_open),
+        .guide_close_req(ui_guide_close),
+        .level_open_req(level_open_req),
+        .level_close_req(level_close_req),
+        .level_select_req(level_select_req),
+        .selected_level(selected_level),
         .diary_page(diary_page),
-        .master_volume(master_volume), .engine_on(ui_engine_on),
-        .fan_on(ui_fan_on), .active_fans(ui_active_fans), .rocket_req(ui_rocket_req),
+        .master_volume(master_volume),
+        .engine_on(ui_engine_on),
+        .fan_on(ui_fan_on),
+        .active_fans(ui_active_fans),
+        .rocket_req(ui_rocket_req),
         .launch_flash(launch_flash)
     );
+
     wire [7:0] par_time;
-    seven_seg_timer #(.COUNTDOWN(1), .TIME_LIMIT(20)) u_board_timer (.clk(clk), .reset(reset || (level_index == `LP_LEVEL_TUTORIAL) || (game_state!=`LP_RUN && game_state!=`LP_SUCCESS && game_state!=`LP_FAIL)), .seconds(run_seconds), .time_limit(par_time), .seg(seg), .an(an), .dp(dp));
+
+    seven_seg_timer #(
+        .COUNTDOWN(1),
+        .TIME_LIMIT(20)
+    ) u_board_timer (
+        .clk(clk),
+        .reset(reset || (level_index == `LP_LEVEL_TUTORIAL) ||
+               (game_state != `LP_RUN && game_state != `LP_SUCCESS && game_state != `LP_FAIL)),
+        .seconds(run_seconds),
+        .time_limit(par_time),
+        .seg(seg),
+        .an(an),
+        .dp(dp)
+    );
+
     pig_death_effect u_pig_death (
-        .clk(clk), .reset(reset), .run_init(run_init), .physics_tick(tutorial_physics_tick),
+        .clk(clk),
+        .reset(reset),
+        .run_init(run_init),
+        .physics_tick(tutorial_physics_tick),
         .pig_alive(pig_alive && !(game_state == `LP_FAIL && fail_reason == `LP_FAIL_HAZARD)),
-        .game_state(game_state), .build_grid(build_grid), .vehicle_x(vehicle_x), .vehicle_y(vehicle_y), .vehicle_tilt(vehicle_tilt),
-        .death_phase(death_phase), .death_x(death_x), .death_y(death_y)
+        .game_state(game_state),
+        .build_grid(build_grid),
+        .vehicle_x(vehicle_x),
+        .vehicle_y(vehicle_y),
+        .vehicle_tilt(vehicle_tilt),
+        .death_phase(death_phase),
+        .death_x(death_x),
+        .death_y(death_y)
     );
+
     sound_controller u_sound_control (
-        .clk(clk), .reset(reset), .mute(audio_muted), .cancel(audio_cancel),
-        .launch_event(launch_event), .pop_event(pop_sound_event),
-        .collision_event(collision_sound_event), .explosion_event(explosion_sound_event || onboard_tnt_detonate),
-        .success_event(success_event), .failure_event(failure_event),
-        .busy(audio_busy), .active_sound(active_sound), .sound_start(sound_start), .sound_id(sound_id)
+        .clk(clk),
+        .reset(reset),
+        .mute(audio_muted),
+        .cancel(audio_cancel),
+        .launch_event(launch_event),
+        .pop_event(pop_sound_event),
+        .collision_event(collision_sound_event),
+        .explosion_event(explosion_sound_event || onboard_tnt_detonate),
+        .success_event(success_event),
+        .failure_event(failure_event),
+        .busy(audio_busy),
+        .active_sound(active_sound),
+        .sound_start(sound_start),
+        .sound_id(sound_id)
     );
+
     sound_generator #(
         .NOTE_CYCLES(AUDIO_NOTE_CYCLES),
         .GAIN_SHIFT(2)
     ) u_audio (
-        .clk(clk), .reset(reset), .start(sound_start), .sound_id(sound_id),
-        .mute(audio_muted), .cancel(audio_cancel), .busy(audio_busy),
-        .master_volume(master_volume), .active_sound(active_sound), .audio_pwm(audio_pwm), .bgm_sample(bgm_sample)
+        .clk(clk),
+        .reset(reset),
+        .start(sound_start),
+        .sound_id(sound_id),
+        .mute(audio_muted),
+        .cancel(audio_cancel),
+        .busy(audio_busy),
+        .master_volume(master_volume),
+        .active_sound(active_sound),
+        .audio_pwm(audio_pwm),
+        .bgm_sample(bgm_sample)
     );
-    wire [1:0] bgm_mode = start_screen_active ? 2'd2 : (game_state == `LP_RUN ? 2'd1 : 2'd0);
-    bgm_player #(.UNIT_CYCLES(BGM_UNIT_CYCLES), .FADE_CYCLES(AUDIO_FADE_CYCLES)) u_bgm (
-        .clk(clk), .reset(reset),
-        .enabled(ENABLE_BGM && !audio_muted && (start_screen_active || game_state == `LP_BUILD || game_state == `LP_LEVEL_SELECT || game_state == `LP_SETTINGS || game_state == `LP_GUIDE || game_state == `LP_RUN)),
+
+    wire [1:0] bgm_mode = start_screen_active ? 2'd2 : ((game_state == `LP_RUN) ? 2'd1 : 2'd0);
+
+    bgm_player #(
+        .UNIT_CYCLES(BGM_UNIT_CYCLES),
+        .FADE_CYCLES(AUDIO_FADE_CYCLES)
+    ) u_bgm (
+        .clk(clk),
+        .reset(reset),
+        .enabled(ENABLE_BGM && !audio_muted &&
+                 (start_screen_active || game_state == `LP_BUILD || game_state == `LP_LEVEL_SELECT ||
+                  game_state == `LP_SETTINGS || game_state == `LP_GUIDE || game_state == `LP_RUN)),
         .fast(game_state == `LP_RUN),
         .bgm_mode(bgm_mode),
-        .master_volume(master_volume), .pause(audio_busy || sound_start), .audio_sample(bgm_sample)
+        .master_volume(master_volume),
+        .pause(audio_busy || sound_start),
+        .audio_sample(bgm_sample)
     );
+
     MouseCtl u_mouse (
-        .clk(clk), .rst(reset), .xpos(mouse_x), .ypos(mouse_y), .zpos(mouse_z),
-        .left(mouse_left), .middle(), .right(mouse_right), .new_event(mouse_event),
-        .value(mouse_value), .setx(setx), .sety(sety), .setmax_x(setmax_x), .setmax_y(setmax_y),
-        .ps2_clk(PS2Clk), .ps2_data(PS2Data)
+        .clk(clk),
+        .rst(reset),
+        .xpos(mouse_x),
+        .ypos(mouse_y),
+        .zpos(mouse_z),
+        .left(mouse_left),
+        .middle(),
+        .right(mouse_right),
+        .new_event(mouse_event),
+        .value(mouse_value),
+        .setx(setx),
+        .sety(sety),
+        .setmax_x(setmax_x),
+        .setmax_y(setmax_y),
+        .ps2_clk(PS2Clk),
+        .ps2_data(PS2Data)
     );
+
     mouse_adapter u_mouse_adapter (
-        .clk(clk), .reset(reset), .input_enabled(builder_input_enabled && !start_screen_active),
+        .clk(clk),
+        .reset(reset),
+        .input_enabled(builder_input_enabled && !start_screen_active),
         .game_state((level_index == `LP_LEVEL_TUTORIAL && game_state == `LP_BUILD) ? `LP_GUIDE : game_state),
-        .build_grid(build_grid), .build_frames(build_frames), .build_facing_left(build_facing_left), .build_facing_down(build_facing_down),
-        .selected_left(selected_left), .selected_down(selected_down), .inventory_page(inventory_page),
-        .engine_facing_left(engine_facing_left), .fan_facing_left(fan_facing_left), .fan_facing_down(fan_facing_down), .rocket_facing_left(rocket_facing_left), .rocket_facing_down(rocket_facing_down),
-        .edit_facing_left(edit_facing_left), .edit_facing_down(edit_facing_down), .mouse_x(mouse_x), .mouse_y(mouse_y),
-        .mouse_left(mouse_left), .mouse_right(mouse_right), .mouse_event(mouse_event), .mouse_z(mouse_z),
-        .mouse_value(mouse_value), .setx(setx), .sety(sety), .setmax_x(setmax_x), .setmax_y(setmax_y),
-        .cursor_x(cursor_x), .cursor_y(cursor_y), .selected_part(selected_part),
-        .drag_active(drag_active), .drag_from_grid(drag_from_grid), .drag_source(drag_source), .drag_contents(drag_contents),
-        .edit_valid(edit_valid), .edit_op(edit_op), .edit_cell(edit_cell), .edit_source(edit_source), .edit_part(edit_part),
-        .pop_req(pop_req), .pop_cell(pop_cell), .boost_req(mouse_boost_req), .boost_cell(mouse_boost_cell),
-        .engine_toggle_req(mouse_engine_toggle_req), .fan_toggle_req(mouse_fan_toggle_req), .fan_toggle_cell(mouse_fan_toggle_cell)
+        .build_grid(build_grid),
+        .build_frames(build_frames),
+        .build_facing_left(build_facing_left),
+        .build_facing_down(build_facing_down),
+        .selected_left(selected_left),
+        .selected_down(selected_down),
+        .inventory_page(inventory_page),
+        .engine_facing_left(engine_facing_left),
+        .fan_facing_left(fan_facing_left),
+        .fan_facing_down(fan_facing_down),
+        .rocket_facing_left(rocket_facing_left),
+        .rocket_facing_down(rocket_facing_down),
+        .edit_facing_left(edit_facing_left),
+        .edit_facing_down(edit_facing_down),
+        .mouse_x(mouse_x),
+        .mouse_y(mouse_y),
+        .mouse_left(mouse_left),
+        .mouse_right(mouse_right),
+        .mouse_event(mouse_event),
+        .mouse_z(mouse_z),
+        .mouse_value(mouse_value),
+        .setx(setx),
+        .sety(sety),
+        .setmax_x(setmax_x),
+        .setmax_y(setmax_y),
+        .cursor_x(cursor_x),
+        .cursor_y(cursor_y),
+        .selected_part(selected_part),
+        .drag_active(drag_active),
+        .drag_from_grid(drag_from_grid),
+        .drag_source(drag_source),
+        .drag_contents(drag_contents),
+        .edit_valid(edit_valid),
+        .edit_op(edit_op),
+        .edit_cell(edit_cell),
+        .edit_source(edit_source),
+        .edit_part(edit_part),
+        .pop_req(pop_req),
+        .pop_cell(pop_cell),
+        .boost_req(mouse_boost_req),
+        .boost_cell(mouse_boost_cell),
+        .engine_toggle_req(mouse_engine_toggle_req),
+        .fan_toggle_req(mouse_fan_toggle_req),
+        .fan_toggle_cell(mouse_fan_toggle_cell)
     );
+
     zoom_control u_zoom (
         // In BUILD, scrolling over the inventory switches pages; scrolling over the
         // grid (or with SW14 free-look active) zooms the live map on non-tutorial levels.
-        .clk(clk), .reset(reset),
+        .clk(clk),
+        .reset(reset),
         .wheel_enabled((game_state != `LP_BUILD) || (!tutorial_level && (sw[14] || cursor_x < 7'd56))),
         // The zoom lesson starts mid-range so that both of its steps have room.
         .preset_normal(tutorial_level && run_init && !tutorial_zoom_done),
-        .mouse_event(mouse_event), .mouse_z(mouse_z),
-        .zoomed_out(zoomed_out), .overview(overview)
+        .mouse_event(mouse_event),
+        .mouse_z(mouse_z),
+        .zoomed_out(zoomed_out),
+        .overview(overview)
     );
+
     balloon_control u_balloons (
-        .clk(clk), .reset(reset), .game_state(game_state), .pop_req(accepted_pop_click), .pop_cell(pop_cell),
-        .build_grid(build_grid), .intact_mask(intact_mask), .gameplay_ready(gameplay_ready),
-        .pop_pending(pop_pending), .pop_valid(pop_valid), .pop_mask(pop_mask)
+        .clk(clk),
+        .reset(reset),
+        .game_state(game_state),
+        .pop_req(accepted_pop_click),
+        .pop_cell(pop_cell),
+        .build_grid(build_grid),
+        .intact_mask(intact_mask),
+        .gameplay_ready(gameplay_ready),
+        .pop_pending(pop_pending),
+        .pop_valid(pop_valid),
+        .pop_mask(pop_mask)
     );
+
     vehicle_builder #(
-        .FRAME_LIMIT(FRAME_LIMIT), .PIG_LIMIT(PIG_LIMIT), .WHEEL_LIMIT(WHEEL_LIMIT),
-        .ENGINE_LIMIT(ENGINE_LIMIT), .BALLOON_LIMIT(BALLOON_LIMIT),
-        .ROCKET_LIMIT(ROCKET_LIMIT), .FAN_LIMIT(FAN_LIMIT), .FEEDBACK_CYCLES(FEEDBACK_CYCLES)
+        .FRAME_LIMIT(FRAME_LIMIT),
+        .PIG_LIMIT(PIG_LIMIT),
+        .WHEEL_LIMIT(WHEEL_LIMIT),
+        .ENGINE_LIMIT(ENGINE_LIMIT),
+        .BALLOON_LIMIT(BALLOON_LIMIT),
+        .ROCKET_LIMIT(ROCKET_LIMIT),
+        .FAN_LIMIT(FAN_LIMIT),
+        .FEEDBACK_CYCLES(FEEDBACK_CYCLES)
     ) u_builder (
-        .clk(clk), .reset(reset), .game_state(game_state), .level_index(level_index), .run_init(run_init), .init_ready(init_ready[0]),
-        .edit_valid(edit_valid), .edit_op(edit_op), .edit_cell(edit_cell), .edit_source(edit_source), .edit_part(edit_part), .edit_facing_left(edit_facing_left),
+        .clk(clk),
+        .reset(reset),
+        .game_state(game_state),
+        .level_index(level_index),
+        .run_init(run_init),
+        .init_ready(init_ready[0]),
+        .edit_valid(edit_valid),
+        .edit_op(edit_op),
+        .edit_cell(edit_cell),
+        .edit_source(edit_source),
+        .edit_part(edit_part),
+        .edit_facing_left(edit_facing_left),
         .edit_facing_down(edit_facing_down),
-        .build_facing_left(build_facing_left), .build_facing_down(build_facing_down), .engine_balance(engine_balance),
-        .fan_balance(fan_balance), .rocket_balance(),
-        .rocket_count(rocket_count), .fan_count(fan_count), .rockets_left(rockets_left), .fans_left(fans_left),
+        .build_facing_left(build_facing_left),
+        .build_facing_down(build_facing_down),
+        .engine_balance(engine_balance),
+        .fan_balance(fan_balance),
+        .rocket_balance(),
+        .rocket_count(rocket_count),
+        .fan_count(fan_count),
+        .rockets_left(rockets_left),
+        .fans_left(fans_left),
         // Balloon pops, on-board TNT, world TNT and hard terrain impacts share the
         // one damage handshake. vehicle_builder protects the pig cell and its frame.
-        .damage_valid(pop_valid || tnt_damage_valid || impact_damage_valid), .damage_ready(damage_ready),
+        .damage_valid(pop_valid || tnt_damage_valid || impact_damage_valid),
+        .damage_ready(damage_ready),
         .damage_mask((pop_valid ? (pop_mask | onboard_tnt_blast_mask) : 9'd0) |
                      (tnt_damage_valid ? tnt_damage_mask : 9'd0) |
                      (impact_damage_valid ? impact_damage_mask : 9'd0)),
         .damage_frame_mask((onboard_tnt_detonate ? onboard_tnt_blast_mask : 9'd0) |
                            (tnt_damage_valid ? tnt_frame_mask : 9'd0) |
                            (impact_damage_valid ? impact_damage_frame_mask : 9'd0)),
-        .build_grid(build_grid), .build_frames(build_frames),
-        .intact_mask(intact_mask), .frame_intact_mask(frame_intact_mask), .build_valid(build_valid),
-        .build_error(build_error), .pig_alive(pig_alive), .wheel_count(wheel_count), .wheels_down(wheels_down), .wheels_up(wheels_up),
-        .feedback_code(feedback_code), .feedback_cell(feedback_cell),
-        .engine_count(engine_count), .balloon_count(balloon_count), .mass_units(mass_units),
-        .frames_left(frames_left), .pigs_left(pigs_left), .wheels_left(wheels_left),
-        .engines_left(engines_left), .balloons_left(balloons_left)
+        .build_grid(build_grid),
+        .build_frames(build_frames),
+        .intact_mask(intact_mask),
+        .frame_intact_mask(frame_intact_mask),
+        .build_valid(build_valid),
+        .build_error(build_error),
+        .pig_alive(pig_alive),
+        .wheel_count(wheel_count),
+        .wheels_down(wheels_down),
+        .wheels_up(wheels_up),
+        .feedback_code(feedback_code),
+        .feedback_cell(feedback_cell),
+        .engine_count(engine_count),
+        .balloon_count(balloon_count),
+        .mass_units(mass_units),
+        .frames_left(frames_left),
+        .pigs_left(pigs_left),
+        .wheels_left(wheels_left),
+        .engines_left(engines_left),
+        .balloons_left(balloons_left)
     );
+
     // Geometry stays fixed throughout a run.
     level_data u_level (
-        .level_index(level_index), .par_time(par_time), .spawn_x(level_spawn_x), .spawn_y(level_spawn_y), .terrain_count(terrain_count),
-        .terrain_rects(terrain_rects), .goal_rect(goal_rect), .tnt_count(tnt_count),
-        .tnt_positions(tnt_positions), .hazard_count(hazard_count), .hazard_rects(hazard_rects),
-        .map_level(map_level), .map_id(map_id), .world_width(world_width), .world_height(world_height),
-        .flag_x(flag_x), .flag_y(flag_y), .star_box_x(star_box_x), .star_box_y(star_box_y)
+        .level_index(level_index),
+        .par_time(par_time),
+        .spawn_x(level_spawn_x),
+        .spawn_y(level_spawn_y),
+        .terrain_count(terrain_count),
+        .terrain_rects(terrain_rects),
+        .goal_rect(goal_rect),
+        .tnt_count(tnt_count),
+        .tnt_positions(tnt_positions),
+        .hazard_count(hazard_count),
+        .hazard_rects(hazard_rects),
+        .map_level(map_level),
+        .map_id(map_id),
+        .world_width(world_width),
+        .world_height(world_height),
+        .flag_x(flag_x),
+        .flag_y(flag_y),
+        .star_box_x(star_box_x),
+        .star_box_y(star_box_y)
     );
-    game_controller #(.ENABLE_START_SCREEN(ENABLE_START_SCREEN)) u_game (
-        .home_req(ui_home_req), .clk(clk), .reset(reset), .launch_req(start_press || ui_launch), .retry_req(start_press || ui_launch), .edit_req(edit_press || ui_edit),
+
+    game_controller #(
+        .ENABLE_START_SCREEN(ENABLE_START_SCREEN)
+    ) u_game (
+        .home_req(ui_home_req),
+        .clk(clk),
+        .reset(reset),
+        .launch_req(start_press || ui_launch),
+        .retry_req(start_press || ui_launch),
+        .edit_req(edit_press || ui_edit),
         .end_try_req(ui_end_try),
-        .guide_open_req(ui_guide_open || (game_state==`LP_BUILD && edit_press)), .guide_close_req(ui_guide_close || edit_press),
-        .guide_return_state(guide_return_state), .level_next_req(1'b0), .level_open_req(level_open_req),
-        .level_close_req(level_close_req), .level_select_req(level_select_req), .selected_level(selected_level),
-        .level_index(level_index), .fail_reason(fail_reason), .run_seconds(run_seconds),
-        .build_valid(build_valid && !edit_valid), .pig_alive(pig_alive),
-        .init_ready(init_ready), .physics_tick(tutorial_physics_tick), .world_valid(world_valid), .world_ready(world_ready),
-        .gameplay_pending(pop_pending), .gameplay_ready(gameplay_ready),
-        .goal_hit(goal_hit), .hazard_hit(hazard_hit), .out_of_bounds(out_of_bounds), .star_box_hit(star_box_hit), .star_box_collected(star_box_collected),
+        .guide_open_req(ui_guide_open || (game_state == `LP_BUILD && edit_press)),
+        .guide_close_req(ui_guide_close || edit_press),
+        .guide_return_state(guide_return_state),
+        .level_next_req(1'b0),
+        .level_open_req(level_open_req),
+        .level_close_req(level_close_req),
+        .level_select_req(level_select_req),
+        .selected_level(selected_level),
+        .level_index(level_index),
+        .fail_reason(fail_reason),
+        .run_seconds(run_seconds),
+        .build_valid(build_valid && !edit_valid),
+        .pig_alive(pig_alive),
+        .init_ready(init_ready),
+        .physics_tick(tutorial_physics_tick),
+        .world_valid(world_valid),
+        .world_ready(world_ready),
+        .gameplay_pending(pop_pending),
+        .gameplay_ready(gameplay_ready),
+        .goal_hit(goal_hit),
+        .hazard_hit(hazard_hit),
+        .out_of_bounds(out_of_bounds),
+        .star_box_hit(star_box_hit),
+        .star_box_collected(star_box_collected),
         .tutorial_bounds_grace(tutorial_bounds_grace),
         .enable_start_screen(enable_start_screen),
         .start_screen_active(start_screen_active),
-        .par_time(par_time), .game_state(game_state),
-        .run_init(run_init), .step_start(step_start), .update_release(update_release),
-        .launch_event(launch_event), .success_event(success_event), .failure_event(failure_event)
+        .par_time(par_time),
+        .game_state(game_state),
+        .run_init(run_init),
+        .step_start(step_start),
+        .update_release(update_release),
+        .launch_event(launch_event),
+        .success_event(success_event),
+        .failure_event(failure_event)
     );
+
     explosion_fx u_explosions (
-        .clk(clk), .reset(reset), .run_init(run_init), .physics_tick(tutorial_physics_tick),
-        .tnt_intact(tnt_intact), .blast_phase(blast_phase)
+        .clk(clk),
+        .reset(reset),
+        .run_init(run_init),
+        .physics_tick(tutorial_physics_tick),
+        .tnt_intact(tnt_intact),
+        .blast_phase(blast_phase)
     );
+
     wire [3:0] active_down_fans =
         (intact_mask[0] && build_grid[2:0]   == `LP_PART_FAN && build_facing_down[0] && !build_facing_left[0] && ui_active_fans[0]) +
         (intact_mask[1] && build_grid[5:3]   == `LP_PART_FAN && build_facing_down[1] && !build_facing_left[1] && ui_active_fans[1]) +
@@ -764,6 +1195,7 @@ module My_Top_Module #(
         intact_mask[1] && build_grid[5:3]   == `LP_PART_FAN && build_facing_down[1] && !build_facing_left[1],
         intact_mask[0] && build_grid[2:0]   == `LP_PART_FAN && build_facing_down[0] && !build_facing_left[0]
     };
+
     wire [8:0] fan_horiz_mask = {
         build_grid[26:24] == `LP_PART_FAN && !build_facing_down[8],
         build_grid[23:21] == `LP_PART_FAN && !build_facing_down[7],
@@ -775,6 +1207,7 @@ module My_Top_Module #(
         build_grid[5:3]   == `LP_PART_FAN && !build_facing_down[1],
         build_grid[2:0]   == `LP_PART_FAN && !build_facing_down[0]
     };
+
     wire [8:0] rocket_vertical_mask = {
         intact_mask[8] && build_grid[26:24] == `LP_PART_BOOSTER && build_facing_down[8],
         intact_mask[7] && build_grid[23:21] == `LP_PART_BOOSTER && build_facing_down[7],
@@ -786,11 +1219,12 @@ module My_Top_Module #(
         intact_mask[1] && build_grid[5:3]   == `LP_PART_BOOSTER && build_facing_down[1],
         intact_mask[0] && build_grid[2:0]   == `LP_PART_BOOSTER && build_facing_down[0]
     };
+
     // Vertical rockets point up (facing_left=0) or down (facing_left=1).
     // The balance is signed: negative pushes up, positive pushes down.
     // Only rockets that have been individually fired and are still burning push.
     wire [8:0] rocket_down_mask = rocket_vertical_mask & rocket_burn_mask & build_facing_left;
-    wire [8:0] rocket_up_mask = rocket_vertical_mask & rocket_burn_mask & ~build_facing_left;
+    wire [8:0] rocket_up_mask   = rocket_vertical_mask & rocket_burn_mask & ~build_facing_left;
     wire [3:0] active_up_rockets =
         rocket_up_mask[0] + rocket_up_mask[1] + rocket_up_mask[2] +
         rocket_up_mask[3] + rocket_up_mask[4] + rocket_up_mask[5] +
@@ -801,6 +1235,7 @@ module My_Top_Module #(
         rocket_down_mask[6] + rocket_down_mask[7] + rocket_down_mask[8];
     wire signed [4:0] rocket_vertical_balance =
         $signed({1'b0, active_down_rockets}) - $signed({1'b0, active_up_rockets});
+
     // Every intact rocket on the cart, and the horizontal ones burning right now.
     wire [8:0] rocket_present_mask = {
         intact_mask[8] && build_grid[26:24] == `LP_PART_BOOSTER,
@@ -813,9 +1248,10 @@ module My_Top_Module #(
         intact_mask[1] && build_grid[5:3]   == `LP_PART_BOOSTER,
         intact_mask[0] && build_grid[2:0]   == `LP_PART_BOOSTER
     };
-    wire [8:0] burning_side_rockets = rocket_present_mask & rocket_burn_mask & ~build_facing_down;
+
+    wire [8:0] burning_side_rockets  = rocket_present_mask & rocket_burn_mask & ~build_facing_down;
     wire [8:0] burning_right_rockets = burning_side_rockets & ~build_facing_left;
-    wire [8:0] burning_left_rockets = burning_side_rockets & build_facing_left;
+    wire [8:0] burning_left_rockets  = burning_side_rockets & build_facing_left;
     wire [3:0] burning_right_count =
         burning_right_rockets[0] + burning_right_rockets[1] + burning_right_rockets[2] +
         burning_right_rockets[3] + burning_right_rockets[4] + burning_right_rockets[5] +
@@ -833,7 +1269,7 @@ module My_Top_Module #(
     // A fan facing right blows its exhaust right; one facing left blows left.
     wire [8:0] active_horiz_fans = intact_mask & fan_horiz_mask & ui_active_fans;
     wire [8:0] active_right_fans = active_horiz_fans & ~build_facing_left;
-    wire [8:0] active_left_fans  = active_horiz_fans &  build_facing_left;
+    wire [8:0] active_left_fans  = active_horiz_fans & build_facing_left;
     wire [3:0] active_right_fan_count =
         active_right_fans[0] + active_right_fans[1] + active_right_fans[2] +
         active_right_fans[3] + active_right_fans[4] + active_right_fans[5] +
@@ -845,93 +1281,225 @@ module My_Top_Module #(
     // Signed fan count for physics: positive = more right-facing fans.
     wire signed [4:0] active_fan_balance =
         $signed({1'b0, active_right_fan_count}) - $signed({1'b0, active_left_fan_count});
-    physics_engine #(.ENGINE_FORCE(ENGINE_FORCE), .ROCKET_FORCE_SHIFT(ROCKET_FORCE_SHIFT)) u_physics (
-        .support_endpoint_y_valid(support_span_valid),
-        .support_left_y_q2(support_left_y_q2),.support_right_y_q2(support_right_y_q2),
-        .support_wheel_count(support_wheel_count),
-        .proposed_pivot_dx_q8(pivot_dx_q8),.proposed_pivot_dy_q8(pivot_dy_q8),
-        .ground_slope_valid(ground_slope_valid),.support_span_valid(support_span_valid),
-        .support_left_q2(support_left_q2),.support_right_q2(support_right_q2),.support_y_q2(support_y_q2),
-        .moments_enabled(body_moments_enabled),.build_grid(build_grid),.build_frames(build_frames),
-        .intact_mask(intact_mask),.frame_intact_mask(frame_intact_mask),
-        .build_facing_left(build_facing_left),.rocket_vertical_mask(rocket_vertical_mask),
-        .fan_balance(active_fan_balance), .rocket_balance(burning_rocket_balance), .rocket_vertical_balance(rocket_vertical_balance), .rocket_count(rocket_count),
 
-        .fan_enabled(ui_fan_on), .rocket_req(ui_rocket_req),
-        .rocket_fire_mask(rocket_fire_mask), .rocket_present_mask(rocket_present_mask),
+    physics_engine #(
+        .ENGINE_FORCE(ENGINE_FORCE),
+        .ROCKET_FORCE_SHIFT(ROCKET_FORCE_SHIFT)
+    ) u_physics (
+        .support_endpoint_y_valid(support_span_valid),
+        .support_left_y_q2(support_left_y_q2),
+        .support_right_y_q2(support_right_y_q2),
+        .support_wheel_count(support_wheel_count),
+        .proposed_pivot_dx_q8(pivot_dx_q8),
+        .proposed_pivot_dy_q8(pivot_dy_q8),
+        .ground_slope_valid(ground_slope_valid),
+        .support_span_valid(support_span_valid),
+        .support_left_q2(support_left_q2),
+        .support_right_q2(support_right_q2),
+        .support_y_q2(support_y_q2),
+        .moments_enabled(body_moments_enabled),
+        .build_grid(build_grid),
+        .build_frames(build_frames),
+        .intact_mask(intact_mask),
+        .frame_intact_mask(frame_intact_mask),
+        .build_facing_left(build_facing_left),
+        .rocket_vertical_mask(rocket_vertical_mask),
+        .fan_balance(active_fan_balance),
+        .rocket_balance(burning_rocket_balance),
+        .rocket_vertical_balance(rocket_vertical_balance),
+        .rocket_count(rocket_count),
+        .fan_enabled(ui_fan_on),
+        .rocket_req(ui_rocket_req),
+        .rocket_fire_mask(rocket_fire_mask),
+        .rocket_present_mask(rocket_present_mask),
         .tutorial_mode(tutorial_level),
-        .rocket_ready(rocket_ready), .rocket_active(rocket_active),
-        .rocket_burn_mask(rocket_burn_mask), .rocket_spent_mask(rocket_spent_mask),
-        .clk(clk), .reset(reset), .game_state(game_state), .run_init(run_init), .init_ready(init_ready[1]),
-        .spawn_x(spawn_x), .spawn_y(spawn_y), .step_start(step_start), .update_release(update_release),
-        .wheel_count(wheel_count), .wheels_down(wheels_down), .wheels_up(wheels_up), .tip_dir(tip_dir), .support_unstable(support_unstable),
-        .engine_count(drive_engines), .balloon_count(balloon_count),
-        .mass_units(mass_units), .engine_enabled(engine_enabled), .engine_reverse(engine_reverse),
+        .rocket_ready(rocket_ready),
+        .rocket_active(rocket_active),
+        .rocket_burn_mask(rocket_burn_mask),
+        .rocket_spent_mask(rocket_spent_mask),
+        .clk(clk),
+        .reset(reset),
+        .game_state(game_state),
+        .run_init(run_init),
+        .init_ready(init_ready[1]),
+        .spawn_x(spawn_x),
+        .spawn_y(spawn_y),
+        .step_start(step_start),
+        .update_release(update_release),
+        .wheel_count(wheel_count),
+        .wheels_down(wheels_down),
+        .wheels_up(wheels_up),
+        .tip_dir(tip_dir),
+        .support_unstable(support_unstable),
+        .engine_count(drive_engines),
+        .balloon_count(balloon_count),
+        .mass_units(mass_units),
+        .engine_enabled(engine_enabled),
+        .engine_reverse(engine_reverse),
         .tnt_knockback_valid(tnt_knockback_valid || onboard_tnt_detonate),
-        .tnt_knockback_x(onboard_tnt_detonate ? ((|(onboard_tnt_pop & 9'b001001001)) ? 16'sd512 : (|(onboard_tnt_pop & 9'b100100100)) ? -16'sd512 : 16'sd384) : tnt_knockback_x),
+        .tnt_knockback_x(onboard_tnt_detonate ?
+            ((|(onboard_tnt_pop & 9'b001001001)) ? 16'sd512 :
+             (|(onboard_tnt_pop & 9'b100100100)) ? -16'sd512 : 16'sd384) : tnt_knockback_x),
         .tnt_knockback_y(onboard_tnt_detonate ? -16'sd768 : tnt_knockback_y),
         // Future lift-fan placement supplies these; no item/sprite exists yet.
-        .live_lift_fan_count(active_down_fans), .fan_lift_mask(fan_lift_mask), .fan_active_mask(ui_active_fans),
-        .move_valid(move_valid), .move_ready(move_ready),
-        .previous_x(previous_x), .previous_y(previous_y), .proposed_x(proposed_x), .proposed_y(proposed_y),
-        .proposed_vx(proposed_vx), .proposed_vy(proposed_vy), .response_valid(response_valid),
-        .response_ready(response_ready), .corrected_x(corrected_x), .corrected_y(corrected_y),
-        .corrected_vx(tutorial_air_stop ? 16'sd0 : corrected_vx), .corrected_vy(corrected_vy), .grounded(grounded), .ground_slope(ground_slope),
-        .previous_tilt(previous_tilt), .proposed_tilt(proposed_tilt), .corrected_tilt(corrected_tilt), .vehicle_tilt(vehicle_tilt),
-        .movement_committed(movement_committed), .vehicle_x(vehicle_x), .vehicle_y(vehicle_y),
-        .display_x(display_x), .display_y(display_y)
+        .live_lift_fan_count(active_down_fans),
+        .fan_lift_mask(fan_lift_mask),
+        .fan_active_mask(ui_active_fans),
+        .move_valid(move_valid),
+        .move_ready(move_ready),
+        .previous_x(previous_x),
+        .previous_y(previous_y),
+        .proposed_x(proposed_x),
+        .proposed_y(proposed_y),
+        .proposed_vx(proposed_vx),
+        .proposed_vy(proposed_vy),
+        .response_valid(response_valid),
+        .response_ready(response_ready),
+        .corrected_x(corrected_x),
+        .corrected_y(corrected_y),
+        .corrected_vx(tutorial_air_stop ? 16'sd0 : corrected_vx),
+        .corrected_vy(corrected_vy),
+        .grounded(grounded),
+        .ground_slope(ground_slope),
+        .previous_tilt(previous_tilt),
+        .proposed_tilt(proposed_tilt),
+        .corrected_tilt(corrected_tilt),
+        .vehicle_tilt(vehicle_tilt),
+        .movement_committed(movement_committed),
+        .vehicle_x(vehicle_x),
+        .vehicle_y(vehicle_y),
+        .display_x(display_x),
+        .display_y(display_y)
     );
-    collision_engine #(.ROTATION_ONLY(1)) u_collision (
-        .support_left_y_q2(support_left_y_q2),.support_right_y_q2(support_right_y_q2),
+
+    collision_engine #(
+        .ROTATION_ONLY(1)
+    ) u_collision (
+        .support_left_y_q2(support_left_y_q2),
+        .support_right_y_q2(support_right_y_q2),
         .support_wheel_count(support_wheel_count),
-        .pivot_dx_q8(pivot_dx_q8),.pivot_dy_q8(pivot_dy_q8),
-        .ground_slope_valid(ground_slope_valid),.support_span_valid(support_span_valid),
-        .support_left_q2(support_left_q2),.support_right_q2(support_right_q2),.support_y_q2(support_y_q2),
+        .pivot_dx_q8(pivot_dx_q8),
+        .pivot_dy_q8(pivot_dy_q8),
+        .ground_slope_valid(ground_slope_valid),
+        .support_span_valid(support_span_valid),
+        .support_left_q2(support_left_q2),
+        .support_right_q2(support_right_q2),
+        .support_y_q2(support_y_q2),
         .collision_mask(intact_mask | frame_intact_mask),
-        .cg_enabled(1'b1), .build_grid(build_grid), .part_intact_mask(intact_mask),
-        .frame_intact_mask(frame_intact_mask), .support_unstable(support_unstable),
-        .clk(clk), .reset(reset || run_init || game_state != `LP_RUN), .move_valid(move_valid), .move_ready(move_ready),
-        .previous_x(previous_x), .previous_y(previous_y), .proposed_x(proposed_x), .proposed_y(proposed_y),
-        .proposed_vx(proposed_vx), .proposed_vy(proposed_vy), .terrain_count(terrain_count), .terrain_rects(terrain_rects),
-        .map_level(map_level), .rotation_enabled(1'b1), .previous_tilt(previous_tilt), .proposed_tilt(proposed_tilt), .world_width(world_width), .world_height(world_height),
-        .query_x(collision_query_x), .query_y(collision_query_y), .query_class(collision_query_class),
-        .response_valid(response_valid), .response_ready(response_ready), .corrected_x(corrected_x),
-        .corrected_y(corrected_y), .corrected_vx(corrected_vx), .corrected_vy(corrected_vy), .grounded(grounded),
-        .ground_slope(ground_slope), .corrected_tilt(corrected_tilt), .tip_dir(tip_dir),
-         .impact_valid(collision_impact_valid), .impact_flags(collision_impact_flags)
+        .cg_enabled(1'b1),
+        .build_grid(build_grid),
+        .part_intact_mask(intact_mask),
+        .frame_intact_mask(frame_intact_mask),
+        .support_unstable(support_unstable),
+        .clk(clk),
+        .reset(reset || run_init || game_state != `LP_RUN),
+        .move_valid(move_valid),
+        .move_ready(move_ready),
+        .previous_x(previous_x),
+        .previous_y(previous_y),
+        .proposed_x(proposed_x),
+        .proposed_y(proposed_y),
+        .proposed_vx(proposed_vx),
+        .proposed_vy(proposed_vy),
+        .terrain_count(terrain_count),
+        .terrain_rects(terrain_rects),
+        .map_level(map_level),
+        .rotation_enabled(1'b1),
+        .previous_tilt(previous_tilt),
+        .proposed_tilt(proposed_tilt),
+        .world_width(world_width),
+        .world_height(world_height),
+        .query_x(collision_query_x),
+        .query_y(collision_query_y),
+        .query_class(collision_query_class),
+        .response_valid(response_valid),
+        .response_ready(response_ready),
+        .corrected_x(corrected_x),
+        .corrected_y(corrected_y),
+        .corrected_vx(corrected_vx),
+        .corrected_vy(corrected_vy),
+        .grounded(grounded),
+        .ground_slope(ground_slope),
+        .corrected_tilt(corrected_tilt),
+        .tip_dir(tip_dir),
+        .impact_valid(collision_impact_valid),
+        .impact_flags(collision_impact_flags)
     );
+
     // Finish TNT damage before checking the pig and goal for this movement.
     // Physics holds its committed pose until the world result is accepted.
     tnt_controller u_tnt (
-        .clk(clk), .reset(reset), .run_init(run_init), .game_state(game_state),
-        .suppress_trigger(tutorial_tnt_suppress), .tutorial_mode(tutorial_level), .init_ready(),
-        .movement_committed(movement_committed), .previous_x(previous_x), .previous_y(previous_y), .previous_tilt(previous_tilt),
-        .vehicle_x(vehicle_x), .vehicle_y(vehicle_y), .vehicle_tilt(vehicle_tilt), .tnt_count(tnt_count), .tnt_positions(tnt_positions),
-        .build_grid(build_grid), .build_frames(build_frames), .intact_mask(intact_mask),
-        .frame_intact_mask(frame_intact_mask), .tnt_intact(tnt_intact),
-        .damage_valid(tnt_damage_valid), .damage_ready(damage_ready),
-        .damage_mask(tnt_damage_mask), .damage_frame_mask(tnt_frame_mask),
-        .knockback_valid(tnt_knockback_valid), .knockback_x(tnt_knockback_x), .knockback_y(tnt_knockback_y),
-        .explosion_event(explosion_sound_event), .damage_complete(tnt_complete)
+        .clk(clk),
+        .reset(reset),
+        .run_init(run_init),
+        .game_state(game_state),
+        .suppress_trigger(tutorial_tnt_suppress),
+        .tutorial_mode(tutorial_level),
+        .init_ready(),
+        .movement_committed(movement_committed),
+        .previous_x(previous_x),
+        .previous_y(previous_y),
+        .previous_tilt(previous_tilt),
+        .vehicle_x(vehicle_x),
+        .vehicle_y(vehicle_y),
+        .vehicle_tilt(vehicle_tilt),
+        .tnt_count(tnt_count),
+        .tnt_positions(tnt_positions),
+        .build_grid(build_grid),
+        .build_frames(build_frames),
+        .intact_mask(intact_mask),
+        .frame_intact_mask(frame_intact_mask),
+        .tnt_intact(tnt_intact),
+        .damage_valid(tnt_damage_valid),
+        .damage_ready(damage_ready),
+        .damage_mask(tnt_damage_mask),
+        .damage_frame_mask(tnt_frame_mask),
+        .knockback_valid(tnt_knockback_valid),
+        .knockback_x(tnt_knockback_x),
+        .knockback_y(tnt_knockback_y),
+        .explosion_event(explosion_sound_event),
+        .damage_complete(tnt_complete)
     );
+
     world_outcomes u_world (
-        .clk(clk), .reset(reset), .run_init(run_init), .game_state(game_state), .init_ready(init_ready[2]),
-        .movement_committed(tnt_complete), .vehicle_x(vehicle_x), .vehicle_y(vehicle_y), .vehicle_tilt(vehicle_tilt),
-        .build_grid(build_grid), .intact_mask(intact_mask), .goal_rect(goal_rect),
-        .map_level(map_level), .world_width(world_width), .world_height(world_height),
-        .flag_x(flag_x), .flag_y(flag_y), .star_box_x(star_box_x), .star_box_y(star_box_y),
-        .hazard_count(hazard_count), .hazard_rects(hazard_rects), .world_valid(world_valid),
-        .world_ready(world_ready), .goal_hit(goal_hit), .hazard_hit(hazard_hit), .out_of_bounds(out_of_bounds), .star_box_hit(star_box_hit)
+        .clk(clk),
+        .reset(reset),
+        .run_init(run_init),
+        .game_state(game_state),
+        .init_ready(init_ready[2]),
+        .movement_committed(tnt_complete),
+        .vehicle_x(vehicle_x),
+        .vehicle_y(vehicle_y),
+        .vehicle_tilt(vehicle_tilt),
+        .build_grid(build_grid),
+        .intact_mask(intact_mask),
+        .goal_rect(goal_rect),
+        .map_level(map_level),
+        .world_width(world_width),
+        .world_height(world_height),
+        .flag_x(flag_x),
+        .flag_y(flag_y),
+        .star_box_x(star_box_x),
+        .star_box_y(star_box_y),
+        .hazard_count(hazard_count),
+        .hazard_rects(hazard_rects),
+        .world_valid(world_valid),
+        .world_ready(world_ready),
+        .goal_hit(goal_hit),
+        .hazard_hit(hazard_hit),
+        .out_of_bounds(out_of_bounds),
+        .star_box_hit(star_box_hit)
     );
 
     // Unified CDC display snapshot width: explicitly sums all packed field groups.
     localparam SNAPSHOT_WIDTH =
-        29 +                                    // rocket_burn/spent_mask (18), balloon_pop_mask/phase (11)
-        27 +                                    // zoomed_out, overview, free_look (3), facing_down (9), active_fans (9), inv/sel dirs (6)
-        (44 + `LP_TILT_BITS) +                  // UI/audio/drag flags (44) + vehicle_tilt (LP_TILT_BITS)
-        (6 * `LP_COORD_BITS) +                  // death_x/y, display_x/y, scatter_x/y
-        (101 + `LP_LEVEL_BITS) +                // game_state, build_grid, masks, stock, cursor, feedback, level_index, fail_reason
-        (32 + 3*`LP_MAX_TNT + `LP_LESSON_BITS); // tnt_intact, tutorial_lesson, build_frames, run_seconds, blast_phase, scatter_mask/phase
+        29 +                                     // rocket_burn/spent_mask (18), balloon_pop_mask/phase (11)
+        27 +                                     // zoomed_out, overview, free_look (3), facing_down (9), active_fans (9), inv/sel dirs (6)
+        (44 + `LP_TILT_BITS) +                   // UI/audio/drag flags (44) + vehicle_tilt (LP_TILT_BITS)
+        (6 * `LP_COORD_BITS) +                   // death_x/y, display_x/y, scatter_x/y
+        (101 + `LP_LEVEL_BITS) +                 // game_state, build_grid, masks, stock, cursor, feedback, level_index, fail_reason
+        (32 + 3 * `LP_MAX_TNT + `LP_LESSON_BITS); // tnt_intact, tutorial_lesson, build_frames, run_seconds, blast_phase, scatter_mask/phase
+
     wire [SNAPSHOT_WIDTH-1:0] snapshot_in = {
         zoomed_out, overview, sw[14], build_facing_down, ui_active_fans,
         selected_down, engine_facing_left, fan_facing_left, fan_facing_down, rocket_facing_left, rocket_facing_down,
@@ -947,19 +1515,31 @@ module My_Top_Module #(
         build_frames, run_seconds, blast_phase, scatter_mask, scatter_x, scatter_y, scatter_phase
     };
     wire [SNAPSHOT_WIDTH-1:0] snapshot_out;
-    wire draw_zoomed_out, draw_overview, draw_free_look;
-    wire [8:0] draw_facing_down, draw_ui_active_fans;
-    wire draw_selected_down, draw_inv_engine_left, draw_inv_fan_left, draw_inv_fan_down, draw_inv_rocket_left, draw_inv_rocket_down;
+    wire draw_zoomed_out;
+    wire draw_overview;
+    wire draw_free_look;
+    wire [8:0] draw_facing_down;
+    wire [8:0] draw_ui_active_fans;
+    wire draw_selected_down;
+    wire draw_inv_engine_left;
+    wire draw_inv_fan_left;
+    wire draw_inv_fan_down;
+    wire draw_inv_rocket_left;
+    wire draw_inv_rocket_down;
     wire draw_audio_muted;
     wire draw_start_screen_active;
     wire draw_fan_on;
-    wire [8:0] draw_rocket_burn_mask, draw_rocket_spent_mask, draw_balloon_pop_mask;
+    wire [8:0] draw_rocket_burn_mask;
+    wire [8:0] draw_rocket_spent_mask;
+    wire [8:0] draw_balloon_pop_mask;
     wire [1:0] draw_balloon_pop_phase;
 
     wire signed [`LP_TILT_BITS-1:0] draw_tilt;
-    wire [1:0] draw_diary_page, draw_death_phase;
+    wire [1:0] draw_diary_page;
+    wire [1:0] draw_death_phase;
     wire [2:0] draw_guide_return;
-    wire signed [`LP_COORD_BITS-1:0] draw_death_x, draw_death_y;
+    wire signed [`LP_COORD_BITS-1:0] draw_death_x;
+    wire signed [`LP_COORD_BITS-1:0] draw_death_y;
     wire draw_launch_flash;
     wire draw_star_box_collected;
     wire draw_boost_active;
@@ -968,33 +1548,46 @@ module My_Top_Module #(
     wire [2:0] draw_drag_contents;
     wire [2:0] draw_state;
     wire [26:0] draw_grid;
-    wire [8:0] draw_intact, draw_frames;
-    wire draw_valid, draw_engine, draw_drag_active;
+    wire [8:0] draw_intact;
+    wire [8:0] draw_frames;
+    wire draw_valid;
+    wire draw_engine;
+    wire draw_drag_active;
     wire [3:0] draw_error;
     wire [2:0] draw_feedback_code;
     wire [3:0] draw_feedback_cell;
-    wire [3:0] draw_frames_left, draw_pigs_left, draw_wheels_left, draw_engines_left, draw_balloons_left;
-    wire [6:0] draw_cursor_x, draw_cursor_y;
+    wire [3:0] draw_frames_left;
+    wire [3:0] draw_pigs_left;
+    wire [3:0] draw_wheels_left;
+    wire [3:0] draw_engines_left;
+    wire [3:0] draw_balloons_left;
+    wire [6:0] draw_cursor_x;
+    wire [6:0] draw_cursor_y;
     wire [2:0] draw_selected_part;
-    wire signed [`LP_COORD_BITS-1:0] draw_x, draw_y;
+    wire signed [`LP_COORD_BITS-1:0] draw_x;
+    wire signed [`LP_COORD_BITS-1:0] draw_y;
     wire [`LP_LEVEL_BITS-1:0] draw_level;
     wire [8:0] draw_saved_frames;
     wire [7:0] draw_seconds;
     wire [2*`LP_MAX_TNT-1:0] draw_blast;
     wire [8:0] draw_scatter_mask;
-    wire signed [`LP_COORD_BITS-1:0] draw_scatter_x, draw_scatter_y;
+    wire signed [`LP_COORD_BITS-1:0] draw_scatter_x;
+    wire signed [`LP_COORD_BITS-1:0] draw_scatter_y;
     wire [5:0] draw_scatter_phase;
     wire [1:0] draw_fail_reason;
     wire [`LP_MAX_TNT-1:0] draw_tnt_intact;
     wire [`LP_LESSON_BITS-1:0] draw_tutorial_lesson;
-    wire signed [19:0] draw_spawn_x, draw_spawn_y;
-    wire [2:0] draw_terrain_count, draw_tnt_count;
+    wire signed [19:0] draw_spawn_x;
+    wire signed [19:0] draw_spawn_y;
+    wire [2:0] draw_terrain_count;
+    wire [2:0] draw_tnt_count;
     wire [127:0] draw_terrain_rects;
     wire [31:0] draw_goal_rect;
     wire [`LP_TNT_BITS-1:0] draw_tnt_positions;
     wire [1:0] draw_hazard_count;
     wire [`LP_HAZARD_BITS-1:0] draw_hazard_rects;
-    wire [12:0] left_pixel_index, right_pixel_index;
+    wire [12:0] left_pixel_index;
+    wire [12:0] right_pixel_index;
     // JA is mounted upside down: reverse all 96 x 64 pixels to rotate it 180 degrees.
     // Reciprocal multiplication eliminates combinational / 96 and % 96 divider trees:
     // ({12'd0, pixel_index} * 25'd2731) >> 18 == pixel_index / 96 for all 0 <= pixel_index < 6144.
@@ -1009,7 +1602,9 @@ module My_Top_Module #(
     wire [5:0] right_y = raw_right_y;
     wire [6:0] map_x = show_map ? left_x : right_x;
     wire [5:0] map_y = show_map ? left_y : right_y;
-    wire [15:0] left_pixel_data, right_pixel_data, base_left_pixel_data;
+    wire [15:0] left_pixel_data;
+    wire [15:0] right_pixel_data;
+    wire [15:0] base_left_pixel_data;
     assign {
         draw_zoomed_out, draw_overview, draw_free_look, draw_facing_down, draw_ui_active_fans,
         draw_selected_down, draw_inv_engine_left, draw_inv_fan_left, draw_inv_fan_down, draw_inv_rocket_left, draw_inv_rocket_down,
@@ -1025,20 +1620,33 @@ module My_Top_Module #(
         draw_saved_frames, draw_seconds, draw_blast, draw_scatter_mask, draw_scatter_x, draw_scatter_y, draw_scatter_phase
     } = snapshot_out;
 
-    display_snapshot #(.WIDTH(SNAPSHOT_WIDTH)) u_snapshot (
-        .game_clk(clk), .game_reset(reset), .display_clk(oled_clk), .display_reset(oled_reset),
-        .frame_begin(left_frame), .game_data(snapshot_in), .display_data(snapshot_out)
+    display_snapshot #(
+        .WIDTH(SNAPSHOT_WIDTH)
+    ) u_snapshot (
+        .game_clk(clk),
+        .game_reset(reset),
+        .display_clk(oled_clk),
+        .display_reset(oled_reset),
+        .frame_begin(left_frame),
+        .game_data(snapshot_in),
+        .display_data(snapshot_out)
     );
+
     // The tutorial keeps its welcome card on JB while the hint book is open on JA.
     wire in_diary_walkthrough = (draw_state == `LP_GUIDE) && (draw_diary_page != 2'd3) &&
                                 (draw_level != `LP_LEVEL_TUTORIAL);
     // Free-running glow for the control a tutorial lesson asks for. It cannot share the
     // engine's animation phase, which stands still until the engine has been turned on.
     reg [3:0] tutorial_blink_frames;
-    always @(posedge oled_clk) begin
-        if (oled_reset) tutorial_blink_frames <= 4'd0;
-        else if (left_frame) tutorial_blink_frames <= tutorial_blink_frames + 4'd1;
+
+    always @ (posedge oled_clk) begin
+        if (oled_reset) begin
+            tutorial_blink_frames <= 4'd0;
+        end else if (left_frame) begin
+            tutorial_blink_frames <= tutorial_blink_frames + 4'd1;
+        end
     end
+
     wire tutorial_blink = tutorial_blink_frames[3];
     // Engine pistons step once every eight frames while the engine is on; boost doubles the rate.
     reg [3:0] engine_frames;
@@ -1047,56 +1655,81 @@ module My_Top_Module #(
     reg [2:0] wheel_frames;
     wire vehicle_moving = (game_state == `LP_RUN) && !tutorial_pause_active &&
                           ((corrected_x[19:8] != previous_x[19:8]) || (!grounded && (corrected_y[19:8] != previous_y[19:8])));
-    reg moving_meta, moving_sync;
-    always @(posedge oled_clk) begin
+    reg moving_meta;
+    reg moving_sync;
+
+    always @ (posedge oled_clk) begin
         if (oled_reset) begin
             engine_frames <= 0;
-            wheel_frames <= 0;
-            moving_meta <= 0;
-            moving_sync <= 0;
+            wheel_frames  <= 0;
+            moving_meta   <= 0;
+            moving_sync   <= 0;
         end else begin
             moving_meta <= vehicle_moving;
             moving_sync <= moving_meta;
             if (left_frame) begin
                 if (draw_state == `LP_RUN || in_diary_walkthrough) begin
-                    if (draw_engine || draw_fan_on || draw_boost_active || in_diary_walkthrough)
+                    if (draw_engine || draw_fan_on || draw_boost_active || in_diary_walkthrough) begin
                         engine_frames <= engine_frames + (draw_boost_active ? 4'd2 : 4'd1);
-                    else
+                    end else begin
                         engine_frames <= 4'd0;
-                    if (moving_sync || in_diary_walkthrough)
+                    end
+                    if (moving_sync || in_diary_walkthrough) begin
                         wheel_frames <= wheel_frames + 1'b1;
-                    else
+                    end else begin
                         wheel_frames <= 3'd0;
+                    end
                 end else begin
                     engine_frames <= 4'd0;
-                    wheel_frames <= 3'd0;
+                    wheel_frames  <= 3'd0;
                 end
             end
         end
     end
+
     wire anim_phase = engine_frames[3];
     wire wheel_anim_phase = wheel_frames[1];
     // A second copy of the level table, indexed by the snapshot, keeps the map in step with the drawn state.
-    wire draw_map_level, draw_map_id;
-    wire [9:0] draw_world_width, draw_world_height, draw_flag_x, draw_flag_y;
+    wire draw_map_level;
+    wire draw_map_id;
+    wire [9:0] draw_world_width;
+    wire [9:0] draw_world_height;
+    wire [9:0] draw_flag_x;
+    wire [9:0] draw_flag_y;
     wire [7:0] draw_par_time;
+
     level_data u_draw_level (
-        .level_index(draw_level), .par_time(draw_par_time), .spawn_x(draw_spawn_x), .spawn_y(draw_spawn_y),
-        .terrain_count(draw_terrain_count), .terrain_rects(draw_terrain_rects), .goal_rect(draw_goal_rect),
-        .tnt_count(draw_tnt_count), .tnt_positions(draw_tnt_positions),
-        .hazard_count(draw_hazard_count), .hazard_rects(draw_hazard_rects),
-        .map_level(draw_map_level), .map_id(draw_map_id), .world_width(draw_world_width), .world_height(draw_world_height),
-        .flag_x(draw_flag_x), .flag_y(draw_flag_y), .star_box_x(draw_star_box_x), .star_box_y(draw_star_box_y)
+        .level_index(draw_level),
+        .par_time(draw_par_time),
+        .spawn_x(draw_spawn_x),
+        .spawn_y(draw_spawn_y),
+        .terrain_count(draw_terrain_count),
+        .terrain_rects(draw_terrain_rects),
+        .goal_rect(draw_goal_rect),
+        .tnt_count(draw_tnt_count),
+        .tnt_positions(draw_tnt_positions),
+        .hazard_count(draw_hazard_count),
+        .hazard_rects(draw_hazard_rects),
+        .map_level(draw_map_level),
+        .map_id(draw_map_id),
+        .world_width(draw_world_width),
+        .world_height(draw_world_height),
+        .flag_x(draw_flag_x),
+        .flag_y(draw_flag_y),
+        .star_box_x(draw_star_box_x),
+        .star_box_y(draw_star_box_y)
     );
+
     // Scrolling horizontal offset for Start Screen clouds
     reg [6:0] cloud_scroll_fg;
     reg [6:0] cloud_scroll_bg;
     reg [1:0] cloud_div;
-    always @(posedge oled_clk) begin
+
+    always @ (posedge oled_clk) begin
         if (oled_reset) begin
             cloud_scroll_fg <= 7'd0;
             cloud_scroll_bg <= 7'd0;
-            cloud_div <= 2'd0;
+            cloud_div       <= 2'd0;
         end else if (left_frame && draw_start_screen_active) begin
             cloud_div <= cloud_div + 1'b1;
             // Foreground clouds drift lively: 1 pixel every 2 frames (~30 px/s)
@@ -1112,7 +1745,8 @@ module My_Top_Module #(
 
     // Independent map selections keep collision on the live level while the
     // display may still hold the previous frame snapshot.
-    wire signed [10:0] right_map_x, right_map_y;
+    wire signed [10:0] right_map_x;
+    wire signed [10:0] right_map_y;
     wire signed [10:0] map_draw_x = right_map_x;
     wire signed [10:0] map_draw_y = right_map_y;
     wire [2:0] map_draw_class;
@@ -1120,11 +1754,19 @@ module My_Top_Module #(
     // SMOOTH_DRAW (100 MHz neighbour reads) is off: its reads had to finish inside one OLED
     // pixel across the untimed OLED clock boundary, and on the board map pixels flickered.
     level_map u_level_map (
-        .map_id(draw_map_id), .draw_clk(oled_clk), .draw_x(map_draw_x), .draw_y(map_draw_y), .draw_class(map_draw_class),
-        .query_clk(clk), .query_map_id(map_id),
-        .query_x(collision_query_x), .query_y(collision_query_y),
-        .query_class(), .query_solid(collision_query_solid)
+        .map_id(draw_map_id),
+        .draw_clk(oled_clk),
+        .draw_x(map_draw_x),
+        .draw_y(map_draw_y),
+        .draw_class(map_draw_class),
+        .query_clk(clk),
+        .query_map_id(map_id),
+        .query_x(collision_query_x),
+        .query_y(collision_query_y),
+        .query_class(),
+        .query_solid(collision_query_solid)
     );
+
     wire [8:0] draw_active_fans = {
         draw_intact[8] && draw_grid[26:24] == `LP_PART_FAN && draw_ui_active_fans[8],
         draw_intact[7] && draw_grid[23:21] == `LP_PART_FAN && draw_ui_active_fans[7],
@@ -1136,34 +1778,71 @@ module My_Top_Module #(
         draw_intact[1] && draw_grid[5:3]   == `LP_PART_FAN && draw_ui_active_fans[1],
         draw_intact[0] && draw_grid[2:0]   == `LP_PART_FAN && draw_ui_active_fans[0]
     };
+
     left_renderer #(
         .USE_PIXEL_INDEX(0),
         .ENABLE_COMPACT_RUN_SPRITES(0)
     ) u_left_renderer (
-        .pixel_index(13'd0), .in_x(left_x), .in_y(left_y), .game_state(draw_state), .build_grid(draw_grid),
-        .build_frames(draw_saved_frames), .build_facing_left(draw_facing_left),
+        .pixel_index(13'd0),
+        .in_x(left_x),
+        .in_y(left_y),
+        .game_state(draw_state),
+        .build_grid(draw_grid),
+        .build_frames(draw_saved_frames),
+        .build_facing_left(draw_facing_left),
         .build_facing_down(draw_facing_down),
-        .selected_left(draw_selected_left), .selected_down(draw_selected_down),
-        .inv_engine_left(draw_inv_engine_left), .inv_fan_left(draw_inv_fan_left),
-        .inv_fan_down(draw_inv_fan_down), .inv_rocket_left(draw_inv_rocket_left), .inv_rocket_down(draw_inv_rocket_down),
+        .selected_left(draw_selected_left),
+        .selected_down(draw_selected_down),
+        .inv_engine_left(draw_inv_engine_left),
+        .inv_fan_left(draw_inv_fan_left),
+        .inv_fan_down(draw_inv_fan_down),
+        .inv_rocket_left(draw_inv_rocket_left),
+        .inv_rocket_down(draw_inv_rocket_down),
         .inventory_page(draw_inventory_page),
-        .rockets_left(draw_rockets_left), .fans_left(draw_fans_left), .intact_mask(draw_intact), .frame_intact_mask(draw_frames),
-        .build_valid(draw_valid), .build_error(draw_error), .engine_enabled(draw_engine), .wheel_moving(moving_sync), .boost_active(draw_boost_active),
+        .rockets_left(draw_rockets_left),
+        .fans_left(draw_fans_left),
+        .intact_mask(draw_intact),
+        .frame_intact_mask(draw_frames),
+        .build_valid(draw_valid),
+        .build_error(draw_error),
+        .engine_enabled(draw_engine),
+        .wheel_moving(moving_sync),
+        .boost_active(draw_boost_active),
         .active_fans(draw_active_fans),
-        .rocket_burn_mask(draw_rocket_burn_mask), .rocket_spent_mask(draw_rocket_spent_mask),
-        .balloon_pop_mask(draw_balloon_pop_mask), .balloon_pop_phase(draw_balloon_pop_phase),
-        .feedback_code(draw_feedback_code), .feedback_cell(draw_feedback_cell),
-        .frames_left(draw_frames_left), .pigs_left(draw_pigs_left), .wheels_left(draw_wheels_left),
-        .engines_left(draw_engines_left), .balloons_left(draw_balloons_left), .selected_part(draw_selected_part),
+        .rocket_burn_mask(draw_rocket_burn_mask),
+        .rocket_spent_mask(draw_rocket_spent_mask),
+        .balloon_pop_mask(draw_balloon_pop_mask),
+        .balloon_pop_phase(draw_balloon_pop_phase),
+        .feedback_code(draw_feedback_code),
+        .feedback_cell(draw_feedback_cell),
+        .frames_left(draw_frames_left),
+        .pigs_left(draw_pigs_left),
+        .wheels_left(draw_wheels_left),
+        .engines_left(draw_engines_left),
+        .balloons_left(draw_balloons_left),
+        .selected_part(draw_selected_part),
         .drag_active(draw_drag_active),
-        .drag_from_grid(draw_drag_from_grid), .drag_source(draw_drag_source), .drag_contents(draw_drag_contents),
-        .cursor_x(draw_cursor_x), .cursor_y(draw_cursor_y), .cursor_visible(1'b1),
-        .level_index(draw_level), .fail_reason(draw_fail_reason), .run_seconds(draw_seconds), .star_box_collected(draw_star_box_collected),
-        .tutorial_lesson(draw_tutorial_lesson), .tutorial_blink(tutorial_blink),
-        .anim_phase(anim_phase), .pixel_data(base_left_pixel_data)
+        .drag_from_grid(draw_drag_from_grid),
+        .drag_source(draw_drag_source),
+        .drag_contents(draw_drag_contents),
+        .cursor_x(draw_cursor_x),
+        .cursor_y(draw_cursor_y),
+        .cursor_visible(1'b1),
+        .level_index(draw_level),
+        .fail_reason(draw_fail_reason),
+        .run_seconds(draw_seconds),
+        .star_box_collected(draw_star_box_collected),
+        .tutorial_lesson(draw_tutorial_lesson),
+        .tutorial_blink(tutorial_blink),
+        .anim_phase(anim_phase),
+        .pixel_data(base_left_pixel_data)
     );
+
     ui_renderer u_ui_renderer (
-        .x(left_x), .y(left_y), .base_pixel(base_left_pixel_data), .game_state(draw_state),
+        .x(left_x),
+        .y(left_y),
+        .base_pixel(base_left_pixel_data),
+        .game_state(draw_state),
         .feedback_code(draw_feedback_code),
         .start_screen_active(draw_start_screen_active),
         .diary_page(draw_diary_page),
@@ -1172,7 +1851,8 @@ module My_Top_Module #(
         // The hint book opened from the tutorial shows the first map's hints.
         .level_index((draw_level == `LP_LEVEL_TUTORIAL && draw_state == `LP_GUIDE) ? `LP_LEVEL_ARCH : draw_level),
         .build_valid(draw_valid),
-        .cursor_x(draw_cursor_x), .cursor_y(draw_cursor_y),
+        .cursor_x(draw_cursor_x),
+        .cursor_y(draw_cursor_y),
         .cloud_scroll_fg(cloud_scroll_fg),
         .cloud_scroll_bg(cloud_scroll_bg),
         .retry_glow(draw_level == `LP_LEVEL_TUTORIAL && tutorial_blink &&
@@ -1180,23 +1860,25 @@ module My_Top_Module #(
                      draw_state == `LP_SUCCESS)),
         .pixel_data(left_pixel_data)
     );
+
     // Dual-OLED Diary Walkthrough: pan the Right OLED camera to the selected checkpoint
     // and pose the recommended demo vehicle on the live terrain with active step parts.
     reg signed [19:0] diary_pose_x;
     reg signed [19:0] diary_pose_y;
     reg signed [`LP_TILT_BITS-1:0] diary_tilt;
     reg [8:0] diary_active_fans;
-    always @* begin
-        diary_pose_x = draw_spawn_x;
-        diary_pose_y = draw_spawn_y;
-        diary_tilt = 5'sd0;
+
+    always @ (*) begin
+        diary_pose_x      = draw_spawn_x;
+        diary_pose_y      = draw_spawn_y;
+        diary_tilt        = 5'sd0;
         diary_active_fans = 9'd0;
         if (draw_map_id == 1'b0) begin
             case (draw_diary_page)
                 2'd1: begin
                     diary_pose_x = {12'd254, 8'd0};
                     diary_pose_y = {12'd352, 8'd0};
-                    diary_tilt = -5'sd2;
+                    diary_tilt   = -5'sd2;
                 end
                 2'd2: begin
                     diary_pose_x = {12'd564, 8'd0};
@@ -1210,23 +1892,24 @@ module My_Top_Module #(
         end else begin
             case (draw_diary_page)
                 2'd0: begin
-                    diary_pose_x = draw_spawn_x;
-                    diary_pose_y = draw_spawn_y;
+                    diary_pose_x      = draw_spawn_x;
+                    diary_pose_y      = draw_spawn_y;
                     diary_active_fans = 9'b000_000_001;
                 end
                 2'd1: begin
-                    diary_pose_x = {12'd512, 8'd0};
-                    diary_pose_y = {12'd87,  8'd0};
+                    diary_pose_x      = {12'd512, 8'd0};
+                    diary_pose_y      = {12'd87,  8'd0};
                     diary_active_fans = 9'b010_000_001;
                 end
                 default: begin
-                    diary_pose_x = {12'd732, 8'd0};
-                    diary_pose_y = {12'd40,  8'd0};
+                    diary_pose_x      = {12'd732, 8'd0};
+                    diary_pose_y      = {12'd40,  8'd0};
                     diary_active_fans = 9'b010_000_000;
                 end
             endcase
         end
     end
+
     wire [26:0] diary_grid = (draw_map_id == 1'b0) ?
         {`LP_PART_WHEEL, `LP_PART_EMPTY, `LP_PART_WHEEL, `LP_PART_ENGINE, `LP_PART_PIG, `LP_PART_EMPTY, `LP_PART_EMPTY,   `LP_PART_BOOSTER, `LP_PART_EMPTY} :
         {`LP_PART_WHEEL, `LP_PART_FAN,   `LP_PART_WHEEL, `LP_PART_ENGINE, `LP_PART_PIG, `LP_PART_EMPTY, `LP_PART_BALLOON, `LP_PART_EMPTY,   `LP_PART_FAN};
@@ -1237,17 +1920,26 @@ module My_Top_Module #(
     right_renderer #(
         .USE_PIXEL_INDEX(0)
     ) u_right_renderer (
-        .clk(oled_clk), .zoomed_out(draw_zoomed_out), .overview(draw_overview),
-        .free_look(draw_free_look), .cursor_x(draw_cursor_x), .cursor_y(draw_cursor_y),
-        .pixel_index(13'd0), .in_x(map_x), .in_y(map_y),
-        .game_state(in_diary_walkthrough ? `LP_RUN : ((draw_state==`LP_LEVEL_SELECT || draw_state==`LP_SETTINGS) ? `LP_BUILD : (draw_state==`LP_GUIDE ? draw_guide_return : draw_state))),
+        .clk(oled_clk),
+        .zoomed_out(draw_zoomed_out),
+        .overview(draw_overview),
+        .free_look(draw_free_look),
+        .cursor_x(draw_cursor_x),
+        .cursor_y(draw_cursor_y),
+        .pixel_index(13'd0),
+        .in_x(map_x),
+        .in_y(map_y),
+        .game_state(in_diary_walkthrough ? `LP_RUN :
+                    ((draw_state == `LP_LEVEL_SELECT || draw_state == `LP_SETTINGS) ? `LP_BUILD :
+                     (draw_state == `LP_GUIDE ? draw_guide_return : draw_state))),
         .build_grid(in_diary_walkthrough ? diary_grid : draw_grid),
         .build_facing_left(in_diary_walkthrough ? ((draw_map_id == 1'b1) ? 9'b000_000_001 : 9'd0) : draw_facing_left),
         .build_facing_down(in_diary_walkthrough ? ((draw_map_id == 1'b0) ? 9'b000_000_010 : 9'b010_000_000) : draw_facing_down),
         .engine_enabled(in_diary_walkthrough ? 1'b1 : draw_engine),
         .boost_active(in_diary_walkthrough ? (|diary_rocket_burn) : draw_boost_active),
         .rocket_burn_mask(in_diary_walkthrough ? diary_rocket_burn : draw_rocket_burn_mask),
-        .balloon_pop_mask(in_diary_walkthrough ? 9'd0 : draw_balloon_pop_mask), .balloon_pop_phase(draw_balloon_pop_phase),
+        .balloon_pop_mask(in_diary_walkthrough ? 9'd0 : draw_balloon_pop_mask),
+        .balloon_pop_phase(draw_balloon_pop_phase),
         .active_fans(in_diary_walkthrough ? diary_active_fans : draw_active_fans),
         .intact_mask(in_diary_walkthrough ? diary_intact : draw_intact),
         .frame_intact_mask(in_diary_walkthrough ? diary_frames : draw_frames),
@@ -1259,32 +1951,81 @@ module My_Top_Module #(
         .camera_x(in_diary_walkthrough ? diary_pose_x : draw_x),
         .camera_y(in_diary_walkthrough ? diary_pose_y : draw_y),
         .vehicle_tilt(in_diary_walkthrough ? diary_tilt : draw_tilt),
-        .spawn_x(draw_spawn_x), .spawn_y(draw_spawn_y),
-        .terrain_count(draw_terrain_count), .terrain_rects(draw_terrain_rects), .goal_rect(draw_goal_rect),
-        .tnt_count(draw_tnt_count), .tnt_positions(draw_tnt_positions), .tnt_intact(draw_tnt_intact),
+        .spawn_x(draw_spawn_x),
+        .spawn_y(draw_spawn_y),
+        .terrain_count(draw_terrain_count),
+        .terrain_rects(draw_terrain_rects),
+        .goal_rect(draw_goal_rect),
+        .tnt_count(draw_tnt_count),
+        .tnt_positions(draw_tnt_positions),
+        .tnt_intact(draw_tnt_intact),
         .tutorial_lesson(draw_tutorial_lesson),
-        .hazard_count(draw_hazard_count), .hazard_rects(draw_hazard_rects), .blast_phase(draw_blast),
-        .death_phase(in_diary_walkthrough ? 2'd0 : draw_death_phase), .death_x(draw_death_x), .death_y(draw_death_y),
+        .hazard_count(draw_hazard_count),
+        .hazard_rects(draw_hazard_rects),
+        .blast_phase(draw_blast),
+        .death_phase(in_diary_walkthrough ? 2'd0 : draw_death_phase),
+        .death_x(draw_death_x),
+        .death_y(draw_death_y),
         .launch_flash(in_diary_walkthrough ? 1'b0 : draw_launch_flash),
-        .scatter_mask(in_diary_walkthrough ? 9'd0 : draw_scatter_mask), .scatter_x(draw_scatter_x), .scatter_y(draw_scatter_y), .scatter_phase(draw_scatter_phase),
-        .anim_phase(wheel_anim_phase), .map_level(draw_map_level), .map_id(draw_map_id), .world_width(draw_world_width),
-        .world_height(draw_world_height), .flag_x(draw_flag_x), .flag_y(draw_flag_y), .star_box_x(draw_star_box_x), .star_box_y(draw_star_box_y),
-        .star_box_collected(in_diary_walkthrough ? 1'b0 : draw_star_box_collected), .run_seconds(draw_seconds),
-        .par_time(draw_par_time), .level_index(draw_level),
-        .map_x(right_map_x), .map_y(right_map_y), .map_class(map_draw_class),
+        .scatter_mask(in_diary_walkthrough ? 9'd0 : draw_scatter_mask),
+        .scatter_x(draw_scatter_x),
+        .scatter_y(draw_scatter_y),
+        .scatter_phase(draw_scatter_phase),
+        .anim_phase(wheel_anim_phase),
+        .map_level(draw_map_level),
+        .map_id(draw_map_id),
+        .world_width(draw_world_width),
+        .world_height(draw_world_height),
+        .flag_x(draw_flag_x),
+        .flag_y(draw_flag_y),
+        .star_box_x(draw_star_box_x),
+        .star_box_y(draw_star_box_y),
+        .star_box_collected(in_diary_walkthrough ? 1'b0 : draw_star_box_collected),
+        .run_seconds(draw_seconds),
+        .par_time(draw_par_time),
+        .level_index(draw_level),
+        .map_x(right_map_x),
+        .map_y(right_map_y),
+        .map_class(map_draw_class),
         .pixel_data(right_pixel_data)
     );
+
     wire right_oled_on = !draw_start_screen_active && (draw_state != `LP_LEVEL_SELECT);
+
     Oled_Display u_left_oled (
-        .clk(oled_clk), .reset(oled_reset), .frame_begin(left_frame), .sending_pixels(), .sample_pixel(left_sample),
-        .pixel_index(left_pixel_index), .pixel_data(show_map ? right_pixel_data : left_pixel_data), .cs(JA[0]), .sdin(JA[1]), .sclk(JA[3]),
-        .d_cn(JA[4]), .resn(JA[5]), .vccen(JA[6]), .pmoden(JA[7])
+        .clk(oled_clk),
+        .reset(oled_reset),
+        .frame_begin(left_frame),
+        .sending_pixels(),
+        .sample_pixel(left_sample),
+        .pixel_index(left_pixel_index),
+        .pixel_data(show_map ? right_pixel_data : left_pixel_data),
+        .cs(JA[0]),
+        .sdin(JA[1]),
+        .sclk(JA[3]),
+        .d_cn(JA[4]),
+        .resn(JA[5]),
+        .vccen(JA[6]),
+        .pmoden(JA[7])
     );
+
     Oled_Display u_right_oled (
-        .clk(oled_clk), .reset(oled_reset), .frame_begin(right_frame), .sending_pixels(), .sample_pixel(right_sample),
-        .pixel_index(right_pixel_index), .pixel_data(show_map ? 16'd0 : (right_oled_on ? right_pixel_data : 16'h0000)), .cs(JB[0]), .sdin(JB[1]), .sclk(JB[3]),
-        .d_cn(JB[4]), .resn(JB[5]), .vccen(JB[6]), .pmoden(JB[7])
+        .clk(oled_clk),
+        .reset(oled_reset),
+        .frame_begin(right_frame),
+        .sending_pixels(),
+        .sample_pixel(right_sample),
+        .pixel_index(right_pixel_index),
+        .pixel_data(show_map ? 16'd0 : (right_oled_on ? right_pixel_data : 16'h0000)),
+        .cs(JB[0]),
+        .sdin(JB[1]),
+        .sclk(JB[3]),
+        .d_cn(JB[4]),
+        .resn(JB[5]),
+        .vccen(JB[6]),
+        .pmoden(JB[7])
     );
+
     assign JA[2] = 1'b0;
     assign JB[2] = 1'b0;
     // Pmod AMP2 on JXADC pins 1-6: AIN, GAIN, NC, shutdown_n, GND, 3.3V.
@@ -1298,11 +2039,13 @@ module My_Top_Module #(
     // Unused switches sw[13:2] are intentionally disconnected.
     reg [3:0] led_anim_tick;
     wire led_anim_active = launch_flash || (game_state == `LP_SUCCESS) || (game_state == `LP_FAIL);
-    always @(posedge clk) begin
-        if (reset || !led_anim_active)
+
+    always @ (posedge clk) begin
+        if (reset || !led_anim_active) begin
             led_anim_tick <= 4'd0;
-        else if (physics_tick)
+        end else if (physics_tick) begin
             led_anim_tick <= led_anim_tick + 4'd1;
+        end
     end
 
     wire [9:0] unused_leds_flash =
@@ -1315,12 +2058,3 @@ module My_Top_Module #(
     // with unused SW13 and SW2.
     assign led = {sw[15:14], 1'b0, unused_leds_flash, 1'b0, sw[1:0]};
 endmodule
-
-
-
-
-
-
-
-
-

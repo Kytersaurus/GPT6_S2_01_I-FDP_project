@@ -1,4 +1,4 @@
-// Owner: Role 4 - Marcus. Part sprites shared by both renderers.
+// Part sprites shared by both renderers.
 // Include inside a module body. Rows hold 4-bit palette entries, left pixel in the top nibble.
 // part_sprite is 8 by 8 (zoomed-out map, inventory icons, drag preview); part_sprite12 is 12 by 12
 // (map view); part_sprite16 is 16 by 16 (editor grid).
@@ -21,83 +21,102 @@ function [15:0] sprite_colour;
     begin
         sprite_colour = background;
         case (palette)
-            `LP_PART_FRAME: case (entry)
-                4'h1: sprite_colour = 16'ha285;  // Wood
-                4'h2: sprite_colour = 16'h7a00;  // Dark wood
-                4'h3: sprite_colour = 16'hdd0c;  // Light wood
-            endcase
-            `LP_PART_PIG: case (entry)
-                4'h1: sprite_colour = 16'haff5;  // Light green
-                4'h2: sprite_colour = 16'hc30e;  // Nostril
-                4'h3: sprite_colour = 16'h07e0;  // Pig green
-                4'h4: sprite_colour = 16'h03e0;  // Dark green
-                4'h5: sprite_colour = 16'h0000;  // Black
-                4'h6: sprite_colour = 16'hfd18;  // Snout pink
-                4'h8: sprite_colour = 16'hffff;  // White
-            endcase
-            `LP_PART_WHEEL: case (entry)
-                4'h1: sprite_colour = 16'h2945;  // Tyre
-                4'h2: sprite_colour = 16'h52aa;  // Tyre shine
-                4'h3: sprite_colour = 16'hc618;  // Rim
-                4'h4: sprite_colour = 16'h8410;  // Spoke
-                4'h5: sprite_colour = 16'h0000;  // Hub
-                4'h7: sprite_colour = 16'h4208;  // Dark grey
-                4'h8: sprite_colour = 16'hffff;  // White
-            endcase
-            `LP_PART_ENGINE: case (entry)
-                4'h1: sprite_colour = 16'h5ae9;  // Casing outline
-                4'h2: sprite_colour = 16'h9d11;  // Olive casing
-                4'h3: sprite_colour = 16'hc635;  // Casing highlight
-                4'h4: sprite_colour = 16'h7b2c;  // Shadow
-                4'h5: sprite_colour = 16'h0000;  // Belt
-                4'h6: sprite_colour = 16'hc618;  // Pulley
-                4'h7: sprite_colour = 16'h6b4d;  // Pulley rim
-                4'h8: sprite_colour = 16'hffff;  // Glint
-                4'h9: sprite_colour = 16'h4208;  // Hub and belt mark
-            endcase
-            `LP_PART_BOOSTER: case (entry)
-                4'h1: sprite_colour = 16'h3194;  // Dark blue
-                4'h2: sprite_colour = 16'h5adc;  // Blue
-                4'h3: sprite_colour = 16'h9cdf;  // Light blue
-                4'h4: sprite_colour = 16'h8410;  // Post
-                4'h5: sprite_colour = 16'hc618;  // Joint
-                4'h6: sprite_colour = 16'h4208;  // Base
-                4'h7: sprite_colour = 16'hffff;  // White
-            endcase
-            `LP_PART_BALLOON: case (entry)
-                4'h1: sprite_colour = 16'ha091;  // Outline
-                4'h3: sprite_colour = 16'hfc7e;  // Highlight
-                4'h5: sprite_colour = 16'hc618;  // String
-                4'h8: sprite_colour = 16'hffff;  // White
-                4'hB: sprite_colour = 16'hf81f;  // Balloon magenta
-            endcase
-            `LP_PART_FAN: case (entry)
-                4'h1: sprite_colour = 16'h1ac3;  // Guard outline
-                4'h2: sprite_colour = 16'h5dcb;  // Guard green
-                4'h3: sprite_colour = 16'ha734;  // Guard highlight
-                4'h4: sprite_colour = 16'hc618;  // Blade
-                4'h5: sprite_colour = 16'h4208;  // Hub and motor end
-                4'h7: sprite_colour = 16'h8410;  // Motor
-            endcase
-            `LP_PALETTE_TNT: case (entry)
-                4'h1: sprite_colour = 16'hf1c5;  // Red
-                4'h2: sprite_colour = 16'hb144;  // Stripe
-                4'h3: sprite_colour = 16'hffff;  // White middle
-                4'h4: sprite_colour = 16'h18c3;  // Black letters
-            endcase
-            `LP_PALETTE_STAR: case (entry)
-                4'h1: sprite_colour = 16'h7a00;  // Dark wood border
-                4'h2: sprite_colour = 16'ha285;  // Wood crate
-                4'h3: sprite_colour = 16'hdd0c;  // Light wood plank
-                4'h4: sprite_colour = 16'hfee0;  // Golden star
-            endcase
+            `LP_PART_FRAME: begin
+                case (entry)
+                    4'h1: sprite_colour = 16'ha285;  // Wood
+                    4'h2: sprite_colour = 16'h7a00;  // Dark wood
+                    4'h3: sprite_colour = 16'hdd0c;  // Light wood
+                endcase
+            end
+            `LP_PART_PIG: begin
+                case (entry)
+                    4'h1: sprite_colour = 16'haff5;  // Light green
+                    4'h2: sprite_colour = 16'hc30e;  // Nostril
+                    4'h3: sprite_colour = 16'h07e0;  // Pig green
+                    4'h4: sprite_colour = 16'h03e0;  // Dark green
+                    4'h5: sprite_colour = 16'h0000;  // Black
+                    4'h6: sprite_colour = 16'hfd18;  // Snout pink
+                    4'h8: sprite_colour = 16'hffff;  // White
+                endcase
+            end
+            `LP_PART_WHEEL: begin
+                case (entry)
+                    4'h1: sprite_colour = 16'h2945;  // Tyre
+                    4'h2: sprite_colour = 16'h52aa;  // Tyre shine
+                    4'h3: sprite_colour = 16'hc618;  // Rim
+                    4'h4: sprite_colour = 16'h8410;  // Spoke
+                    4'h5: sprite_colour = 16'h0000;  // Hub
+                    4'h7: sprite_colour = 16'h4208;  // Dark grey
+                    4'h8: sprite_colour = 16'hffff;  // White
+                endcase
+            end
+            `LP_PART_ENGINE: begin
+                case (entry)
+                    4'h1: sprite_colour = 16'h5ae9;  // Casing outline
+                    4'h2: sprite_colour = 16'h9d11;  // Olive casing
+                    4'h3: sprite_colour = 16'hc635;  // Casing highlight
+                    4'h4: sprite_colour = 16'h7b2c;  // Shadow
+                    4'h5: sprite_colour = 16'h0000;  // Belt
+                    4'h6: sprite_colour = 16'hc618;  // Pulley
+                    4'h7: sprite_colour = 16'h6b4d;  // Pulley rim
+                    4'h8: sprite_colour = 16'hffff;  // Glint
+                    4'h9: sprite_colour = 16'h4208;  // Hub and belt mark
+                endcase
+            end
+            `LP_PART_BOOSTER: begin
+                case (entry)
+                    4'h1: sprite_colour = 16'h3194;  // Dark blue
+                    4'h2: sprite_colour = 16'h5adc;  // Blue
+                    4'h3: sprite_colour = 16'h9cdf;  // Light blue
+                    4'h4: sprite_colour = 16'h8410;  // Post
+                    4'h5: sprite_colour = 16'hc618;  // Joint
+                    4'h6: sprite_colour = 16'h4208;  // Base
+                    4'h7: sprite_colour = 16'hffff;  // White
+                endcase
+            end
+            `LP_PART_BALLOON: begin
+                case (entry)
+                    4'h1: sprite_colour = 16'ha091;  // Outline
+                    4'h3: sprite_colour = 16'hfc7e;  // Highlight
+                    4'h5: sprite_colour = 16'hc618;  // String
+                    4'h8: sprite_colour = 16'hffff;  // White
+                    4'hB: sprite_colour = 16'hf81f;  // Balloon magenta
+                endcase
+            end
+            `LP_PART_FAN: begin
+                case (entry)
+                    4'h1: sprite_colour = 16'h1ac3;  // Guard outline
+                    4'h2: sprite_colour = 16'h5dcb;  // Guard green
+                    4'h3: sprite_colour = 16'ha734;  // Guard highlight
+                    4'h4: sprite_colour = 16'hc618;  // Blade
+                    4'h5: sprite_colour = 16'h4208;  // Hub and motor end
+                    4'h7: sprite_colour = 16'h8410;  // Motor
+                endcase
+            end
+            `LP_PALETTE_TNT: begin
+                case (entry)
+                    4'h1: sprite_colour = 16'hf1c5;  // Red
+                    4'h2: sprite_colour = 16'hb144;  // Stripe
+                    4'h3: sprite_colour = 16'hffff;  // White middle
+                    4'h4: sprite_colour = 16'h18c3;  // Black letters
+                endcase
+            end
+            `LP_PALETTE_STAR: begin
+                case (entry)
+                    4'h1: sprite_colour = 16'h7a00;  // Dark wood border
+                    4'h2: sprite_colour = 16'ha285;  // Wood crate
+                    4'h3: sprite_colour = 16'hdd0c;  // Light wood plank
+                    4'h4: sprite_colour = 16'hfee0;  // Golden star
+                endcase
+            end
         endcase
     end
 endfunction
 
 function [15:0] part_sprite;
     input [2:0] sprite_part;
-    input integer sprite_x, sprite_y;
+    input integer sprite_x;
+    input integer sprite_y;
     input sprite_phase;
     input [15:0] background;
     reg [31:0] row;
@@ -105,59 +124,73 @@ function [15:0] part_sprite;
         row = 0;
         if (sprite_x >= 0 && sprite_x < 8 && sprite_y >= 0 && sprite_y < 8) begin
             case (sprite_part)
-                `LP_PART_FRAME: case (sprite_y)       // Wooden box with corner braces
-                    0, 7: row = 32'h11111111;
-                    1, 6: row = 32'h11000011;
-                    2, 5: row = 32'h10200201;
-                    default: row = 32'h10022001;
-                endcase
-                `LP_PART_PIG: case (sprite_y)         // The same face as the larger sprites:
-                    1: row = 32'h00400400;            // dark outline and ears,
-                    2: row = 32'h04333340;
-                    3: row = 32'h04855840;            // white eyes with black pupils,
-                    4: row = 32'h04366340;            // and a pink snout with nostrils.
-                    5: row = 32'h04622640;
-                    6: row = 32'h00444400;
-                    default: row = 0;
-                endcase
-                `LP_PART_WHEEL: case (sprite_y)       // Tyre, rim, hub and two spoke phases
-                    0, 7: row = 32'h00777700;
-                    1, 6: row = 32'h07777770;
-                    2, 5: row = 32'h77888877;
-                    default: row = sprite_phase ? 32'h77858577 : 32'h77855877;
-                endcase
-                `LP_PART_ENGINE: case (sprite_y)      // Casing with a pulley whose spoke turns
-                    1, 6: row = 32'h01111110;
-                    2: row = sprite_phase ? 32'h01332910 : 32'h01332610;
-                    3: row = sprite_phase ? 32'h01666910 : 32'h01666510;
-                    4: row = sprite_phase ? 32'h01996210 : 32'h01696210;
-                    5: row = 32'h01666410;
-                    default: row = 0;
-                endcase
-                `LP_PART_BOOSTER: case (sprite_y)     // Arrow rocket on a post
-                    1: row = 32'h00000010;
-                    2, 5: row = 32'h11111221;
-                    3: row = 32'h63333222;
-                    4: row = 32'h62252222;
-                    6: row = 32'h00040010;
-                    7: row = 32'h00666000;
-                    default: row = 0;
-                endcase
-                `LP_PART_BALLOON: case (sprite_y)     // Balloon, highlight and string
-                    0: row = 32'h00BBBB00;
-                    1: row = 32'h0BB8BBB0;
-                    2, 3: row = 32'h0BBBBBB0;
-                    4: row = 32'h00BBBB00;
-                    5: row = 32'h000BB000;
-                    6: row = 32'h00080000;
-                    default: row = 32'h00008000;
-                endcase
-                `LP_PART_FAN: case (sprite_y)         // Side-on guard; the blades move outward per phase
-                    0, 7: row = 32'h00011000;
-                    1, 6: row = sprite_phase ? 32'h00144100 : 32'h00122100;
-                    2, 5: row = sprite_phase ? 32'h00122100 : 32'h00144100;
-                    default: row = 32'h77157100;
-                endcase
+                `LP_PART_FRAME: begin // Wooden box with corner braces
+                    case (sprite_y)
+                        0, 7:    row = 32'h11111111;
+                        1, 6:    row = 32'h11000011;
+                        2, 5:    row = 32'h10200201;
+                        default: row = 32'h10022001;
+                    endcase
+                end
+                `LP_PART_PIG: begin // The same face as the larger sprites:
+                    case (sprite_y)
+                        1:       row = 32'h00400400; // dark outline and ears,
+                        2:       row = 32'h04333340;
+                        3:       row = 32'h04855840; // white eyes with black pupils,
+                        4:       row = 32'h04366340; // and a pink snout with nostrils.
+                        5:       row = 32'h04622640;
+                        6:       row = 32'h00444400;
+                        default: row = 0;
+                    endcase
+                end
+                `LP_PART_WHEEL: begin // Tyre, rim, hub and two spoke phases
+                    case (sprite_y)
+                        0, 7:    row = 32'h00777700;
+                        1, 6:    row = 32'h07777770;
+                        2, 5:    row = 32'h77888877;
+                        default: row = sprite_phase ? 32'h77858577 : 32'h77855877;
+                    endcase
+                end
+                `LP_PART_ENGINE: begin // Casing with a pulley whose spoke turns
+                    case (sprite_y)
+                        1, 6:    row = 32'h01111110;
+                        2:       row = sprite_phase ? 32'h01332910 : 32'h01332610;
+                        3:       row = sprite_phase ? 32'h01666910 : 32'h01666510;
+                        4:       row = sprite_phase ? 32'h01996210 : 32'h01696210;
+                        5:       row = 32'h01666410;
+                        default: row = 0;
+                    endcase
+                end
+                `LP_PART_BOOSTER: begin // Arrow rocket on a post
+                    case (sprite_y)
+                        1:       row = 32'h00000010;
+                        2, 5:    row = 32'h11111221;
+                        3:       row = 32'h63333222;
+                        4:       row = 32'h62252222;
+                        6:       row = 32'h00040010;
+                        7:       row = 32'h00666000;
+                        default: row = 0;
+                    endcase
+                end
+                `LP_PART_BALLOON: begin // Balloon, highlight and string
+                    case (sprite_y)
+                        0:       row = 32'h00BBBB00;
+                        1:       row = 32'h0BB8BBB0;
+                        2, 3:    row = 32'h0BBBBBB0;
+                        4:       row = 32'h00BBBB00;
+                        5:       row = 32'h000BB000;
+                        6:       row = 32'h00080000;
+                        default: row = 32'h00008000;
+                    endcase
+                end
+                `LP_PART_FAN: begin // Side-on guard; the blades move outward per phase
+                    case (sprite_y)
+                        0, 7:    row = 32'h00011000;
+                        1, 6:    row = sprite_phase ? 32'h00144100 : 32'h00122100;
+                        2, 5:    row = sprite_phase ? 32'h00122100 : 32'h00144100;
+                        default: row = 32'h77157100;
+                    endcase
+                end
                 default: row = 0;
             endcase
         end
@@ -167,7 +200,8 @@ endfunction
 
 function [15:0] part_sprite16;
     input [2:0] sprite_part;
-    input integer sprite_x, sprite_y;
+    input integer sprite_x;
+    input integer sprite_y;
     input sprite_phase;
     input [15:0] background;
     reg [63:0] row;
@@ -175,96 +209,110 @@ function [15:0] part_sprite16;
         row = 0;
         if (sprite_x >= 0 && sprite_x < 16 && sprite_y >= 0 && sprite_y < 16) begin
             case (sprite_part)
-                `LP_PART_FRAME: case (sprite_y)       // Planked border with corner braces
-                    0, 15: row = 64'h2222222222222222;
-                    1: row = 64'h2333333333333332;
-                    2, 13, 14: row = 64'h2111111111111112;
-                    3, 12: row = 64'h2112222222222112;
-                    4, 11: row = 64'h2112100000012112;
-                    5, 10: row = 64'h2112010000102112;
-                    default: row = 64'h2112000000002112;
-                endcase
-                `LP_PART_PIG: case (sprite_y)         // Ears, eyes, snout and nostrils
-                    2: row = 64'h0000440000440000;
-                    3: row = 64'h0004334444334000;
-                    4, 11: row = 64'h0043333333333400;
-                    5: row = 64'h0041333333333400;
-                    6: row = 64'h0043853333583400;
-                    7: row = 64'h0043883333883400;
-                    8, 10: row = 64'h0043366666633400;
-                    9: row = 64'h0043362662633400;
-                    12: row = 64'h0004333333334000;
-                    13: row = 64'h0000444444440000;
-                    default: row = 0;
-                endcase
-                `LP_PART_WHEEL: case (sprite_y)       // Tyre, spoked rim, hub and two spoke phases
-                    0, 15: row = 64'h0000011111100000;
-                    1: row = 64'h0001122222211000;
-                    2: row = 64'h0012111111111100;
-                    3: row = 64'h0121113333111110;
-                    4, 11: row = 64'h0111343333431110;
-                    5, 10: row = 64'h1113343333433111;
-                    6, 9: row = 64'h1113334334333111;
-                    7, 8: row = sprite_phase ? 64'h1113335353333111 : 64'h1113333553333111;
-                    12: row = 64'h0111113333111110;
-                    13: row = 64'h0011111111111100;
-                    default: row = 64'h0001111111111000;
-                endcase
+                `LP_PART_FRAME: begin // Planked border with corner braces
+                    case (sprite_y)
+                        0, 15:      row = 64'h2222222222222222;
+                        1:          row = 64'h2333333333333332;
+                        2, 13, 14:  row = 64'h2111111111111112;
+                        3, 12:      row = 64'h2112222222222112;
+                        4, 11:      row = 64'h2112100000012112;
+                        5, 10:      row = 64'h2112010000102112;
+                        default:    row = 64'h2112000000002112;
+                    endcase
+                end
+                `LP_PART_PIG: begin // Ears, eyes, snout and nostrils
+                    case (sprite_y)
+                        2:       row = 64'h0000440000440000;
+                        3:       row = 64'h0004334444334000;
+                        4, 11:   row = 64'h0043333333333400;
+                        5:       row = 64'h0041333333333400;
+                        6:       row = 64'h0043853333583400;
+                        7:       row = 64'h0043883333883400;
+                        8, 10:   row = 64'h0043366666633400;
+                        9:       row = 64'h0043362662633400;
+                        12:      row = 64'h0004333333334000;
+                        13:      row = 64'h0000444444440000;
+                        default: row = 0;
+                    endcase
+                end
+                `LP_PART_WHEEL: begin // Tyre, spoked rim, hub and two spoke phases
+                    case (sprite_y)
+                        0, 15:   row = 64'h0000011111100000;
+                        1:       row = 64'h0001122222211000;
+                        2:       row = 64'h0012111111111100;
+                        3:       row = 64'h0121113333111110;
+                        4, 11:   row = 64'h0111343333431110;
+                        5, 10:   row = 64'h1113343333433111;
+                        6, 9:    row = 64'h1113334334333111;
+                        7, 8:    row = sprite_phase ? 64'h1113335353333111 : 64'h1113333553333111;
+                        12:      row = 64'h0111113333111110;
+                        13:      row = 64'h0011111111111100;
+                        default: row = 64'h0001111111111000;
+                    endcase
+                end
                 // Casing with a belt between a large and a small pulley; the glints and belt marks move.
-                `LP_PART_ENGINE: case (sprite_y)
-                    2, 13: row = 64'h0001111111111000;
-                    3: row = 64'h0013332222278100;
-                    4: row = sprite_phase ? 64'h0013222225797100 : 64'h0013222225767100;
-                    5: row = sprite_phase ? 64'h0012222294472100 : 64'h0012222254472100;
-                    6: row = 64'h0012422544452100;
-                    7: row = 64'h0012277744522100;
-                    8: row = sprite_phase ? 64'h0012766679222100 : 64'h0012768675222100;
-                    9: row = 64'h0012769672222100;
-                    10: row = sprite_phase ? 64'h0012766872224100 : 64'h0012766672224100;
-                    11: row = 64'h0012277722222100;
-                    12: row = 64'h0014222222222100;
-                    default: row = 0;
-                endcase
-                `LP_PART_BOOSTER: case (sprite_y)     // Arrow rocket on a post and base
-                    2: row = 64'h0000000000010000;
-                    3: row = 64'h0000000000021000;
-                    4, 9: row = 64'h0111111111122100;
-                    5: row = 64'h1633333333322210;
-                    6: row = 64'h1622225522222221;
-                    7: row = 64'h1622225722222221;
-                    8: row = 64'h1622222222222210;
-                    10: row = 64'h0000004400021000;
-                    11: row = 64'h0000004400010000;
-                    12, 13: row = 64'h0000004500000000;
-                    14: row = 64'h0000666666660000;
-                    15: row = 64'h0006666666666000;
-                    default: row = 0;
-                endcase
-                `LP_PART_BALLOON: case (sprite_y)     // Balloon, highlight, knot and string
-                    0: row = 64'h0000011111100000;
-                    1: row = 64'h00011BBBBBB11000;
-                    2: row = 64'h00133BBBBBBBB100;
-                    3: row = 64'h013831BBBBBBBB10;
-                    4: row = 64'h0133BBBBBBBBBB10;
-                    5, 6, 7: row = 64'h01BBBBBBBBBBBB10;
-                    8, 9: row = 64'h001BBBBBBBBBB100;
-                    10: row = 64'h0001BBBBBBBB1000;
-                    11: row = 64'h00001BBBBBB10000;
-                    12: row = 64'h0000011BB1100000;
-                    13: row = 64'h0000000110000000;
-                    14: row = 64'h0000000050000000;
-                    default: row = 64'h0000000500000000;
-                endcase
-                `LP_PART_FAN: case (sprite_y)         // Side-on guard and motor; blades swing to the edges
-                    0, 15: row = 64'h0000001111000000;
-                    1: row = 64'h0000012332100000;
-                    2, 13: row = 64'h0000122222210000;
-                    3, 5, 10, 12: row = sprite_phase ? 64'h0000140000410000 : 64'h0000100440010000;
-                    4, 11: row = sprite_phase ? 64'h0000142222410000 : 64'h0000122442210000;
-                    6, 9: row = 64'h5777122572210000;
-                    7, 8: row = 64'h5777104574010000;
-                    default: row = 64'h0000012222100000;
-                endcase
+                `LP_PART_ENGINE: begin
+                    case (sprite_y)
+                        2, 13:   row = 64'h0001111111111000;
+                        3:       row = 64'h0013332222278100;
+                        4:       row = sprite_phase ? 64'h0013222225797100 : 64'h0013222225767100;
+                        5:       row = sprite_phase ? 64'h0012222294472100 : 64'h0012222254472100;
+                        6:       row = 64'h0012422544452100;
+                        7:       row = 64'h0012277744522100;
+                        8:       row = sprite_phase ? 64'h0012766679222100 : 64'h0012768675222100;
+                        9:       row = 64'h0012769672222100;
+                        10:      row = sprite_phase ? 64'h0012766872224100 : 64'h0012766672224100;
+                        11:      row = 64'h0012277722222100;
+                        12:      row = 64'h0014222222222100;
+                        default: row = 0;
+                    endcase
+                end
+                `LP_PART_BOOSTER: begin // Arrow rocket on a post and base
+                    case (sprite_y)
+                        2:       row = 64'h0000000000010000;
+                        3:       row = 64'h0000000000021000;
+                        4, 9:    row = 64'h0111111111122100;
+                        5:       row = 64'h1633333333322210;
+                        6:       row = 64'h1622225522222221;
+                        7:       row = 64'h1622225722222221;
+                        8:       row = 64'h1622222222222210;
+                        10:      row = 64'h0000004400021000;
+                        11:      row = 64'h0000004400010000;
+                        12, 13:  row = 64'h0000004500000000;
+                        14:      row = 64'h0000666666660000;
+                        15:      row = 64'h0006666666666000;
+                        default: row = 0;
+                    endcase
+                end
+                `LP_PART_BALLOON: begin // Balloon, highlight, knot and string
+                    case (sprite_y)
+                        0:       row = 64'h0000011111100000;
+                        1:       row = 64'h00011BBBBBB11000;
+                        2:       row = 64'h00133BBBBBBBB100;
+                        3:       row = 64'h013831BBBBBBBB10;
+                        4:       row = 64'h0133BBBBBBBBBB10;
+                        5, 6, 7: row = 64'h01BBBBBBBBBBBB10;
+                        8, 9:    row = 64'h001BBBBBBBBBB100;
+                        10:      row = 64'h0001BBBBBBBB1000;
+                        11:      row = 64'h00001BBBBBB10000;
+                        12:      row = 64'h0000011BB1100000;
+                        13:      row = 64'h0000000110000000;
+                        14:      row = 64'h0000000050000000;
+                        default: row = 64'h0000000500000000;
+                    endcase
+                end
+                `LP_PART_FAN: begin // Side-on guard and motor; blades swing to the edges
+                    case (sprite_y)
+                        0, 15:         row = 64'h0000001111000000;
+                        1:             row = 64'h0000012332100000;
+                        2, 13:         row = 64'h0000122222210000;
+                        3, 5, 10, 12:  row = sprite_phase ? 64'h0000140000410000 : 64'h0000100440010000;
+                        4, 11:         row = sprite_phase ? 64'h0000142222410000 : 64'h0000122442210000;
+                        6, 9:          row = 64'h5777122572210000;
+                        7, 8:          row = 64'h5777104574010000;
+                        default:       row = 64'h0000012222100000;
+                    endcase
+                end
                 default: row = 0;
             endcase
         end
@@ -272,107 +320,122 @@ function [15:0] part_sprite16;
     end
 endfunction
 
-
 // TNT block, 8 by 8 (zoomed out): red with a white middle and black TNT letters sharing strokes.
 function [15:0] tnt_sprite;
-    input integer sprite_x, sprite_y;
+    input integer sprite_x;
+    input integer sprite_y;
     input [15:0] background;
     reg [31:0] row;
     begin
         row = 0;
-        if (sprite_x >= 0 && sprite_x < 8 && sprite_y >= 0 && sprite_y < 8) case (sprite_y)
-            2, 6: row = 32'h33333333;
-            3: row = 32'h44434444;
-            4: row = 32'h34344443;
-            5: row = 32'h34343443;
-            default: row = 32'h11111111;
-        endcase
+        if (sprite_x >= 0 && sprite_x < 8 && sprite_y >= 0 && sprite_y < 8) begin
+            case (sprite_y)
+                2, 6:    row = 32'h33333333;
+                3:       row = 32'h44434444;
+                4:       row = 32'h34344443;
+                5:       row = 32'h34343443;
+                default: row = 32'h11111111;
+            endcase
+        end
         tnt_sprite = sprite_colour(`LP_PALETTE_TNT, row >> ((7-sprite_x)*4), background);
     end
 endfunction
 
 // TNT block, 12 by 12 (map view): red with a white middle and black TNT letters.
 function [15:0] tnt_sprite12;
-    input integer sprite_x, sprite_y;
+    input integer sprite_x;
+    input integer sprite_y;
     input [15:0] background;
     reg [47:0] row;
     begin
         row = 0;
-        if (sprite_x >= 0 && sprite_x < 12 && sprite_y >= 0 && sprite_y < 12) case (sprite_y)
-            3, 8: row = 48'h333333333333;
-            4: row = 48'h444343343444;
-            5: row = 48'h343344343343;
-            6: row = 48'h343343443343;
-            7: row = 48'h343343343343;
-            11: row = 48'h222222222222;
-            default: row = 48'h111111111111;
-        endcase
+        if (sprite_x >= 0 && sprite_x < 12 && sprite_y >= 0 && sprite_y < 12) begin
+            case (sprite_y)
+                3, 8:    row = 48'h333333333333;
+                4:       row = 48'h444343343444;
+                5:       row = 48'h343344343343;
+                6:       row = 48'h343343443343;
+                7:       row = 48'h343343343343;
+                11:      row = 48'h222222222222;
+                default: row = 48'h111111111111;
+            endcase
+        end
         tnt_sprite12 = sprite_colour(`LP_PALETTE_TNT, row >> ((11-sprite_x)*4), background);
     end
 endfunction
 
 // Star box, 8 by 8, the size of a TNT block: a wooden crate with a symmetric golden star.
 function [15:0] star_sprite;
-    input integer sprite_x, sprite_y;
+    input integer sprite_x;
+    input integer sprite_y;
     input [15:0] background;
     reg [31:0] row;
     begin
         row = 0;
-        if (sprite_x >= 0 && sprite_x < 8 && sprite_y >= 0 && sprite_y < 8) case (sprite_y)
-            1, 2: row = 32'h31144113;
-            3:    row = 32'h34444443;
-            4:    row = 32'h31444413;
-            5:    row = 32'h34411443;
-            6:    row = 32'h34111143;
-            default: row = 32'h33333333;
-        endcase
+        if (sprite_x >= 0 && sprite_x < 8 && sprite_y >= 0 && sprite_y < 8) begin
+            case (sprite_y)
+                1, 2:    row = 32'h31144113;
+                3:       row = 32'h34444443;
+                4:       row = 32'h31444413;
+                5:       row = 32'h34411443;
+                6:       row = 32'h34111143;
+                default: row = 32'h33333333;
+            endcase
+        end
         star_sprite = sprite_colour(`LP_PALETTE_STAR, row >> ((7-sprite_x)*4), background);
     end
 endfunction
 
 // The same star box at 12 by 12 for the 1.5x close-up view.
 function [15:0] star_sprite12;
-    input integer sprite_x, sprite_y;
+    input integer sprite_x;
+    input integer sprite_y;
     input [15:0] background;
     reg [47:0] row;
     begin
         row = 0;
-        if (sprite_x >= 0 && sprite_x < 12 && sprite_y >= 0 && sprite_y < 12) case (sprite_y)
-            0:    row = 48'h133333333331;
-            1, 2: row = 48'h311114411111;
-            3:    row = 48'h344444444441;
-            4:    row = 48'h314444444411;
-            5, 7: row = 48'h311444444111;
-            6:    row = 48'h311144441111;
-            8:    row = 48'h314441144411;
-            9:    row = 48'h314411114411;
-            10:   row = 48'h344111111441;
-            default: row = 48'h111111111111;
-        endcase
+        if (sprite_x >= 0 && sprite_x < 12 && sprite_y >= 0 && sprite_y < 12) begin
+            case (sprite_y)
+                0:       row = 48'h133333333331;
+                1, 2:    row = 48'h311114411111;
+                3:       row = 48'h344444444441;
+                4:       row = 48'h314444444411;
+                5, 7:    row = 48'h311444444111;
+                6:       row = 48'h311144441111;
+                8:       row = 48'h314441144411;
+                9:       row = 48'h314411114411;
+                10:      row = 48'h344111111441;
+                default: row = 48'h111111111111;
+            endcase
+        end
         star_sprite12 = sprite_colour(`LP_PALETTE_STAR, row >> ((11-sprite_x)*4), background);
     end
 endfunction
 
 // A plain 12 by 12 golden star for the level-clear card; the background shows around it.
-function [15:0] gold_star12; input [15:0] star_colour;
-    input integer sprite_x, sprite_y;
+function [15:0] gold_star12;
+    input [15:0] star_colour;
+    input integer sprite_x;
+    input integer sprite_y;
     input [15:0] background;
     reg [11:0] row;
     begin
         row = 0;
-        if (sprite_x >= 0 && sprite_x < 12 && sprite_y >= 0 && sprite_y < 12) case (sprite_y)
-            0:    row = 12'b000001000000;
-            1, 2: row = 12'b000011100000;
-            3:    row = 12'b111111111110;
-            4:    row = 12'b011111111100;
-            5, 7: row = 12'b001111111000;
-            6:    row = 12'b000111110000;
-            8:    row = 12'b001110111000;
-            9:    row = 12'b011100011100;
-            10:   row = 12'b011000001100;
-            11:   row = 12'b100000000010;
-            default: row = 0;
-        endcase
+        if (sprite_x >= 0 && sprite_x < 12 && sprite_y >= 0 && sprite_y < 12) begin
+            case (sprite_y)
+                0:       row = 12'b000001000000;
+                1, 2:    row = 12'b000011100000;
+                3:       row = 12'b111111111110;
+                4:       row = 12'b011111111100;
+                5, 7:    row = 12'b001111111000;
+                6:       row = 12'b000111110000;
+                8:       row = 12'b001110111000;
+                9:       row = 12'b011100011100;
+                10:      row = 12'b011000001100;
+                11:      row = 12'b100000000010;
+                default: row = 0;
+            endcase
+        end
         gold_star12 = row[11-sprite_x] ? star_colour : background;
     end
 endfunction
@@ -380,7 +443,8 @@ endfunction
 // 12 by 12 parts for the map view (1.5x): the same designs as the 16 by 16 editor sprites.
 function [15:0] part_sprite12;
     input [2:0] sprite_part;
-    input integer sprite_x, sprite_y;
+    input integer sprite_x;
+    input integer sprite_y;
     input sprite_phase;
     input [15:0] background;
     reg [47:0] row;
@@ -388,129 +452,163 @@ function [15:0] part_sprite12;
         row = 0;
         if (sprite_x >= 0 && sprite_x < 12 && sprite_y >= 0 && sprite_y < 12) begin
             case (sprite_part)
-                `LP_PART_FRAME: case (sprite_y)
-                    0, 11: row = 48'h222222222222;
-                    1: row = 48'h233333333332;
-                    2, 9: row = 48'h212222222212;
-                    3, 8: row = 48'h212100001212;
-                    10: row = 48'h211111111112;
-                    default: row = 48'h212000000212;
-                endcase
-                `LP_PART_PIG: case (sprite_y)
-                    1: row = 48'h004400004400;
-                    2: row = 48'h043344443340;
-                    3, 5, 8: row = 48'h043333333340;
-                    4: row = 48'h043853358340;
-                    6: row = 48'h043366663340;
-                    7: row = 48'h043362263340;
-                    9: row = 48'h004333333400;
-                    10: row = 48'h000444444000;
-                    default: row = 0;
-                endcase
-                `LP_PART_WHEEL: case (sprite_y)
-                    0, 11: row = 48'h000111111000;
-                    1: row = 48'h011222222110;
-                    2: row = 48'h012111111110;
-                    3, 8: row = 48'h111133331111;
-                    4, 7: row = 48'h111343343111;
-                    5, 6: row = sprite_phase ? 48'h111353533111 : 48'h111335533111;
-                    default: row = 48'h011111111110;
-                endcase
-                `LP_PART_ENGINE: case (sprite_y)
-                    1, 10: row = 48'h001111111100;
-                    2: row = 48'h013322277710;
-                    3: row = sprite_phase ? 48'h013222976710 : 48'h013222579710;
-                    4: row = 48'h012225477710;
-                    5: row = sprite_phase ? 48'h012774492210 : 48'h012774452210;
-                    6: row = sprite_phase ? 48'h017667522210 : 48'h017687522210;
-                    7: row = sprite_phase ? 48'h017897222410 : 48'h017697222410;
-                    8: row = 48'h012772222210;
-                    9: row = 48'h014222222210;
-                    default: row = 0;
-                endcase
-                `LP_PART_BOOSTER: case (sprite_y)
-                    1: row = 48'h000000001000;
-                    2: row = 48'h000000002100;
-                    3, 8: row = 48'h111111112210;
-                    4: row = 48'h163333333221;
-                    5: row = 48'h162255222222;
-                    6: row = 48'h162257222222;
-                    7: row = 48'h162222222221;
-                    9: row = 48'h000044002100;
-                    10: row = 48'h000045001000;
-                    11: row = 48'h006666666600;
-                    default: row = 0;
-                endcase
-                `LP_PART_BALLOON: case (sprite_y)
-                    0: row = 48'h000111111000;
-                    1: row = 48'h0013BBBBB100;
-                    2: row = 48'h0138BBBBBB10;
-                    3: row = 48'h013BBBBBBB10;
-                    4, 5: row = 48'h01BBBBBBBB10;
-                    6: row = 48'h001BBBBBB100;
-                    7: row = 48'h0001BBBB1000;
-                    8: row = 48'h00001BB10000;
-                    9: row = 48'h000001100000;
-                    10: row = 48'h000000500000;
-                    default: row = 48'h000005000000;
-                endcase
-                `LP_PART_FAN: case (sprite_y)
-                    0, 11: row = 48'h000001100000;
-                    1: row = 48'h000013310000;
-                    2, 9: row = 48'h000122221000;
-                    3, 8: row = sprite_phase ? 48'h000140041000 : 48'h000104401000;
-                    4, 7: row = sprite_phase ? 48'h000142241000 : 48'h000124421000;
-                    5, 6: row = 48'h777105701000;
-                    default: row = 48'h000012210000;
-                endcase
+                `LP_PART_FRAME: begin
+                    case (sprite_y)
+                        0, 11:   row = 48'h222222222222;
+                        1:       row = 48'h233333333332;
+                        2, 9:    row = 48'h212222222212;
+                        3, 8:    row = 48'h212100001212;
+                        10:      row = 48'h211111111112;
+                        default: row = 48'h212000000212;
+                    endcase
+                end
+                `LP_PART_PIG: begin
+                    case (sprite_y)
+                        1:       row = 48'h004400004400;
+                        2:       row = 48'h043344443340;
+                        3, 5, 8: row = 48'h043333333340;
+                        4:       row = 48'h043853358340;
+                        6:       row = 48'h043366663340;
+                        7:       row = 48'h043362263340;
+                        9:       row = 48'h004333333400;
+                        10:      row = 48'h000444444000;
+                        default: row = 0;
+                    endcase
+                end
+                `LP_PART_WHEEL: begin
+                    case (sprite_y)
+                        0, 11:   row = 48'h000111111000;
+                        1:       row = 48'h011222222110;
+                        2:       row = 48'h012111111110;
+                        3, 8:    row = 48'h111133331111;
+                        4, 7:    row = 48'h111343343111;
+                        5, 6:    row = sprite_phase ? 48'h111353533111 : 48'h111335533111;
+                        default: row = 48'h011111111110;
+                    endcase
+                end
+                `LP_PART_ENGINE: begin
+                    case (sprite_y)
+                        1, 10:   row = 48'h001111111100;
+                        2:       row = 48'h013322277710;
+                        3:       row = sprite_phase ? 48'h013222976710 : 48'h013222579710;
+                        4:       row = 48'h012225477710;
+                        5:       row = sprite_phase ? 48'h012774492210 : 48'h012774452210;
+                        6:       row = sprite_phase ? 48'h017667522210 : 48'h017687522210;
+                        7:       row = sprite_phase ? 48'h017897222410 : 48'h017697222410;
+                        8:       row = 48'h012772222210;
+                        9:       row = 48'h014222222210;
+                        default: row = 0;
+                    endcase
+                end
+                `LP_PART_BOOSTER: begin
+                    case (sprite_y)
+                        1:       row = 48'h000000001000;
+                        2:       row = 48'h000000002100;
+                        3, 8:    row = 48'h111111112210;
+                        4:       row = 48'h163333333221;
+                        5:       row = 48'h162255222222;
+                        6:       row = 48'h162257222222;
+                        7:       row = 48'h162222222221;
+                        9:       row = 48'h000044002100;
+                        10:      row = 48'h000045001000;
+                        11:      row = 48'h006666666600;
+                        default: row = 0;
+                    endcase
+                end
+                `LP_PART_BALLOON: begin
+                    case (sprite_y)
+                        0:       row = 48'h000111111000;
+                        1:       row = 48'h0013BBBBB100;
+                        2:       row = 48'h0138BBBBBB10;
+                        3:       row = 48'h013BBBBBBB10;
+                        4, 5:    row = 48'h01BBBBBBBB10;
+                        6:       row = 48'h001BBBBBB100;
+                        7:       row = 48'h0001BBBB1000;
+                        8:       row = 48'h00001BB10000;
+                        9:       row = 48'h000001100000;
+                        10:      row = 48'h000000500000;
+                        default: row = 48'h000005000000;
+                    endcase
+                end
+                `LP_PART_FAN: begin
+                    case (sprite_y)
+                        0, 11:   row = 48'h000001100000;
+                        1:       row = 48'h000013310000;
+                        2, 9:    row = 48'h000122221000;
+                        3, 8:    row = sprite_phase ? 48'h000140041000 : 48'h000104401000;
+                        4, 7:    row = sprite_phase ? 48'h000142241000 : 48'h000124421000;
+                        5, 6:    row = 48'h777105701000;
+                        default: row = 48'h000012210000;
+                    endcase
+                end
                 default: row = 0;
             endcase
         end
         part_sprite12 = sprite_colour(sprite_part, row >> ((11-sprite_x)*4), background);
     end
 endfunction
+
 // Direction is a separate saved bit. Rotate the upward rocket to point horizontally.
 function [15:0] part_sprite_facing_dir;
     input [2:0] part;
-    input signed [7:0] x, y;
+    input signed [7:0] x;
+    input signed [7:0] y;
     input integer size;
-    input facing_left, facing_down, phase;
+    input facing_left;
+    input facing_down;
+    input phase;
     input [15:0] background;
-    reg signed [7:0] ix, iy;
+    reg signed [7:0] ix;
+    reg signed [7:0] iy;
     begin
-        ix=x; iy=y;
-        if (part==`LP_PART_BOOSTER) begin
+        ix = x;
+        iy = y;
+        if (part == `LP_PART_BOOSTER) begin
             // Vertical rockets: facing_left selects nose down instead of nose up.
             if (facing_down) begin
-                ix=facing_left ? y : size-1-y;
-                iy=x;
+                ix = facing_left ? y : size - 1 - y;
+                iy = x;
             end else begin
-                ix=facing_left ? size-1-x : x;
-                iy=y;
+                ix = facing_left ? size - 1 - x : x;
+                iy = y;
             end
-        end else if (part==`LP_PART_FAN && facing_down) begin
-            ix=facing_left ? (size-1-y) : y;
-            iy=size-1-x;
-        end else if ((part==`LP_PART_ENGINE || part==`LP_PART_FAN) && facing_left) begin
-            ix=size-1-x;
+        end else if (part == `LP_PART_FAN && facing_down) begin
+            ix = facing_left ? (size - 1 - y) : y;
+            iy = size - 1 - x;
+        end else if ((part == `LP_PART_ENGINE || part == `LP_PART_FAN) && facing_left) begin
+            ix = size - 1 - x;
         end
-        if (size==16) part_sprite_facing_dir=part_sprite16(part,ix,iy,phase,background);
-        else if (size==12) part_sprite_facing_dir=part_sprite12(part,ix,iy,phase,background);
-        else part_sprite_facing_dir=part_sprite(part,ix,iy,phase,background);
+        if (size == 16) begin
+            part_sprite_facing_dir = part_sprite16(part, ix, iy, phase, background);
+        end else if (size == 12) begin
+            part_sprite_facing_dir = part_sprite12(part, ix, iy, phase, background);
+        end else begin
+            part_sprite_facing_dir = part_sprite(part, ix, iy, phase, background);
+        end
     end
 endfunction
 
 function [15:0] part_sprite_mounted;
     input [2:0] part;
-    input signed [7:0] x, y;
+    input signed [7:0] x;
+    input signed [7:0] y;
     input integer size;
-    input facing_left, facing_down;
+    input facing_left;
+    input facing_down;
     input [8:0] frames;
     input [3:0] cell_idx;
     input phase;
     input [15:0] background;
-    reg signed [7:0] ix, iy, stem_x, post_y, base_y, fin_x;
-    reg has_above, has_below, has_left, has_right;
+    reg signed [7:0] ix;
+    reg signed [7:0] iy;
+    reg signed [7:0] stem_x;
+    reg signed [7:0] post_y;
+    reg signed [7:0] base_y;
+    reg signed [7:0] fin_x;
+    reg has_above;
+    reg has_below;
+    reg has_left;
+    reg has_right;
     // The tile is drawn relative to the metal it touches: a rocket's bracket turns
     // toward the frame beside it, and a fan's motor stem only shows against a frame
     // behind it. vehicle_builder never lets either point into a frame.
@@ -530,21 +628,24 @@ function [15:0] part_sprite_mounted;
                 // Nose up by default; facing_left turns the same tile nose down.
                 ix = facing_left ? y : (size - 1 - y);
                 iy = (has_left && !has_right) ? (size - 1 - x) : x;
-                if (!has_left && !has_right && (iy >= base_y || (iy >= post_y && ix < fin_x)))
+                if (!has_left && !has_right && (iy >= base_y || (iy >= post_y && ix < fin_x))) begin
                     ix = -8'sd1;
+                end
             end else begin
                 ix = facing_left ? (size - 1 - x) : x;
                 iy = (has_above && !has_below) ? (size - 1 - y) : y;
-                if (!has_below && !has_above && (iy >= base_y || (iy >= post_y && ix < fin_x)))
+                if (!has_below && !has_above && (iy >= base_y || (iy >= post_y && ix < fin_x))) begin
                     ix = -8'sd1;
+                end
             end
         end else if (part == `LP_PART_FAN) begin
             if (facing_down) begin
                 iy = size - 1 - x;
                 ix = facing_left ? (size - 1 - y) : y;
                 if (facing_left ? !has_below : !has_above) begin
-                    if (ix < stem_x - 1) ix = -8'sd1;
-                    else if (ix >= stem_x + 1 && ix < size - 2 && ((has_left && x < 2) || (has_right && x >= size - 2))) begin
+                    if (ix < stem_x - 1) begin
+                        ix = -8'sd1;
+                    end else if (ix >= stem_x + 1 && ix < size - 2 && ((has_left && x < 2) || (has_right && x >= size - 2))) begin
                         ix = (x == 0 || x == size - 1) ? 8'sd0 : 8'sd1;
                         iy = size >>> 1;
                     end
@@ -553,8 +654,9 @@ function [15:0] part_sprite_mounted;
                 ix = facing_left ? (size - 1 - x) : x;
                 iy = y;
                 if (facing_left ? !has_right : !has_left) begin
-                    if (ix < stem_x - 1) ix = -8'sd1;
-                    else if (ix >= stem_x + 1 && ix < size - 2 && ((has_below && y >= size - 2) || (has_above && y < 2))) begin
+                    if (ix < stem_x - 1) begin
+                        ix = -8'sd1;
+                    end else if (ix >= stem_x + 1 && ix < size - 2 && ((has_below && y >= size - 2) || (has_above && y < 2))) begin
                         ix = (y == 0 || y == size - 1) ? 8'sd0 : 8'sd1;
                         iy = size >>> 1;
                     end
@@ -563,9 +665,13 @@ function [15:0] part_sprite_mounted;
         end else if (part == `LP_PART_ENGINE && facing_left) begin
             ix = size - 1 - x;
         end
-        if (size == 16) part_sprite_mounted = part_sprite16(part, ix, iy, phase, background);
-        else if (size == 12) part_sprite_mounted = part_sprite12(part, ix, iy, phase, background);
-        else part_sprite_mounted = part_sprite(part, ix, iy, phase, background);
+        if (size == 16) begin
+            part_sprite_mounted = part_sprite16(part, ix, iy, phase, background);
+        end else if (size == 12) begin
+            part_sprite_mounted = part_sprite12(part, ix, iy, phase, background);
+        end else begin
+            part_sprite_mounted = part_sprite(part, ix, iy, phase, background);
+        end
     end
 endfunction
 
@@ -574,10 +680,12 @@ endfunction
 // and phase 3 the last fragments at the cell's edge. Phase 0 draws nothing.
 function [15:0] balloon_pop_sprite;
     input [1:0] phase;
-    input [3:0] cell_x, cell_y;
+    input [3:0] cell_x;
+    input [3:0] cell_y;
     input [4:0] size;
     input [15:0] background;
-    reg [4:0] centre_dx, centre_dy;
+    reg [4:0] centre_dx;
+    reg [4:0] centre_dy;
     reg [5:0] centre_distance;
     reg on_spoke;
     begin
@@ -590,15 +698,21 @@ function [15:0] balloon_pop_sprite;
         balloon_pop_sprite = background;
         case (phase)
             2'd1: begin
-                if (centre_distance < (size >> 1)) balloon_pop_sprite = 16'hffff;
-                else if (centre_distance < size) balloon_pop_sprite = 16'hf81f;
+                if (centre_distance < (size >> 1)) begin
+                    balloon_pop_sprite = 16'hffff;
+                end else if (centre_distance < size) begin
+                    balloon_pop_sprite = 16'hf81f;
+                end
             end
             2'd2: begin
-                if (on_spoke && centre_distance >= (size >> 1) && centre_distance < size + (size >> 1))
+                if (on_spoke && centre_distance >= (size >> 1) && centre_distance < size + (size >> 1)) begin
                     balloon_pop_sprite = centre_distance[1] ? 16'hfc7e : 16'hf81f;
+                end
             end
             2'd3: begin
-                if (on_spoke && centre_distance >= size + (size >> 2)) balloon_pop_sprite = 16'ha091;
+                if (on_spoke && centre_distance >= size + (size >> 2)) begin
+                    balloon_pop_sprite = 16'ha091;
+                end
             end
             default: ;
         endcase
@@ -607,9 +721,11 @@ endfunction
 
 function [15:0] part_sprite_facing;
     input [2:0] part;
-    input signed [7:0] x, y;
+    input signed [7:0] x;
+    input signed [7:0] y;
     input integer size;
-    input facing_left, phase;
+    input facing_left;
+    input phase;
     input [15:0] background;
     begin
         part_sprite_facing = part_sprite_facing_dir(part, x, y, size, facing_left, 1'b0, phase, background);

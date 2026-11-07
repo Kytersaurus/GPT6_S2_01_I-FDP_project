@@ -1,21 +1,28 @@
-// Owner: Role 2 - Kyle. Clocked signed force/mass division.
+// Clocked signed force/mass division.
 `timescale 1ns / 1ps
 
 // Pulse start only while busy is low. Inputs are captured on that edge.
 // A nonzero divisor takes 16 calculation clocks; done pulses for one clock.
 // Quotient truncates toward zero and remainder has the dividend's sign.
 module signed_divider16 (
-    input wire clk, reset, start,
+    input wire clk,
+    input wire reset,
+    input wire start,
     input wire signed [15:0] dividend,
     input wire [7:0] divisor,
-    output reg busy, done, divide_by_zero,
-    output reg signed [15:0] quotient, remainder
+    output reg busy,
+    output reg done,
+    output reg divide_by_zero,
+    output reg signed [15:0] quotient,
+    output reg signed [15:0] remainder
 );
     reg [15:0] quotient_work;
-    reg [7:0] remainder_work, divisor_work;
+    reg [7:0] remainder_work;
+    reg [7:0] divisor_work;
     reg result_negative;
     reg [4:0] bits_left;
-    wire [8:0] trial_remainder, next_remainder;
+    wire [8:0] trial_remainder;
+    wire [8:0] next_remainder;
     wire subtract_divisor;
     wire [15:0] next_quotient;
 
@@ -26,18 +33,27 @@ module signed_divider16 (
         ? trial_remainder - {1'b0, divisor_work} : trial_remainder;
     assign next_quotient = {quotient_work[14:0], subtract_divisor};
 
-    always @(posedge clk) begin
+    always @ (posedge clk) begin
         if (reset) begin
-            busy <= 0; done <= 0; divide_by_zero <= 0;
-            quotient <= 0; remainder <= 0;
-            quotient_work <= 0; remainder_work <= 0; divisor_work <= 0;
-            result_negative <= 0; bits_left <= 0;
+            busy <= 0;
+            done <= 0;
+            divide_by_zero <= 0;
+            quotient <= 0;
+            remainder <= 0;
+            quotient_work <= 0;
+            remainder_work <= 0;
+            divisor_work <= 0;
+            result_negative <= 0;
+            bits_left <= 0;
         end else begin
             done <= 0;
             if (start && !busy) begin
                 divide_by_zero <= (divisor == 0);
                 if (divisor == 0) begin
-                    quotient <= 0; remainder <= 0; busy <= 0; done <= 1;
+                    quotient <= 0;
+                    remainder <= 0;
+                    busy <= 0;
+                    done <= 1;
                 end else begin
                     quotient_work <= dividend[15]
                         ? (~dividend) + 16'd1 : dividend;

@@ -1,22 +1,29 @@
-// Owner: Role 1 - Kaushal. User-supplied drawing helper used by Role 4.
 `timescale 1ns / 1ps
 
 // User-supplied seven-segment number drawing helper.
-module seven_seg_oled(
-    input [6:0] x, y, pos_x, pos_y,
+module seven_seg_oled (
+    input [6:0] x,
+    input [6:0] y,
+    input [6:0] pos_x,
+    input [6:0] pos_y,
     input [3:0] number,
     input [6:0] line_thickness,
     input [6:0] height,
     input [6:0] width,
     output reg isDrawn = 0
-    );
-
+);
     wire in_bounds = (x >= pos_x) && (y >= pos_y);
     wire [6:0] rel_x = x - pos_x;
     wire [6:0] rel_y = y - pos_y;
     wire [6:0] half_height = height >> 1;
     wire [6:0] half_thick = line_thickness >> 1;
-    wire seg_A, seg_B, seg_C, seg_D, seg_E, seg_F, seg_G;
+    wire seg_A;
+    wire seg_B;
+    wire seg_C;
+    wire seg_D;
+    wire seg_E;
+    wire seg_F;
+    wire seg_G;
 
     assign seg_A = in_bounds && (rel_x >= 0 && rel_x < width) && (rel_y >= 0 && rel_y < line_thickness);
     assign seg_B = in_bounds && (rel_x >= (width-line_thickness) && rel_x < width) && (rel_y >= 0 && rel_y <= half_height);
@@ -27,8 +34,8 @@ module seven_seg_oled(
     assign seg_G = in_bounds && (rel_x >= 0 && rel_x < width) && (half_height >= half_thick) &&
                    (rel_y >= (half_height-half_thick) && rel_y <= (half_height+half_thick));
 
-    always @(*) begin
-        case(number)
+    always @ (*) begin
+        case (number)
             0: isDrawn = seg_A | seg_B | seg_C | seg_D | seg_E | seg_F;
             1: isDrawn = seg_B | seg_C;
             2: isDrawn = seg_A | seg_B | seg_D | seg_E | seg_G;

@@ -1,4 +1,3 @@
-// Owner: Role 1 - Kaushal. Adapted from the user's supplied debouncer.
 `timescale 1ns / 1ps
 
 // Based on the user's debouncer, including the optional stable-release check.
@@ -7,7 +6,8 @@
 module button_debouncer #(
     parameter integer RELEASE_CYCLES = 2000000
 ) (
-    input CLOCK, reset,
+    input CLOCK,
+    input reset,
     input btn,
     input [31:0] freq_count,
     output reg btn_pressed
@@ -17,7 +17,7 @@ module button_debouncer #(
     reg btn_sync_0 = 0;
     reg btn_sync_1 = 0;
 
-    always @(posedge CLOCK) begin
+    always @ (posedge CLOCK) begin
         if (reset) begin
             btn_sync_0 <= 0;
             btn_sync_1 <= 0;
@@ -27,7 +27,7 @@ module button_debouncer #(
         end
     end
 
-    always @(posedge CLOCK) begin
+    always @ (posedge CLOCK) begin
         btn_pressed <= 0;
         if (reset) begin
             count <= 0;

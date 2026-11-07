@@ -1,15 +1,18 @@
-// Owner: Role 1 - Kaushal. Queue balloon clicks until movement/world checks finish.
+// Queue balloon clicks until movement/world checks finish.
 `timescale 1ns / 1ps
 `include "game_defs.vh"
+
 module balloon_control (
-    input wire clk, reset,
+    input wire clk,
+    input wire reset,
     input wire [2:0] game_state,
     input wire pop_req,
     input wire [3:0] pop_cell,
     input wire [26:0] build_grid,
     input wire [8:0] intact_mask,
     input wire gameplay_ready,
-    output wire pop_pending, pop_valid,
+    output wire pop_pending,
+    output wire pop_valid,
     output wire [8:0] pop_mask
 );
     reg [8:0] pending_mask;
@@ -21,11 +24,14 @@ module balloon_control (
     assign pop_valid = (game_state == `LP_RUN) && gameplay_ready && pop_pending;
     assign pop_mask = pending_mask & intact_mask;
 
-    always @(posedge clk) begin
-        if (reset || game_state != `LP_RUN) pending_mask <= 0;
-        else begin
+    always @ (posedge clk) begin
+        if (reset || game_state != `LP_RUN) begin
+            pending_mask <= 0;
+        end else begin
             for (index = 0; index < 9; index = index + 1) begin
-                if (pop_valid) pending_mask[index] <= 0;
+                if (pop_valid) begin
+                    pending_mask[index] <= 0;
+                end
                 if (pop_req && pop_cell == index && intact_mask[index] &&
                     (build_grid[index*3 +: 3] == `LP_PART_BALLOON ||
                      build_grid[index*3 +: 3] == `LP_PART_FRAME) &&

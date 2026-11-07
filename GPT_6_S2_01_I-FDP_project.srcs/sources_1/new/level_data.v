@@ -1,6 +1,6 @@
-// Owner: Role 4 - Marcus. Shared map, spawn, goal, TNT and hazard data.
 `timescale 1ns / 1ps
 `include "game_defs.vh"
+
 // Level 1 (Cave Arch) and Level 2 (Cave Flight) are block-RAM maps in level_map;
 // map_level selects drawing from the ROM and map_id picks which map. The
 // playable tutorial deliberately uses the rectangle path, so it needs no new
@@ -8,7 +8,8 @@
 module level_data (
     input wire [`LP_LEVEL_BITS-1:0] level_index,
     // Signed Q12.8 spawn, preserved by physics and collision.
-    output reg signed [19:0] spawn_x, spawn_y,
+    output reg signed [19:0] spawn_x,
+    output reg signed [19:0] spawn_y,
     output reg [2:0] terrain_count,
     output reg [127:0] terrain_rects,
     output reg [31:0] goal_rect,
@@ -20,11 +21,14 @@ module level_data (
     // Drawing: world size for the camera, and the finish flag's top-left on map levels.
     output reg map_level,
     output reg map_id,
-    output reg [9:0] world_width, world_height,
-    output reg [9:0] flag_x, flag_y,
-    output reg [9:0] star_box_x, star_box_y
+    output reg [9:0] world_width,
+    output reg [9:0] world_height,
+    output reg [9:0] flag_x,
+    output reg [9:0] flag_y,
+    output reg [9:0] star_box_x,
+    output reg [9:0] star_box_y
 );
-    always @* begin
+    always @ (*) begin
         // Defaults: rectangle elements cleared; ordinary levels are map levels.
         terrain_count = 3'd0;
         terrain_rects = 128'd0;
@@ -52,7 +56,8 @@ module level_data (
                 world_height = `LP_MAP_WORLD_HEIGHT;
                 flag_x = 10'd600;
                 // Star box top-left: on the second arch's far-left bump.
-                star_box_x = 10'd170; star_box_y = 10'd391;
+                star_box_x = 10'd170;
+                star_box_y = 10'd391;
                 flag_y = 10'd472;   // 14-pixel pole ends on the road at y=486
                 // TNT {y, x} top-left in world pixels, resting on the floor:
                 //  0: on the start plateau 14 px behind the spawn (vehicle x=216..239), floor
@@ -78,7 +83,8 @@ module level_data (
                 world_height = `LP_FLIGHT_HEIGHT;
                 flag_x = 10'd769;
                 // Star box top-left: on the top deck of the middle ledge between the gaps.
-                star_box_x = 10'd541; star_box_y = 10'd103;
+                star_box_x = 10'd541;
+                star_box_y = 10'd103;
                 flag_y = 10'd50;    // 14-pixel pole ends on the ledge at y=64
                 // TNT {y, x} top-left in world pixels, resting on the floor:
                 //  0: in the ditch between the first hill and the climb into the cave, floor y=199.
@@ -131,4 +137,3 @@ module level_data (
         endcase
     end
 endmodule
-

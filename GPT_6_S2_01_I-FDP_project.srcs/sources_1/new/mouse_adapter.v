@@ -1,18 +1,29 @@
-// Owner: Role 1 - Kaushal. Mouse configuration, construction and gameplay clicks.
+// Mouse configuration, construction and gameplay clicks.
 `timescale 1ns / 1ps
 `include "game_defs.vh"
+
 module mouse_adapter (
-    input wire clk, reset, input_enabled,
+    input wire clk,
+    input wire reset,
+    input wire input_enabled,
     input wire [2:0] game_state,
     input wire [26:0] build_grid,
-    input wire [8:0] build_frames, build_facing_left,
+    input wire [8:0] build_frames,
+    input wire [8:0] build_facing_left,
     input wire [8:0] build_facing_down,
-    input wire [11:0] mouse_x, mouse_y,
-    input wire mouse_left, mouse_right, mouse_event,
+    input wire [11:0] mouse_x,
+    input wire [11:0] mouse_y,
+    input wire mouse_left,
+    input wire mouse_right,
+    input wire mouse_event,
     input tri0 [3:0] mouse_z,
     output reg [11:0] mouse_value,
-    output reg setx, sety, setmax_x, setmax_y,
-    output wire [6:0] cursor_x, cursor_y,
+    output reg setx,
+    output reg sety,
+    output reg setmax_x,
+    output reg setmax_y,
+    output wire [6:0] cursor_x,
+    output wire [6:0] cursor_y,
     output reg [2:0] selected_part,
     output reg selected_left,
     output reg selected_down,
@@ -47,8 +58,12 @@ module mouse_adapter (
     localparam SETUP_IDLE     = 2'd3;
 
     reg [1:0] setup_state;
-    reg left_was_down, right_was_down;
-    reg place_pending, inventory_armed, inv_cycle_pending, sync_edit_dir;
+    reg left_was_down;
+    reg right_was_down;
+    reg place_pending;
+    reg inventory_armed;
+    reg inv_cycle_pending;
+    reg sync_edit_dir;
     assign drag_active = place_pending && game_state == `LP_BUILD && input_enabled;
 
     wire [6:0] clamped_x = (mouse_x >= 12'd95) ? 7'd95 : mouse_x[6:0];
@@ -78,10 +93,12 @@ module mouse_adapter (
     wire [1:0] hovered_row = building ? build_row : run_row_big;
     reg [3:0] hovered_cell;
     reg [2:0] hovered_part;
-    reg hovered_frame, hovered_facing_left, hovered_facing_down;
+    reg hovered_frame;
+    reg hovered_facing_left;
+    reg hovered_facing_down;
 
     // Explicit cases keep cell decoding and part lookup short and predictable.
-    always @* begin
+    always @ (*) begin
         case ({hovered_row, hovered_col})
             4'b0000: hovered_cell = 0;
             4'b0001: hovered_cell = 1;
@@ -100,15 +117,60 @@ module mouse_adapter (
         hovered_facing_left = 0;
         hovered_facing_down = 0;
         case (hovered_cell)
-            0: begin hovered_part=build_grid[2:0];   hovered_frame=build_frames[0]; hovered_facing_left=build_facing_left[0]; hovered_facing_down=build_facing_down[0]; end
-            1: begin hovered_part=build_grid[5:3];   hovered_frame=build_frames[1]; hovered_facing_left=build_facing_left[1]; hovered_facing_down=build_facing_down[1]; end
-            2: begin hovered_part=build_grid[8:6];   hovered_frame=build_frames[2]; hovered_facing_left=build_facing_left[2]; hovered_facing_down=build_facing_down[2]; end
-            3: begin hovered_part=build_grid[11:9];  hovered_frame=build_frames[3]; hovered_facing_left=build_facing_left[3]; hovered_facing_down=build_facing_down[3]; end
-            4: begin hovered_part=build_grid[14:12]; hovered_frame=build_frames[4]; hovered_facing_left=build_facing_left[4]; hovered_facing_down=build_facing_down[4]; end
-            5: begin hovered_part=build_grid[17:15]; hovered_frame=build_frames[5]; hovered_facing_left=build_facing_left[5]; hovered_facing_down=build_facing_down[5]; end
-            6: begin hovered_part=build_grid[20:18]; hovered_frame=build_frames[6]; hovered_facing_left=build_facing_left[6]; hovered_facing_down=build_facing_down[6]; end
-            7: begin hovered_part=build_grid[23:21]; hovered_frame=build_frames[7]; hovered_facing_left=build_facing_left[7]; hovered_facing_down=build_facing_down[7]; end
-            8: begin hovered_part=build_grid[26:24]; hovered_frame=build_frames[8]; hovered_facing_left=build_facing_left[8]; hovered_facing_down=build_facing_down[8]; end
+            0: begin
+                hovered_part = build_grid[2:0];
+                hovered_frame = build_frames[0];
+                hovered_facing_left = build_facing_left[0];
+                hovered_facing_down = build_facing_down[0];
+            end
+            1: begin
+                hovered_part = build_grid[5:3];
+                hovered_frame = build_frames[1];
+                hovered_facing_left = build_facing_left[1];
+                hovered_facing_down = build_facing_down[1];
+            end
+            2: begin
+                hovered_part = build_grid[8:6];
+                hovered_frame = build_frames[2];
+                hovered_facing_left = build_facing_left[2];
+                hovered_facing_down = build_facing_down[2];
+            end
+            3: begin
+                hovered_part = build_grid[11:9];
+                hovered_frame = build_frames[3];
+                hovered_facing_left = build_facing_left[3];
+                hovered_facing_down = build_facing_down[3];
+            end
+            4: begin
+                hovered_part = build_grid[14:12];
+                hovered_frame = build_frames[4];
+                hovered_facing_left = build_facing_left[4];
+                hovered_facing_down = build_facing_down[4];
+            end
+            5: begin
+                hovered_part = build_grid[17:15];
+                hovered_frame = build_frames[5];
+                hovered_facing_left = build_facing_left[5];
+                hovered_facing_down = build_facing_down[5];
+            end
+            6: begin
+                hovered_part = build_grid[20:18];
+                hovered_frame = build_frames[6];
+                hovered_facing_left = build_facing_left[6];
+                hovered_facing_down = build_facing_down[6];
+            end
+            7: begin
+                hovered_part = build_grid[23:21];
+                hovered_frame = build_frames[7];
+                hovered_facing_left = build_facing_left[7];
+                hovered_facing_down = build_facing_down[7];
+            end
+            8: begin
+                hovered_part = build_grid[26:24];
+                hovered_frame = build_frames[8];
+                hovered_facing_left = build_facing_left[8];
+                hovered_facing_down = build_facing_down[8];
+            end
             default: begin end
         endcase
     end
@@ -122,21 +184,31 @@ module mouse_adapter (
     wire [1:0] next_inventory_rocket = {rocket_facing_down, rocket_facing_left} + 2'd1;
     wire [1:0] next_inventory_fan = {fan_facing_down, fan_facing_left} + 2'd1;
 
-    always @* begin
+    always @ (*) begin
         mouse_value = 12'd0;
         setx = 1'b0;
         sety = 1'b0;
         setmax_x = 1'b0;
         setmax_y = 1'b0;
         case (setup_state)
-            SETUP_SETMAX_X: begin mouse_value = 12'd95; setmax_x = 1'b1; end
-            SETUP_SETMAX_Y: begin mouse_value = 12'd63; setmax_y = 1'b1; end
-            SETUP_SET_XY:   begin mouse_value = 12'd24; setx = 1'b1; sety = 1'b1; end
+            SETUP_SETMAX_X: begin
+                mouse_value = 12'd95;
+                setmax_x = 1'b1;
+            end
+            SETUP_SETMAX_Y: begin
+                mouse_value = 12'd63;
+                setmax_y = 1'b1;
+            end
+            SETUP_SET_XY: begin
+                mouse_value = 12'd24;
+                setx = 1'b1;
+                sety = 1'b1;
+            end
             default: begin end
         endcase
     end
 
-    always @(posedge clk) begin
+    always @ (posedge clk) begin
         if (reset) begin
             has_moved <= 1'b0;
             setup_state <= SETUP_SETMAX_X;
@@ -184,9 +256,17 @@ module mouse_adapter (
                 selected_left <= build_facing_left[edit_cell];
                 selected_down <= (edit_part == `LP_PART_FRAME) ? 1'b1 : build_facing_down[edit_cell];
                 case (edit_part)
-                    `LP_PART_ENGINE:  begin engine_facing_left <= build_facing_left[edit_cell]; end
-                    `LP_PART_BOOSTER: begin rocket_facing_left <= build_facing_left[edit_cell]; rocket_facing_down <= build_facing_down[edit_cell]; end
-                    `LP_PART_FAN:     begin fan_facing_left    <= build_facing_left[edit_cell]; fan_facing_down    <= build_facing_down[edit_cell]; end
+                    `LP_PART_ENGINE: begin
+                        engine_facing_left <= build_facing_left[edit_cell];
+                    end
+                    `LP_PART_BOOSTER: begin
+                        rocket_facing_left <= build_facing_left[edit_cell];
+                        rocket_facing_down <= build_facing_down[edit_cell];
+                    end
+                    `LP_PART_FAN: begin
+                        fan_facing_left <= build_facing_left[edit_cell];
+                        fan_facing_down <= build_facing_down[edit_cell];
+                    end
                     default: begin end
                 endcase
             end
@@ -208,60 +288,73 @@ module mouse_adapter (
 
             // Leaving construction cancels a drag, even if no mouse packet arrives.
             if (game_state != `LP_BUILD || !input_enabled) begin
-                place_pending <= 0; inventory_armed <= 0; inv_cycle_pending <= 0; drag_from_grid <= 0;
+                place_pending <= 0;
+                inventory_armed <= 0;
+                inv_cycle_pending <= 0;
+                drag_from_grid <= 0;
             end
 
             if (mouse_event) begin
                 has_moved <= 1'b1;
-                left_was_down <= mouse_left; right_was_down <= mouse_right;
+                left_was_down <= mouse_left;
+                right_was_down <= mouse_right;
                 if (game_state == `LP_BUILD && input_enabled) begin
                     if (mouse_right) begin
                         // Right-click cancels placement and removes only once per press.
-                        place_pending <= 0; inventory_armed <= 0; inv_cycle_pending <= 0; drag_from_grid <= 0;
+                        place_pending <= 0;
+                        inventory_armed <= 0;
+                        inv_cycle_pending <= 0;
+                        drag_from_grid <= 0;
                         if (!right_was_down && in_grid && !place_pending) begin
-                            edit_valid <= 1; edit_op <= `LP_EDIT_REMOVE;
+                            edit_valid <= 1;
+                            edit_op <= `LP_EDIT_REMOVE;
                             edit_cell <= hovered_cell;
                             edit_part <= `LP_PART_EMPTY;
                         end
                     end else if (mouse_left && !left_was_down) begin
                         // Start a placement in the inventory or grid; wait for release.
                         place_pending <= in_inventory || in_grid;
-                        drag_from_grid <= 0; drag_source <= 9; drag_contents <= 0;
+                        drag_from_grid <= 0;
+                        drag_source <= 9;
+                        drag_contents <= 0;
                         inv_cycle_pending <= 0;
                         // Select only on the initial press, not while dragging past rows.
                         // Do not cycle direction on press so dragging from inventory never glitches.
                         if (in_inventory) begin
                             inventory_armed <= 1;
                             // Both pages use uniform 10-pixel rows (Row 0: y=4..13, Row 1: y=14..23, etc.).
-                            if (inventory_page!=0) begin
-                                if (cur_y<14) begin
+                            if (inventory_page != 0) begin
+                                if (cur_y < 14) begin
                                     inv_cycle_pending <= (selected_part == `LP_PART_BOOSTER);
                                     selected_part <= `LP_PART_BOOSTER;
                                     selected_left <= rocket_facing_left;
                                     selected_down <= rocket_facing_down;
-                                end else if (cur_y<24) begin
+                                end else if (cur_y < 24) begin
                                     inv_cycle_pending <= (selected_part == `LP_PART_FAN);
                                     selected_part <= `LP_PART_FAN;
                                     selected_left <= fan_facing_left;
                                     selected_down <= fan_facing_down;
-                                end else if (cur_y<34) begin
+                                end else if (cur_y < 34) begin
                                     selected_part <= `LP_PART_FRAME;
                                     selected_left <= 0;
                                     selected_down <= 1'b1;
-                                end else begin place_pending<=0; inventory_armed<=0; end
-                            end else if (cur_y<14) begin
+                                end else begin
+                                    place_pending <= 0;
+                                    inventory_armed <= 0;
+                                end
+                            end else if (cur_y < 14) begin
                                 selected_part <= `LP_PART_FRAME;
                                 selected_left <= 0;
                                 selected_down <= 0;
-                            end else if (cur_y<24) begin
+                            end else if (cur_y < 24) begin
                                 selected_part <= `LP_PART_PIG;
                                 selected_left <= 0;
                                 selected_down <= 0;
-                            end else if (cur_y<34) begin
+                            end else if (cur_y < 34) begin
                                 selected_part <= `LP_PART_WHEEL;
                                 selected_left <= 0;
                                 selected_down <= 0;
-                            end else if (cur_y<44) begin
+                            end else if (cur_y < 44) begin
                                 inv_cycle_pending <= (selected_part == `LP_PART_ENGINE);
                                 selected_part <= `LP_PART_ENGINE;
                                 selected_left <= engine_facing_left;
@@ -274,15 +367,24 @@ module mouse_adapter (
                         end else if (in_grid && !inventory_armed &&
                                      (hovered_frame || hovered_part != `LP_PART_EMPTY)) begin
                             // Existing parts are only transferred when a valid drop is accepted.
-                            drag_from_grid <= 1; drag_source <= hovered_cell;
+                            drag_from_grid <= 1;
+                            drag_source <= hovered_cell;
                             if (hovered_part != `LP_PART_EMPTY) begin
                                 selected_part <= hovered_part;
                                 selected_left <= hovered_facing_left;
                                 selected_down <= (hovered_part == `LP_PART_FRAME) ? 1'b1 : hovered_facing_down;
                                 case (hovered_part)
-                                    `LP_PART_ENGINE:  begin engine_facing_left <= hovered_facing_left; end
-                                    `LP_PART_BOOSTER: begin rocket_facing_left <= hovered_facing_left; rocket_facing_down <= hovered_facing_down; end
-                                    `LP_PART_FAN:     begin fan_facing_left    <= hovered_facing_left; fan_facing_down <= hovered_facing_down; end
+                                    `LP_PART_ENGINE: begin
+                                        engine_facing_left <= hovered_facing_left;
+                                    end
+                                    `LP_PART_BOOSTER: begin
+                                        rocket_facing_left <= hovered_facing_left;
+                                        rocket_facing_down <= hovered_facing_down;
+                                    end
+                                    `LP_PART_FAN: begin
+                                        fan_facing_left <= hovered_facing_left;
+                                        fan_facing_down <= hovered_facing_down;
+                                    end
                                     default: begin end
                                 endcase
                             end else begin
@@ -295,7 +397,9 @@ module mouse_adapter (
                         place_pending <= 0;
                         drag_from_grid <= 0;
                         inv_cycle_pending <= 0;
-                        if (place_pending) inventory_armed <= in_inventory && !drag_from_grid;
+                        if (place_pending) begin
+                            inventory_armed <= in_inventory && !drag_from_grid;
+                        end
                         edit_facing_left <= selected_left;
                         edit_facing_down <= selected_down;
                         // Cycle inventory facing only on release inside the inventory (click without drag).
@@ -311,16 +415,23 @@ module mouse_adapter (
                                 selected_left <= !engine_facing_left;
                             end
                         end else if (place_pending && drag_from_grid && in_inventory) begin
-                            edit_valid <= 1; edit_op <= `LP_EDIT_RETURN;
-                            edit_source <= drag_source; edit_cell <= drag_source; edit_part <= selected_part;
-                        end else if (place_pending && drag_from_grid && in_grid && hovered_cell==drag_source &&
-                                     (selected_part==`LP_PART_ENGINE || selected_part==`LP_PART_BOOSTER ||
-                                      selected_part==`LP_PART_FAN)) begin
-                            edit_valid <= 1; edit_op <= `LP_EDIT_PLACE; edit_cell <= drag_source;
+                            edit_valid <= 1;
+                            edit_op <= `LP_EDIT_RETURN;
+                            edit_source <= drag_source;
+                            edit_cell <= drag_source;
+                            edit_part <= selected_part;
+                        end else if (place_pending && drag_from_grid && in_grid && hovered_cell == drag_source &&
+                                     (selected_part == `LP_PART_ENGINE || selected_part == `LP_PART_BOOSTER ||
+                                      selected_part == `LP_PART_FAN)) begin
+                            edit_valid <= 1;
+                            edit_op <= `LP_EDIT_PLACE;
+                            edit_cell <= drag_source;
                             edit_part <= selected_part;
                             if (selected_part == `LP_PART_ENGINE) begin
-                                edit_facing_left <= !selected_left; edit_facing_down <= 0;
-                                selected_left <= !selected_left;    selected_down <= 0;
+                                edit_facing_left <= !selected_left;
+                                edit_facing_down <= 0;
+                                selected_left <= !selected_left;
+                                selected_down <= 0;
                                 engine_facing_left <= !selected_left;
                             end else if (selected_part == `LP_PART_BOOSTER) begin
                                 {edit_facing_down, edit_facing_left} <= next_rocket_direction;
@@ -332,10 +443,13 @@ module mouse_adapter (
                                 {fan_facing_down, fan_facing_left} <= next_fan_direction;
                             end
                         end else if (place_pending && in_grid && (!drag_from_grid || hovered_cell != drag_source)) begin
-                            edit_valid <= 1; edit_op <= `LP_EDIT_PLACE;
+                            edit_valid <= 1;
+                            edit_op <= `LP_EDIT_PLACE;
                             edit_cell <= hovered_cell;
                             edit_source <= drag_source;
-                            if (drag_from_grid) edit_op <= `LP_EDIT_MOVE;
+                            if (drag_from_grid) begin
+                                edit_op <= `LP_EDIT_MOVE;
+                            end
                             edit_part <= selected_part;
                         end
                     end
@@ -344,7 +458,8 @@ module mouse_adapter (
                     // Gameplay uses one fresh press, rather than construction's drop.
                     if (in_grid) begin
                         if (hovered_part == `LP_PART_BALLOON || hovered_part == `LP_PART_FRAME) begin
-                            pop_req <= 1; pop_cell <= hovered_cell;
+                            pop_req <= 1;
+                            pop_cell <= hovered_cell;
                         end else if (hovered_part == `LP_PART_ENGINE) begin
                             engine_toggle_req <= 1;
                         end else if (hovered_part == `LP_PART_FAN) begin

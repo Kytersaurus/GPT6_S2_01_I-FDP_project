@@ -1,13 +1,18 @@
-// Owner: Role 1 - Kaushal. Looping background music:
+// Looping background music:
 // - BUILD mode: The Entertainer, Scott Joplin (1902), extended melody (peak volume 4).
 // - RUN mode: Bad Piggies main-theme opening, single voice, one octave lower.
 // Melody reference: JarzaClay/wild-west-midi, Bad Piggies Theme.mid (track 0).
 `timescale 1ns / 1ps
+
 module bgm_player #(
     parameter integer UNIT_CYCLES = 15625000, // Sixteenth note at 96 beats/minute.
     parameter integer FADE_CYCLES = 50000
 ) (
-    input wire clk, reset, enabled, pause, fast,
+    input wire clk,
+    input wire reset,
+    input wire enabled,
+    input wire pause,
+    input wire fast,
     input wire [1:0] bgm_mode,
     // 0: BUILD (The Entertainer), 1: RUN (Bad Piggies Fast), 2: TITLE (Start Screen)
     input wire [2:0] master_volume,
@@ -15,7 +20,9 @@ module bgm_player #(
 );
     reg [8:0] note_index;
     reg [3:0] unit_index;
-    reg [31:0] note_count, tone_count, fade_count;
+    reg [31:0] note_count;
+    reg [31:0] tone_count;
+    reg [31:0] fade_count;
     reg tone_high;
     reg [2:0] volume;
     reg [31:0] half_cycles;
@@ -57,47 +64,73 @@ module bgm_player #(
     reg [19:0] bass_half_cycles;
     wire [19:0] effective_bass_half = (effective_mode == 2'b01) ? (bass_half_cycles >> 1) : bass_half_cycles;
     reg [19:0] bass_limit;
+
     // Pitch changes occur at a new even song_unit, where bass_count is reset.
     // Cache the limit during that reset clock, before counting the new note.
-    always @(posedge clk) begin
-        if (reset) bass_limit<=0;
-        else bass_limit<=effective_bass_half-20'd1;
+    always @ (posedge clk) begin
+        if (reset) begin
+            bass_limit <= 0;
+        end else begin
+            bass_limit <= effective_bass_half - 20'd1;
+        end
     end
-    wire [1:0] bass_max = master_volume<2 ? 0 : master_volume==4 ? 2 : 1;
+
+    wire [1:0] bass_max = master_volume < 2 ? 0 : master_volume == 4 ? 2 : 1;
     wire music_enabled = enabled && !pause && !reset;
     wire signed [3:0] melody_sample = !playing ? 4'sd0 :
-                          tone_high ? $signed({1'b0, volume}) : -$signed({1'b0, volume});
+                                      tone_high ? $signed({1'b0, volume}) : -$signed({1'b0, volume});
     wire signed [3:0] bass_sample = !music_enabled ? 4'sd0 :
-                          bass_high ? $signed({2'b0,bass_volume}) : -$signed({2'b0,bass_volume});
+                                    bass_high ? $signed({2'b0, bass_volume}) : -$signed({2'b0, bass_volume});
     assign audio_sample = melody_sample + bass_sample;
 
     // A bass note spans two sixteenth-note units and follows the song's beat.
     // Pause freezes both voices together; each note has a short attack/release.
-    always @(posedge clk) begin
-        if (reset || !enabled || effective_mode!=last_mode || fast!=last_fast) begin
-            song_unit<=0; bass_count<=0; bass_fade_count<=0; bass_high<=0; bass_volume<=0;
-        end else if (pause) begin bass_volume<=0; bass_fade_count<=0; end
-        else begin
-            if (note_count>=unit_last)
-                song_unit<=note_finished && note_index>=loop_limit ? 0 : song_unit+1'b1;
-            if (note_count==0 && !song_unit[0]) begin
-                bass_count<=0; bass_high<=0; bass_volume<=0; bass_fade_count<=0;
+    always @ (posedge clk) begin
+        if (reset || !enabled || effective_mode != last_mode || fast != last_fast) begin
+            song_unit <= 0;
+            bass_count <= 0;
+            bass_fade_count <= 0;
+            bass_high <= 0;
+            bass_volume <= 0;
+        end else if (pause) begin
+            bass_volume <= 0;
+            bass_fade_count <= 0;
+        end else begin
+            if (note_count >= unit_last) begin
+                song_unit <= note_finished && note_index >= loop_limit ? 0 : song_unit + 1'b1;
+            end
+            if (note_count == 0 && !song_unit[0]) begin
+                bass_count <= 0;
+                bass_high <= 0;
+                bass_volume <= 0;
+                bass_fade_count <= 0;
             end else begin
-                if (bass_count>=bass_limit) begin bass_count<=0; bass_high<=!bass_high; end
-                else bass_count<=bass_count+1'b1;
-                if (bass_fade_count==FADE_CYCLES-1) begin
-                    bass_fade_count<=0;
-                    if (song_unit[0] && note_count>=fade_start) begin
-                        if (bass_volume!=0) bass_volume<=bass_volume-1'b1;
-                    end else if (bass_volume<bass_max) bass_volume<=bass_volume+1'b1;
-                    else if (bass_volume>bass_max) bass_volume<=bass_volume-1'b1;
-                end else bass_fade_count<=bass_fade_count+1'b1;
+                if (bass_count >= bass_limit) begin
+                    bass_count <= 0;
+                    bass_high <= !bass_high;
+                end else begin
+                    bass_count <= bass_count + 1'b1;
+                end
+                if (bass_fade_count == FADE_CYCLES-1) begin
+                    bass_fade_count <= 0;
+                    if (song_unit[0] && note_count >= fade_start) begin
+                        if (bass_volume != 0) begin
+                            bass_volume <= bass_volume - 1'b1;
+                        end
+                    end else if (bass_volume < bass_max) begin
+                        bass_volume <= bass_volume + 1'b1;
+                    end else if (bass_volume > bass_max) begin
+                        bass_volume <= bass_volume - 1'b1;
+                    end
+                end else begin
+                    bass_fade_count <= bass_fade_count + 1'b1;
+                end
             end
         end
     end
 
-    always @* begin
-        bass_half_cycles=382226; // C3
+    always @ (*) begin
+        bass_half_cycles = 382226; // C3
         if (is_title) begin
             case (song_unit[4:1])
                 0, 2, 4, 6: bass_half_cycles = 382226; // C3
@@ -136,39 +169,58 @@ module bgm_player #(
                 242, 246: bass_half_cycles = 642824;
                 30, 62, 94, 174, 206, 238: bass_half_cycles = 681049;
                 74, 78, 106, 110, 218, 222, 250, 254: bass_half_cycles = 764451;
-                default: bass_half_cycles=382226;
+                default: bass_half_cycles = 382226;
             endcase
         end else begin
             // Simple C/F/G stride accompaniment for the BUILD arrangement.
             case (song_unit[5:4])
-                0,3: bass_half_cycles=song_unit[2] ? 510204 : 382226; // G2 / C3
-                1: bass_half_cycles=song_unit[2] ? 382226 : 286345;   // C3 / F3
-                2: bass_half_cycles=song_unit[2] ? 340524 : 510204;   // D3 / G2
+                0, 3: bass_half_cycles = song_unit[2] ? 510204 : 382226; // G2 / C3
+                1:    bass_half_cycles = song_unit[2] ? 382226 : 286345; // C3 / F3
+                2:    bass_half_cycles = song_unit[2] ? 340524 : 510204; // D3 / G2
             endcase
         end
     end
 
     // Pitch constants (100MHz / (2 * freq))
-    localparam B3  = 202470,
-               C4  = 191113, CS4 = 180387, D4  = 170262, DS4 = 160706,
-               E4  = 151686, F4  = 143173, FS4 = 135135, G4  = 127551,
-               GS4 = 120395, A4  = 113636, AS4 = 107259, B4  = 101235,
-               C5  = 95556,  CS5 = 90193,  D5  = 85131,  DS5 = 80353,
-               E5  = 75843,  F5  = 71586,  FS5 = 67568,  G5  = 63776,
-               GS5 = 60197,  A5  = 56818,  AS5 = 53629,  B5  = 50618,
-               C6  = 47778;
+    localparam B3  = 202470;
+    localparam C4  = 191113;
+    localparam CS4 = 180387;
+    localparam D4  = 170262;
+    localparam DS4 = 160706;
+    localparam E4  = 151686;
+    localparam F4  = 143173;
+    localparam FS4 = 135135;
+    localparam G4  = 127551;
+    localparam GS4 = 120395;
+    localparam A4  = 113636;
+    localparam AS4 = 107259;
+    localparam B4  = 101235;
+    localparam C5  = 95556;
+    localparam CS5 = 90193;
+    localparam D5  = 85131;
+    localparam DS5 = 80353;
+    localparam E5  = 75843;
+    localparam F5  = 71586;
+    localparam FS5 = 67568;
+    localparam G5  = 63776;
+    localparam GS5 = 60197;
+    localparam A5  = 56818;
+    localparam AS5 = 53629;
+    localparam B5  = 50618;
+    localparam C6  = 47778;
 
-    localparam A3 = 227273;
+    localparam A3  = 227273;
     localparam AS3 = 214517;
-    localparam C3 = 382226;
-    localparam D3 = 340524;
+    localparam C3  = 382226;
+    localparam D3  = 340524;
     localparam DS3 = 321412;
-    localparam F3 = 286346;
-    localparam G3 = 255105;
+    localparam F3  = 286346;
+    localparam G3  = 255105;
     localparam GS3 = 240787;
 
-    always @* begin
-        half_cycles = C5; units = 1;
+    always @ (*) begin
+        half_cycles = C5;
+        units = 1;
         if (is_title) begin
             // TITLE MODE: Bad Piggies Title Fanfare
             case (note_index)
@@ -592,36 +644,66 @@ module bgm_player #(
         end
     end
 
-
-
-    always @(posedge clk) begin
+    always @ (posedge clk) begin
         if (reset || !enabled) begin
-            note_index <= 0; unit_index <= 0; note_count <= 0; tone_count <= 0;
-            fade_count <= 0; tone_high <= 0; volume <= 0; last_fast <= fast; last_mode <= effective_mode;
+            note_index <= 0;
+            unit_index <= 0;
+            note_count <= 0;
+            tone_count <= 0;
+            fade_count <= 0;
+            tone_high <= 0;
+            volume <= 0;
+            last_fast <= fast;
+            last_mode <= effective_mode;
         end else if (effective_mode != last_mode || fast != last_fast) begin
             // Mode switch between BUILD, RUN and TITLE starts the new song from note 0
             last_mode <= effective_mode;
             last_fast <= fast;
-            note_index <= 0; unit_index <= 0; note_count <= 0; tone_count <= 0;
-            fade_count <= 0; tone_high <= 0; volume <= 0;
+            note_index <= 0;
+            unit_index <= 0;
+            note_count <= 0;
+            tone_count <= 0;
+            fade_count <= 0;
+            tone_high <= 0;
+            volume <= 0;
         end else if (pause) begin
-            volume <= 0; fade_count <= 0;
+            volume <= 0;
+            fade_count <= 0;
         end else if (note_finished) begin
             note_index <= (note_index >= loop_limit) ? loop_start : note_index + 1'b1;
-            unit_index <= 0; note_count <= 0; tone_count <= 0; fade_count <= 0;
-            tone_high <= 0; volume <= 0;
+            unit_index <= 0;
+            note_count <= 0;
+            tone_count <= 0;
+            fade_count <= 0;
+            tone_high <= 0;
+            volume <= 0;
         end else begin
-            if (note_count >= unit_last) begin note_count <= 0; unit_index <= unit_index + 1'b1; end
-            else note_count <= note_count + 1'b1;
-            if (tone_count == half_cycles-1) begin tone_count <= 0; tone_high <= !tone_high; end
-            else tone_count <= tone_count + 1'b1;
+            if (note_count >= unit_last) begin
+                note_count <= 0;
+                unit_index <= unit_index + 1'b1;
+            end else begin
+                note_count <= note_count + 1'b1;
+            end
+            if (tone_count == half_cycles-1) begin
+                tone_count <= 0;
+                tone_high <= !tone_high;
+            end else begin
+                tone_count <= tone_count + 1'b1;
+            end
             if (fade_count == FADE_CYCLES-1) begin
                 fade_count <= 0;
                 if (last_unit && note_count >= fade_start) begin
-                    if (volume != 0) volume <= volume - 1'b1;
-                end else if (volume < max_volume) volume <= volume + 1'b1;
-                else if (volume > max_volume) volume <= volume - 1'b1;
-            end else fade_count <= fade_count + 1'b1;
+                    if (volume != 0) begin
+                        volume <= volume - 1'b1;
+                    end
+                end else if (volume < max_volume) begin
+                    volume <= volume + 1'b1;
+                end else if (volume > max_volume) begin
+                    volume <= volume - 1'b1;
+                end
+            end else begin
+                fade_count <= fade_count + 1'b1;
+            end
         end
     end
 endmodule

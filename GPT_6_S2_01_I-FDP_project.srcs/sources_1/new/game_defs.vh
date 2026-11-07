@@ -1,4 +1,3 @@
-// Owner: Shared - all roles agree changes to these constants.
 `ifndef LAGGY_PIGGIES_GAME_DEFS_VH
 `define LAGGY_PIGGIES_GAME_DEFS_VH
 
@@ -67,7 +66,7 @@
 `define LP_SOUND_SUCCESS    3'd5
 `define LP_SOUND_FAILURE    3'd6
 
-// Collision impact directions.  A response may report more than one flag for
+// Collision impact directions. A response may report more than one flag for
 // a corner contact, so the top level can damage both contacting edges.
 `define LP_IMPACT_FLOOR     4'b0001
 `define LP_IMPACT_CEILING   4'b0010
@@ -78,11 +77,11 @@
 `define LP_LEVEL_COUNT   2
 `define LP_LEVEL_ARCH    2'd0
 `define LP_LEVEL_FLIGHT  2'd1
-// Play from the title enters this short guided course.  It reuses the
+// Play from the title enters this short guided course. It reuses the
 // Cave Arch map ROM, so it is not counted as an additional BRAM map.
 `define LP_LEVEL_TUTORIAL 2'd2
 `define LP_LEVEL_BITS    2
-// Tutorial rectangle course, in world pixels.  level_data packs these into
+// Tutorial rectangle course, in world pixels. level_data packs these into
 // terrain_rects for drawing and the top level decodes the same values for the
 // collision query, so the drawn course and the solid course cannot drift.
 // The collision floor also extends past both world edges.
@@ -149,7 +148,7 @@
 `define LP_LEVEL_BUTTON_W 16
 `define LP_LEVEL_BUTTON_H 9
 
-// Why the last run failed; checked in this priority order.  LP_FAIL_PIG is
+// Why the last run failed; checked in this priority order. LP_FAIL_PIG is
 // retained for display/backward compatibility, but the game never generates
 // it: the pig is protected from runtime damage in Bad Piggies mode.
 `define LP_FAIL_NONE     2'd0

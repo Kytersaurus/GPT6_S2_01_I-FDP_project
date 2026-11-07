@@ -1,6 +1,6 @@
-// Owner: Role 4 - Marcus. Game states, level selection and update sequencing.
 `timescale 1ns / 1ps
 `include "game_defs.vh"
+
 // BUILD -> INIT_RUN -> RUN -> SUCCESS/FAIL -> retry (INIT_RUN) or edit (BUILD).
 // Edit after SUCCESS moves to the next level; edit after FAIL keeps the level.
 // Level selection is available before launch; geometry stays frozen for a whole run.
@@ -9,16 +9,31 @@ module game_controller #(
     parameter integer ENABLE_START_SCREEN = 0
 ) (
     input tri0 home_req,
-    input wire clk, reset, launch_req, retry_req, edit_req, guide_open_req, guide_close_req,
-    input wire level_next_req, level_open_req, level_close_req, level_select_req, end_try_req,
+    input wire clk,
+    input wire reset,
+    input wire launch_req,
+    input wire retry_req,
+    input wire edit_req,
+    input wire guide_open_req,
+    input wire guide_close_req,
+    input wire level_next_req,
+    input wire level_open_req,
+    input wire level_close_req,
+    input wire level_select_req,
+    input wire end_try_req,
     input wire [`LP_LEVEL_BITS-1:0] selected_level,
-    input wire build_valid, pig_alive,
+    input wire build_valid,
+    input wire pig_alive,
     input wire [2:0] init_ready,
-    input wire physics_tick, world_valid,
+    input wire physics_tick,
+    input wire world_valid,
     output wire world_ready,
     input wire gameplay_pending,
     output wire gameplay_ready,
-    input wire goal_hit, hazard_hit, out_of_bounds, star_box_hit,
+    input wire goal_hit,
+    input wire hazard_hit,
+    input wire out_of_bounds,
+    input wire star_box_hit,
     input tri0 tutorial_bounds_grace,
     output reg star_box_collected,
     input wire enable_start_screen,
@@ -30,7 +45,11 @@ module game_controller #(
     output reg [1:0] fail_reason,
     output reg [7:0] run_seconds,
     output wire run_init,
-    output reg step_start, update_release, launch_event, success_event, failure_event
+    output reg step_start,
+    output reg update_release,
+    output reg launch_event,
+    output reg success_event,
+    output reg failure_event
 );
     reg step_busy;
     reg settings_pending;
@@ -39,32 +58,57 @@ module game_controller #(
     reg [2:0] settings_return_state;
     reg [2:0] map_return_state;
     reg map_from_start;
+
     // The tutorial is reached only from the title screen and is not part of
-    // the normal two-map cycle.  Completing it starts the first real map.
+    // the normal two-map cycle. Completing it starts the first real map.
     wire [`LP_LEVEL_BITS-1:0] next_level =
         (level_index == `LP_LEVEL_ARCH) ? `LP_LEVEL_FLIGHT : `LP_LEVEL_ARCH;
     assign run_init = (game_state == `LP_INIT_RUN);
     assign world_ready = (game_state == `LP_RUN) && step_busy;
     assign gameplay_ready = (game_state == `LP_RUN) && !step_busy;
-    always @(posedge clk) begin
+
+    always @ (posedge clk) begin
         if (reset) begin
-            game_state <= `LP_BUILD; guide_return_state <= `LP_BUILD; settings_return_state <= `LP_BUILD; level_index <= 0; fail_reason <= `LP_FAIL_NONE;
-            run_seconds <= 0; second_ticks <= 0; star_box_collected <= 0;
-            step_busy <= 0; settings_pending <= 0; step_start <= 0; update_release <= 0;
-            launch_event <= 0; success_event <= 0; failure_event <= 0;
+            game_state <= `LP_BUILD;
+            guide_return_state <= `LP_BUILD;
+            settings_return_state <= `LP_BUILD;
+            level_index <= 0;
+            fail_reason <= `LP_FAIL_NONE;
+            run_seconds <= 0;
+            second_ticks <= 0;
+            star_box_collected <= 0;
+            step_busy <= 0;
+            settings_pending <= 0;
+            step_start <= 0;
+            update_release <= 0;
+            launch_event <= 0;
+            success_event <= 0;
+            failure_event <= 0;
             start_screen_active <= (enable_start_screen === 1'b1) || (ENABLE_START_SCREEN != 0);
             settings_from_start <= 1'b0;
             map_from_start <= 1'b0;
             map_return_state <= `LP_SETTINGS;
         end else begin
-            step_start <= 0; update_release <= 0;
-            if (star_box_hit && game_state == `LP_RUN) star_box_collected <= 1;
-            launch_event <= 0; success_event <= 0; failure_event <= 0;
-            if (game_state!=`LP_RUN) settings_pending <= 0;
-            else if (level_open_req) settings_pending <= 1;
+            step_start <= 0;
+            update_release <= 0;
+            if (star_box_hit && game_state == `LP_RUN) begin
+                star_box_collected <= 1;
+            end
+            launch_event <= 0;
+            success_event <= 0;
+            failure_event <= 0;
+            if (game_state != `LP_RUN) begin
+                settings_pending <= 0;
+            end else if (level_open_req) begin
+                settings_pending <= 1;
+            end
+
             if (home_req) begin
-                game_state <= `LP_BUILD; start_screen_active <= 1;
-                step_busy <= 0; settings_from_start <= 0; map_from_start <= 0;
+                game_state <= `LP_BUILD;
+                start_screen_active <= 1;
+                step_busy <= 0;
+                settings_from_start <= 0;
+                map_from_start <= 0;
             end else if (start_screen_active) begin
                 step_busy <= 0;
                 if (launch_req) begin
@@ -85,10 +129,18 @@ module game_controller #(
                 case (game_state)
                     `LP_BUILD: begin
                         step_busy <= 0;
-                        if (guide_open_req) begin guide_return_state <= `LP_BUILD; game_state <= `LP_GUIDE; end
-                        else if (launch_req && build_valid) game_state <= `LP_INIT_RUN;
-                        else if (level_open_req) begin settings_from_start <= 1'b0; settings_return_state <= `LP_BUILD; game_state <= `LP_SETTINGS; end
-                        else if (level_next_req) level_index <= next_level;
+                        if (guide_open_req) begin
+                            guide_return_state <= `LP_BUILD;
+                            game_state <= `LP_GUIDE;
+                        end else if (launch_req && build_valid) begin
+                            game_state <= `LP_INIT_RUN;
+                        end else if (level_open_req) begin
+                            settings_from_start <= 1'b0;
+                            settings_return_state <= `LP_BUILD;
+                            game_state <= `LP_SETTINGS;
+                        end else if (level_next_req) begin
+                            level_index <= next_level;
+                        end
                     end
                     `LP_SETTINGS: begin
                         step_busy <= 0;
@@ -100,11 +152,14 @@ module game_controller #(
                             end else begin
                                 game_state <= settings_return_state;
                             end
+                        end else if (level_select_req || level_open_req) begin
+                            map_from_start <= 0;
+                            map_return_state <= `LP_SETTINGS;
+                            game_state <= `LP_LEVEL_SELECT;
+                        end else if (guide_open_req) begin
+                            guide_return_state <= `LP_SETTINGS;
+                            game_state <= `LP_GUIDE;
                         end
-                        else if (level_select_req || level_open_req) begin
-                            map_from_start <= 0; map_return_state <= `LP_SETTINGS; game_state <= `LP_LEVEL_SELECT;
-                        end
-                        else if (guide_open_req) begin guide_return_state <= `LP_SETTINGS; game_state <= `LP_GUIDE; end
                     end
                     `LP_LEVEL_SELECT: begin
                         step_busy <= 0;
@@ -116,7 +171,7 @@ module game_controller #(
                                 game_state <= map_return_state;
                             end
                         // Map Select exposes the two normal maps plus the
-                        // separate tutorial course.  LP_LEVEL_COUNT remains
+                        // separate tutorial course. LP_LEVEL_COUNT remains
                         // the count used by the normal level cycle, so the
                         // tutorial must be allowed explicitly here.
                         end else if (level_select_req &&
@@ -127,67 +182,109 @@ module game_controller #(
                             game_state <= `LP_BUILD;
                         end
                     end
-                    `LP_GUIDE: if (guide_close_req) game_state <= guide_return_state;
+                    `LP_GUIDE: begin
+                        if (guide_close_req) begin
+                            game_state <= guide_return_state;
+                        end
+                    end
                     `LP_INIT_RUN: begin
-                        step_busy <= 0; fail_reason <= `LP_FAIL_NONE; run_seconds <= 0; second_ticks <= 0; star_box_collected <= 0;
-                        if (&init_ready) begin game_state <= `LP_RUN; launch_event <= 1; end
+                        step_busy <= 0;
+                        fail_reason <= `LP_FAIL_NONE;
+                        run_seconds <= 0;
+                        second_ticks <= 0;
+                        star_box_collected <= 0;
+                        if (&init_ready) begin
+                            game_state <= `LP_RUN;
+                            launch_event <= 1;
+                        end
                     end
                     `LP_RUN: begin
-                        if (edit_req) begin game_state <= `LP_BUILD; step_busy <= 0; fail_reason <= `LP_FAIL_NONE; end
-                        else if (retry_req) begin game_state <= `LP_INIT_RUN; step_busy <= 0; end
-                        else if (end_try_req) begin
+                        if (edit_req) begin
+                            game_state <= `LP_BUILD;
                             step_busy <= 0;
-                            if (goal_hit) begin game_state <= `LP_SUCCESS; success_event <= 1; end
-                            else begin game_state <= `LP_FAIL; fail_reason <= `LP_FAIL_NONE; failure_event <= 1; end
+                            fail_reason <= `LP_FAIL_NONE;
+                        end else if (retry_req) begin
+                            game_state <= `LP_INIT_RUN;
+                            step_busy <= 0;
+                        end else if (end_try_req) begin
+                            step_busy <= 0;
+                            if (goal_hit) begin
+                                game_state <= `LP_SUCCESS;
+                                success_event <= 1;
+                            end else begin
+                                game_state <= `LP_FAIL;
+                                fail_reason <= `LP_FAIL_NONE;
+                                failure_event <= 1;
+                            end
+                        end else if ((level_open_req || settings_pending) && !step_busy && !gameplay_pending) begin
+                            settings_from_start <= 1'b0;
+                            settings_return_state <= `LP_RUN;
+                            game_state <= `LP_SETTINGS;
+                        end else begin
+                            // Whole seconds of RUN, held at 4:15; results freeze the final time.
+                            if (physics_tick && level_index != `LP_LEVEL_TUTORIAL) begin
+                                if (second_ticks == TICKS_PER_SECOND-1) begin
+                                    second_ticks <= 0;
+                                    if (run_seconds != 8'hff) begin
+                                        run_seconds <= run_seconds + 1'b1;
+                                    end
+                                end else begin
+                                    second_ticks <= second_ticks + 1;
+                                end
+                            end
+                            if (world_valid && world_ready) begin
+                                step_busy <= 0;
+                                update_release <= 1;
+                                // The pig is protected from runtime damage in this
+                                // Bad Piggies implementation. Hazards and leaving the
+                                // world still fail; reaching the goal then succeeds.
+                                if (hazard_hit || (out_of_bounds && !tutorial_bounds_grace)) begin
+                                    game_state <= `LP_FAIL;
+                                    failure_event <= 1;
+                                    if (hazard_hit) begin
+                                        fail_reason <= `LP_FAIL_HAZARD;
+                                    end else begin
+                                        fail_reason <= `LP_FAIL_BOUNDS;
+                                    end
+                                end else if (goal_hit) begin
+                                    game_state <= `LP_SUCCESS;
+                                    success_event <= 1;
+                                end
+                            end else if (physics_tick && !step_busy && !gameplay_pending) begin
+                                step_start <= 1;
+                                step_busy <= 1;
+                            end
                         end
-                        else if ((level_open_req || settings_pending) && !step_busy && !gameplay_pending) begin settings_from_start <= 1'b0; settings_return_state <= `LP_RUN; game_state <= `LP_SETTINGS; end
-                        else begin
-                    // Whole seconds of RUN, held at 4:15; results freeze the final time.
-                    if (physics_tick && level_index != `LP_LEVEL_TUTORIAL) begin
-                        if (second_ticks == TICKS_PER_SECOND-1) begin
-                            second_ticks <= 0;
-                            if (run_seconds != 8'hff) run_seconds <= run_seconds + 1'b1;
-                        end else second_ticks <= second_ticks + 1;
                     end
-                    if (world_valid && world_ready) begin
-                        step_busy <= 0; update_release <= 1;
-                        // The pig is protected from runtime damage in this
-                        // Bad Piggies implementation.  Hazards and leaving the
-                        // world still fail; reaching the goal then succeeds.
-                        if (hazard_hit || (out_of_bounds && !tutorial_bounds_grace)) begin
-                            game_state <= `LP_FAIL; failure_event <= 1;
-                            if (hazard_hit) fail_reason <= `LP_FAIL_HAZARD;
-                            else fail_reason <= `LP_FAIL_BOUNDS;
-                        end else if (goal_hit) begin game_state <= `LP_SUCCESS; success_event <= 1; end
-                    end else if (physics_tick && !step_busy && !gameplay_pending) begin
-                        step_start <= 1; step_busy <= 1;
+                    `LP_SUCCESS, `LP_FAIL: begin
+                        step_busy <= 0;
+                        if (guide_open_req) begin
+                            guide_return_state <= game_state;
+                            game_state <= `LP_GUIDE;
+                        end else if (level_open_req) begin
+                            settings_from_start <= 0;
+                            settings_return_state <= game_state;
+                            game_state <= `LP_SETTINGS;
+                        end else if (level_select_req) begin
+                            map_from_start <= 0;
+                            map_return_state <= game_state;
+                            game_state <= `LP_LEVEL_SELECT;
+                        end else if (edit_req) begin
+                            game_state <= `LP_BUILD;
+                            fail_reason <= `LP_FAIL_NONE;
+                            if (game_state == `LP_SUCCESS) begin
+                                level_index <= next_level;
+                            end
+                        end else if (retry_req) begin
+                            game_state <= `LP_INIT_RUN;
+                        end
                     end
+                    default: begin
+                        game_state <= `LP_BUILD;
+                        step_busy <= 0;
                     end
-                end
-                `LP_SUCCESS, `LP_FAIL: begin
-                    step_busy <= 0;
-                    if (guide_open_req) begin guide_return_state <= game_state; game_state <= `LP_GUIDE; end
-                    else if (level_open_req) begin
-                        settings_from_start <= 0;
-                        settings_return_state <= game_state;
-                        game_state <= `LP_SETTINGS;
-                    end
-                    else if (level_select_req) begin
-                        map_from_start <= 0;
-                        map_return_state <= game_state;
-                        game_state <= `LP_LEVEL_SELECT;
-                    end
-                    else if (edit_req) begin
-                        game_state <= `LP_BUILD; fail_reason <= `LP_FAIL_NONE;
-                        if (game_state == `LP_SUCCESS) level_index <= next_level;
-                    end
-                    else if (retry_req) game_state <= `LP_INIT_RUN;
-                end
-                default: begin game_state <= `LP_BUILD; step_busy <= 0; end
                 endcase
             end
         end
     end
 endmodule
-
-
