@@ -144,7 +144,7 @@ module vehicle_builder #(
             if (mounted_kind == `LP_PART_FAN) begin
                 usable_directions[0] = fan_can_point_right[part_cell];
                 usable_directions[1] = fan_can_point_left[part_cell];
-                usable_directions[2] = can_point_down[part_cell];
+                usable_directions[2] = fan_hangs_under_frame[part_cell];
                 usable_directions[3] = 1'b0;
             end else begin
                 usable_directions[0] = can_point_right[part_cell];
