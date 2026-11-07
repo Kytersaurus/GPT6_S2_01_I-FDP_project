@@ -1180,19 +1180,56 @@ module My_Top_Module #(
     );
     // Dual-OLED Diary Walkthrough: pan the Right OLED camera to the selected checkpoint
     // and pose the recommended demo vehicle on the live terrain with active step parts.
-    wire signed [19:0] diary_pose_x = (draw_diary_page == 2'd0) ? draw_spawn_x :
-        (draw_map_id == 1'b0) ? ((draw_diary_page == 2'd1) ? {12'd190, 8'd0} : {12'd564, 8'd0}) :
-                                ((draw_diary_page == 2'd1) ? {12'd512, 8'd0} : {12'd732, 8'd0});
-    wire signed [19:0] diary_pose_y = (draw_diary_page == 2'd0) ? draw_spawn_y :
-        (draw_map_id == 1'b0) ? ((draw_diary_page == 2'd1) ? {12'd374, 8'd0} : {12'd462, 8'd0}) :
-                                ((draw_diary_page == 2'd1) ? {12'd87,  8'd0} : {12'd40,  8'd0});
+    reg signed [19:0] diary_pose_x;
+    reg signed [19:0] diary_pose_y;
+    reg signed [`LP_TILT_BITS-1:0] diary_tilt;
+    reg [8:0] diary_active_fans;
+    always @* begin
+        diary_pose_x = draw_spawn_x;
+        diary_pose_y = draw_spawn_y;
+        diary_tilt = 5'sd0;
+        diary_active_fans = 9'd0;
+        if (draw_map_id == 1'b0) begin
+            case (draw_diary_page)
+                2'd1: begin
+                    diary_pose_x = {12'd254, 8'd0};
+                    diary_pose_y = {12'd352, 8'd0};
+                    diary_tilt = -5'sd2;
+                end
+                2'd2: begin
+                    diary_pose_x = {12'd564, 8'd0};
+                    diary_pose_y = {12'd462, 8'd0};
+                end
+                default: begin
+                    diary_pose_x = draw_spawn_x;
+                    diary_pose_y = draw_spawn_y;
+                end
+            endcase
+        end else begin
+            case (draw_diary_page)
+                2'd0: begin
+                    diary_pose_x = draw_spawn_x;
+                    diary_pose_y = draw_spawn_y;
+                    diary_active_fans = 9'b000_000_001;
+                end
+                2'd1: begin
+                    diary_pose_x = {12'd512, 8'd0};
+                    diary_pose_y = {12'd87,  8'd0};
+                    diary_active_fans = 9'b010_000_001;
+                end
+                default: begin
+                    diary_pose_x = {12'd732, 8'd0};
+                    diary_pose_y = {12'd40,  8'd0};
+                    diary_active_fans = 9'b010_000_000;
+                end
+            endcase
+        end
+    end
     wire [26:0] diary_grid = (draw_map_id == 1'b0) ?
         {`LP_PART_WHEEL, `LP_PART_EMPTY, `LP_PART_WHEEL, `LP_PART_ENGINE, `LP_PART_PIG, `LP_PART_EMPTY, `LP_PART_EMPTY,   `LP_PART_BOOSTER, `LP_PART_EMPTY} :
         {`LP_PART_WHEEL, `LP_PART_FAN,   `LP_PART_WHEEL, `LP_PART_ENGINE, `LP_PART_PIG, `LP_PART_EMPTY, `LP_PART_BALLOON, `LP_PART_EMPTY,   `LP_PART_FAN};
     wire [8:0] diary_frames = (draw_map_id == 1'b0) ? 9'b000_111_000 : 9'b000_111_010;
     wire [8:0] diary_intact = (draw_map_id == 1'b0) ? 9'b101_110_010 : 9'b111_110_101;
-    wire [8:0] diary_active_fans = (draw_map_id == 1'b1) ?
-        ((draw_diary_page == 2'd0) ? 9'b000_000_001 : (draw_diary_page == 2'd1) ? 9'b010_000_001 : 9'b010_000_000) : 9'd0;
     wire [8:0] diary_rocket_burn = (draw_map_id == 1'b0 && draw_diary_page == 2'd1) ? 9'b000_000_010 : 9'd0;
 
     right_renderer #(
@@ -1219,7 +1256,7 @@ module My_Top_Module #(
         .vehicle_y(in_diary_walkthrough ? diary_pose_y : draw_y),
         .camera_x(in_diary_walkthrough ? diary_pose_x : draw_x),
         .camera_y(in_diary_walkthrough ? diary_pose_y : draw_y),
-        .vehicle_tilt(in_diary_walkthrough ? 5'sd0 : draw_tilt),
+        .vehicle_tilt(in_diary_walkthrough ? diary_tilt : draw_tilt),
         .spawn_x(draw_spawn_x), .spawn_y(draw_spawn_y),
         .terrain_count(draw_terrain_count), .terrain_rects(draw_terrain_rects), .goal_rect(draw_goal_rect),
         .tnt_count(draw_tnt_count), .tnt_positions(draw_tnt_positions), .tnt_intact(draw_tnt_intact),
