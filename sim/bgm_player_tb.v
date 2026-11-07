@@ -14,7 +14,7 @@ module bgm_player_tb;
         .master_volume(3'd4),
         .clk(clk),.reset(reset),.enabled(enabled&&!mute),.pause(busy||start),.fast(fast),.audio_sample(sample)
     );
-    sound_generator #(.TONE_HALF_CYCLES(512),.BEEP_CYCLES(2048),.NOTE_CYCLES(2048),.FADE_CYCLES(8)) effects (
+    sound_generator #(.NOTE_CYCLES(2048)) effects (
         .master_volume(3'd4),
         .clk(clk),.reset(reset),.mute(mute),.cancel(1'b0),.start(start),.sound_id(sound_id),
         .bgm_sample(sample),.busy(busy),.active_sound(active),.audio_pwm(pwm)

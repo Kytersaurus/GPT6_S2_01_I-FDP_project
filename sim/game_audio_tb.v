@@ -15,7 +15,7 @@ module game_audio_tb;
         .success_event(events[4]),.failure_event(events[5]),
         .busy(busy),.active_sound(active),.sound_start(start),.sound_id(id)
     );
-    sound_generator #(.NOTE_CYCLES(1024),.FADE_CYCLES(8)) player (
+    sound_generator #(.NOTE_CYCLES(1024)) player (
         .master_volume(3'd4),
         .clk(clk),.reset(reset),.mute(mute),.cancel(cancel),.start(start),.sound_id(id),.bgm_sample(4'sd0),
         .busy(busy),.active_sound(active),.audio_pwm(pwm)

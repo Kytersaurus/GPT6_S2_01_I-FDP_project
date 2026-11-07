@@ -127,15 +127,12 @@ module physics_moments_tb;
         if(nt==0) $fatal(1,"Fan failed to request blocked rotation");
         finish();
         if(tilt!=0 || dut.angular_velocity_q8!=0) $fatal(1,"Blocked turn retained spin");
-        // Ordinary drive is held by normal reactions; boost can exceed them.
+        // Ordinary drive is held by normal reactions on a supported 4-wheel cart.
         empty();frames=9'b000111000;frame_alive=frames;put(3,`LP_PART_ENGINE);
         put(0,`LP_PART_WHEEL);put(2,`LP_PART_WHEEL);put(6,`LP_PART_WHEEL);put(8,`LP_PART_WHEEL);
         mass=15;wheel_count=4;down=2;up=2;engine_count=1;engine=1;restart();
         update();contact=1;update();for(i=0;i<24;i=i+1) update();
         if(tilt!=0 || dut.angular_velocity_q8!=0 || vx<=0) $fatal(1,"Supported cart tipped under ordinary drive");
-        boost=1;clocks(1);boost=0;clocks(1);
-        for(i=0;i<16;i=i+1) update();
-        if(dut.angular_velocity_q8!=0 || tilt!=0) $fatal(1,"Boosted wheel drive rotated the body");
         step=1;clocks(1);step=0;clocks(4);restart();
         if(tilt!=0 || x!=8192 || y!=8192 || dut.angular_velocity_q8!=0 || valid)
             $fatal(1,"Retry retained moment calculation or spin");

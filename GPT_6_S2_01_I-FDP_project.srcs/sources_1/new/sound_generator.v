@@ -3,10 +3,7 @@
 `include "game_defs.vh"
 module sound_generator #(
     parameter integer NOTE_CYCLES = 8000000,    // Base game note: 80 ms.
-    parameter integer FADE_CYCLES = 50000,      // Kept for interface compatibility.
-    parameter integer GAIN_SHIFT = 0,
-    parameter integer BEEP_CYCLES = 20000000,   // Kept for interface compatibility.
-    parameter integer TONE_HALF_CYCLES = 50000  // Kept for interface compatibility.
+    parameter integer GAIN_SHIFT = 0
 ) (
     input wire clk, reset, mute, cancel, start,
     input wire [2:0] sound_id, master_volume,

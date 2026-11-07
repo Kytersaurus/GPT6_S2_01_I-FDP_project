@@ -378,10 +378,7 @@ wire air_leveling_snap = air_leveling_active &&
     wire bare_pig_only = moments_enabled && (intact_mask != 9'd0) && (frame_intact_mask == 9'd0) && (wheel_count == 4'd0);
     reg [23:0] step_slope_product;
     reg signed [15:0] step_slope_force;
-    reg [27:0] boost_timer; // 1.5 seconds at 100MHz is 150_000_000 cycles
-    wire is_boosting = (boost_timer != 0);
-    assign boost_active = is_boosting;
-    reg sampled_boosting;
+    assign boost_active = rocket_active;
     reg [3:0] sampled_wheels, sampled_engines, sampled_balloons;
 
     reg sampled_sided, sampled_scraping;
@@ -504,7 +501,7 @@ wire air_leveling_snap = air_leveling_active &&
             step_moments_enabled<=0; wheel_force_valid<=0;
             angular_velocity_q8<=0; moment_angle_remainder<=0; step_angular_sum<=0;
             step_pivot_x<=0; step_pivot_y<=0; step_pivot_about_contact<=0;
-            phase <= IDLE; init_ready <= 0; was_grounded <= 0; boost_timer <= 0; tnt_blast_steps <= 0;
+            phase <= IDLE; init_ready <= 0; was_grounded <= 0; tnt_blast_steps <= 0;
             sampled_lift_fans <= 0; sampled_vertical_rockets <= 0; step_vertical_force <= 0;
             remainder_y <= 0; pending_remainder_y <= 0; step_vertical_base <= 0; step_vy_sum <= 0; step_down_accel <= 0;
             sampled_fans <= 0; sampled_rockets <= 0; step_air_force <= 0;
@@ -524,7 +521,6 @@ wire air_leveling_snap = air_leveling_active &&
             proposed_x <= spawn_x; proposed_y <= spawn_y;
             proposed_vx <= 0; proposed_vy <= 0; velocity_x <= 0; velocity_y <= 0;
                         remainder_x <= 0; pending_remainder_x <= 0; remainder_mass <= 0;
-                boost_timer <= 0;
                 tnt_blast_steps <= 0;
             step_mass <= 0; step_remainder <= 0; step_thrust <= 0; step_drive <= 0;
             step_friction_limit <= 0; step_friction <= 0; total_force <= 0;
@@ -539,8 +535,6 @@ wire air_leveling_snap = air_leveling_active &&
             movement_committed <= 0;
             divider_start <= 0;
             if (!run_init) init_ready <= 0;
-            if (game_state==`LP_RUN && boost_timer != 0) boost_timer <= boost_timer - 1'b1;
-            if (game_state == `LP_RUN && boost_req && engine_count != 0) boost_timer <= 28'd150000000;
             // TNT is processed after a movement has been committed, while
             // this engine is waiting for the world result. Apply the impulse
             // directly to the carried velocity so the next update launches
@@ -593,8 +587,6 @@ wire air_leveling_snap = air_leveling_active &&
                 proposed_x <= spawn_x; proposed_y <= spawn_y;
                 proposed_vx <= 0; proposed_vy <= 0; velocity_x <= 0; velocity_y <= 0;
                             remainder_x <= 0; pending_remainder_x <= 0; remainder_mass <= 0;
-                boost_timer <= 0;
-                sampled_boosting <= 0;
                 sampled_scraping <= 0;
                 bowl_osc_count <= 0;
                 prev_nonzero_slope <= 0;
@@ -667,7 +659,6 @@ wire air_leveling_snap = air_leveling_active &&
                     sampled_rocket_cos<=rotation_cos(vehicle_tilt);
                     sampled_rocket_sin<=rotation_sin(vehicle_tilt);
                     sampled_slope <= last_ground_slope;
-                    sampled_boosting <= is_boosting;
                     phase <= CALC_FORCE;
                 end
                 CALC_FORCE: begin
@@ -684,8 +675,6 @@ wire air_leveling_snap = air_leveling_active &&
                     if (sampled_engine_enabled && sampled_engines != 0 && (sampled_wheels != 0 || (!sampled_sided && !step_moments_enabled)) && was_grounded) begin
                         if (sampled_scraping)
                             step_thrust <= sampled_engine_reverse ? -(engine_magnitude >>> 2) : (engine_magnitude >>> 2);
-                        else if (sampled_boosting)
-                            step_thrust <= sampled_engine_reverse ? -(engine_magnitude <<< 1) : (engine_magnitude <<< 1);
                         else
                             step_thrust <= sampled_engine_reverse ? -engine_magnitude : engine_magnitude;
                     end

@@ -633,7 +633,7 @@ module My_Top_Module #(
         .busy(audio_busy), .active_sound(active_sound), .sound_start(sound_start), .sound_id(sound_id)
     );
     sound_generator #(
-        .NOTE_CYCLES(AUDIO_NOTE_CYCLES), .FADE_CYCLES(AUDIO_FADE_CYCLES),
+        .NOTE_CYCLES(AUDIO_NOTE_CYCLES),
         .GAIN_SHIFT(2)
     ) u_audio (
         .clk(clk), .reset(reset), .start(sound_start), .sound_id(sound_id),
@@ -924,22 +924,32 @@ module My_Top_Module #(
         .world_ready(world_ready), .goal_hit(goal_hit), .hazard_hit(hazard_hit), .out_of_bounds(out_of_bounds), .star_box_hit(star_box_hit)
     );
 
-    // Base snapshot width is adjusted for the current three TNT slots and
-    // carries the filtered display pose for both the vehicle and follow-camera.
-    localparam SNAPSHOT_WIDTH = 248 + 3*(`LP_MAX_TNT-4) +
-                                4*(`LP_COORD_BITS-16) + (`LP_TILT_BITS-4) +
-                                2*`LP_COORD_BITS + 9 + 6 +
-                                // Tutorial lesson (one bit more than the three flags it replaced,
-                                // less the shared rocket-ready bit), per-cell rocket burn and
-                                // spent masks, and the balloon pop mask and phase.
-                                (`LP_LESSON_BITS-4) + 9 + 9 + 9 + 2;
-    wire [SNAPSHOT_WIDTH-1:0] snapshot_in = {rocket_burn_mask, rocket_spent_mask, balloon_pop_mask, balloon_pop_phase, start_screen_active, ui_fan_on, star_box_collected, vehicle_tilt, audio_muted, selected_left, inventory_page, build_facing_left, rockets_left, fans_left, master_volume, diary_page, guide_return_state, death_phase, death_x, death_y, launch_flash, (boost_active || rocket_active), drag_from_grid, drag_source, drag_contents,
-                              game_state, build_grid, intact_mask, frame_intact_mask, build_valid, build_error,
-                              display_x, display_y, engine_enabled, frames_left, pigs_left, wheels_left,
-                              engines_left, balloons_left, cursor_x, cursor_y, selected_part, drag_active,
-                              feedback_code, feedback_cell, level_index, fail_reason, tnt_intact, tutorial_lesson,
-                              build_frames, run_seconds, blast_phase, scatter_mask, scatter_x, scatter_y, scatter_phase};
+    // Unified CDC display snapshot width: explicitly sums all packed field groups.
+    localparam SNAPSHOT_WIDTH =
+        29 +                                    // rocket_burn/spent_mask (18), balloon_pop_mask/phase (11)
+        27 +                                    // zoomed_out, overview, free_look (3), facing_down (9), active_fans (9), inv/sel dirs (6)
+        (44 + `LP_TILT_BITS) +                  // UI/audio/drag flags (44) + vehicle_tilt (LP_TILT_BITS)
+        (6 * `LP_COORD_BITS) +                  // death_x/y, display_x/y, scatter_x/y
+        (101 + `LP_LEVEL_BITS) +                // game_state, build_grid, masks, stock, cursor, feedback, level_index, fail_reason
+        (32 + 3*`LP_MAX_TNT + `LP_LESSON_BITS); // tnt_intact, tutorial_lesson, build_frames, run_seconds, blast_phase, scatter_mask/phase
+    wire [SNAPSHOT_WIDTH-1:0] snapshot_in = {
+        zoomed_out, overview, sw[14], build_facing_down, ui_active_fans,
+        selected_down, engine_facing_left, fan_facing_left, fan_facing_down, rocket_facing_left, rocket_facing_down,
+        rocket_burn_mask, rocket_spent_mask, balloon_pop_mask, balloon_pop_phase,
+        start_screen_active, ui_fan_on, star_box_collected, vehicle_tilt, audio_muted,
+        selected_left, inventory_page, build_facing_left, rockets_left, fans_left,
+        master_volume, diary_page, guide_return_state, death_phase, death_x, death_y,
+        launch_flash, (boost_active || rocket_active), drag_from_grid, drag_source, drag_contents,
+        game_state, build_grid, intact_mask, frame_intact_mask, build_valid, build_error,
+        display_x, display_y, engine_enabled, frames_left, pigs_left, wheels_left,
+        engines_left, balloons_left, cursor_x, cursor_y, selected_part, drag_active,
+        feedback_code, feedback_cell, level_index, fail_reason, tnt_intact, tutorial_lesson,
+        build_frames, run_seconds, blast_phase, scatter_mask, scatter_x, scatter_y, scatter_phase
+    };
     wire [SNAPSHOT_WIDTH-1:0] snapshot_out;
+    wire draw_zoomed_out, draw_overview, draw_free_look;
+    wire [8:0] draw_facing_down, draw_ui_active_fans;
+    wire draw_selected_down, draw_inv_engine_left, draw_inv_fan_left, draw_inv_fan_down, draw_inv_rocket_left, draw_inv_rocket_down;
     wire draw_audio_muted;
     wire draw_start_screen_active;
     wire draw_fan_on;
@@ -1000,12 +1010,20 @@ module My_Top_Module #(
     wire [6:0] map_x = show_map ? left_x : right_x;
     wire [5:0] map_y = show_map ? left_y : right_y;
     wire [15:0] left_pixel_data, right_pixel_data, base_left_pixel_data;
-    assign {draw_rocket_burn_mask, draw_rocket_spent_mask, draw_balloon_pop_mask, draw_balloon_pop_phase, draw_start_screen_active, draw_fan_on, draw_star_box_collected, draw_tilt, draw_audio_muted, draw_selected_left, draw_inventory_page, draw_facing_left, draw_rockets_left, draw_fans_left, draw_master_volume, draw_diary_page, draw_guide_return, draw_death_phase, draw_death_x, draw_death_y, draw_launch_flash, draw_boost_active, draw_drag_from_grid, draw_drag_source, draw_drag_contents,
-            draw_state, draw_grid, draw_intact, draw_frames, draw_valid, draw_error, draw_x, draw_y, draw_engine,
-            draw_frames_left, draw_pigs_left, draw_wheels_left, draw_engines_left, draw_balloons_left,
-            draw_cursor_x, draw_cursor_y, draw_selected_part, draw_drag_active,
-            draw_feedback_code, draw_feedback_cell, draw_level, draw_fail_reason, draw_tnt_intact, draw_tutorial_lesson,
-            draw_saved_frames, draw_seconds, draw_blast, draw_scatter_mask, draw_scatter_x, draw_scatter_y, draw_scatter_phase} = snapshot_out;
+    assign {
+        draw_zoomed_out, draw_overview, draw_free_look, draw_facing_down, draw_ui_active_fans,
+        draw_selected_down, draw_inv_engine_left, draw_inv_fan_left, draw_inv_fan_down, draw_inv_rocket_left, draw_inv_rocket_down,
+        draw_rocket_burn_mask, draw_rocket_spent_mask, draw_balloon_pop_mask, draw_balloon_pop_phase,
+        draw_start_screen_active, draw_fan_on, draw_star_box_collected, draw_tilt, draw_audio_muted,
+        draw_selected_left, draw_inventory_page, draw_facing_left, draw_rockets_left, draw_fans_left,
+        draw_master_volume, draw_diary_page, draw_guide_return, draw_death_phase, draw_death_x, draw_death_y,
+        draw_launch_flash, draw_boost_active, draw_drag_from_grid, draw_drag_source, draw_drag_contents,
+        draw_state, draw_grid, draw_intact, draw_frames, draw_valid, draw_error, draw_x, draw_y, draw_engine,
+        draw_frames_left, draw_pigs_left, draw_wheels_left, draw_engines_left, draw_balloons_left,
+        draw_cursor_x, draw_cursor_y, draw_selected_part, draw_drag_active,
+        draw_feedback_code, draw_feedback_cell, draw_level, draw_fail_reason, draw_tnt_intact, draw_tutorial_lesson,
+        draw_saved_frames, draw_seconds, draw_blast, draw_scatter_mask, draw_scatter_x, draw_scatter_y, draw_scatter_phase
+    } = snapshot_out;
 
     display_snapshot #(.WIDTH(SNAPSHOT_WIDTH)) u_snapshot (
         .game_clk(clk), .game_reset(reset), .display_clk(oled_clk), .display_reset(oled_reset),
@@ -1058,55 +1076,6 @@ module My_Top_Module #(
     end
     wire anim_phase = engine_frames[3];
     wire wheel_anim_phase = wheel_frames[1];
-    // The map zoom and SW14 free look also change only between complete frames.
-    reg zoom_meta_display, zoom_sync_display, draw_zoomed_out;
-    reg overview_meta_display, overview_sync_display, draw_overview;
-    reg look_meta_display, look_sync_display, draw_free_look;
-    reg [8:0] facing_down_meta, facing_down_sync, draw_facing_down; reg [8:0] active_fans_meta, active_fans_sync, draw_ui_active_fans;
-    reg selected_down_meta, selected_down_sync, draw_selected_down;
-    reg inv_eng_meta, inv_eng_sync, draw_inv_engine_left;
-    reg inv_fan_l_meta, inv_fan_l_sync, draw_inv_fan_left;
-    reg inv_fan_d_meta, inv_fan_d_sync, draw_inv_fan_down;
-    reg inv_rkt_meta, inv_rkt_sync, draw_inv_rocket_left;
-    reg inv_rkt_d_meta, inv_rkt_d_sync, draw_inv_rocket_down;
-
-    always @(posedge oled_clk) begin
-        if (oled_reset) begin
-            zoom_meta_display <= 0; zoom_sync_display <= 0; draw_zoomed_out <= 0;
-            overview_meta_display <= 0; overview_sync_display <= 0; draw_overview <= 0;
-            look_meta_display <= 0; look_sync_display <= 0; draw_free_look <= 0;
-            facing_down_meta <= 0; facing_down_sync <= 0; draw_facing_down <= 0; active_fans_meta <= 0; active_fans_sync <= 0; draw_ui_active_fans <= 0;
-            selected_down_meta <= 0; selected_down_sync <= 0; draw_selected_down <= 0;
-            inv_eng_meta <= 0; inv_eng_sync <= 0; draw_inv_engine_left <= 0;
-            inv_fan_l_meta <= 0; inv_fan_l_sync <= 0; draw_inv_fan_left <= 0;
-            inv_fan_d_meta <= 0; inv_fan_d_sync <= 0; draw_inv_fan_down <= 0;
-            inv_rkt_meta <= 0; inv_rkt_sync <= 0; draw_inv_rocket_left <= 0;
-            inv_rkt_d_meta <= 0; inv_rkt_d_sync <= 0; draw_inv_rocket_down <= 0;
-        end else begin
-            zoom_meta_display <= zoomed_out; zoom_sync_display <= zoom_meta_display;
-            overview_meta_display <= overview; overview_sync_display <= overview_meta_display;
-            look_meta_display <= sw[14]; look_sync_display <= look_meta_display;
-            facing_down_meta <= build_facing_down; facing_down_sync <= facing_down_meta; active_fans_meta <= ui_active_fans; active_fans_sync <= active_fans_meta;
-            selected_down_meta <= selected_down; selected_down_sync <= selected_down_meta;
-            inv_eng_meta <= engine_facing_left; inv_eng_sync <= inv_eng_meta;
-            inv_fan_l_meta <= fan_facing_left; inv_fan_l_sync <= inv_fan_l_meta;
-            inv_fan_d_meta <= fan_facing_down; inv_fan_d_sync <= inv_fan_d_meta;
-            inv_rkt_meta <= rocket_facing_left; inv_rkt_sync <= inv_rkt_meta;
-            inv_rkt_d_meta <= rocket_facing_down; inv_rkt_d_sync <= inv_rkt_d_meta;
-            if (left_frame) begin
-                draw_zoomed_out <= zoom_sync_display;
-                draw_overview <= overview_sync_display;
-                draw_free_look <= look_sync_display;
-                draw_facing_down <= facing_down_sync; draw_ui_active_fans <= active_fans_sync;
-                draw_selected_down <= selected_down_sync;
-                draw_inv_engine_left <= inv_eng_sync;
-                draw_inv_fan_left <= inv_fan_l_sync;
-                draw_inv_fan_down <= inv_fan_d_sync;
-                draw_inv_rocket_left <= inv_rkt_sync;
-                draw_inv_rocket_down <= inv_rkt_d_sync;
-            end
-        end
-    end
     // A second copy of the level table, indexed by the snapshot, keeps the map in step with the drawn state.
     wire draw_map_level, draw_map_id;
     wire [9:0] draw_world_width, draw_world_height, draw_flag_x, draw_flag_y;
