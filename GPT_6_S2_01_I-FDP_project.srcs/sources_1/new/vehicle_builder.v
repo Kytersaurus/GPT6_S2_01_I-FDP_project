@@ -127,16 +127,15 @@ module vehicle_builder #(
     wire [8:0] can_point_left  = wheel_support & ~frame_left;
     wire [8:0] can_point_up    = wheel_support & ~frame_above;
     wire [8:0] can_point_down  = wheel_support & ~frame_below;
-    // A fan held only by the frame above it hangs under the cart, so it is a lift
-    // fan and may only blow straight down. A frame beside it mounts it on that side
-    // as well, and a frame below stops it blowing down, so those keep sideways.
+    // Each fan points away from the frame it mounts to: straight down under a frame,
+    // straight up on top of a frame, or sideways when touching a side frame.
     wire [8:0] fan_hangs_under_frame = frame_above & ~frame_below & ~side_support;
-    wire [8:0] fan_can_point_right = can_point_right & ~fan_hangs_under_frame;
-    wire [8:0] fan_can_point_left  = can_point_left  & ~fan_hangs_under_frame;
+    wire [8:0] fan_sits_on_frame     = frame_below & ~frame_above & ~side_support;
+    wire [8:0] fan_can_point_right   = side_support & ~frame_right;
+    wire [8:0] fan_can_point_left    = side_support & ~frame_left;
 
     // Usable directions of one cell, indexed by {facing_down, facing_left}.
-    // Rockets: 0 right, 1 left, 2 up, 3 down. Fans blow right, left or down only,
-    // and code 2 means down because a fan pointing up would only push the body down.
+    // Rockets: 0 right, 1 left, 2 up, 3 down. Fans: 0 right, 1 left, 2 down, 3 up.
     function [3:0] usable_directions;
         input [2:0] mounted_kind;
         input [3:0] part_cell;
@@ -145,7 +144,7 @@ module vehicle_builder #(
                 usable_directions[0] = fan_can_point_right[part_cell];
                 usable_directions[1] = fan_can_point_left[part_cell];
                 usable_directions[2] = fan_hangs_under_frame[part_cell];
-                usable_directions[3] = 1'b0;
+                usable_directions[3] = fan_sits_on_frame[part_cell];
             end else begin
                 usable_directions[0] = can_point_right[part_cell];
                 usable_directions[1] = can_point_left[part_cell];

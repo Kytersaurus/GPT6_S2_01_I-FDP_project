@@ -741,26 +741,26 @@ module My_Top_Module #(
         .tnt_intact(tnt_intact), .blast_phase(blast_phase)
     );
     wire [3:0] active_down_fans =
-        (intact_mask[0] && build_grid[2:0]   == `LP_PART_FAN && build_facing_down[0] && ui_active_fans[0]) +
-        (intact_mask[1] && build_grid[5:3]   == `LP_PART_FAN && build_facing_down[1] && ui_active_fans[1]) +
-        (intact_mask[2] && build_grid[8:6]   == `LP_PART_FAN && build_facing_down[2] && ui_active_fans[2]) +
-        (intact_mask[3] && build_grid[11:9]  == `LP_PART_FAN && build_facing_down[3] && ui_active_fans[3]) +
-        (intact_mask[4] && build_grid[14:12] == `LP_PART_FAN && build_facing_down[4] && ui_active_fans[4]) +
-        (intact_mask[5] && build_grid[17:15] == `LP_PART_FAN && build_facing_down[5] && ui_active_fans[5]) +
-        (intact_mask[6] && build_grid[20:18] == `LP_PART_FAN && build_facing_down[6] && ui_active_fans[6]) +
-        (intact_mask[7] && build_grid[23:21] == `LP_PART_FAN && build_facing_down[7] && ui_active_fans[7]) +
-        (intact_mask[8] && build_grid[26:24] == `LP_PART_FAN && build_facing_down[8] && ui_active_fans[8]);
+        (intact_mask[0] && build_grid[2:0]   == `LP_PART_FAN && build_facing_down[0] && !build_facing_left[0] && ui_active_fans[0]) +
+        (intact_mask[1] && build_grid[5:3]   == `LP_PART_FAN && build_facing_down[1] && !build_facing_left[1] && ui_active_fans[1]) +
+        (intact_mask[2] && build_grid[8:6]   == `LP_PART_FAN && build_facing_down[2] && !build_facing_left[2] && ui_active_fans[2]) +
+        (intact_mask[3] && build_grid[11:9]  == `LP_PART_FAN && build_facing_down[3] && !build_facing_left[3] && ui_active_fans[3]) +
+        (intact_mask[4] && build_grid[14:12] == `LP_PART_FAN && build_facing_down[4] && !build_facing_left[4] && ui_active_fans[4]) +
+        (intact_mask[5] && build_grid[17:15] == `LP_PART_FAN && build_facing_down[5] && !build_facing_left[5] && ui_active_fans[5]) +
+        (intact_mask[6] && build_grid[20:18] == `LP_PART_FAN && build_facing_down[6] && !build_facing_left[6] && ui_active_fans[6]) +
+        (intact_mask[7] && build_grid[23:21] == `LP_PART_FAN && build_facing_down[7] && !build_facing_left[7] && ui_active_fans[7]) +
+        (intact_mask[8] && build_grid[26:24] == `LP_PART_FAN && build_facing_down[8] && !build_facing_left[8] && ui_active_fans[8]);
 
     wire [8:0] fan_lift_mask = {
-        intact_mask[8] && build_grid[26:24] == `LP_PART_FAN && build_facing_down[8],
-        intact_mask[7] && build_grid[23:21] == `LP_PART_FAN && build_facing_down[7],
-        intact_mask[6] && build_grid[20:18] == `LP_PART_FAN && build_facing_down[6],
-        intact_mask[5] && build_grid[17:15] == `LP_PART_FAN && build_facing_down[5],
-        intact_mask[4] && build_grid[14:12] == `LP_PART_FAN && build_facing_down[4],
-        intact_mask[3] && build_grid[11:9]  == `LP_PART_FAN && build_facing_down[3],
-        intact_mask[2] && build_grid[8:6]   == `LP_PART_FAN && build_facing_down[2],
-        intact_mask[1] && build_grid[5:3]   == `LP_PART_FAN && build_facing_down[1],
-        intact_mask[0] && build_grid[2:0]   == `LP_PART_FAN && build_facing_down[0]
+        intact_mask[8] && build_grid[26:24] == `LP_PART_FAN && build_facing_down[8] && !build_facing_left[8],
+        intact_mask[7] && build_grid[23:21] == `LP_PART_FAN && build_facing_down[7] && !build_facing_left[7],
+        intact_mask[6] && build_grid[20:18] == `LP_PART_FAN && build_facing_down[6] && !build_facing_left[6],
+        intact_mask[5] && build_grid[17:15] == `LP_PART_FAN && build_facing_down[5] && !build_facing_left[5],
+        intact_mask[4] && build_grid[14:12] == `LP_PART_FAN && build_facing_down[4] && !build_facing_left[4],
+        intact_mask[3] && build_grid[11:9]  == `LP_PART_FAN && build_facing_down[3] && !build_facing_left[3],
+        intact_mask[2] && build_grid[8:6]   == `LP_PART_FAN && build_facing_down[2] && !build_facing_left[2],
+        intact_mask[1] && build_grid[5:3]   == `LP_PART_FAN && build_facing_down[1] && !build_facing_left[1],
+        intact_mask[0] && build_grid[2:0]   == `LP_PART_FAN && build_facing_down[0] && !build_facing_left[0]
     };
     wire [8:0] fan_horiz_mask = {
         build_grid[26:24] == `LP_PART_FAN && !build_facing_down[8],

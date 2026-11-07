@@ -176,7 +176,7 @@ module left_renderer #(
         case (inventory_part)
             `LP_PART_BALLOON: arrow_letter = "^";
             `LP_PART_FAN: begin
-                if (row_fan_down) arrow_letter = "v";
+                if (row_fan_down) arrow_letter = row_fan_left ? "^" : "v";
                 else arrow_letter = row_fan_left ? "<" : ">";
             end
             `LP_PART_BOOSTER: begin

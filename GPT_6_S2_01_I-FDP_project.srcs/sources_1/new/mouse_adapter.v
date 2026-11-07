@@ -114,13 +114,13 @@ module mouse_adapter (
     end
 
     // Direction codes are {facing_down, facing_left}. Rockets cycle right, left,
-    // up, down; fans cycle right, left, down (code 2). vehicle_builder skips any
+    // up, down; fans cycle right, left, down (code 2), up (code 3). vehicle_builder skips any
     // direction blocked by what touches the part, so this only asks for the next.
     wire [1:0] selected_direction = {selected_down, selected_left};
     wire [1:0] next_rocket_direction = selected_direction + 2'd1;
-    wire [1:0] next_fan_direction = (selected_direction >= 2'd2) ? 2'd0 : selected_direction + 2'd1;
+    wire [1:0] next_fan_direction = selected_direction + 2'd1;
     wire [1:0] next_inventory_rocket = {rocket_facing_down, rocket_facing_left} + 2'd1;
-    wire [1:0] next_inventory_fan = fan_facing_down ? 2'd0 : {fan_facing_down, fan_facing_left} + 2'd1;
+    wire [1:0] next_inventory_fan = {fan_facing_down, fan_facing_left} + 2'd1;
 
     always @* begin
         mouse_value = 12'd0;

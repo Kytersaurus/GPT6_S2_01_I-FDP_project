@@ -489,7 +489,7 @@ function [15:0] part_sprite_facing_dir;
                 iy=y;
             end
         end else if (part==`LP_PART_FAN && facing_down) begin
-            ix=y;
+            ix=facing_left ? (size-1-y) : y;
             iy=size-1-x;
         end else if ((part==`LP_PART_ENGINE || part==`LP_PART_FAN) && facing_left) begin
             ix=size-1-x;
@@ -541,10 +541,10 @@ function [15:0] part_sprite_mounted;
         end else if (part == `LP_PART_FAN) begin
             if (facing_down) begin
                 iy = size - 1 - x;
-                ix = y;
-                if (!has_above) begin
+                ix = facing_left ? (size - 1 - y) : y;
+                if (facing_left ? !has_below : !has_above) begin
                     if (ix < stem_x - 1) ix = -8'sd1;
-                    else if (y >= stem_x + 1 && y < size - 2 && ((has_left && x < 2) || (has_right && x >= size - 2))) begin
+                    else if (ix >= stem_x + 1 && ix < size - 2 && ((has_left && x < 2) || (has_right && x >= size - 2))) begin
                         ix = (x == 0 || x == size - 1) ? 8'sd0 : 8'sd1;
                         iy = size >>> 1;
                     end
