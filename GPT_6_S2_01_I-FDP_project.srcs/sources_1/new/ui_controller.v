@@ -14,11 +14,10 @@ module ui_controller (
     input wire engine_toggle_req, fan_toggle_req,
     input tri0 [3:0] fan_toggle_cell,
     input tri0 rocket_toggle_req,
-    input wire fan_available, rocket_available, rocket_ready, balloon_available,
+    input wire fan_available, rocket_available, rocket_ready,
     output reg home_req, launch_req, edit_req, end_try_req, guide_open_req, guide_close_req,
     output reg level_open_req, level_close_req, level_select_req,
     output reg [1:0] selected_level,
-    output reg [1:0] run_page,
     output reg boost_req,
     output reg [1:0] diary_page,
     output reg [2:0] master_volume,
@@ -26,7 +25,6 @@ module ui_controller (
     output wire fan_on,
     output reg [8:0] active_fans,
     output reg rocket_req,
-    output reg sound_muted,
     output wire launch_flash
 );
     reg left_was_down;
@@ -40,8 +38,8 @@ module ui_controller (
         if (reset) begin
             left_was_down<=0; diary_page<=0; master_volume<=2;
             engine_on<=0;
-            active_fans<=9'd0; sound_muted<=0;
-            run_page<=0; boost_req<=0;
+            active_fans<=9'd0;
+            boost_req<=0;
             home_req<=0; launch_req<=0; edit_req<=0; end_try_req<=0; guide_open_req<=0; guide_close_req<=0;
             rocket_req<=0; launch_ticks<=0;
             level_open_req<=0; level_close_req<=0; level_select_req<=0; selected_level<=0;
@@ -54,7 +52,6 @@ module ui_controller (
                 // cell on the run diagram is the only way to toggle it.
                 engine_on<=1'b0;
                 active_fans<=9'd0;
-                run_page<=0;
             end else if (game_state==`LP_RUN) begin
                 if (engine_toggle_req) engine_on<=!engine_on;
                 if (fan_toggle_req && fan_available && fan_toggle_cell < 4'd9)
@@ -162,13 +159,10 @@ module ui_controller (
                         if (my >= 53 && my <= 63) begin
                             if (mx >= 2 && mx <= 22) begin
                                 launch_req <= 1;          // [RETRY]
-                                run_page <= 0;
                             end else if (mx >= 26 && mx <= 46) begin
                                 end_try_req <= 1;         // [END TRY]
-                                run_page <= 0;
                             end else if (mx >= 50 && mx <= 70) begin
                                 edit_req <= 1;            // [EDIT]
-                                run_page <= 0;
                             end else if (mx >= 74 && mx <= 94) begin
                                 level_open_req <= 1;      // [GEAR]
                             end
@@ -176,7 +170,6 @@ module ui_controller (
                     end
                 end
             end
-            if (game_state!=`LP_RUN || level_close_req || level_open_req) run_page<=0;
             if (game_state!=`LP_GUIDE && game_state!=`LP_SETTINGS && !guide_open_req) diary_page<=0;
         end
     end

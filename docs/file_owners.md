@@ -19,7 +19,7 @@ All design files below are located in `GPT_6_S2_01_I-FDP_project.srcs/sources_1/
 | `vehicle_builder.v` | Role 1 - Kaushal (`A0315560L`) | Frame/content editing, attachment/stock validation, timed edit feedback, inventory, runtime masks, counts, mass, and wheel side detection (`wheels_down`/`wheels_up`) |
 | `mouse_adapter.v` | Role 1 - Kaushal (`A0315560L`) | Driver coordinate setup, cursor tracking, inventory selection, click/drag-and-drop placement, right-click removal, in-cell part flipping, and RUN cell click requests |
 | `balloon_control.v` | Role 1 - Kaushal (`A0315560L`) | Queue valid balloon clicks and apply content damage between movement/world updates |
-| `input_controller.v` | Role 1 - Kaushal (`A0315560L`) | Launch/edit/right button actions, reverse switch (`SW15`), and audio mute (`SW0`); `BTNL` is reserved |
+| `input_controller.v` | Role 1 - Kaushal (`A0315560L`) | Launch/edit button actions (`BTNC`/`BTNU`), reverse switch (`SW15`), and audio mute (`SW0`); `BTNL` and `BTNR` are reserved |
 | `ui_controller.v` | Role 1 - Kaushal (`A0315560L`) | Diary/guide navigation, left-OLED action buttons, cell-click runtime part controls, boost controls, and level selection requests |
 | `ui_renderer.v` | Role 1 - Kaushal; shared with Role 4 | Left-screen layout for Title, Level Select, Build, Run, Settings/`[ ? ]` guide, diary pages, inventory boxes, and feedback overlays |
 | `ui_font.vh` | Shared - Role 1 and Role 4 | Built-in 5x7 bitmap font definitions for on-screen text and feedback messages |
@@ -45,13 +45,12 @@ All design files below are located in `GPT_6_S2_01_I-FDP_project.srcs/sources_1/
 | `level_map.v` | Role 4 - Marcus (`A0271977L`) | Dual-port Block-RAM terrain ROM: draw port for OLED renderer and query port for collision engine |
 | `cave_arch_map.mem`, `cave_arch_solid.mem` | Role 4 - Marcus; Role 3 solidity | 956x582 Cave Arch colour palette indices and synthesized 1-bit collision solidity memory (smoothed terrain) |
 | `cave_flight_map.mem`, `cave_flight_solid.mem`, `cave_flight_colour_*.mem` | Role 4 - Marcus; Role 3 solidity | 890x213 Cave Flight colour palette indices, split colour banks, and synthesized 1-bit collision solidity memory |
-| `zoom_control.v` | Role 4 - Marcus (`A0271977L`) | Map camera zoom decoding (`1.5x` close, `1.0x` normal, `0.5x` overview) from `SW14` and mouse wheel |
-| `level_button.v` | Role 4 - Marcus (`A0271977L`) | Left-OLED level button click detection, reading shared mouse coordinates |
+| `zoom_control.v` | Role 4 - Marcus (`A0271977L`) | Map camera zoom decoding (`1.5x` close, `1.0x` normal, `0.5x` overview) from mouse wheel (in RUN/GUIDE; turns inventory page in BUILD) |
 | `explosion_fx.v` | Role 4 - Marcus (`A0271977L`) | Three-phase TNT blast animation (flash, fireball, smoke) when a TNT intact bit falls |
 | `part_sprites.vh` | Role 4 - Marcus (`A0271977L`) | Shared 8x8 (1x zoom), 12x12 (1.5x zoom), and 16x16 (editor) part, TNT, rocket, and fan sprites with per-part palettes |
 | `left_renderer.v` | Role 4 - Marcus (`A0271977L`) | Left OLED grid, inventory/counts, cursor, moving preview, feedback text/outlines, tutorial prompts, and runtime menu rendering |
-| `right_renderer.v` | Role 4 - Marcus (`A0271977L`) | Right OLED world/vehicle rendering with camera following (`display_x`/`display_y`), full-turn rotation, zoom scales, and `SW13` free look |
-| `display_snapshot.v` | Role 4 - Marcus (`A0271977L`) | Coherent 319-bit snapshot transfer bridging 100 MHz logic and 6.25 MHz OLED clock domains |
+| `right_renderer.v` | Role 4 - Marcus (`A0271977L`) | Right OLED world/vehicle rendering with camera following (`display_x`/`display_y`), full-turn rotation, zoom scales, and `SW14` free look |
+| `display_snapshot.v` | Role 4 - Marcus (`A0271977L`) | Coherent snapshot transfer bridging 100 MHz logic and 6.25 MHz OLED clock domains |
 | `game_defs.vh` | Shared - all roles | Global constants: part IDs, state IDs, coordinate bits (Q12.8), tilt bits, and audio profiles |
 | `My_Top_Module.v` | Shared; Role 4 - Marcus coordinates | Top-level pin wiring, clock division, and module interconnects |
 | `Oled_Display.v` | Supplied driver; Role 4 integrates | Digilent RGB OLED SPI controller (preserved with original attribution) |
@@ -62,7 +61,7 @@ All design files below are located in `GPT_6_S2_01_I-FDP_project.srcs/sources_1/
 
 ## Simulation Testbenches
 
-All 55 simulation benches are located in `sim/` and pass through `scripts/run_simulations.ps1`.
+All 86 simulation benches are located in `sim/` and pass through `scripts/run_simulations.ps1`.
 
 ### Role 1 - Kaushal (Builder, Input, UI & Audio)
 | Testbench file | Purpose |
@@ -117,7 +116,7 @@ All 55 simulation benches are located in `sim/` and pass through `scripts/run_si
 | `sim/level_map_tb.v` | Dual-port ROM verification for Cave Arch and Cave Flight against original map binary assets |
 | `sim/role4_game_display_tb.v` | Level data, level selector transitions, fail reasons, timer, explosions, and renderer pixels |
 | `sim/role4_level_solutions_tb.v` | Recorded solutions: prepared test vehicles clearing levels through the full hardware top |
-| `sim/zoom_controls_tb.v` | Map camera zoom decoding from `SW14` switch and mouse wheel deltas |
+| `sim/zoom_controls_tb.v` | Map camera zoom decoding from mouse wheel deltas and tutorial preset |
 
 ### Shared Integration Tests (All Roles)
 | Testbench file | Purpose |
@@ -156,7 +155,7 @@ All 55 simulation benches are located in `sim/` and pass through `scripts/run_si
 | `docs/map_interface_proposal.md` | Role 4 - Marcus | Original proposal and architectural design for Cave Arch and Cave Flight |
 | `scripts/add_team_sources.tcl` | Shared; Role 4 coordinates | Vivado Tcl script to register all design files into the `.xpr` project |
 | `scripts/rebuild_bitstream.tcl` | Shared integration | Batch Vivado rebuild script ensuring clean synthesis, implementation, and bitstream generation |
-| `scripts/run_simulations.ps1` | Shared - all roles | Automated regression runner executing all 55 simulation testbenches |
+| `scripts/run_simulations.ps1` | Shared - all roles | Automated regression runner executing all 86 simulation testbenches |
 | `scripts/check_map_solidity.ps1` | Role 3 / 4 | Exhaustive verification script testing synthesized Block-RAM solidity against all map pixels |
 | `scripts/archive_bitstream.tcl` | Shared integration | Hook archiving completed bitstreams into `bitstreams/` with timestamp and metadata |
 | `bitstreams/README.md` | Shared integration | Bitstream catalog, hardware setup instructions, and chronological milestone history |

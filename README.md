@@ -3,9 +3,9 @@
 ![Basys 3 FPGA](https://img.shields.io/badge/FPGA-Xilinx_Artix--7_(Basys_3)-blue)
 ![Clock](https://img.shields.io/badge/Logic_Clock-100_MHz-brightgreen)
 ![Display](https://img.shields.io/badge/Display-Dual_96x64_RGB_OLED_(6.25_MHz)-orange)
-![LUTs](https://img.shields.io/badge/Slice_LUTs-17,199_%2F_20,800_(82.69%25)-success)
+![LUTs](https://img.shields.io/badge/Slice_LUTs-19,747_%2F_20,800_(94.94%25)-success)
 ![BRAM](https://img.shields.io/badge/Block_RAM-48_%2F_50_(96.00%25)-informational)
-![Tests](https://img.shields.io/badge/Test_Suite-55%2F55_Passing-brightgreen)
+![Tests](https://img.shields.io/badge/Test_Suite-86%2F86_Passing-brightgreen)
 
 A complete hardware-accelerated clone of **Bad Piggies** built from scratch in Verilog/VHDL on the **Digilent Basys 3** (`XC7A35T-1CPG236C`) FPGA. The system features a real-time Q12.8 fixed-point rigid-body physics engine with 32-step vehicle rotation, Separating Axis Theorem (SAT) cave terrain collision, swept-AABB TNT explosions with cell-level damage masks, dual-voice PWM music synthesis, PS/2 mouse drag-and-drop construction, and a dual-screen 96×64 RGB OLED display pipeline.
 
@@ -162,8 +162,8 @@ The wheel engine has **no switch**. It starts OFF on every run and is toggled on
 
 ## 5. Verification & Synthesis Results
 
-### 5.1 Running the 55-Testbench Regression Suite
-All subsystems are verified by **55 self-checking testbenches** in [`sim/`](file:///c:/Users/kaush/EE2026Labs/GPT6_S2_01_I-FDP_project/sim). Run the entire suite in PowerShell:
+### 5.1 Running the 86-Testbench Regression Suite
+All subsystems are verified by **86 self-checking testbenches** in [`sim/`](file:///c:/Users/kaush/EE2026Labs/GPT6_S2_01_I-FDP_project/sim). Run the entire suite in PowerShell:
 ```powershell
 .\scripts\run_simulations.ps1
 ```
@@ -177,9 +177,9 @@ vivado -mode batch -source scripts/build_bitstream.tcl
 ### 5.3 Post-Route Resource Utilization & Timing (`XC7A35T-1CPG236C`)
 | Resource | Used | Available | Utilization |
 | :--- | :---: | :---: | :---: |
-| **Slice LUTs** | **17,199** | 20,800 | **82.69%** (3,601 LUTs free) |
-| **Slice Registers** | **5,689** | 41,600 | **13.68%** |
+| **Slice LUTs** | **19,747** | 20,800 | **94.94%** (1,053 LUTs free) |
+| **Slice Registers** | **5,747** | 41,600 | **13.81%** |
 | **Block RAM Tiles (`RAMB36E1`)** | **48** | 50 | **96.00%** |
 | **DSP48E1 Slices** | **16** | 90 | **17.78%** |
-| **Worst Negative Slack (WNS)** | **> 0.000 ns** | 100 MHz / 6.25 MHz | **Timing Closed (0 Failing Endpoints)** |
-| **Worst Hold Slack (WHS)** | **+0.042 ns** | 100 MHz / 6.25 MHz | **Timing Closed (0 Failing Endpoints)** |
+| **Worst Negative Slack (WNS)** | **+0.040 ns** | 100 MHz / 6.25 MHz | **Timing Closed (0 Failing Endpoints)** |
+| **Worst Hold Slack (WHS)** | **+0.053 ns** | 100 MHz / 6.25 MHz | **Timing Closed (0 Failing Endpoints)** |

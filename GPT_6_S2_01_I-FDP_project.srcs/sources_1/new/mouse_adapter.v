@@ -7,7 +7,6 @@ module mouse_adapter (
     input wire [26:0] build_grid,
     input wire [8:0] build_frames, build_facing_left,
     input wire [8:0] build_facing_down,
-    input wire [1:0] run_page,
     input wire [11:0] mouse_x, mouse_y,
     input wire mouse_left, mouse_right, mouse_event,
     input tri0 [3:0] mouse_z,
@@ -192,7 +191,7 @@ module mouse_adapter (
                 endcase
             end
 
-            if (input_enabled && game_state == `LP_BUILD && mouse_event && mouse_z != 0) begin
+            if (input_enabled && game_state == `LP_BUILD && in_inventory && mouse_event && mouse_z != 0) begin
                 if (!mouse_z[3]) begin
                     inventory_page <= 2'd1;
                 end else begin
@@ -346,17 +345,15 @@ module mouse_adapter (
                     if (in_grid) begin
                         if (hovered_part == `LP_PART_BALLOON || hovered_part == `LP_PART_FRAME) begin
                             pop_req <= 1; pop_cell <= hovered_cell;
-                        end else if (run_page == 2'd0) begin
-                            if (hovered_part == `LP_PART_ENGINE) begin
-                                engine_toggle_req <= 1;
-                            end else if (hovered_part == `LP_PART_FAN) begin
-                                fan_toggle_req <= 1;
-                                fan_toggle_cell <= hovered_cell;
-                            end else if (hovered_part == `LP_PART_BOOSTER) begin
-                                // Each rocket fires on its own: the cell says which one.
-                                boost_req <= 1;
-                                boost_cell <= hovered_cell;
-                            end
+                        end else if (hovered_part == `LP_PART_ENGINE) begin
+                            engine_toggle_req <= 1;
+                        end else if (hovered_part == `LP_PART_FAN) begin
+                            fan_toggle_req <= 1;
+                            fan_toggle_cell <= hovered_cell;
+                        end else if (hovered_part == `LP_PART_BOOSTER) begin
+                            // Each rocket fires on its own: the cell says which one.
+                            boost_req <= 1;
+                            boost_cell <= hovered_cell;
                         end
                     end
                 end

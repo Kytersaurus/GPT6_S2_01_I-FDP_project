@@ -25,15 +25,15 @@ module merge_integration_tb;
         force dut.boost_active=boost_active;force dut.left_frame=1'b1;
         force dut.ui_boost_req=ui_boost;force dut.mouse_boost_req=mouse_boost;
         clocks(20);reset_board=0;clocks(500);
-        // 353 bits with four TNT slots; each slot carries an intact bit and a 2-bit blast phase.
-        if(dut.SNAPSHOT_WIDTH!=353+3*(`LP_MAX_TNT-4)) $fatal(1,"Merged snapshot field width is incorrect");
-        if(dut.draw_start_screen_active!==1'b1 || dut.draw_fan_available!==1'b1 ||
+        // 349 bits with four TNT slots; each slot carries an intact bit and a 2-bit blast phase.
+        if(dut.SNAPSHOT_WIDTH!=349+3*(`LP_MAX_TNT-4)) $fatal(1,"Merged snapshot field width is incorrect");
+        if(dut.draw_start_screen_active!==1'b1 ||
            dut.draw_fan_on!==1'b1 || dut.draw_star_box_collected!==1'b1)
             $fatal(1,"Merged high snapshot fields were truncated or misordered");
         if(dut.u_ui_control.rocket_ready!==1'b0)
             $fatal(1,"UI did not use physics rocket readiness");
         title=0;fan_on=0;star=0;ready=1;boost_active=1;clocks(500);
-        if(dut.draw_start_screen_active!==1'b0 || dut.draw_fan_available!==1'b1 ||
+        if(dut.draw_start_screen_active!==1'b0 ||
            dut.draw_fan_on!==1'b0 || dut.draw_star_box_collected!==1'b0)
             $fatal(1,"Merged display flags failed to update coherently");
         if(dut.u_ui_control.rocket_ready!==1'b1)

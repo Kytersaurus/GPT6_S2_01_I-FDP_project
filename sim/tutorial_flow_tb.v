@@ -27,7 +27,6 @@ module tutorial_flow_tb;
 
     initial begin
         force dut.mouse_x = mx; force dut.mouse_y = my;
-        force dut.effective_mouse_x = mx; force dut.effective_mouse_y = my;
         force dut.mouse_left = ml; force dut.mouse_right = 1'b0;
         force dut.mouse_event = me; force dut.mouse_z = mz;
         // Publish the snapshot every clock so frames can be exported without

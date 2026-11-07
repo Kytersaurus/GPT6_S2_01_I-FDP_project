@@ -6,7 +6,6 @@
 // original 96; the game sets its tuned value in My_Top_Module.
 module physics_engine #(parameter integer ENGINE_FORCE = 96,
                         parameter integer ROCKET_FORCE_SHIFT = 9,
-                        parameter integer WHEEL_TORQUE_SHIFT = 0,
                         parameter integer FAN_LIFT_FORCE_SHIFT = 8) (
     input wire clk, reset,
     input wire [2:0] game_state,
@@ -21,8 +20,6 @@ module physics_engine #(parameter integer ENGINE_FORCE = 96,
     input wire [7:0] mass_units,
     input wire engine_enabled,
     input wire engine_reverse,
-    // Retained as an inert legacy port. The spring/jump mechanic was removed.
-    input wire jump_press,
     // Signed intact part counts: right-facing minus left-facing. Unconnected
     // ports preserve legacy benches with no airborne propulsion.
     input tri0 signed [4:0] fan_balance, rocket_balance,
@@ -252,7 +249,7 @@ wire air_leveling_snap = air_leveling_active &&
                          ((vehicle_tilt == 5'sd1) || (vehicle_tilt == -5'sd1)) &&
                          angular_speed < 14'd512;
     wire signed [15:0] force_angle_sum=$signed(moment_angle_remainder)+$signed(clamped_angular_velocity);
-    vehicle_moments #(.ROCKET_FORCE_SHIFT(ROCKET_FORCE_SHIFT), .WHEEL_TORQUE_SHIFT(WHEEL_TORQUE_SHIFT),
+    vehicle_moments #(.ROCKET_FORCE_SHIFT(ROCKET_FORCE_SHIFT),
         .FAN_LIFT_FORCE_SHIFT(FAN_LIFT_FORCE_SHIFT)) u_moments (
         .clk(clk),.reset(reset || run_init || game_state!=`LP_RUN),
         .start(phase==IDLE && step_start && moments_enabled && game_state==`LP_RUN && !run_init),
@@ -1095,7 +1092,6 @@ endmodule
 // One rigid body. Coordinates are quarter pixels relative to grid centre.
 // A single serial multiplier and divider are reused across all nine cells.
 module vehicle_moments #(parameter integer ROCKET_FORCE_SHIFT = 9,
-                         parameter integer WHEEL_TORQUE_SHIFT = 0,
                          parameter integer FAN_LIFT_FORCE_SHIFT = 8) (
     input wire clk, reset, start,
     input wire [26:0] build_grid,
@@ -1140,7 +1136,7 @@ module vehicle_moments #(parameter integer ROCKET_FORCE_SHIFT = 9,
     localparam IDLE=0, SCAN=1, MASS_X_START=2, MASS_X_WAIT=3,
         MASS_Y_START=4, MASS_Y_WAIT=5, WAIT_FORCE=6, SHARE_START=7,
         SHARE_WAIT=8, CELL=9, ROT_FIRST=10, ROT_SECOND=11,
-        ROT_COMBINE=12, TORQUE=13, WHEEL_MUL=14, ADD_TORQUE=15,
+        ROT_COMBINE=12, TORQUE=13, ADD_TORQUE=15,
         ADVANCE=16, ACCEL_START=17, ACCEL_WAIT=18, DONE=19,
         MUL=20, MUL_SIGN=21, WAIT_PIVOT=22, PIVOT_OLD_X_SECOND=23,
         PIVOT_OLD_Y_FIRST=24, PIVOT_OLD_Y_SECOND=25, PIVOT_NEW_X_FIRST=26,

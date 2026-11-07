@@ -5,7 +5,6 @@
 module flight_rest_tb #(parameter TWO_SIDED=0, INACTIVE_PART=0);
     `include "rotation_geometry.vh"
     localparam ENABLE_MOMENTS=1;
-    localparam WHEEL_TORQUE_SHIFT=2;
     localparam [26:0] CART_GRID={`LP_PART_WHEEL,`LP_PART_EMPTY,`LP_PART_WHEEL,
         `LP_PART_EMPTY,`LP_PART_PIG,`LP_PART_ENGINE,
         (`LP_PART_WHEEL & {3{TWO_SIDED!=0}}),INACTIVE_PART[2:0],(`LP_PART_WHEEL & {3{TWO_SIDED!=0}})};
@@ -45,7 +44,7 @@ module flight_rest_tb #(parameter TWO_SIDED=0, INACTIVE_PART=0);
     // The game feeds collision the solid mask as ROCK/SKY, as My_Top_Module does.
     assign query_class = query_solid ? `LP_MAP_ROCK : `LP_MAP_SKY;
     // The game's engine strength (My_Top_Module ENGINE_FORCE).
-    physics_engine #(.ENGINE_FORCE(320),.WHEEL_TORQUE_SHIFT(WHEEL_TORQUE_SHIFT),.ROCKET_FORCE_SHIFT(10)) u_physics (
+    physics_engine #(.ENGINE_FORCE(320),.ROCKET_FORCE_SHIFT(10)) u_physics (
         .moments_enabled(ENABLE_MOMENTS != 0),
         .build_grid(CART_GRID),
         .build_frames(9'b000111000),.frame_intact_mask(9'b000111000),
@@ -58,7 +57,7 @@ module flight_rest_tb #(parameter TWO_SIDED=0, INACTIVE_PART=0);
         .engine_count(4'd1), .fan_enabled(1'b0), .fan_balance(INACTIVE_PART==`LP_PART_FAN ? 5'sd1 : 5'sd0),
         .rocket_count(INACTIVE_PART==`LP_PART_BOOSTER ? 4'd1 : 4'd0),.rocket_req(1'b0),
         .rocket_balance(INACTIVE_PART==`LP_PART_BOOSTER ? 5'sd1 : 5'sd0),.rocket_vertical_balance(5'sd0), .balloon_count(4'd0), .mass_units((TWO_SIDED ? 8'd15 : 8'd13)+(INACTIVE_PART!=0 ? 8'd2 : 8'd0)),
-        .engine_enabled(engine_on), .engine_reverse(engine_reverse), .jump_press(1'b0), .boost_req(1'b0),
+        .engine_enabled(engine_on), .engine_reverse(engine_reverse), .boost_req(1'b0),
         .boost_active(), .proposed_pivot_dx_q8(pivot_dx_q8),.proposed_pivot_dy_q8(pivot_dy_q8),.move_valid(move_valid), .move_ready(move_ready),
         .previous_x(previous_x), .previous_y(previous_y), .proposed_x(proposed_x), .proposed_y(proposed_y),
         .proposed_vx(proposed_vx), .proposed_vy(proposed_vy), .response_valid(response_valid),

@@ -46,7 +46,7 @@ The wheel engine has no switch: it starts OFF every run and is toggled only by c
 | **`BTNC`** | `btnC` (`center_press`) | **Launch / Retry:** Launches the vehicle from `BUILD` (when build is valid); retries the current level from `RUN`, `SUCCESS`, or `FAIL` |
 | **`BTNU`** | `btnU` (`up_press`) | **Edit / Guide / Back:** Opens/closes the Field Diary (`GUIDE`) when in `BUILD`; returns to `BUILD` from `RUN`, `SUCCESS`, or `FAIL`; backs out of `LEVEL_SELECT` or `SETTINGS` |
 | **`BTNR`** | `btnR` | **Reserved:** Not connected to any game action. Each rocket fires by clicking its own cell |
-| **`BTNL`** | `btnL` (`left_press`) | *Reserved / Inactive* (`jump_press` is tied to `1'b0`) |
+| **`BTNL`** | `btnL` | **Reserved:** Not connected to any game action |
 | **`BTND`** | `btnD` (`reset`) | **Master Hardware Reset:** Synchronized active-high reset via `clock_control.v` |
 
 ---
@@ -54,7 +54,7 @@ The wheel engine has no switch: it starts OFF every run and is toggled only by c
 ## 4. Top-Level Module Interconnect (`My_Top_Module.v`)
 
 1. **`clock_control` (`u_clocks`):** Generates the 6.25 MHz SPI display clock (`clk_6p25m`), 1 kHz physics/UI tick (`physics_tick`), 10 Hz tenths tick (`timer_tick`), and synchronized system reset (`sys_reset`).
-2. **`input_controller` (`u_input`) & `mouse_adapter` (`u_mouse_adapter`):** Debounces physical buttons, synchronizes slide switches, and scales PS/2 mouse deltas (`SLOW / NORM / FAST`) into `[0..95, 0..63]` cursor coordinates plus click/drag/scroll events.
+2. **`input_controller` (`u_input`) & `mouse_adapter` (`u_mouse_adapter`):** Debounces physical buttons, synchronizes slide switches, and clamps PS/2 mouse coordinates into `[0..95, 0..63]` cursor positions plus click/drag/scroll events.
 3. **`ui_controller` (`u_ui_controller`):** Translates mouse clicks, drags, and button presses across all UI screens (`TITLE`, `BUILD`, `GUIDE`, `SETTINGS`, `SOUND`, `LEVEL_SELECT`, `RUN`, `SUCCESS`, `FAIL`) into builder edit commands and runtime action triggers.
 4. **`vehicle_builder` (`u_builder`):** Maintains the 3×3 vehicle grid (`build_grid`, `build_frames`, `build_facing_left`, `build_facing_down`), enforces stock limits and structural mounting rules, and produces `active_grid` / `active_frames` during `RUN` mode by masking out damaged cells (`damage_mask`, `damage_frame_mask`).
 5. **`game_controller` (`u_game`) & `level_data` (`u_level_data`):** Drives the master game FSM, star ratings (`star_goal`, `star_time`, `star_part`), and per-level spawn/goal/TNT/part-limit configurations for Maps 1, 2, and 3.

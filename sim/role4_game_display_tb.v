@@ -43,16 +43,20 @@ module role4_game_display_tb;
         .update_release(release_step),.launch_event(),.success_event(),.failure_event()
     );
 
-    // Level button with a scripted mouse.
+    // BUILD settings/map button via ui_controller with a scripted mouse.
     reg [2:0] button_state=`LP_BUILD;
     reg [11:0] mouse_x=0, mouse_y=0;
     reg mouse_left=0, mouse_right=0, mouse_event=0, button_enabled=1;
     wire button_req;
     integer button_pulses=0;
-    level_button button (
+    ui_controller button (
         .input_enabled(button_enabled),
-        .clk(clk),.reset(reset),.game_state(button_state),.mouse_x(mouse_x),.mouse_y(mouse_y),
-        .mouse_left(mouse_left),.mouse_right(mouse_right),.mouse_event(mouse_event),.level_open_req(button_req)
+        .clk(clk),.reset(reset),.run_init(1'b0),.physics_tick(1'b0),.launch_event(1'b0),
+        .start_screen_active(1'b0),.game_state(button_state),.mouse_x(mouse_x),.mouse_y(mouse_y),
+        .mouse_left(mouse_left),.mouse_right(mouse_right),.mouse_event(mouse_event),
+        .next_press(1'b0),.engine_toggle_req(1'b0),.fan_toggle_req(1'b0),
+        .fan_available(1'b0),.rocket_available(1'b0),.rocket_ready(1'b0),
+        .level_open_req(button_req)
     );
     always @(posedge clk) if (button_req) button_pulses = button_pulses + 1;
 
@@ -277,7 +281,7 @@ module role4_game_display_tb;
         button_packet(88,59,1,1); button_packet(88,59,1,0);
         if(button_pulses!=index) $fatal(1,"Right-click or its held-left release selected a level");
         button_packet(88,59,0,0);
-        button_state=`LP_RUN; check_button_click(88,59,0);
+        button_state=`LP_INIT_RUN; check_button_click(88,59,0);
         button_state=`LP_BUILD; button_enabled=0; check_button_click(88,59,0);
         button_packet(88,59,1,0); index=button_pulses; button_enabled=1;
         button_packet(88,59,1,0);

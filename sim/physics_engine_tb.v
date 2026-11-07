@@ -16,7 +16,7 @@ module physics_engine_tb;
     physics_engine dut (
         .clk(clk),.reset(reset),.game_state(game_state),.run_init(run_init),.init_ready(init_ready),
         .spawn_x(20'sd1024),.spawn_y(20'sd8192),.step_start(step_start),.update_release(update_release),
-        .wheel_count(4'd0),.engine_count(4'd0),.balloon_count(balloons),.mass_units(8'd2),.engine_enabled(1'b0),.engine_reverse(1'b0),.jump_press(1'b0),
+        .wheel_count(4'd0),.engine_count(4'd0),.balloon_count(balloons),.mass_units(8'd2),.engine_enabled(1'b0),.engine_reverse(1'b0),
         .tnt_knockback_valid(tnt_knockback_valid),.tnt_knockback_x(tnt_knockback_x),.tnt_knockback_y(tnt_knockback_y),
         .move_valid(move_valid),.move_ready(move_ready),.previous_x(px),.previous_y(py),
         .proposed_x(nx),.proposed_y(ny),.proposed_vx(nvx),.proposed_vy(nvy),

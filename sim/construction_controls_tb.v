@@ -37,7 +37,7 @@ module construction_controls_tb;
     always #5 clk=~clk;
 
     mouse_adapter input_actions (
-        .build_facing_left(9'd0), .run_page(2'd1),
+        .build_facing_left(9'd0),
         .input_enabled(1'b1),.build_grid(grid),.build_frames(frames),
         .clk(clk),.reset(reset),.game_state(game_state),.mouse_x(mouse_x),.mouse_y(mouse_y),
         .mouse_left(mouse_left),.mouse_right(mouse_right),.mouse_event(mouse_event),

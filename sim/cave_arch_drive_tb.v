@@ -11,7 +11,7 @@
 // world_outcomes' map goal: the pig (centre cell) inside the box from the flag pole.
 // Each update must commit; the run fails if the vehicle leaves the world or stops
 // moving for 10 seconds of updates.
-module cave_arch_drive_tb #(parameter ENABLE_MOMENTS=1, parameter WHEEL_TORQUE_SHIFT=2, parameter CG_SUPPORT=1);
+module cave_arch_drive_tb #(parameter ENABLE_MOMENTS=1, parameter CG_SUPPORT=1);
     reg clk=0, reset=1, run_init=0, step_start=0, update_release=0, engine_reverse=0;
     reg [2:0] game_state=`LP_BUILD;
     always #5 clk=~clk;
@@ -45,7 +45,7 @@ module cave_arch_drive_tb #(parameter ENABLE_MOMENTS=1, parameter WHEEL_TORQUE_S
     // The game feeds collision the solid mask as ROCK/SKY, as My_Top_Module does.
     assign query_class = query_solid ? `LP_MAP_ROCK : `LP_MAP_SKY;
     // The game's engine strength (My_Top_Module ENGINE_FORCE).
-    physics_engine #(.ENGINE_FORCE(320),.WHEEL_TORQUE_SHIFT(WHEEL_TORQUE_SHIFT),.ROCKET_FORCE_SHIFT(10)) u_physics (
+    physics_engine #(.ENGINE_FORCE(320),.ROCKET_FORCE_SHIFT(10)) u_physics (
         .moments_enabled(ENABLE_MOMENTS != 0),
         .build_grid({`LP_PART_WHEEL,`LP_PART_EMPTY,`LP_PART_WHEEL,
                      `LP_PART_EMPTY,`LP_PART_PIG,`LP_PART_ENGINE,
@@ -60,7 +60,7 @@ module cave_arch_drive_tb #(parameter ENABLE_MOMENTS=1, parameter WHEEL_TORQUE_S
         .spawn_x(spawn_x), .spawn_y(spawn_y), .step_start(step_start), .update_release(update_release),
         .wheel_count(4'd4), .wheels_down(4'd2), .wheels_up(4'd2), .tip_dir(tip_dir), .support_unstable(support_unstable),
         .engine_count(4'd1), .balloon_count(4'd0), .mass_units(8'd15),
-        .engine_enabled(1'b1), .engine_reverse(engine_reverse), .jump_press(1'b0), .boost_req(1'b0),
+        .engine_enabled(1'b1), .engine_reverse(engine_reverse), .boost_req(1'b0),
         .boost_active(), .move_valid(move_valid), .move_ready(move_ready),
         .previous_x(previous_x), .previous_y(previous_y), .proposed_x(proposed_x), .proposed_y(proposed_y),
         .proposed_vx(proposed_vx), .proposed_vy(proposed_vy), .response_valid(response_valid),

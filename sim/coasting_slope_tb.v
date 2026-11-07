@@ -3,7 +3,6 @@
 `include "game_defs.vh"
 // Engine-off coasting must retain momentum down the real Cave Arch slope.
 module coasting_slope_tb #(parameter TWO_SIDED=0, ENABLE_MOMENTS=1);
-    localparam WHEEL_TORQUE_SHIFT=2;
     localparam [26:0] CART_GRID={`LP_PART_WHEEL,`LP_PART_EMPTY,`LP_PART_WHEEL,
         `LP_PART_EMPTY,`LP_PART_PIG,`LP_PART_ENGINE,
         (`LP_PART_WHEEL & {3{TWO_SIDED!=0}}),`LP_PART_EMPTY,(`LP_PART_WHEEL & {3{TWO_SIDED!=0}})};
@@ -42,7 +41,7 @@ module coasting_slope_tb #(parameter TWO_SIDED=0, ENABLE_MOMENTS=1);
     // The game feeds collision the solid mask as ROCK/SKY, as My_Top_Module does.
     assign query_class = query_solid ? `LP_MAP_ROCK : `LP_MAP_SKY;
     // The game's engine strength (My_Top_Module ENGINE_FORCE).
-    physics_engine #(.ENGINE_FORCE(320),.WHEEL_TORQUE_SHIFT(WHEEL_TORQUE_SHIFT),.ROCKET_FORCE_SHIFT(10)) u_physics (
+    physics_engine #(.ENGINE_FORCE(320),.ROCKET_FORCE_SHIFT(10)) u_physics (
         .moments_enabled(ENABLE_MOMENTS != 0),
         .build_grid(CART_GRID),
         .build_frames(9'b000111000),.frame_intact_mask(9'b000111000),
@@ -55,7 +54,7 @@ module coasting_slope_tb #(parameter TWO_SIDED=0, ENABLE_MOMENTS=1);
         .spawn_x(spawn_x), .spawn_y(spawn_y), .step_start(step_start), .update_release(update_release),
         .wheel_count(TWO_SIDED ? 4'd4 : 4'd2), .wheels_down(4'd2), .wheels_up(TWO_SIDED ? 4'd2 : 4'd0), .tip_dir(tip_dir), .support_unstable(unstable),
         .engine_count(4'd1), .balloon_count(4'd0), .mass_units(TWO_SIDED ? 8'd15 : 8'd13),
-        .engine_enabled(engine_on), .engine_reverse(engine_reverse), .jump_press(1'b0), .boost_req(1'b0),
+        .engine_enabled(engine_on), .engine_reverse(engine_reverse), .boost_req(1'b0),
         .boost_active(), .move_valid(move_valid), .move_ready(move_ready),
         .previous_x(previous_x), .previous_y(previous_y), .proposed_x(proposed_x), .proposed_y(proposed_y),
         .proposed_vx(proposed_vx), .proposed_vy(proposed_vy), .response_valid(response_valid),

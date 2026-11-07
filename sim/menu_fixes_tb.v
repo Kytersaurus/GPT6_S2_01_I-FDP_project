@@ -21,7 +21,6 @@ module menu_fixes_tb;
         .an(an),.seg(seg),.dp(dp));
     initial begin
         force dut.mouse_x=mx;force dut.mouse_y=my;
-        force dut.effective_mouse_x=mx;force dut.effective_mouse_y=my;
         force dut.mouse_left=ml;force dut.mouse_right=1'b0;force dut.mouse_event=me;
     end
     task clocks;input integer n;begin repeat(n) @(negedge clk);end endtask
@@ -76,7 +75,7 @@ module menu_fixes_tb;
         dut.u_builder.build_frames=9'b000111000;clocks(2);
         click(8,59);clocks(20);
         if(dut.game_state!=`LP_RUN || dut.engine_enabled || dut.ui_fan_on) $fatal(1,"Launch did not start with actuators OFF");
-        click(48,59);if(dut.run_page!=0) $fatal(1,"Bottom gap activated hidden page");
+        click(48,59);if(dut.game_state!=`LP_RUN) $fatal(1,"Bottom gap left RUN");
         // Every build uses the same CoG/support solver. Wheel drive stays
         // translational; merely fitting an inactive jet cannot select another model.
         if(!dut.u_physics.moments_enabled) $fatal(1,"Wheel-only cart bypassed shared COM support solver");
