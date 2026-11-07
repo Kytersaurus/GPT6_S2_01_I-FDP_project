@@ -18,12 +18,12 @@ This directory organizes all verified programming bitstreams (`.bit`) generated 
 | Property | Value |
 | :--- | :--- |
 | **Quick-Flash File** | **[`bad_piggies_top_latest.bit`](bad_piggies_top_latest.bit)** |
-| **Archived Path** | **[`2026-11-07/005414_My_Top_Module.bit`](2026-11-07/005414_My_Top_Module.bit)** |
+| **Archived Path** | **[`2026-11-07/114512_My_Top_Module.bit`](2026-11-07/114512_My_Top_Module.bit)** |
 | **Pointer Metadata** | [`LATEST.txt`](LATEST.txt) |
-| **Source Commit** | `de67a39` (`role4`) |
-| **Build Timestamp** | `2026-11-07 00:54:14 +08:00` |
-| **Resource Utilization** | **19,747 / 20,800 Slice LUTs (94.94%)**, **48 / 50 Block RAM (`96.00%`)**, **WNS `+0.040 ns`**, **WHS `+0.053 ns`**, 0 failing endpoints |
-| **Key Highlights** | Tutorial rework with a zoom exercise, glowing controls, a retry icon prompt and a landing before the flag; Cave Arch and Cave Flight tweaks; individually fired rockets; down-only hanging fans; `SW14` free look with no zoom switch or `BTNR`; balloon pop and a new settings gear. **All 86 simulation benches pass; not yet tested on the board.** |
+| **Source Commit** | `71ca636` (`role1`) |
+| **Build Timestamp** | `2026-11-07 11:45:12 +08:00` |
+| **Resource Utilization** | **19,561 / 20,800 Slice LUTs (94.04%)**, **48 / 50 Block RAM (`96.00%`)**, **WNS `+0.004 ns`**, **WHS `+0.029 ns`**, 0 failing endpoints |
+| **Key Highlights** | Updated Map 2 Diary (1 Balloon + Left/Down Fans, no balloon pop), directional fan wind particles, build-mode scroll zoom, tutorial end Play button glow, Settings map highlight fix on tutorial, and redundant RTL cleanup (`-186 LUTs`). |
 
 ---
 
@@ -51,7 +51,9 @@ This directory organizes all verified programming bitstreams (`.bit`) generated 
 
 | Date | Time (SGT) | Bitstream File | Commit | Summary |
 | :--- | :--- | :--- | :--- | :--- |
-| **2026-11-06** | `17:26:39` | [`2026-11-06/172639_My_Top_Module.bit`](2026-11-06/172639_My_Top_Module.bit) | `38d8512` | **LATEST:** Guided Tutorial prompts & blinking target cells, remapped `SW15`–`SW13` / `SW1`–`SW0` switches, mouse-only engine, tiered fall damage, on-board TNT crate, Q12.1 half-pixel rendering & stationary slope anti-reversal lock. |
+| **2026-11-07** | `11:45:12` | [`2026-11-07/114512_My_Top_Module.bit`](2026-11-07/114512_My_Top_Module.bit) | `71ca636` | **LATEST:** Map 2 Diary update (1 Balloon + Left/Down Fans), directional fan wind particles, build scroll zoom, tutorial end Play glow, Settings map indicator fix, and dead RTL cleanup (`19,561 LUTs` / `94.04%`, `WNS +0.004 ns`). |
+| **2026-11-07** | `00:54:14` | [`2026-11-07/005414_My_Top_Module.bit`](2026-11-07/005414_My_Top_Module.bit) | `de67a39` | Tutorial rework with zoom exercise, glowing controls, retry icon prompt; Cave Arch & Cave Flight tweaks; individual rockets (`19,747 LUTs` / `94.94%`, `WNS +0.040 ns`). |
+| **2026-11-06** | `17:26:39` | [`2026-11-06/172639_My_Top_Module.bit`](2026-11-06/172639_My_Top_Module.bit) | `38d8512` | Guided Tutorial prompts & blinking target cells, remapped `SW15`–`SW13` / `SW1`–`SW0` switches, mouse-only engine, tiered fall damage, on-board TNT crate, Q12.1 half-pixel rendering & stationary slope anti-reversal lock. |
 | **2026-11-06** | `07:14:29` | [`2026-11-06/071429_My_Top_Module.bit`](2026-11-06/071429_My_Top_Module.bit) | `08df53a` | Interactive Tutorial level integration, per-level par countdown timer (`25 s` / `45 s`), and updated Diary walkthrough. |
 | **2026-11-05** | `16:17:45` | [`2026-11-05/161745_My_Top_Module.bit`](2026-11-05/161745_My_Top_Module.bit) | `089c399` | Fan/rocket arrow sync & mounting bracket, single-use rocket dimming, Diary pose/zoom/fan/frame fixes, bare-Pig rolling physics on TNT/high-fall frame break, Result Screen Settings icon (`17,200 LUTs` / `82.69%`, `48 BRAM`, `16 DSP`, `WNS +0.106 ns`). |
 | **2026-11-05** | `14:22:00` | [`2026-11-05/142200_My_Top_Module.bit`](2026-11-05/142200_My_Top_Module.bit) | `5081b2d` | Renderer LUT sharing (`16,896 LUTs` / `81.23%`, `48 BRAM`, `16 DSP`), updated Diary contraptions, Settings `[ ? ]` guide, `LED[12:3]` launch/end flash animations, cleaned switches. |
