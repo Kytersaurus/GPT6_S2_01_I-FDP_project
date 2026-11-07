@@ -488,7 +488,7 @@ module ui_renderer (
                         end else if (y >= 6'd34 && y <= 6'd42) begin
                             line_left = 7'd47; line_top = 6'd35;
                             if (level_index == 0) begin line_text = "ENG ON          "; line_colour = 16'h07e0; end
-                            else                  begin line_text = "FANS ON         "; line_colour = 16'h07ff; end
+                            else                  begin line_text = "ENG+FAN         "; line_colour = 16'h07ff; end
                         end
                     end
                     2'd1: begin
@@ -497,7 +497,7 @@ module ui_renderer (
                         end else if (y >= 6'd34 && y <= 6'd42) begin
                             line_left = 7'd47; line_top = 6'd35;
                             if (level_index == 0) begin line_text = "ROCKET!         "; line_colour = 16'hfd20; end
-                            else                  begin line_text = "FANS!           "; line_colour = 16'h07ff; end
+                            else                  begin line_text = "2 FANS!         "; line_colour = 16'h07ff; end
                         end
                     end
                     2'd2: begin
@@ -506,7 +506,7 @@ module ui_renderer (
                         end else if (y >= 6'd34 && y <= 6'd42) begin
                             line_left = 7'd47; line_top = 6'd35;
                             if (level_index == 0) begin line_text = "ENG ->          "; line_colour = 16'h07e0; end
-                            else                  begin line_text = "ROCKET!         "; line_colour = 16'hfd20; end
+                            else                  begin line_text = "FAN+ENG         "; line_colour = 16'h07ff; end
                         end
                     end
                     default: begin
@@ -951,20 +951,19 @@ module ui_renderer (
                     else if (y < 36) begin example_row = 1; example_local_y = y - 24; end
                     else             begin example_row = 2; example_local_y = y - 36; end
                     example_draw = 1'b1;
-                    // Wood frames sit across Row 1 (cells 3, 4, 5) on both maps.
-                    // Map 1: [Empty, Up-Rocket, Empty] / [Engine, Pig, Frame] / [Wheel, Empty, Wheel].
-                    // Map 2: [Balloon, Rocket, Left-Fan] / [Engine, Pig, Frame] / [Wheel, Down-Fan, Wheel].
-                    example_has_frame = (example_row == 1);
-                    if (example_row == 0 && example_col == 1)
+                    // Map 1: [Empty, Up-Rocket, Empty] / [Frame, Pig, Engine] / [Wheel, Empty, Wheel].
+                    // Map 2: [Left-Fan, Frame, Balloon] / [Frame, Pig, Engine] / [Wheel, Down-Fan, Wheel].
+                    example_has_frame = (example_row == 1) || (level_index != 0 && example_row == 0 && example_col == 1);
+                    if (example_row == 0 && example_col == 1 && level_index == 0)
                         example_part = `LP_PART_BOOSTER;
                     else if (example_row == 0 && example_col == 0 && level_index != 0)
-                        example_part = `LP_PART_BALLOON;
-                    else if (example_row == 0 && example_col == 2 && level_index != 0)
                         example_part = `LP_PART_FAN;
-                    else if (example_row == 1 && example_col == 0)
-                        example_part = `LP_PART_ENGINE;
+                    else if (example_row == 0 && example_col == 2 && level_index != 0)
+                        example_part = `LP_PART_BALLOON;
                     else if (example_row == 1 && example_col == 1)
                         example_part = `LP_PART_PIG;
+                    else if (example_row == 1 && example_col == 2)
+                        example_part = `LP_PART_ENGINE;
                     else if (example_row == 2 && example_col == 1 && level_index != 0)
                         example_part = `LP_PART_FAN;
                     else if (example_row == 2 && (example_col == 0 || example_col == 2))
@@ -993,7 +992,7 @@ module ui_renderer (
                         example_part = (level_index == 0) ? `LP_PART_BOOSTER : `LP_PART_FAN;
                     end else begin
                         example_has_frame = (level_index == 0);
-                        example_part = (level_index == 0) ? `LP_PART_ENGINE : `LP_PART_BOOSTER;
+                        example_part = (level_index == 0) ? `LP_PART_ENGINE : `LP_PART_FAN;
                     end
                 end
 
@@ -1273,10 +1272,10 @@ module ui_renderer (
             if (example_part != `LP_PART_EMPTY)
                 pixel_data = part_sprite12(example_part,
                     (example_part == `LP_PART_BOOSTER && level_index == 0) ? ((example_local_x >= 4'd9) ? 4'd15 : (4'd11 - example_local_y)) :
-                    (example_part == `LP_PART_FAN && (example_row == 2'd2 || (example_row == 2'd3 && diary_page == 2'd1))) ? example_local_y :
+                    (example_part == `LP_PART_FAN && (example_row == 2'd2 || (example_row == 2'd3 && diary_page != 2'd0))) ? example_local_y :
                     (example_part == `LP_PART_FAN) ? (4'd11 - example_local_x) : example_local_x,
                     (example_part == `LP_PART_BOOSTER && level_index == 0) ? example_local_x :
-                    (example_part == `LP_PART_FAN && (example_row == 2'd2 || (example_row == 2'd3 && diary_page == 2'd1))) ? (4'd11 - example_local_x) :
+                    (example_part == `LP_PART_FAN && (example_row == 2'd2 || (example_row == 2'd3 && diary_page != 2'd0))) ? (4'd11 - example_local_x) :
                     example_local_y,
                     1'b0, pixel_data);
             // Drawn AFTER part_sprite12 so gold/red/green active border highlights wood-framed parts too!
@@ -1286,12 +1285,12 @@ module ui_renderer (
                     pixel_data = (example_col == 2'd1) ? 16'hf800 : 16'h07e0;
                 end else if (example_row == 2'd3) begin
                     pixel_data = 16'hffe0;
-                end else if ((diary_page == 2'd0 && level_index == 0 && ((example_row == 1 && example_col == 0) || (example_row == 2 && example_col != 1))) ||
-                             (diary_page == 2'd0 && level_index != 0 && ((example_row == 0 && example_col != 1) || (example_row == 2 && example_col == 1))) ||
+                end else if ((diary_page == 2'd0 && level_index == 0 && ((example_row == 1 && example_col == 2) || (example_row == 2 && example_col != 1))) ||
+                             (diary_page == 2'd0 && level_index != 0 && ((example_row == 0 && example_col != 1) || (example_row == 1 && example_col == 2) || (example_row == 2 && example_col == 1))) ||
                              (diary_page == 2'd1 && level_index == 0 && (example_row == 0 && example_col == 1)) ||
-                             (diary_page == 2'd1 && level_index != 0 && ((example_row == 0 && example_col == 2) || (example_row == 2 && example_col == 1))) ||
-                             (diary_page == 2'd2 && level_index == 0 && ((example_row == 1 && example_col == 0) || (example_row == 2 && example_col != 1))) ||
-                             (diary_page == 2'd2 && level_index != 0 && (example_row == 0 && example_col == 1))) begin
+                             (diary_page == 2'd1 && level_index != 0 && ((example_row == 0 && example_col == 0) || (example_row == 2 && example_col == 1))) ||
+                             (diary_page == 2'd2 && level_index == 0 && ((example_row == 1 && example_col == 2) || (example_row == 2 && example_col != 1))) ||
+                             (diary_page == 2'd2 && level_index != 0 && ((example_row == 1 && example_col == 2) || (example_row == 2 && example_col == 1)))) begin
                     pixel_data = 16'hffe0; // Active part gold border
                 end
             end

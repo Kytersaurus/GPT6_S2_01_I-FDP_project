@@ -1214,11 +1214,11 @@ module My_Top_Module #(
     // Dual-OLED Diary Walkthrough: pose the recommended demo vehicle on the live terrain,
     // always at the level's spawn point so the cart stays put as the pages turn.
     wire [26:0] diary_grid = (draw_map_id == 1'b0) ?
-        {`LP_PART_WHEEL, `LP_PART_EMPTY, `LP_PART_WHEEL, `LP_PART_EMPTY, `LP_PART_PIG, `LP_PART_ENGINE, `LP_PART_EMPTY, `LP_PART_BOOSTER, `LP_PART_EMPTY} :
-        {`LP_PART_WHEEL, `LP_PART_FAN,   `LP_PART_WHEEL, `LP_PART_EMPTY, `LP_PART_PIG, `LP_PART_ENGINE, `LP_PART_FAN,   `LP_PART_BOOSTER, `LP_PART_BALLOON};
-    wire [8:0] diary_frames = 9'b000_111_000;
-    wire [8:0] diary_intact = (draw_map_id == 1'b0) ? 9'b101_011_010 : 9'b111_011_111;
-    wire [8:0] diary_active_fans = (draw_map_id == 1'b1) ? 9'b010_000_100 : 9'd0;
+        {`LP_PART_WHEEL, `LP_PART_EMPTY, `LP_PART_WHEEL, `LP_PART_ENGINE, `LP_PART_PIG, `LP_PART_EMPTY, `LP_PART_EMPTY,   `LP_PART_BOOSTER, `LP_PART_EMPTY} :
+        {`LP_PART_WHEEL, `LP_PART_FAN,   `LP_PART_WHEEL, `LP_PART_ENGINE, `LP_PART_PIG, `LP_PART_EMPTY, `LP_PART_BALLOON, `LP_PART_EMPTY,   `LP_PART_FAN};
+    wire [8:0] diary_frames = (draw_map_id == 1'b0) ? 9'b000_111_000 : 9'b000_111_010;
+    wire [8:0] diary_intact = (draw_map_id == 1'b0) ? 9'b101_110_010 : 9'b111_110_101;
+    wire [8:0] diary_active_fans = (draw_map_id == 1'b1) ? 9'b010_000_001 : 9'd0;
 
     right_renderer #(
         .USE_PIXEL_INDEX(0)
@@ -1228,7 +1228,7 @@ module My_Top_Module #(
         .pixel_index(13'd0), .in_x(map_x), .in_y(map_y),
         .game_state(in_diary_walkthrough ? `LP_RUN : ((draw_state==`LP_LEVEL_SELECT || draw_state==`LP_SETTINGS) ? `LP_BUILD : (draw_state==`LP_GUIDE ? draw_guide_return : draw_state))),
         .build_grid(in_diary_walkthrough ? diary_grid : draw_grid),
-        .build_facing_left(in_diary_walkthrough ? ((draw_map_id == 1'b1) ? 9'b000_000_100 : 9'd0) : draw_facing_left),
+        .build_facing_left(in_diary_walkthrough ? ((draw_map_id == 1'b1) ? 9'b000_000_001 : 9'd0) : draw_facing_left),
         .build_facing_down(in_diary_walkthrough ? ((draw_map_id == 1'b0) ? 9'b000_000_010 : 9'b010_000_000) : draw_facing_down),
         .engine_enabled(in_diary_walkthrough ? 1'b1 : draw_engine),
         .boost_active(in_diary_walkthrough ? 1'b0 : draw_boost_active),
