@@ -97,6 +97,16 @@ module tutorial_flow_tb;
         end
     endtask
 
+    // The tutorial balloon sits in cell 0 and must survive being clicked.
+    task expect_balloon_cannot_pop;
+        begin
+            click(30, 8);
+            clocks(200);
+            if (dut.pop_pending !== 1'b0 || dut.intact_mask[0] !== 1'b1)
+                $fatal(1, "Clicking popped the tutorial balloon in lesson %0d", dut.tutorial_lesson);
+        end
+    endtask
+
     initial begin
         clocks(20); btnD = 1'b0; clocks(300);
         click(48, 40); // Play
@@ -133,9 +143,11 @@ module tutorial_flow_tb;
         if (!dut.zoomed_out) $fatal(1, "Scrolling out did not zoom out");
         expect_glow(4'd3);
         frame("tutorial_engine");
+        expect_balloon_cannot_pop;
 
         click(30, 24); // Engine on: the first attempt deliberately meets the TNT.
         wait_for_lesson(`LP_LESSON_STAR);
+        expect_balloon_cannot_pop; // Also while the cart is driving.
         wait_for_lesson(`LP_LESSON_TNT);
         wait_for_lesson(`LP_LESSON_TNT_FALL);
         wait_for_lesson(`LP_LESSON_RETRY);

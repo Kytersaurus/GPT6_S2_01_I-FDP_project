@@ -235,6 +235,8 @@ module My_Top_Module #(
     wire accepted_engine_click = mouse_engine_toggle_req && tutorial_engine_allowed;
     wire accepted_fan_click = mouse_fan_toggle_req && tutorial_fan_allowed;
     wire accepted_rocket_click = mouse_boost_req && tutorial_rocket_allowed;
+    // No lesson teaches popping, and the guided route's lift depends on the balloon.
+    wire accepted_pop_click = pop_req && !tutorial_level;
     // The TNT mask can fall on the same clock as the first out-of-bounds
     // result, before the grace counter is loaded.  Cover that one edge clock
     // (TNT just spent, previous sample still intact) and then the 90-frame
@@ -678,7 +680,7 @@ module My_Top_Module #(
         .zoomed_out(zoomed_out), .overview(overview)
     );
     balloon_control u_balloons (
-        .clk(clk), .reset(reset), .game_state(game_state), .pop_req(pop_req), .pop_cell(pop_cell),
+        .clk(clk), .reset(reset), .game_state(game_state), .pop_req(accepted_pop_click), .pop_cell(pop_cell),
         .build_grid(build_grid), .intact_mask(intact_mask), .gameplay_ready(gameplay_ready),
         .pop_pending(pop_pending), .pop_valid(pop_valid), .pop_mask(pop_mask)
     );
