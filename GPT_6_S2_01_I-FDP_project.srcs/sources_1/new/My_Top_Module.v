@@ -1181,10 +1181,10 @@ module My_Top_Module #(
     // Dual-OLED Diary Walkthrough: pan the Right OLED camera to the selected checkpoint
     // and pose the recommended demo vehicle on the live terrain with active step parts.
     wire signed [19:0] diary_pose_x = (draw_diary_page == 2'd0) ? draw_spawn_x :
-        (draw_map_id == 1'b0) ? ((draw_diary_page == 2'd1) ? {12'd448, 8'd0} : {12'd564, 8'd0}) :
+        (draw_map_id == 1'b0) ? ((draw_diary_page == 2'd1) ? {12'd190, 8'd0} : {12'd564, 8'd0}) :
                                 ((draw_diary_page == 2'd1) ? {12'd512, 8'd0} : {12'd732, 8'd0});
     wire signed [19:0] diary_pose_y = (draw_diary_page == 2'd0) ? draw_spawn_y :
-        (draw_map_id == 1'b0) ? ((draw_diary_page == 2'd1) ? {12'd222, 8'd0} : {12'd462, 8'd0}) :
+        (draw_map_id == 1'b0) ? ((draw_diary_page == 2'd1) ? {12'd374, 8'd0} : {12'd462, 8'd0}) :
                                 ((draw_diary_page == 2'd1) ? {12'd87,  8'd0} : {12'd40,  8'd0});
     wire [26:0] diary_grid = (draw_map_id == 1'b0) ?
         {`LP_PART_WHEEL, `LP_PART_EMPTY, `LP_PART_WHEEL, `LP_PART_ENGINE, `LP_PART_PIG, `LP_PART_EMPTY, `LP_PART_EMPTY,   `LP_PART_BOOSTER, `LP_PART_EMPTY} :
