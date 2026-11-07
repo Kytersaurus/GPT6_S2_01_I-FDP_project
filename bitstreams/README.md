@@ -18,12 +18,12 @@ This directory organizes all verified programming bitstreams (`.bit`) generated 
 | Property | Value |
 | :--- | :--- |
 | **Quick-Flash File** | **[`bad_piggies_top_latest.bit`](bad_piggies_top_latest.bit)** |
-| **Archived Path** | **[`2026-11-07/114512_My_Top_Module.bit`](2026-11-07/114512_My_Top_Module.bit)** |
+| **Archived Path** | **[`2026-11-07/122954_My_Top_Module.bit`](2026-11-07/122954_My_Top_Module.bit)** |
 | **Pointer Metadata** | [`LATEST.txt`](LATEST.txt) |
-| **Source Commit** | `71ca636` (`role1`) |
-| **Build Timestamp** | `2026-11-07 11:45:12 +08:00` |
-| **Resource Utilization** | **19,561 / 20,800 Slice LUTs (94.04%)**, **48 / 50 Block RAM (`96.00%`)**, **WNS `+0.004 ns`**, **WHS `+0.029 ns`**, 0 failing endpoints |
-| **Key Highlights** | Updated Map 2 Diary (1 Balloon + Left/Down Fans, no balloon pop), directional fan wind particles, build-mode scroll zoom, tutorial end Play button glow, Settings map highlight fix on tutorial, and redundant RTL cleanup (`-186 LUTs`). |
+| **Source Commit** | `cb69f36` (`main`) |
+| **Build Timestamp** | `2026-11-07 12:29:54 +08:00` |
+| **Resource Utilization** | **19,556 / 20,800 Slice LUTs (94.02%)**, **48 / 50 Block RAM (`96.00%`)**, **WNS `+0.054 ns`**, **WHS `+0.024 ns`**, 0 failing endpoints |
+| **Key Highlights** | Updated Map 1 & Map 2 Diary contraptions and step cards (`[Empty, Up-Rocket, Empty] / [Frame, Pig, Engine]` on Map 1; `[Left-Fan, Frame, Balloon] / [Frame, Pig, Engine] / [Wheel, Down-Fan, Wheel]` on Map 2), directional fan wind particles, build-mode scroll zoom, tutorial end Play button glow, Settings map highlight fix on tutorial, and redundant RTL cleanup (`-191 LUTs`). |
 
 ---
 
@@ -51,7 +51,8 @@ This directory organizes all verified programming bitstreams (`.bit`) generated 
 
 | Date | Time (SGT) | Bitstream File | Commit | Summary |
 | :--- | :--- | :--- | :--- | :--- |
-| **2026-11-07** | `11:45:12` | [`2026-11-07/114512_My_Top_Module.bit`](2026-11-07/114512_My_Top_Module.bit) | `71ca636` | **LATEST:** Map 2 Diary update (1 Balloon + Left/Down Fans), directional fan wind particles, build scroll zoom, tutorial end Play glow, Settings map indicator fix, and dead RTL cleanup (`19,561 LUTs` / `94.04%`, `WNS +0.004 ns`). |
+| **2026-11-07** | `12:29:54` | [`2026-11-07/122954_My_Top_Module.bit`](2026-11-07/122954_My_Top_Module.bit) | `cb69f36` | **LATEST:** Map 1 & Map 2 Diary contraption and step updates matching hardware builds, directional fan wind particles, build scroll zoom, tutorial end Play glow, Settings map indicator fix, and dead RTL cleanup (`19,556 LUTs` / `94.02%`, `WNS +0.054 ns`). |
+| **2026-11-07** | `11:45:12` | [`2026-11-07/114512_My_Top_Module.bit`](2026-11-07/114512_My_Top_Module.bit) | `71ca636` | Intermediate Map 2 Diary update (`19,561 LUTs` / `94.04%`, `WNS +0.004 ns`). |
 | **2026-11-07** | `00:54:14` | [`2026-11-07/005414_My_Top_Module.bit`](2026-11-07/005414_My_Top_Module.bit) | `de67a39` | Tutorial rework with zoom exercise, glowing controls, retry icon prompt; Cave Arch & Cave Flight tweaks; individual rockets (`19,747 LUTs` / `94.94%`, `WNS +0.040 ns`). |
 | **2026-11-06** | `17:26:39` | [`2026-11-06/172639_My_Top_Module.bit`](2026-11-06/172639_My_Top_Module.bit) | `38d8512` | Guided Tutorial prompts & blinking target cells, remapped `SW15`–`SW13` / `SW1`–`SW0` switches, mouse-only engine, tiered fall damage, on-board TNT crate, Q12.1 half-pixel rendering & stationary slope anti-reversal lock. |
 | **2026-11-06** | `07:14:29` | [`2026-11-06/071429_My_Top_Module.bit`](2026-11-06/071429_My_Top_Module.bit) | `08df53a` | Interactive Tutorial level integration, per-level par countdown timer (`25 s` / `45 s`), and updated Diary walkthrough. |
