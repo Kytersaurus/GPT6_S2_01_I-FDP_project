@@ -12,7 +12,7 @@ module tnt_integration_tb;
     reg [8:0] saved_frames;
     reg [8:0] impact_intact, impact_frames;
     My_Top_Module #(.ENABLE_BGM(0),.BUTTON_DEBOUNCE_CYCLES(2),.BUTTON_RELEASE_CYCLES(2),.WHEEL_LIMIT(2),
-        .AUDIO_BEEP_CYCLES(1024),.AUDIO_NOTE_CYCLES(1024),.AUDIO_FADE_CYCLES(8)) dut (
+        .AUDIO_NOTE_CYCLES(1024),.AUDIO_FADE_CYCLES(8)) dut (
         .clk(clk),.btnD(btnD),.btnC(btnC),.btnU(1'b0),.btnL(1'b0),.btnR(1'b0),.sw(16'd2),
         .PS2Clk(PS2Clk),.PS2Data(PS2Data),.led(led),.JA(JA),.JB(JB),.JXADC()
     );

@@ -48,7 +48,7 @@ module cave_coordinates_tb;
         .step_start(step_start), .update_release(world_valid && world_ready),
         .wheel_count(4'd0), .engine_count(4'd0), .balloon_count(4'd0),
         .mass_units(8'd2), .engine_enabled(1'b0), .engine_reverse(1'b0),
-        .jump_press(1'b0), .boost_req(1'b0),
+        .boost_req(1'b0),
         .move_valid(move_valid), .move_ready(move_ready),
         .previous_x(px), .previous_y(py), .proposed_x(nx), .proposed_y(ny),
         .proposed_vx(nvx), .proposed_vy(nvy), .response_valid(response_valid),

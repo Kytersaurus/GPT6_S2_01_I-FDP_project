@@ -17,7 +17,7 @@ module air_propulsion_tb;
     physics_engine dut(.clk(clk),.reset(reset),.run_init(init),.game_state(state),
         .spawn_x(20'sd8192),.spawn_y(20'sd8192),.step_start(step),.update_release(release_step),
         .wheel_count(4'd0),.engine_count(4'd1),.balloon_count(4'd0),.mass_units(mass),
-        .engine_enabled(engine),.engine_reverse(1'b0),.jump_press(1'b0),.boost_req(1'b0),
+        .engine_enabled(engine),.engine_reverse(1'b0),.boost_req(1'b0),
         .rocket_vertical_balance(vertical_rockets),.fan_balance(fans),.rocket_balance(rockets),.rocket_count(rocket_count),
         .fan_enabled(fan_on),.rocket_req(fire),.rocket_ready(rocket_ready),.rocket_active(active),
         .move_valid(valid),.move_ready(accept_move),.proposed_x(nx),.proposed_y(ny),

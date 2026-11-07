@@ -25,7 +25,6 @@ module individual_rockets_tb;
 
     initial begin
         force dut.mouse_x = mx; force dut.mouse_y = my;
-        force dut.effective_mouse_x = mx; force dut.effective_mouse_y = my;
         force dut.mouse_left = ml; force dut.mouse_right = 1'b0; force dut.mouse_event = me;
         force dut.left_frame = 1'b1;
     end

@@ -8,14 +8,13 @@ module team_controls_tb;
     wire [7:0] JA,JB;
     wire [3:0] JXADC;
     tri1 PS2Clk,PS2Data;
-    integer jump_pulses=0,beep_pulses=0,waited;
+    integer beep_pulses=0,waited;
     always #5 clk=~clk;
     My_Top_Module #(.PHYSICS_CYCLES(64),.BUTTON_DEBOUNCE_CYCLES(2),.BUTTON_RELEASE_CYCLES(2),
-        .AUDIO_BEEP_CYCLES(1024),.AUDIO_NOTE_CYCLES(1024),.AUDIO_FADE_CYCLES(8)) dut (
+        .AUDIO_NOTE_CYCLES(1024),.AUDIO_FADE_CYCLES(8)) dut (
         .clk(clk),.btnC(btnC),.btnU(btnU),.btnR(btnR),.btnL(btnL),.btnD(btnD),.sw(sw),
         .PS2Clk(PS2Clk),.PS2Data(PS2Data),.led(led),.JA(JA),.JB(JB),.JXADC(JXADC));
     always @(posedge clk) if(!dut.reset) begin
-        if(dut.jump_press) jump_pulses=jump_pulses+1;
         if(dut.sound_start) beep_pulses=beep_pulses+1;
     end
     // Test-only gameplay fixture; the hardware builder starts empty.
@@ -41,9 +40,9 @@ module team_controls_tb;
         sw=16'h8000;clocks(8);
         if(dut.audio_muted || !dut.engine_reverse || dut.engine_enabled) $fatal(1,"SW15 does not independently reverse");
         btnR=1;clocks(16);btnR=0;clocks(16);
-        if(beep_pulses!=0 || jump_pulses!=0) $fatal(1,"BTNR in BUILD made a sound or jumped");
+        if(beep_pulses!=0) $fatal(1,"BTNR in BUILD made a sound");
         btnL=1;clocks(16);btnL=0;clocks(16);
-        if(beep_pulses!=0 || jump_pulses!=0) $fatal(1,"Reserved BTNL requested a jump or test audio");
+        if(beep_pulses!=0) $fatal(1,"Reserved BTNL triggered test audio");
         // Real reverse movement must use SW15, with audio unmuted.
         sw=16'h8000;clocks(8);btnC=1;clocks(16);btnC=0;
         wait(dut.game_state==`LP_RUN);clocks(1);dut.u_ui_control.engine_on=1;
@@ -53,10 +52,10 @@ module team_controls_tb;
         btnD=1;clocks(10);btnD=0;sw=0;clocks(30);build_test_vehicle();btnC=1;clocks(16);btnC=0;
         waited=0;while(!dut.u_physics.was_grounded && waited<500000) begin clocks(1);waited=waited+1;end
         if(!dut.u_physics.was_grounded) $fatal(1,"Vehicle never established ground contact");
-        jump_pulses=0;beep_pulses=0;btnL=1;
+        beep_pulses=0;btnL=1;
         clocks(20000);
-        if(jump_pulses!=0 || beep_pulses!=0 || dut.u_physics.jump_press!==1'b0)
-            $fatal(1,"Held BTNL activated a retired jump or test audio");
+        if(beep_pulses!=0)
+            $fatal(1,"Held BTNL activated retired test audio");
         if(dut.vehicle_y<dut.level_spawn_y) $fatal(1,"Retired jump button lifted the unpowered vehicle");
         btnL=0;
         $display("PASS team_controls_tb: DRIVE engine, SW0 mute/SW15 reverse, silent BTNR in BUILD and reserved BTNL, real reverse and retired jump suppression");

@@ -3,7 +3,7 @@
 `include "game_defs.vh"
 // Real Cave Arch ROM regression for the formerly trapped (576,230), -22.5-degree pose.
 module cg_cave_ledge_tb;
-    localparam ENABLE_MOMENTS=1, WHEEL_TORQUE_SHIFT=2;
+    localparam ENABLE_MOMENTS=1;
     reg clk=0, reset=1, run_init=0, step_start=0, update_release=0, engine_reverse=0;
     reg [2:0] game_state=`LP_BUILD;
     wire signed [13:0] pivot_dx_q8,pivot_dy_q8;
@@ -37,7 +37,7 @@ module cg_cave_ledge_tb;
     // The game feeds collision the solid mask as ROCK/SKY, as My_Top_Module does.
     assign query_class = query_solid ? `LP_MAP_ROCK : `LP_MAP_SKY;
     // The game's engine strength (My_Top_Module ENGINE_FORCE).
-    physics_engine #(.ENGINE_FORCE(320),.WHEEL_TORQUE_SHIFT(WHEEL_TORQUE_SHIFT),.ROCKET_FORCE_SHIFT(10)) u_physics (
+    physics_engine #(.ENGINE_FORCE(320),.ROCKET_FORCE_SHIFT(10)) u_physics (
         .moments_enabled(ENABLE_MOMENTS != 0),
         .build_grid({`LP_PART_WHEEL,`LP_PART_EMPTY,`LP_PART_WHEEL,
                      `LP_PART_EMPTY,`LP_PART_PIG,`LP_PART_ENGINE,
@@ -48,7 +48,7 @@ module cg_cave_ledge_tb;
         .spawn_x(20'sd147456), .spawn_y(20'sd58880), .step_start(step_start), .update_release(update_release),
         .wheel_count(4'd4), .wheels_down(4'd2), .wheels_up(4'd2), .tip_dir(tip_dir), .support_unstable(unstable),
         .engine_count(4'd1), .balloon_count(4'd0), .mass_units(8'd15),
-        .engine_enabled(1'b0), .engine_reverse(engine_reverse), .jump_press(1'b0), .boost_req(1'b0),
+        .engine_enabled(1'b0), .engine_reverse(engine_reverse), .boost_req(1'b0),
         .boost_active(), .proposed_pivot_dx_q8(pivot_dx_q8),.proposed_pivot_dy_q8(pivot_dy_q8),.move_valid(move_valid), .move_ready(move_ready),
         .previous_x(previous_x), .previous_y(previous_y), .proposed_x(proposed_x), .proposed_y(proposed_y),
         .proposed_vx(proposed_vx), .proposed_vy(proposed_vy), .response_valid(response_valid),

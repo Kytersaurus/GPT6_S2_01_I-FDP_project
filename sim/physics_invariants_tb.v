@@ -35,7 +35,7 @@ module physics_invariants_tb;
         .spawn_x(20'sd8192),.spawn_y(20'sd8192),.init_ready(initialized),
         .step_start(step_start),.update_release(update_release),
         .wheel_count(wheels),.engine_count(4'd1),.balloon_count(4'd0),.mass_units(mass),
-        .engine_enabled(engine),.engine_reverse(reverse_drive),.jump_press(1'b0),.boost_req(1'b0),
+        .engine_enabled(engine),.engine_reverse(reverse_drive),.boost_req(1'b0),
         .moments_enabled(moments),.build_grid({12'd0,`LP_PART_PIG,12'd0}),
         .build_frames(9'b000010000),.frame_intact_mask(9'b000010000),.intact_mask(9'b000010000),
         .build_facing_left(9'd0),.rocket_vertical_mask(9'd0),.fan_enabled(1'b0),.fan_balance(5'sd0),

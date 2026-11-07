@@ -55,6 +55,7 @@ module gameplay_menu_tb;
         place(2,6);place(2,7);place(4,0);
         click(50,59);
         if(dut.inventory_page) $fatal(1,"Removed 1/2 page button still switched page");
+        packet(74,28,0,0);
         mz=4'b0001;me=1;clocks(1);me=0;mz=0;clocks(3);
         if(!dut.inventory_page) $fatal(1,"Mouse scroll did not open extra inventory page");
         click(74,8);click(44,28);click(44,28);
@@ -69,22 +70,22 @@ module gameplay_menu_tb;
         if(dut.build_grid!==saved_grid) $fatal(1,"Unsupported fan move accepted");
         saved_frames=dut.build_frames;saved_direction=dut.build_facing_left;
         click(8,59);clocks(30);
-        if(dut.game_state!=`LP_RUN || dut.run_page!=0 || !dut.engine_reverse || dut.drive_engines!=1 || dut.engine_enabled)
+        if(dut.game_state!=`LP_RUN || !dut.engine_reverse || dut.drive_engines!=1 || dut.engine_enabled)
             $fatal(1,"DRIVE default or left-engine physics contract incorrect");
         sw=16'h8000;clocks(5);if(dut.engine_reverse) $fatal(1,"SW15 failed to reverse saved engine direction");sw=0;clocks(5);
         click(48,10);if(!dut.engine_enabled) $fatal(1,"Engine OFF menu missing");
         packet(48,10,1,0);packet(48,10,1,0);packet(48,10,0,0);
         if(dut.engine_enabled) $fatal(1,"Held engine menu repeated");
         if(dut.balloon_count!=1) $fatal(1,"DRIVE clicks reached balloon controls");
-        click(48,59);if(dut.run_page!=0) $fatal(1,"Navigation gap entered hidden page");
+        click(48,59);if(dut.game_state!=`LP_RUN) $fatal(1,"Navigation gap left RUN");
         click(32,10);clocks(3);
         if(dut.balloon_count!=0 || dut.balloons_left!=1) $fatal(1,"Balloon sprite did not pop");
         click(84,59);click(20,35);click(20,35);
         if(dut.game_state!=`LP_GUIDE || dut.master_volume!=1) $fatal(1,"RUN sound settings missing");
         click(12,59);click(40,59);
-        if(dut.game_state!=`LP_RUN || dut.run_page!=0) $fatal(1,"Settings Back lost RUN");
+        if(dut.game_state!=`LP_RUN) $fatal(1,"Settings Back lost RUN");
         click(12,58);clocks(40);
-        if(dut.game_state!=`LP_RUN || dut.run_page!=0 || dut.balloon_count!=1 || dut.master_volume!=1 ||
+        if(dut.game_state!=`LP_RUN || dut.balloon_count!=1 || dut.master_volume!=1 ||
            dut.build_facing_left!==saved_direction || dut.build_frames!==saved_frames)
             $fatal(1,"Round-arrow retry lost build, controls or volume");
         click(60,58);clocks(3);
@@ -92,7 +93,7 @@ module gameplay_menu_tb;
             $fatal(1,"RUN edit changed level or failed to restore construction");
         btnC=1;clocks(14);btnC=0;clocks(30);
         btnC=1;clocks(14);btnC=0;clocks(30);
-        if(dut.game_state!=`LP_RUN || dut.run_page!=0) $fatal(1,"Physical retry shortcut removed");
+        if(dut.game_state!=`LP_RUN) $fatal(1,"Physical retry shortcut removed");
         btnU=1;clocks(14);btnU=0;clocks(5);
         if(dut.game_state!=`LP_BUILD) $fatal(1,"Physical edit shortcut removed");
         $display("PASS gameplay_menu_tb: contents-first moves, engine/rocket facing, side attachments/stock, SW15, DRIVE/POP/SOUND, retry/edit and physical shortcuts");

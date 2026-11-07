@@ -5,8 +5,8 @@ module input_controller #(
     parameter integer DEBOUNCE_CYCLES = 20000000,
     parameter integer RELEASE_CYCLES = 2000000
 ) (
-    input wire clk, reset, btnC, btnU, btnL, mute_switch, reverse_switch,
-    output wire start_press, edit_press, audio_muted, engine_reverse, jump_press
+    input wire clk, reset, btnC, btnU, mute_switch, reverse_switch,
+    output wire start_press, edit_press, audio_muted, engine_reverse
 );
     // The wheel engine is switched on and off only by clicking its cell on
     // the run diagram, and rockets only by clicking their own cells, so neither
@@ -21,8 +21,6 @@ module input_controller #(
         .CLOCK(clk), .reset(reset), .btn(btnU),
         .freq_count(DEBOUNCE_CYCLES-1), .btn_pressed(edit_press)
     );
-    // BTNL is reserved. Keep this legacy output inert for older module callers.
-    assign jump_press = 1'b0;
     always @(posedge clk) begin
         if (reset) begin
             reverse_meta <= 0; reverse_sync <= 0;

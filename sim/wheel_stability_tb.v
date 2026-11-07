@@ -12,12 +12,12 @@ module wheel_stability_tb;
     generate for(n=0;n<2;n=n+1) begin: g
         wire signed [19:0] nx,ny;
         wire signed [15:0] vx,vy;
-        physics_engine #(.ENGINE_FORCE(320),.WHEEL_TORQUE_SHIFT(n==0 ? 0 : 2)) dut(
+        physics_engine #(.ENGINE_FORCE(320)) dut(
             .clk(clk),.reset(reset),.run_init(init),.game_state(state),
             .spawn_x(20'sd8192),.spawn_y(20'sd8192),.step_start(step),.update_release(release_step),
             .wheel_count(4'd1),.wheels_down(4'd1),.wheels_up(4'd0),.engine_count(4'd1),
             .balloon_count(4'd0),.mass_units(8'd10),.engine_enabled(1'b1),.engine_reverse(1'b0),
-            .jump_press(1'b0),.boost_req(1'b0),.fan_balance(5'sd0),.fan_enabled(1'b0),
+            .boost_req(1'b0),.fan_balance(5'sd0),.fan_enabled(1'b0),
             .rocket_balance(5'sd0),.rocket_count(4'd0),.rocket_req(1'b0),.moments_enabled(1'b1),
             .build_grid({`LP_PART_EMPTY,`LP_PART_WHEEL,`LP_PART_EMPTY,
                          `LP_PART_EMPTY,`LP_PART_PIG,`LP_PART_ENGINE,

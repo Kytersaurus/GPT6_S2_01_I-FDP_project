@@ -488,7 +488,7 @@ module ui_renderer (
                         end else if (y >= 6'd34 && y <= 6'd42) begin
                             line_left = 7'd47; line_top = 6'd35;
                             if (level_index == 0) begin line_text = "ENG ON          "; line_colour = 16'h07e0; end
-                            else                  begin line_text = "FAN ON          "; line_colour = 16'h07ff; end
+                            else                  begin line_text = "FANS ON         "; line_colour = 16'h07ff; end
                         end
                     end
                     2'd1: begin
@@ -497,7 +497,7 @@ module ui_renderer (
                         end else if (y >= 6'd34 && y <= 6'd42) begin
                             line_left = 7'd47; line_top = 6'd35;
                             if (level_index == 0) begin line_text = "ROCKET!         "; line_colour = 16'hfd20; end
-                            else                  begin line_text = "POP 1!          "; line_colour = 16'hf800; end
+                            else                  begin line_text = "FANS!           "; line_colour = 16'h07ff; end
                         end
                     end
                     2'd2: begin
@@ -882,11 +882,11 @@ module ui_renderer (
                     // Map Indicator Boxes (Map 1 vs Map 2) centered at y: 35..43
                     if (y >= 35 && y <= 43) begin
                         if (x >= 59 && x <= 67) begin
-                            if (x == 59 || x == 67 || y == 35 || y == 43) pixel_data = (level_index == 0) ? 16'hffe0 : 16'h2945;
-                            else pixel_data = (level_index == 0) ? 16'h07e0 : 16'h18e5;
+                            if (x == 59 || x == 67 || y == 35 || y == 43) pixel_data = (level_index == `LP_LEVEL_ARCH) ? 16'hffe0 : 16'h2945;
+                            else pixel_data = (level_index == `LP_LEVEL_ARCH) ? 16'h07e0 : 16'h18e5;
                         end else if (x >= 71 && x <= 79) begin
-                            if (x == 71 || x == 79 || y == 35 || y == 43) pixel_data = (level_index != 0) ? 16'hffe0 : 16'h2945;
-                            else pixel_data = (level_index != 0) ? 16'h07e0 : 16'h18e5;
+                            if (x == 71 || x == 79 || y == 35 || y == 43) pixel_data = (level_index == `LP_LEVEL_FLIGHT) ? 16'hffe0 : 16'h2945;
+                            else pixel_data = (level_index == `LP_LEVEL_FLIGHT) ? 16'h07e0 : 16'h18e5;
                         end
                     end
                 end
@@ -951,21 +951,21 @@ module ui_renderer (
                     else if (y < 36) begin example_row = 1; example_local_y = y - 24; end
                     else             begin example_row = 2; example_local_y = y - 36; end
                     example_draw = 1'b1;
-                    // Wood frames are placed across Row 1 (cells 3, 4, 5 in Map 1; cells 3, 4 in Map 2).
-                    // In Map 2, the Fan (row 1, col 2) mounts to the right side of the Pig's frame.
-                    // Rockets (row 0, col 1), Balloons (row 0, col 0/2), and Wheels (row 2, col 0/2)
-                    // mount above or below Row 1 frames, never inside a frame.
-                    example_has_frame = (example_row == 1) && (level_index == 0 || example_col != 2);
+                    // Wood frames sit across Row 1 (cells 3, 4, 5) on both maps.
+                    // Map 1: [Empty, Up-Rocket, Empty] / [Engine, Pig, Frame] / [Wheel, Empty, Wheel].
+                    // Map 2: [Balloon, Rocket, Left-Fan] / [Engine, Pig, Frame] / [Wheel, Down-Fan, Wheel].
+                    example_has_frame = (example_row == 1);
                     if (example_row == 0 && example_col == 1)
                         example_part = `LP_PART_BOOSTER;
-                    else if (example_row == 0 && level_index != 0 &&
-                             (example_col == 2 || (example_col == 0 && diary_page != 2'd2)))
+                    else if (example_row == 0 && example_col == 0 && level_index != 0)
                         example_part = `LP_PART_BALLOON;
+                    else if (example_row == 0 && example_col == 2 && level_index != 0)
+                        example_part = `LP_PART_FAN;
                     else if (example_row == 1 && example_col == 0)
                         example_part = `LP_PART_ENGINE;
                     else if (example_row == 1 && example_col == 1)
                         example_part = `LP_PART_PIG;
-                    else if (example_row == 1 && example_col == 2 && level_index != 0)
+                    else if (example_row == 2 && example_col == 1 && level_index != 0)
                         example_part = `LP_PART_FAN;
                     else if (example_row == 2 && (example_col == 0 || example_col == 2))
                         example_part = `LP_PART_WHEEL;
@@ -990,7 +990,7 @@ module ui_renderer (
                         example_part = (level_index == 0) ? `LP_PART_ENGINE : `LP_PART_FAN;
                     end else if (diary_page == 2'd1) begin
                         example_has_frame = 1'b0;
-                        example_part = (level_index == 0) ? `LP_PART_BOOSTER : `LP_PART_BALLOON;
+                        example_part = (level_index == 0) ? `LP_PART_BOOSTER : `LP_PART_FAN;
                     end else begin
                         example_has_frame = (level_index == 0);
                         example_part = (level_index == 0) ? `LP_PART_ENGINE : `LP_PART_BOOSTER;
@@ -1032,11 +1032,11 @@ module ui_renderer (
                             (y == 16 && x >= 63 && x <= 68) || (x == 63 && y >= 16 && y <= 21))
                             pixel_data = 16'h07ff;
                     end else begin
-                        // Map 2 Step 2: Red Drop Down Arrow v (x: 65..71, y: 16..25)
+                        // Map 2 Step 2: Cyan Lift Fan Control Arrow v (x: 65..71, y: 16..25)
                         if ((x == 68 && y >= 16 && y <= 25) ||
                             (y == 23 && x >= 66 && x <= 70) ||
                             (y == 22 && (x == 65 || x == 71)))
-                            pixel_data = 16'hf800;
+                            pixel_data = 16'h07ff;
                     end
                 end else begin
                     // Step 3: Checkered Finish Flag on Right (x: 78..88, y: 16..26) + Boost Arrow
@@ -1202,13 +1202,13 @@ module ui_renderer (
                 // Big Button 1: [ NEXT / EDIT ] (x: 56..92, y: 6..26, center 74, 16)
                 if (x >= 56 && x <= 92 && y >= 6 && y <= 26) begin
                     if (x == 56 || x == 92 || y == 6 || y == 26)
-                        pixel_data = (cursor_x >= 56 && cursor_x <= 92 && cursor_y >= 6 && cursor_y <= 26) ? 16'hffe0 : ((game_state == `LP_SUCCESS) ? 16'h07e0 : 16'h04b4);
-                    else if (cursor_x >= 56 && cursor_x <= 92 && cursor_y >= 6 && cursor_y <= 26)
+                        pixel_data = ((cursor_x >= 56 && cursor_x <= 92 && cursor_y >= 6 && cursor_y <= 26) || retry_glow) ? 16'hffe0 : ((game_state == `LP_SUCCESS) ? 16'h07e0 : 16'h04b4);
+                    else if ((cursor_x >= 56 && cursor_x <= 92 && cursor_y >= 6 && cursor_y <= 26) || retry_glow)
                         pixel_data = 16'h0351;
                     else
                         pixel_data = 16'h18e5;
                     if (game_state == `LP_SUCCESS) begin
-                        if (is_play_icon(7'd74, 6'd16, x, y)) pixel_data = 16'h07e0; // Bright green play triangle
+                        if (is_play_icon(7'd74, 6'd16, x, y)) pixel_data = retry_glow ? 16'hffe0 : 16'h07e0; // Bright green / blinking gold play triangle
                     end else begin
                         if (wrench_icon[16]) pixel_data = wrench_icon[15:0];
                     end
@@ -1272,8 +1272,12 @@ module ui_renderer (
                 pixel_data = part_sprite12(`LP_PART_FRAME, example_local_x, example_local_y, 1'b0, pixel_data);
             if (example_part != `LP_PART_EMPTY)
                 pixel_data = part_sprite12(example_part,
-                    (example_part == `LP_PART_BOOSTER && level_index == 0) ? ((example_local_x >= 4'd9) ? 4'd15 : (4'd11 - example_local_y)) : example_local_x,
-                    (example_part == `LP_PART_BOOSTER && level_index == 0) ? example_local_x : example_local_y,
+                    (example_part == `LP_PART_BOOSTER && level_index == 0) ? ((example_local_x >= 4'd9) ? 4'd15 : (4'd11 - example_local_y)) :
+                    (example_part == `LP_PART_FAN && (example_row == 2'd2 || (example_row == 2'd3 && diary_page == 2'd1))) ? example_local_y :
+                    (example_part == `LP_PART_FAN) ? (4'd11 - example_local_x) : example_local_x,
+                    (example_part == `LP_PART_BOOSTER && level_index == 0) ? example_local_x :
+                    (example_part == `LP_PART_FAN && (example_row == 2'd2 || (example_row == 2'd3 && diary_page == 2'd1))) ? (4'd11 - example_local_x) :
+                    example_local_y,
                     1'b0, pixel_data);
             // Drawn AFTER part_sprite12 so gold/red/green active border highlights wood-framed parts too!
             if (example_local_x == 0 || example_local_y == 0 ||
@@ -1281,26 +1285,15 @@ module ui_renderer (
                 if (game_state == `LP_SETTINGS) begin
                     pixel_data = (example_col == 2'd1) ? 16'hf800 : 16'h07e0;
                 end else if (example_row == 2'd3) begin
-                    pixel_data = (diary_page == 2'd1 && level_index != 0) ? 16'hf800 : 16'hffe0;
+                    pixel_data = 16'hffe0;
                 end else if ((diary_page == 2'd0 && level_index == 0 && ((example_row == 1 && example_col == 0) || (example_row == 2 && example_col != 1))) ||
-                             (diary_page == 2'd0 && level_index != 0 && ((example_row == 0 && example_col != 1) || (example_row == 1 && example_col == 2))) ||
+                             (diary_page == 2'd0 && level_index != 0 && ((example_row == 0 && example_col != 1) || (example_row == 2 && example_col == 1))) ||
                              (diary_page == 2'd1 && level_index == 0 && (example_row == 0 && example_col == 1)) ||
+                             (diary_page == 2'd1 && level_index != 0 && ((example_row == 0 && example_col == 2) || (example_row == 2 && example_col == 1))) ||
                              (diary_page == 2'd2 && level_index == 0 && ((example_row == 1 && example_col == 0) || (example_row == 2 && example_col != 1))) ||
                              (diary_page == 2'd2 && level_index != 0 && (example_row == 0 && example_col == 1))) begin
                     pixel_data = 16'hffe0; // Active part gold border
-                end else if (diary_page == 2'd1 && level_index != 0 && example_row == 0 && example_col == 0) begin
-                    pixel_data = 16'hf800; // Red border around popped top-left balloon in Step 2
                 end
-            end
-            // Red pop 'X' over top-left Balloon (col 0, row 0) and Action Card Balloon on Map 2 Step 2,
-            // and dim red destroyed 'X' over the popped top-left cell in Map 2 Step 3 (matching RUN mode!).
-            if (game_state == `LP_GUIDE && level_index != 0 &&
-                example_local_x >= 2 && example_local_x <= 9 &&
-                (example_local_x == example_local_y || example_local_x + example_local_y == 11)) begin
-                if (diary_page == 2'd1 && ((example_row == 0 && example_col == 0) || example_row == 2'd3))
-                    pixel_data = 16'hf800;
-                else if (diary_page == 2'd2 && example_row == 0 && example_col == 0)
-                    pixel_data = 16'h8000;
             end
         end
 

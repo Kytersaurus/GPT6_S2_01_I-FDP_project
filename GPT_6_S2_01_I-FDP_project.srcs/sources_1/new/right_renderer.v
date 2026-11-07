@@ -748,7 +748,9 @@ module right_renderer #(
                         pixel_data = (anim_phase ^ cell_x[0] ^ cell_y[0]) ? 16'hffe0 : 16'hfd20;
                 end else if (part == `LP_PART_FAN && active_fans[cell_index]) begin
                     if (((cell_x + cell_y + {3'd0, anim_phase}) & 4'd3) == 4'd0 &&
-                        (cell_x < 4'd2 || cell_x >= (small_tiles ? 4'd6 : 4'd10) || cell_y >= (small_tiles ? 4'd6 : 4'd10)))
+                        (build_facing_down[cell_index] ? (cell_y >= (small_tiles ? 4'd6 : 4'd10)) :
+                         build_facing_left[cell_index] ? (cell_x < 4'd2) :
+                                                         (cell_x >= (small_tiles ? 4'd6 : 4'd10))))
                         pixel_data = 16'h9fff;
                 end
             end

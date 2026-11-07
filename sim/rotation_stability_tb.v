@@ -15,7 +15,7 @@ module rotation_stability_tb #(parameter ENABLE_MOMENTS=1);
     physics_engine dut(.clk(clk),.reset(reset),.run_init(init),.game_state(state),
         .spawn_x(20'sd8192),.spawn_y(20'sd8192),.step_start(step),.update_release(release_step),
         .wheel_count(4'd0),.engine_count(4'd0),.balloon_count(4'd0),.mass_units(8'd4),
-        .engine_enabled(1'b0),.engine_reverse(1'b0),.jump_press(1'b0),.boost_req(1'b0),
+        .engine_enabled(1'b0),.engine_reverse(1'b0),.boost_req(1'b0),
         .moments_enabled(ENABLE_MOMENTS!=0),.build_grid({12'd0,`LP_PART_PIG,12'd0}),
         .build_frames(9'b000010000),.intact_mask(9'b000010000),.frame_intact_mask(9'b000010000),
         .build_facing_left(9'd0),.rocket_vertical_mask(9'd0),.fan_balance(5'sd0),.fan_enabled(1'b0),

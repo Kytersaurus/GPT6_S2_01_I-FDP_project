@@ -45,12 +45,12 @@ flowchart TD
 
 The engine breaks down forces into horizontal and vertical components, ensuring they are summed sequentially to save logic.
 
-1. **Vertical Base:** Gravity adds downward acceleration `32`; each intact balloon subtracts acceleration `24`. The former spring/jump impulse is removed. BTNL is reserved, and legacy `jump_press` ports are inert.
+1. **Vertical Base:** Gravity adds downward acceleration `32`; each intact balloon subtracts acceleration `24`.
 2. **Propulsion:** 
    - **Engines** apply force (`ENGINE_FORCE = 320`) to wheels touching the ground (`+X` forward, or `-X` reverse when `SW15` is ON). The engine starts OFF on every run and is toggled by clicking its cell on the 3×3 run diagram.
    - **Horizontal fans** supply world-horizontal force of `64` per enabled intact fan (`fan_manual_mask[cell]`), pushing left (`-X`) when facing right and right (`+X`) when facing left.
    - **Downward-blowing lift fans** supply world-up force `256` each (`FAN_LIFT_FORCE_SHIFT = 8`). `live_lift_fan_count` supplies the active intact count from `fan_manual_mask`, and the 9-bit `fan_lift_mask` identifies their cells for moments while excluding them from horizontal `fan_balance`.
-   - **Rockets** rotate their body-fixed thrust using `rotation_sin` and `rotation_cos` (`ROCKET_FORCE_SHIFT = 10`, force `1024`). Rockets fire once per run when clicked on the 3×3 run diagram or via `BTNR`, accumulating X/Y force components sequentially alongside visual exhaust flames.
+   - **Rockets** rotate their body-fixed thrust using `rotation_sin` and `rotation_cos` (`ROCKET_FORCE_SHIFT = 10`, force `1024`). Each rocket fires individually once per run when its cell is clicked on the 3×3 run diagram, accumulating X/Y force components sequentially alongside visual exhaust flames.
 3. **Slope Gravity:** Grounded ramp acceleration uses the measured slope and remaining downward acceleration. Fan lift is divided by mass and reduces both slope gravity and the support reaction; net upward lift releases ground support.
 4. **Mass Division:** Acceleration is $a = F / m$. Because division (`/`) consumes massive FPGA resources, the engine routes total force and total mass through a custom restoring divider (`signed_divider16.v`), which takes 16 clock cycles to produce the acceleration.
 5. **Momentum & Friction:** The vehicle's momentum is checked against rolling drag (`wheel_drag`) or scraping drag (`scrape_drag`). Friction can stop the vehicle but will never push it backward.

@@ -49,7 +49,7 @@ module game_baseline_tb;
         if (dut.reset) active_update=0;
         else begin
             if (dut.move_valid && $isunknown({dut.proposed_x,dut.proposed_y,dut.proposed_vx,dut.proposed_vy}))
-                $fatal(1,"Unknown movement: reverse=%b jump=%b mass=%d force=%d vx=%d rem=%d",dut.engine_reverse,dut.jump_press,dut.mass_units,dut.u_physics.step_thrust,dut.u_physics.step_vx,dut.u_physics.remainder_x);
+                $fatal(1,"Unknown movement: reverse=%b mass=%d force=%d vx=%d rem=%d",dut.engine_reverse,dut.mass_units,dut.u_physics.step_thrust,dut.u_physics.step_vx,dut.u_physics.remainder_x);
             if (dut.launch_event) launches=launches+1;
             if (dut.step_start) begin
                 if (active_update) $fatal(1,"Overlapping physics updates");
